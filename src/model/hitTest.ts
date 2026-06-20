@@ -1,5 +1,34 @@
+import { flattenBezier } from "./bezier";
 import { shapeBounds } from "./bounds";
 import type { Shape, Vec2 } from "./types";
+
+/** Even-odd point-in-polygon test. */
+function pointInPolygon(p: Vec2, poly: Vec2[]): boolean {
+  let inside = false;
+  for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+    const a = poly[i];
+    const b = poly[j];
+    if (
+      a.y > p.y !== b.y > p.y &&
+      p.x < ((b.x - a.x) * (p.y - a.y)) / (b.y - a.y) + a.x
+    ) {
+      inside = !inside;
+    }
+  }
+  return inside;
+}
+
+/** Distance from p to the nearest segment of a polyline (optionally closed). */
+function distToPolyline(p: Vec2, pts: Vec2[], closed: boolean): number {
+  let best = Infinity;
+  for (let i = 0; i + 1 < pts.length; i++) {
+    best = Math.min(best, distToSegment(p, pts[i], pts[i + 1]));
+  }
+  if (closed && pts.length > 2) {
+    best = Math.min(best, distToSegment(p, pts[pts.length - 1], pts[0]));
+  }
+  return best;
+}
 
 /** Distance from point p to the segment a-b. */
 export function distToSegment(p: Vec2, a: Vec2, b: Vec2): number {
@@ -73,15 +102,14 @@ export function hitTestShape(shape: Shape, p: Vec2, tol: number): boolean {
       );
     }
     case "path": {
-      const pts = shape.points;
-      for (let i = 0; i + 1 < pts.length; i++) {
-        if (distToSegment(p, pts[i], pts[i + 1]) <= pickTol) return true;
-      }
-      if (shape.closed && pts.length > 2) {
-        if (distToSegment(p, pts[pts.length - 1], pts[0]) <= pickTol)
-          return true;
-      }
-      return false;
+      if (hasFill && shape.closed && pointInPolygon(p, shape.points))
+        return true;
+      return distToPolyline(p, shape.points, shape.closed) <= pickTol;
+    }
+    case "bezier": {
+      const flat = flattenBezier(shape);
+      if (hasFill && shape.closed && pointInPolygon(p, flat)) return true;
+      return distToPolyline(p, flat, shape.closed) <= pickTol;
     }
   }
 }

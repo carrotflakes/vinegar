@@ -1,6 +1,7 @@
-import type { Bounds } from "../model/types";
+import type { Bounds, BezierShape, Vec2 } from "../model/types";
 import { worldToScreen, type Viewport } from "../model/viewport";
 import { HANDLE_IDS, HANDLE_SIZE, handlePoint } from "./handles";
+import { ANCHOR_SIZE, HANDLE_DOT } from "./nodes";
 
 const ACCENT = "#3b82f6";
 
@@ -71,4 +72,113 @@ export function drawOverlay(
       marquee.height
     );
   }
+}
+
+function square(ctx: CanvasRenderingContext2D, c: Vec2, size: number): void {
+  const h = size / 2;
+  ctx.beginPath();
+  ctx.rect(Math.round(c.x - h), Math.round(c.y - h), size, size);
+}
+
+function dot(ctx: CanvasRenderingContext2D, c: Vec2, r: number): void {
+  ctx.beginPath();
+  ctx.arc(c.x, c.y, r, 0, Math.PI * 2);
+}
+
+/** Draw the anchors and control handles of a Bézier shape (node editing). */
+export function drawNodes(
+  ctx: CanvasRenderingContext2D,
+  dpr: number,
+  viewport: Viewport,
+  shape: BezierShape,
+  activeIndex: number | null
+): void {
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  const toS = (w: Vec2) => worldToScreen(viewport, w);
+
+  // Handle lines + dots.
+  ctx.strokeStyle = "#9bbcf6";
+  ctx.fillStyle = "#ffffff";
+  ctx.lineWidth = 1;
+  for (const a of shape.anchors) {
+    const sp = toS(a.p);
+    for (const h of [a.hIn, a.hOut]) {
+      if (!h) continue;
+      const sh = toS(h);
+      ctx.beginPath();
+      ctx.moveTo(sp.x, sp.y);
+      ctx.lineTo(sh.x, sh.y);
+      ctx.stroke();
+      dot(ctx, sh, HANDLE_DOT / 2);
+      ctx.fill();
+      ctx.strokeStyle = ACCENT;
+      ctx.stroke();
+      ctx.strokeStyle = "#9bbcf6";
+    }
+  }
+
+  // Anchor squares.
+  ctx.lineWidth = 1.5;
+  shape.anchors.forEach((a, i) => {
+    const sp = toS(a.p);
+    square(ctx, sp, ANCHOR_SIZE);
+    ctx.fillStyle = i === activeIndex ? ACCENT : "#ffffff";
+    ctx.fill();
+    ctx.strokeStyle = ACCENT;
+    ctx.stroke();
+  });
+}
+
+/** Draw the in-progress pen path: placed anchors plus a rubber-band segment. */
+export function drawPenDraft(
+  ctx: CanvasRenderingContext2D,
+  dpr: number,
+  viewport: Viewport,
+  shape: BezierShape,
+  hover: Vec2 | null
+): void {
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  const toS = (w: Vec2) => worldToScreen(viewport, w);
+  const anchors = shape.anchors;
+  if (anchors.length === 0) return;
+
+  // Rubber band from the last anchor (via its out handle) to the cursor.
+  if (hover) {
+    const last = anchors[anchors.length - 1];
+    const from = toS(last.hOut ?? last.p);
+    const to = toS(hover);
+    ctx.strokeStyle = "#c7d7f7";
+    ctx.lineWidth = 1;
+    ctx.setLineDash([4, 3]);
+    ctx.beginPath();
+    ctx.moveTo(from.x, from.y);
+    ctx.lineTo(to.x, to.y);
+    ctx.stroke();
+    ctx.setLineDash([]);
+  }
+
+  // Handle dots.
+  ctx.strokeStyle = "#9bbcf6";
+  for (const a of anchors) {
+    const sp = toS(a.p);
+    for (const h of [a.hIn, a.hOut]) {
+      if (!h) continue;
+      const sh = toS(h);
+      ctx.beginPath();
+      ctx.moveTo(sp.x, sp.y);
+      ctx.lineTo(sh.x, sh.y);
+      ctx.stroke();
+    }
+  }
+
+  // Anchor squares; highlight the first so users see where to close.
+  anchors.forEach((a, i) => {
+    const sp = toS(a.p);
+    square(ctx, sp, ANCHOR_SIZE);
+    ctx.fillStyle = i === 0 ? ACCENT : "#ffffff";
+    ctx.fill();
+    ctx.strokeStyle = ACCENT;
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+  });
 }

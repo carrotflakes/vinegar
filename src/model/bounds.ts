@@ -1,4 +1,20 @@
+import { flattenBezier } from "./bezier";
 import type { Bounds, Shape, Vec2 } from "./types";
+
+function pointsBounds(points: Vec2[]): Bounds {
+  if (points.length === 0) return { x: 0, y: 0, width: 0, height: 0 };
+  let minX = Infinity;
+  let minY = Infinity;
+  let maxX = -Infinity;
+  let maxY = -Infinity;
+  for (const p of points) {
+    if (p.x < minX) minX = p.x;
+    if (p.y < minY) minY = p.y;
+    if (p.x > maxX) maxX = p.x;
+    if (p.y > maxY) maxY = p.y;
+  }
+  return { x: minX, y: minY, width: maxX - minX, height: maxY - minY };
+}
 
 /** Normalize a rect that may have negative width/height. */
 export function normalizeRect(
@@ -28,22 +44,10 @@ export function shapeBounds(shape: Shape): Bounds {
         shape.x2 - shape.x1,
         shape.y2 - shape.y1
       );
-    case "path": {
-      if (shape.points.length === 0) {
-        return { x: 0, y: 0, width: 0, height: 0 };
-      }
-      let minX = Infinity;
-      let minY = Infinity;
-      let maxX = -Infinity;
-      let maxY = -Infinity;
-      for (const p of shape.points) {
-        if (p.x < minX) minX = p.x;
-        if (p.y < minY) minY = p.y;
-        if (p.x > maxX) maxX = p.x;
-        if (p.y > maxY) maxY = p.y;
-      }
-      return { x: minX, y: minY, width: maxX - minX, height: maxY - minY };
-    }
+    case "path":
+      return pointsBounds(shape.points);
+    case "bezier":
+      return pointsBounds(flattenBezier(shape));
   }
 }
 

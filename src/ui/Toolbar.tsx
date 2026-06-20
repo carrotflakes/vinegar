@@ -9,10 +9,12 @@ interface ToolDef {
 
 const TOOLS: ToolDef[] = [
   { id: "select", label: "Select", hint: "V", icon: "⬚" },
+  { id: "node", label: "Edit Nodes", hint: "N", icon: "⬩" },
   { id: "rect", label: "Rectangle", hint: "R", icon: "▭" },
   { id: "ellipse", label: "Ellipse", hint: "O", icon: "◯" },
   { id: "line", label: "Line", hint: "L", icon: "╱" },
-  { id: "pen", label: "Pencil", hint: "P", icon: "✎" },
+  { id: "pen", label: "Pen", hint: "P", icon: "✒" },
+  { id: "pencil", label: "Pencil", hint: "B", icon: "✎" },
 ];
 
 export default function Toolbar() {

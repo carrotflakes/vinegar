@@ -1,3 +1,4 @@
+import { bezierSegments } from "../model/bezier";
 import { shapeBounds } from "../model/bounds";
 import type { Document, Shape } from "../model/types";
 import { worldToScreen, type Viewport } from "../model/viewport";
@@ -37,6 +38,22 @@ function tracePath(ctx: CanvasRenderingContext2D, shape: Shape): void {
       if (shape.closed) ctx.closePath();
       break;
     }
+    case "bezier": {
+      const segs = bezierSegments(shape);
+      if (segs.length === 0) {
+        if (shape.anchors[0]) {
+          const p = shape.anchors[0].p;
+          ctx.moveTo(p.x, p.y);
+        }
+        break;
+      }
+      ctx.moveTo(segs[0].p0.x, segs[0].p0.y);
+      for (const s of segs) {
+        ctx.bezierCurveTo(s.c1.x, s.c1.y, s.c2.x, s.c2.y, s.p1.x, s.p1.y);
+      }
+      if (shape.closed) ctx.closePath();
+      break;
+    }
   }
 }
 
@@ -45,11 +62,12 @@ export function paintShape(ctx: CanvasRenderingContext2D, shape: Shape): void {
   ctx.globalAlpha = shape.opacity;
   tracePath(ctx, shape);
 
-  // Lines and open paths are never filled.
+  // Lines and open paths/curves are never filled.
   const fillable =
     shape.fill !== null &&
-    !(shape.type === "line") &&
-    !(shape.type === "path" && !shape.closed);
+    shape.type !== "line" &&
+    !(shape.type === "path" && !shape.closed) &&
+    !(shape.type === "bezier" && !shape.closed);
   if (fillable) {
     ctx.fillStyle = shape.fill as string;
     ctx.fill();

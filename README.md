@@ -18,24 +18,30 @@ pnpm build      # typecheck + production build
 pnpm typecheck  # types only
 ```
 
-## Features (MVP)
+## Features
 
-- Tools: Select, Rectangle, Ellipse, Line, Pencil (freehand)
+- Tools: Select, Edit Nodes, Rectangle, Ellipse, Line, **Pen (Bézier)**, Pencil (freehand)
+- Pen tool: click for corner anchors, click-drag for smooth anchors; click the
+  first anchor to close, or Enter / double-click to finish, Esc to cancel
+- Node editing: drag anchors and control handles (Alt to break handle symmetry),
+  Delete to remove an anchor
 - Move, resize (8 handles), multi-select (shift-click & marquee)
 - Fill / stroke color, stroke width, opacity
 - Arrange: bring to front / send to back
 - Undo / redo (Ctrl+Z / Ctrl+Shift+Z)
 - Pan (Space + drag, or middle mouse) and zoom (Ctrl/⌘ + wheel)
+- File: New, Open, Save (.json), Export PNG, Export SVG
 
 ### Keyboard
 
 | Key | Action |
 | --- | --- |
-| `V` `R` `O` `L` `P` | Select / Rect / Ellipse / Line / Pencil |
-| `Delete` / `Backspace` | Delete selection |
+| `V` `N` `R` `O` `L` `P` `B` | Select / Nodes / Rect / Ellipse / Line / Pen / Pencil |
+| `Enter` | Finish the current pen path |
+| `Delete` / `Backspace` | Delete selection (or the active node) |
 | `Ctrl/⌘ + Z` | Undo |
 | `Ctrl/⌘ + Shift + Z` | Redo |
-| `Esc` | Clear selection |
+| `Esc` | Clear selection / cancel pen path |
 
 ## Project layout
 

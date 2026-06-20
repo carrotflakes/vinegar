@@ -1,22 +1,20 @@
 import { useCallback, useEffect, useRef } from "react";
 import { shapeBounds, unionBounds } from "../model/bounds";
 import { hitTestShape } from "../model/hitTest";
-import {
-  resizeShapeToBounds,
-  translateShape,
-} from "../model/transforms";
+import { resizeShapeToBounds, translateShape } from "../model/transforms";
 import {
   makeId,
+  type BezierShape,
   type Bounds,
   type Shape,
   type Vec2,
 } from "../model/types";
+import { screenToWorld, worldToScreen, zoomAt } from "../model/viewport";
 import {
-  screenToWorld,
-  worldToScreen,
-  zoomAt,
-} from "../model/viewport";
-import { styleFromDefaults, useEditor } from "../store/editorStore";
+  styleFromDefaults,
+  useEditor,
+  type EditorState,
+} from "../store/editorStore";
 import {
   HANDLE_IDS,
   HANDLE_SIZE,
@@ -25,7 +23,8 @@ import {
   resizeBounds,
   type HandleId,
 } from "./handles";
-import { drawOverlay } from "./overlay";
+import { hitBezierNodes, moveAnchor, moveHandle } from "./nodes";
+import { drawNodes, drawOverlay, drawPenDraft } from "./overlay";
 import { renderScene } from "./render";
 
 type Interaction =
@@ -39,11 +38,27 @@ type Interaction =
       originals: Record<string, Shape>;
     }
   | { kind: "create"; start: Vec2 }
-  | { kind: "pen" }
+  | { kind: "pencil" }
+  | { kind: "pen-anchor"; index: number }
+  | { kind: "node-anchor"; shapeId: string; index: number; orig: BezierShape }
+  | {
+      kind: "node-handle";
+      shapeId: string;
+      index: number;
+      part: "in" | "out";
+      orig: BezierShape;
+    }
   | { kind: "marquee"; start: Vec2; additive: boolean };
 
 /** Distance below which a created shape is considered an accidental click. */
 const CLICK_SLOP = 3;
+const NODE_GRAB = 8;
+
+function selectedBezier(state: EditorState): BezierShape | null {
+  if (state.selection.length !== 1) return null;
+  const s = state.doc.shapes[state.selection[0]];
+  return s && s.type === "bezier" ? s : null;
+}
 
 export default function CanvasView() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -53,6 +68,8 @@ export default function CanvasView() {
   const interactionRef = useRef<Interaction>({ kind: "none" });
   const previewRef = useRef<Shape | null>(null);
   const marqueeRef = useRef<Bounds | null>(null);
+  const penDraftRef = useRef<BezierShape | null>(null);
+  const hoverRef = useRef<Vec2 | null>(null);
   const rafRef = useRef<number | null>(null);
   const spaceRef = useRef(false);
 
@@ -63,7 +80,8 @@ export default function CanvasView() {
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
     const { width, height, dpr } = sizeRef.current;
-    const { doc, viewport, selection } = useEditor.getState();
+    const state = useEditor.getState();
+    const { doc, viewport, selection, tool } = state;
 
     renderScene(ctx, {
       width,
@@ -82,10 +100,25 @@ export default function CanvasView() {
     drawOverlay(ctx, {
       dpr,
       viewport,
-      selectionBounds: unionBounds(selectedShapes),
+      selectionBounds:
+        tool === "select" ? unionBounds(selectedShapes) : null,
       marquee: marqueeRef.current,
-      showHandles: selectedShapes.length > 0,
+      showHandles: tool === "select" && selectedShapes.length > 0,
     });
+
+    if (tool === "node") {
+      const sel = selectedBezier(state);
+      if (sel) {
+        const active =
+          state.editNode && state.editNode.shapeId === sel.id
+            ? state.editNode.index
+            : null;
+        drawNodes(ctx, dpr, viewport, sel, active);
+      }
+    }
+    if (tool === "pen" && penDraftRef.current) {
+      drawPenDraft(ctx, dpr, viewport, penDraftRef.current, hoverRef.current);
+    }
   }, []);
 
   const scheduleDraw = useCallback(() => {
@@ -96,8 +129,41 @@ export default function CanvasView() {
     });
   }, [draw]);
 
-  // Redraw whenever any store slice changes.
-  useEffect(() => useEditor.subscribe(scheduleDraw), [scheduleDraw]);
+  // ---- pen draft lifecycle ----------------------------------------------
+  const commitPenDraft = useCallback(() => {
+    const draft = penDraftRef.current;
+    penDraftRef.current = null;
+    previewRef.current = null;
+    hoverRef.current = null;
+    if (draft) {
+      const anchors = draft.anchors;
+      // Drop a near-duplicate final anchor (left over from a double-click).
+      if (anchors.length >= 2) {
+        const a = anchors[anchors.length - 1].p;
+        const b = anchors[anchors.length - 2].p;
+        if (Math.hypot(a.x - b.x, a.y - b.y) < 0.5) anchors.pop();
+      }
+      if (anchors.length >= 2) useEditor.getState().addShape(draft);
+    }
+    scheduleDraw();
+  }, [scheduleDraw]);
+
+  const cancelPenDraft = useCallback(() => {
+    penDraftRef.current = null;
+    previewRef.current = null;
+    hoverRef.current = null;
+    scheduleDraw();
+  }, [scheduleDraw]);
+
+  // Redraw on any store change; commit a pending pen path when leaving the tool.
+  useEffect(
+    () =>
+      useEditor.subscribe((s) => {
+        if (s.tool !== "pen" && penDraftRef.current) commitPenDraft();
+        scheduleDraw();
+      }),
+    [scheduleDraw, commitPenDraft]
+  );
 
   // ---- sizing ------------------------------------------------------------
   useEffect(() => {
@@ -130,7 +196,6 @@ export default function CanvasView() {
 
   const pickTolerance = () => 5 / useEditor.getState().viewport.scale;
 
-  /** Find which selection handle (if any) is under a screen point. */
   const hitHandle = (screen: Vec2): HandleId | null => {
     const { doc, selection, viewport } = useEditor.getState();
     const shapes = selection
@@ -138,16 +203,17 @@ export default function CanvasView() {
       .filter(Boolean) as Shape[];
     const b = unionBounds(shapes);
     if (!b) return null;
-    const grab = HANDLE_SIZE;
     for (const id of HANDLE_IDS) {
       const sp = worldToScreen(viewport, handlePoint(b, id));
-      if (Math.abs(sp.x - screen.x) <= grab && Math.abs(sp.y - screen.y) <= grab)
+      if (
+        Math.abs(sp.x - screen.x) <= HANDLE_SIZE &&
+        Math.abs(sp.y - screen.y) <= HANDLE_SIZE
+      )
         return id;
     }
     return null;
   };
 
-  /** Topmost shape id at a world point, or null. */
   const pickShape = (world: Vec2): string | null => {
     const { doc } = useEditor.getState();
     const tol = pickTolerance();
@@ -166,7 +232,6 @@ export default function CanvasView() {
     const state = useEditor.getState();
     const world = screenToWorld(state.viewport, screen);
 
-    // Pan: middle button or space-held drag, regardless of tool.
     if (e.button === 1 || spaceRef.current) {
       interactionRef.current = {
         kind: "pan",
@@ -180,53 +245,18 @@ export default function CanvasView() {
     const tool = state.tool;
 
     if (tool === "select") {
-      // 1) resize handle?
-      const handle = hitHandle(screen);
-      if (handle) {
-        const shapes = state.selection
-          .map((id) => state.doc.shapes[id])
-          .filter(Boolean) as Shape[];
-        const from = unionBounds(shapes)!;
-        const originals: Record<string, Shape> = {};
-        for (const s of shapes) originals[s.id] = s;
-        state.beginInteraction();
-        interactionRef.current = { kind: "resize", handle, from, originals };
-        return;
-      }
-
-      // 2) a shape?
-      const hitId = pickShape(world);
-      if (hitId) {
-        let selection = state.selection;
-        if (e.shiftKey) {
-          state.toggleSelection(hitId);
-          selection = useEditor.getState().selection;
-        } else if (!selection.includes(hitId)) {
-          state.setSelection([hitId]);
-          selection = [hitId];
-        }
-        const originals: Record<string, Shape> = {};
-        for (const id of selection) {
-          const s = useEditor.getState().doc.shapes[id];
-          if (s) originals[id] = s;
-        }
-        state.beginInteraction();
-        interactionRef.current = { kind: "move", start: world, originals };
-        return;
-      }
-
-      // 3) empty space -> marquee
-      if (!e.shiftKey) state.clearSelection();
-      interactionRef.current = {
-        kind: "marquee",
-        start: world,
-        additive: e.shiftKey,
-      };
-      marqueeRef.current = { x: screen.x, y: screen.y, width: 0, height: 0 };
+      onSelectDown(e, state, screen, world);
       return;
     }
-
+    if (tool === "node") {
+      onNodeDown(state, screen, world);
+      return;
+    }
     if (tool === "pen") {
+      onPenDown(state, screen, world);
+      return;
+    }
+    if (tool === "pencil") {
       const shape: Shape = {
         id: makeId("path"),
         name: "Path",
@@ -237,14 +267,126 @@ export default function CanvasView() {
         fill: null,
       };
       previewRef.current = shape;
-      interactionRef.current = { kind: "pen" };
+      interactionRef.current = { kind: "pencil" };
       scheduleDraw();
       return;
     }
 
-    // rect / ellipse / line creation
+    // rect / ellipse / line
     previewRef.current = makeCreatedShape(tool, world, world, state.style);
     interactionRef.current = { kind: "create", start: world };
+    scheduleDraw();
+  };
+
+  const onSelectDown = (
+    e: React.PointerEvent,
+    state: EditorState,
+    screen: Vec2,
+    world: Vec2
+  ) => {
+    const handle = hitHandle(screen);
+    if (handle) {
+      const shapes = state.selection
+        .map((id) => state.doc.shapes[id])
+        .filter(Boolean) as Shape[];
+      const from = unionBounds(shapes)!;
+      const originals: Record<string, Shape> = {};
+      for (const s of shapes) originals[s.id] = s;
+      state.beginInteraction();
+      interactionRef.current = { kind: "resize", handle, from, originals };
+      return;
+    }
+
+    const hitId = pickShape(world);
+    if (hitId) {
+      let selection = state.selection;
+      if (e.shiftKey) {
+        state.toggleSelection(hitId);
+        selection = useEditor.getState().selection;
+      } else if (!selection.includes(hitId)) {
+        state.setSelection([hitId]);
+        selection = [hitId];
+      }
+      const originals: Record<string, Shape> = {};
+      for (const id of selection) {
+        const s = useEditor.getState().doc.shapes[id];
+        if (s) originals[id] = s;
+      }
+      state.beginInteraction();
+      interactionRef.current = { kind: "move", start: world, originals };
+      return;
+    }
+
+    if (!e.shiftKey) state.clearSelection();
+    interactionRef.current = {
+      kind: "marquee",
+      start: world,
+      additive: e.shiftKey,
+    };
+    marqueeRef.current = { x: screen.x, y: screen.y, width: 0, height: 0 };
+  };
+
+  const onNodeDown = (state: EditorState, screen: Vec2, world: Vec2) => {
+    const sel = selectedBezier(state);
+    if (sel) {
+      const hit = hitBezierNodes(sel, screen, state.viewport, NODE_GRAB);
+      if (hit) {
+        state.setEditNode({ shapeId: sel.id, index: hit.index });
+        state.beginInteraction();
+        interactionRef.current =
+          hit.part === "anchor"
+            ? { kind: "node-anchor", shapeId: sel.id, index: hit.index, orig: sel }
+            : {
+                kind: "node-handle",
+                shapeId: sel.id,
+                index: hit.index,
+                part: hit.part,
+                orig: sel,
+              };
+        return;
+      }
+    }
+    // Select another Bézier shape, or clear.
+    const id = pickShape(world);
+    if (id && state.doc.shapes[id].type === "bezier") {
+      state.setSelection([id]);
+      state.setEditNode(null);
+    } else {
+      state.clearSelection();
+    }
+  };
+
+  const onPenDown = (state: EditorState, screen: Vec2, world: Vec2) => {
+    const draft = penDraftRef.current;
+    if (!draft) {
+      const shape: BezierShape = {
+        id: makeId("bezier"),
+        name: "Curve",
+        type: "bezier",
+        anchors: [{ p: world, hIn: null, hOut: null }],
+        closed: false,
+        ...styleFromDefaults(state.style),
+      };
+      penDraftRef.current = shape;
+      previewRef.current = shape;
+      interactionRef.current = { kind: "pen-anchor", index: 0 };
+      scheduleDraw();
+      return;
+    }
+
+    // Click near the first anchor closes the path.
+    if (draft.anchors.length >= 2) {
+      const first = worldToScreen(state.viewport, draft.anchors[0].p);
+      if (Math.hypot(first.x - screen.x, first.y - screen.y) <= NODE_GRAB) {
+        draft.closed = true;
+        commitPenDraft();
+        return;
+      }
+    }
+
+    draft.anchors.push({ p: world, hIn: null, hOut: null });
+    previewRef.current = draft;
+    interactionRef.current = { kind: "pen-anchor", index: draft.anchors.length - 1 };
     scheduleDraw();
   };
 
@@ -254,14 +396,17 @@ export default function CanvasView() {
     const screen = screenPoint(e);
     const world = screenToWorld(state.viewport, screen);
 
-    // Hover cursor feedback when idle and using the select tool.
     if (inter.kind === "none") {
+      if (state.tool === "pen" && penDraftRef.current) {
+        hoverRef.current = world;
+        scheduleDraw();
+      }
       updateHoverCursor(screen, world);
       return;
     }
 
     switch (inter.kind) {
-      case "pan": {
+      case "pan":
         state.setViewport({
           ...state.viewport,
           offset: {
@@ -270,7 +415,6 @@ export default function CanvasView() {
           },
         });
         break;
-      }
       case "move": {
         const dx = world.x - inter.start.x;
         const dy = world.y - inter.start.y;
@@ -290,7 +434,7 @@ export default function CanvasView() {
         state.applyShapes(next);
         break;
       }
-      case "create": {
+      case "create":
         previewRef.current = makeCreatedShape(
           state.tool,
           inter.start,
@@ -299,8 +443,7 @@ export default function CanvasView() {
         );
         scheduleDraw();
         break;
-      }
-      case "pen": {
+      case "pencil": {
         const shape = previewRef.current;
         if (shape && shape.type === "path") {
           const last = shape.points[shape.points.length - 1];
@@ -311,6 +454,32 @@ export default function CanvasView() {
         }
         break;
       }
+      case "pen-anchor": {
+        const draft = penDraftRef.current;
+        if (draft) {
+          const a = draft.anchors[inter.index];
+          a.hOut = world;
+          a.hIn = { x: 2 * a.p.x - world.x, y: 2 * a.p.y - world.y };
+          scheduleDraw();
+        }
+        break;
+      }
+      case "node-anchor":
+        state.applyShapes({
+          [inter.shapeId]: moveAnchor(inter.orig, inter.index, world),
+        });
+        break;
+      case "node-handle":
+        state.applyShapes({
+          [inter.shapeId]: moveHandle(
+            inter.orig,
+            inter.index,
+            inter.part,
+            world,
+            !e.altKey
+          ),
+        });
+        break;
       case "marquee": {
         const start = worldToScreen(state.viewport, inter.start);
         marqueeRef.current = {
@@ -336,6 +505,8 @@ export default function CanvasView() {
     switch (inter.kind) {
       case "move":
       case "resize":
+      case "node-anchor":
+      case "node-handle":
         state.endInteraction();
         break;
       case "create": {
@@ -345,7 +516,7 @@ export default function CanvasView() {
         scheduleDraw();
         break;
       }
-      case "pen": {
+      case "pencil": {
         const shape = previewRef.current;
         previewRef.current = null;
         if (shape && shape.type === "path" && shape.points.length >= 2) {
@@ -354,11 +525,11 @@ export default function CanvasView() {
         scheduleDraw();
         break;
       }
+      case "pen-anchor":
+        // Keep the draft alive for the next click; the curve preview persists.
+        break;
       case "marquee": {
-        const end = screenToWorld(
-          state.viewport,
-          screenPoint(e)
-        );
+        const end = screenToWorld(state.viewport, screenPoint(e));
         const region = boundsFromPoints(inter.start, end);
         const hits = state.doc.order.filter((id) => {
           const s = state.doc.shapes[id];
@@ -373,6 +544,12 @@ export default function CanvasView() {
     }
   };
 
+  const onDoubleClick = () => {
+    if (useEditor.getState().tool === "pen" && penDraftRef.current) {
+      commitPenDraft();
+    }
+  };
+
   const updateHoverCursor = (screen: Vec2, world: Vec2) => {
     const canvas = canvasRef.current!;
     const state = useEditor.getState();
@@ -380,8 +557,16 @@ export default function CanvasView() {
       canvas.style.cursor = "grab";
       return;
     }
-    if (state.tool !== "select") {
+    if (state.tool === "pen" || state.tool === "pencil") {
       canvas.style.cursor = "crosshair";
+      return;
+    }
+    if (state.tool === "node") {
+      const sel = selectedBezier(state);
+      canvas.style.cursor =
+        sel && hitBezierNodes(sel, screen, state.viewport, NODE_GRAB)
+          ? "move"
+          : "default";
       return;
     }
     const handle = hitHandle(screen);
@@ -402,8 +587,7 @@ export default function CanvasView() {
       const rect = canvas.getBoundingClientRect();
       const anchor = { x: e.clientX - rect.left, y: e.clientY - rect.top };
       if (e.ctrlKey || e.metaKey) {
-        const factor = Math.exp(-e.deltaY * 0.01);
-        state.setViewport(zoomAt(state.viewport, anchor, factor));
+        state.setViewport(zoomAt(state.viewport, anchor, Math.exp(-e.deltaY * 0.01)));
       } else {
         state.setViewport({
           ...state.viewport,
@@ -418,12 +602,23 @@ export default function CanvasView() {
     return () => canvas.removeEventListener("wheel", onWheel);
   }, []);
 
-  // ---- space-to-pan tracking --------------------------------------------
+  // ---- keyboard: space-to-pan, pen finish/cancel ------------------------
   useEffect(() => {
     const down = (e: KeyboardEvent) => {
-      if (e.code === "Space" && !isTypingTarget(e.target)) {
+      if (isTypingTarget(e.target)) return;
+      if (e.code === "Space") {
         spaceRef.current = true;
         if (canvasRef.current) canvasRef.current.style.cursor = "grab";
+        return;
+      }
+      if (penDraftRef.current) {
+        if (e.key === "Enter") {
+          e.preventDefault();
+          commitPenDraft();
+        } else if (e.key === "Escape") {
+          e.preventDefault();
+          cancelPenDraft();
+        }
       }
     };
     const up = (e: KeyboardEvent) => {
@@ -435,7 +630,7 @@ export default function CanvasView() {
       window.removeEventListener("keydown", down);
       window.removeEventListener("keyup", up);
     };
-  }, []);
+  }, [commitPenDraft, cancelPenDraft]);
 
   return (
     <div className="canvas-wrap" ref={wrapRef}>
@@ -445,6 +640,7 @@ export default function CanvasView() {
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
         onPointerUp={onPointerUp}
+        onDoubleClick={onDoubleClick}
       />
     </div>
   );
@@ -485,7 +681,6 @@ function makeCreatedShape(
       ...base,
     };
   }
-  // line
   return {
     id: makeId("line"),
     name: "Line",
@@ -504,7 +699,9 @@ function isShapeSubstantial(shape: Shape): boolean {
     return Math.hypot(shape.x2 - shape.x1, shape.y2 - shape.y1) > CLICK_SLOP;
   }
   if (shape.type === "rect" || shape.type === "ellipse") {
-    return Math.abs(shape.width) > CLICK_SLOP || Math.abs(shape.height) > CLICK_SLOP;
+    return (
+      Math.abs(shape.width) > CLICK_SLOP || Math.abs(shape.height) > CLICK_SLOP
+    );
   }
   return true;
 }

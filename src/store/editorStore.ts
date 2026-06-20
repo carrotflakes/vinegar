@@ -7,7 +7,20 @@ import {
 } from "../model/types";
 import { initialViewport, type Viewport } from "../model/viewport";
 
-export type ToolId = "select" | "rect" | "ellipse" | "line" | "pen";
+export type ToolId =
+  | "select"
+  | "node"
+  | "rect"
+  | "ellipse"
+  | "line"
+  | "pen"
+  | "pencil";
+
+/** A specific anchor of a Bézier shape currently targeted for node editing. */
+export interface EditNode {
+  shapeId: string;
+  index: number;
+}
 
 /** Default visual style applied to newly created shapes. */
 export interface StyleDefaults {
@@ -28,6 +41,8 @@ export interface EditorState {
   viewport: Viewport;
   style: StyleDefaults;
   history: HistoryState;
+  /** Anchor highlighted for node editing (pen vertex tool). */
+  editNode: EditNode | null;
 
   // --- internal interaction bookkeeping (not for UI) ---
   _pending: Document | null;
@@ -39,6 +54,8 @@ export interface EditorState {
   setSelection: (ids: string[]) => void;
   toggleSelection: (id: string) => void;
   clearSelection: () => void;
+  setEditNode: (node: EditNode | null) => void;
+  deleteEditNode: () => void;
 
   // style ------------------------------------------------------------------
   setStyle: (patch: Partial<StyleDefaults>) => void;
@@ -99,10 +116,18 @@ export const useEditor = create<EditorState>((set, get) => {
     viewport: initialViewport,
     style: { fill: "#4f8cff", stroke: "#1b1b1b", strokeWidth: 2 },
     history: { past: [], future: [] },
+    editNode: null,
     _pending: null,
     _dirty: false,
 
-    setTool: (tool) => set({ tool, selection: tool === "select" ? get().selection : [] }),
+    setTool: (tool) =>
+      set({
+        tool,
+        // Keep the selection for tools that operate on it; clear for drawing.
+        selection:
+          tool === "select" || tool === "node" ? get().selection : [],
+        editNode: null,
+      }),
     setViewport: (viewport) => set({ viewport }),
     setSelection: (ids) => set({ selection: ids }),
     toggleSelection: (id) => {
@@ -113,7 +138,32 @@ export const useEditor = create<EditorState>((set, get) => {
           : [...cur, id],
       });
     },
-    clearSelection: () => set({ selection: [] }),
+    clearSelection: () => set({ selection: [], editNode: null }),
+    setEditNode: (node) => set({ editNode: node }),
+
+    deleteEditNode: () => {
+      const { doc, editNode } = get();
+      if (!editNode) return;
+      const shape = doc.shapes[editNode.shapeId];
+      if (!shape || shape.type !== "bezier") return;
+      const anchors = shape.anchors.filter((_, i) => i !== editNode.index);
+      if (anchors.length < 2) {
+        // Too few anchors left to form a curve — remove the whole shape.
+        const shapes = { ...doc.shapes };
+        delete shapes[editNode.shapeId];
+        transact({
+          shapes,
+          order: doc.order.filter((id) => id !== editNode.shapeId),
+        });
+        set({ selection: [], editNode: null });
+        return;
+      }
+      transact({
+        ...doc,
+        shapes: { ...doc.shapes, [editNode.shapeId]: { ...shape, anchors } },
+      });
+      set({ editNode: null });
+    },
 
     setStyle: (patch) => set({ style: { ...get().style, ...patch } }),
 

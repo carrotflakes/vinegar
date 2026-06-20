@@ -7,7 +7,7 @@
 
 export type Vec2 = { x: number; y: number };
 
-export type ShapeType = "rect" | "ellipse" | "line" | "path";
+export type ShapeType = "rect" | "ellipse" | "line" | "path" | "bezier";
 
 /** Common visual + identity fields shared by every shape. */
 export interface BaseShape {
@@ -56,7 +56,30 @@ export interface PathShape extends BaseShape {
   closed: boolean;
 }
 
-export type Shape = RectShape | EllipseShape | LineShape | PathShape;
+/**
+ * A single anchor of a Bézier path. Control handles are stored as absolute
+ * world points (so transforms map them like any other point). A `null` handle
+ * means that side is a sharp corner.
+ */
+export interface BezierAnchor {
+  p: Vec2;
+  hIn: Vec2 | null;
+  hOut: Vec2 | null;
+}
+
+/** Cubic Bézier path produced by the pen tool. */
+export interface BezierShape extends BaseShape {
+  type: "bezier";
+  anchors: BezierAnchor[];
+  closed: boolean;
+}
+
+export type Shape =
+  | RectShape
+  | EllipseShape
+  | LineShape
+  | PathShape
+  | BezierShape;
 
 /** Axis-aligned bounding box. */
 export interface Bounds {

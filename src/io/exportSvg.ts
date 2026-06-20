@@ -1,5 +1,6 @@
+import { bezierSegments } from "../model/bezier";
 import { shapeBounds } from "../model/bounds";
-import type { Document, Shape } from "../model/types";
+import type { BezierShape, Document, Shape } from "../model/types";
 import { contentBounds } from "./exportBounds";
 
 function num(n: number): string {
@@ -47,7 +48,23 @@ function shapeToSvg(shape: Shape): string {
       const tag = shape.closed ? "polygon" : "polyline";
       return `<${tag} points="${pts}" ${attrs} />`;
     }
+    case "bezier":
+      return `<path d="${bezierPathData(shape)}" ${attrs} />`;
   }
+}
+
+function bezierPathData(shape: BezierShape): string {
+  const segs = bezierSegments(shape);
+  if (shape.anchors.length === 0) return "";
+  const start = shape.anchors[0].p;
+  let d = `M ${num(start.x)} ${num(start.y)}`;
+  for (const s of segs) {
+    d += ` C ${num(s.c1.x)} ${num(s.c1.y)} ${num(s.c2.x)} ${num(
+      s.c2.y
+    )} ${num(s.p1.x)} ${num(s.p1.y)}`;
+  }
+  if (shape.closed) d += " Z";
+  return d;
 }
 
 /** Serialize a document's shapes to a standalone SVG string. */

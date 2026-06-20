@@ -9,10 +9,12 @@ import "./App.css";
 
 const TOOL_KEYS: Record<string, ToolId> = {
   v: "select",
+  n: "node",
   r: "rect",
   o: "ellipse",
   l: "line",
   p: "pen",
+  b: "pencil",
 };
 
 function canvasCenter(): { x: number; y: number } {
@@ -56,7 +58,10 @@ export default function App() {
         return;
       }
       if (e.key === "Delete" || e.key === "Backspace") {
-        if (s.selection.length > 0) {
+        if (s.editNode) {
+          e.preventDefault();
+          s.deleteEditNode();
+        } else if (s.selection.length > 0) {
           e.preventDefault();
           s.deleteSelected();
         }

@@ -22,6 +22,16 @@ export function transformShape(shape: Shape, fn: (p: Vec2) => Vec2): Shape {
     case "path": {
       return { ...shape, points: shape.points.map(fn) };
     }
+    case "bezier": {
+      return {
+        ...shape,
+        anchors: shape.anchors.map((an) => ({
+          p: fn(an.p),
+          hIn: an.hIn ? fn(an.hIn) : null,
+          hOut: an.hOut ? fn(an.hOut) : null,
+        })),
+      };
+    }
   }
 }
 
