@@ -30,6 +30,8 @@ pnpm typecheck  # types only
 - Multi-select (shift-click & marquee)
 - Fill / stroke color, stroke width, opacity, rotation
 - Arrange: bring to front / send to back
+- **Layers panel**: z-order list, click to select, drag to reorder, show/hide,
+  lock/unlock, double-click to rename
 - Undo / redo (Ctrl+Z / Ctrl+Shift+Z)
 - Pan (Space + drag, or middle mouse) and zoom (Ctrl/⌘ + wheel)
 - File: New, Open, Save (.json), Export PNG, Export SVG

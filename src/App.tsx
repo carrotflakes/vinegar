@@ -4,6 +4,7 @@ import { initialViewport, zoomAt } from "./model/viewport";
 import { useEditor, type ToolId } from "./store/editorStore";
 import Toolbar from "./ui/Toolbar";
 import PropertiesPanel from "./ui/PropertiesPanel";
+import LayersPanel from "./ui/LayersPanel";
 import FileMenu from "./ui/FileMenu";
 import "./App.css";
 
@@ -141,6 +142,7 @@ export default function App() {
         </main>
         <aside className="right">
           <PropertiesPanel />
+          <LayersPanel />
         </aside>
       </div>
 

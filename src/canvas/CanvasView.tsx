@@ -250,7 +250,13 @@ export default function CanvasView() {
     const tol = pickTolerance();
     for (let i = doc.order.length - 1; i >= 0; i--) {
       const shape = doc.shapes[doc.order[i]];
-      if (shape && hitTestShape(shape, world, tol)) return doc.order[i];
+      if (
+        shape &&
+        !shape.hidden &&
+        !shape.locked &&
+        hitTestShape(shape, world, tol)
+      )
+        return doc.order[i];
     }
     return null;
   };
@@ -614,7 +620,12 @@ export default function CanvasView() {
         const region = boundsFromPoints(inter.start, end);
         const hits = state.doc.order.filter((id) => {
           const s = state.doc.shapes[id];
-          return s && boundsIntersect(worldShapeBounds(s), region);
+          return (
+            s &&
+            !s.hidden &&
+            !s.locked &&
+            boundsIntersect(worldShapeBounds(s), region)
+          );
         });
         const base = inter.additive ? state.selection : [];
         state.setSelection(

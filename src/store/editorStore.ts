@@ -72,6 +72,10 @@ export interface EditorState {
   sendToBack: () => void;
   groupSelected: () => void;
   ungroupSelected: () => void;
+  toggleHidden: (id: string) => void;
+  toggleLocked: (id: string) => void;
+  renameShape: (id: string, name: string) => void;
+  setOrder: (order: string[]) => void;
 
   // interaction transactions (for drags) ----------------------------------
   beginInteraction: () => void;
@@ -259,6 +263,44 @@ export const useEditor = create<EditorState>((set, get) => {
         }
       }
       if (changed) transact({ ...doc, shapes });
+    },
+
+    toggleHidden: (id) => {
+      const { doc } = get();
+      const s = doc.shapes[id];
+      if (!s) return;
+      transact({
+        ...doc,
+        shapes: { ...doc.shapes, [id]: { ...s, hidden: !s.hidden } },
+      });
+      if (!s.hidden) {
+        set({ selection: get().selection.filter((x) => x !== id) });
+      }
+    },
+
+    toggleLocked: (id) => {
+      const { doc } = get();
+      const s = doc.shapes[id];
+      if (!s) return;
+      transact({
+        ...doc,
+        shapes: { ...doc.shapes, [id]: { ...s, locked: !s.locked } },
+      });
+      if (!s.locked) {
+        set({ selection: get().selection.filter((x) => x !== id) });
+      }
+    },
+
+    renameShape: (id, name) => {
+      const { doc } = get();
+      const s = doc.shapes[id];
+      if (!s) return;
+      transact({ ...doc, shapes: { ...doc.shapes, [id]: { ...s, name } } });
+    },
+
+    setOrder: (order) => {
+      const { doc } = get();
+      transact({ ...doc, order });
     },
 
     beginInteraction: () => set({ _pending: clone(get().doc), _dirty: false }),

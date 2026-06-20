@@ -121,7 +121,7 @@ export function renderScene(
 
   for (const id of doc.order) {
     const shape = doc.shapes[id];
-    if (shape) paintShape(ctx, shape);
+    if (shape && !shape.hidden) paintShape(ctx, shape);
   }
   if (opts.preview) paintShape(ctx, opts.preview);
 

@@ -24,6 +24,10 @@ export interface BaseShape {
   rotation: number;
   /** Shapes sharing a non-null groupId are selected and edited together. */
   groupId?: string | null;
+  /** Hidden shapes are not rendered and cannot be picked on the canvas. */
+  hidden?: boolean;
+  /** Locked shapes cannot be picked or edited on the canvas. */
+  locked?: boolean;
 }
 
 /** Axis-aligned rectangle, defined by its top-left corner and size. */
