@@ -26,7 +26,7 @@ import {
 import {
   HANDLE_IDS,
   HANDLE_SIZE,
-  handleCursor,
+  handleCursorRotated,
   resizeBounds,
   type HandleId,
 } from "./handles";
@@ -658,7 +658,8 @@ export default function CanvasView() {
       return;
     }
     if (hit?.type === "resize") {
-      canvas.style.cursor = handleCursor(hit.id);
+      const frame = selectionFrame();
+      canvas.style.cursor = handleCursorRotated(hit.id, frame?.rotation ?? 0);
       return;
     }
     canvas.style.cursor = pickShape(world) ? "move" : "default";

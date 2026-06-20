@@ -47,22 +47,47 @@ export function handlePoint(b: Bounds, id: HandleId): Vec2 {
   }
 }
 
-/** CSS cursor matching each handle's resize direction. */
+/** CSS cursor matching each handle's resize direction (unrotated). */
 export function handleCursor(id: HandleId): string {
-  switch (id) {
-    case "n":
-    case "s":
-      return "ns-resize";
-    case "e":
-    case "w":
-      return "ew-resize";
-    case "ne":
-    case "sw":
-      return "nesw-resize";
-    case "nw":
-    case "se":
-      return "nwse-resize";
+  return handleCursorRotated(id, 0);
+}
+
+/** Outward direction of each handle in screen space (degrees, y-down). */
+const HANDLE_ANGLE: Record<HandleId, number> = {
+  e: 0,
+  se: 45,
+  s: 90,
+  sw: 135,
+  w: 180,
+  nw: 225,
+  n: 270,
+  ne: 315,
+};
+
+const CURSOR_BUCKETS: { angle: number; cursor: string }[] = [
+  { angle: 0, cursor: "ew-resize" },
+  { angle: 45, cursor: "nwse-resize" },
+  { angle: 90, cursor: "ns-resize" },
+  { angle: 135, cursor: "nesw-resize" },
+];
+
+/**
+ * CSS resize cursor for a handle, accounting for the selection's rotation so the
+ * arrow points along the actual (rotated) edge. `rotation` is in radians.
+ */
+export function handleCursorRotated(id: HandleId, rotation: number): string {
+  // Resize cursors are bidirectional, so collapse the direction to 0..180.
+  const a = (((HANDLE_ANGLE[id] + (rotation * 180) / Math.PI) % 180) + 180) % 180;
+  let best = CURSOR_BUCKETS[0];
+  let bestDist = Infinity;
+  for (const b of CURSOR_BUCKETS) {
+    const d = Math.min(Math.abs(a - b.angle), 180 - Math.abs(a - b.angle));
+    if (d < bestDist) {
+      bestDist = d;
+      best = b;
+    }
   }
+  return best.cursor;
 }
 
 /**
