@@ -68,6 +68,59 @@ export function unionBounds(shapes: Shape[]): Bounds | null {
   return { x: minX, y: minY, width: maxX - minX, height: maxY - minY };
 }
 
+/** World-space center of a shape (rotation pivots around this point). */
+export function shapeCenter(shape: Shape): Vec2 {
+  const b = shapeBounds(shape);
+  return { x: b.x + b.width / 2, y: b.y + b.height / 2 };
+}
+
+/** Axis-aligned bounding box of a shape after its rotation is applied. */
+export function worldShapeBounds(shape: Shape): Bounds {
+  const b = shapeBounds(shape);
+  if (!shape.rotation) return b;
+  const c = { x: b.x + b.width / 2, y: b.y + b.height / 2 };
+  const cos = Math.cos(shape.rotation);
+  const sin = Math.sin(shape.rotation);
+  const corners = [
+    { x: b.x, y: b.y },
+    { x: b.x + b.width, y: b.y },
+    { x: b.x + b.width, y: b.y + b.height },
+    { x: b.x, y: b.y + b.height },
+  ];
+  let minX = Infinity;
+  let minY = Infinity;
+  let maxX = -Infinity;
+  let maxY = -Infinity;
+  for (const p of corners) {
+    const dx = p.x - c.x;
+    const dy = p.y - c.y;
+    const wx = c.x + dx * cos - dy * sin;
+    const wy = c.y + dx * sin + dy * cos;
+    minX = Math.min(minX, wx);
+    minY = Math.min(minY, wy);
+    maxX = Math.max(maxX, wx);
+    maxY = Math.max(maxY, wy);
+  }
+  return { x: minX, y: minY, width: maxX - minX, height: maxY - minY };
+}
+
+/** Combined world AABB of several shapes (accounts for rotation). */
+export function unionWorldBounds(shapes: Shape[]): Bounds | null {
+  if (shapes.length === 0) return null;
+  let minX = Infinity;
+  let minY = Infinity;
+  let maxX = -Infinity;
+  let maxY = -Infinity;
+  for (const s of shapes) {
+    const b = worldShapeBounds(s);
+    minX = Math.min(minX, b.x);
+    minY = Math.min(minY, b.y);
+    maxX = Math.max(maxX, b.x + b.width);
+    maxY = Math.max(maxY, b.y + b.height);
+  }
+  return { x: minX, y: minY, width: maxX - minX, height: maxY - minY };
+}
+
 export function expandBounds(b: Bounds, by: number): Bounds {
   return {
     x: b.x - by,

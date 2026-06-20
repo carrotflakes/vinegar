@@ -1,5 +1,5 @@
 import { bezierSegments } from "../model/bezier";
-import { shapeBounds } from "../model/bounds";
+import { shapeBounds, shapeCenter } from "../model/bounds";
 import type { Document, Shape } from "../model/types";
 import { worldToScreen, type Viewport } from "../model/viewport";
 
@@ -59,7 +59,14 @@ function tracePath(ctx: CanvasRenderingContext2D, shape: Shape): void {
 
 /** Paint one shape (fill then stroke) in world coordinates. */
 export function paintShape(ctx: CanvasRenderingContext2D, shape: Shape): void {
+  ctx.save();
   ctx.globalAlpha = shape.opacity;
+  if (shape.rotation) {
+    const c = shapeCenter(shape);
+    ctx.translate(c.x, c.y);
+    ctx.rotate(shape.rotation);
+    ctx.translate(-c.x, -c.y);
+  }
   tracePath(ctx, shape);
 
   // Lines and open paths/curves are never filled.
@@ -79,7 +86,7 @@ export function paintShape(ctx: CanvasRenderingContext2D, shape: Shape): void {
     ctx.lineCap = "round";
     ctx.stroke();
   }
-  ctx.globalAlpha = 1;
+  ctx.restore();
 }
 
 export interface RenderOptions {

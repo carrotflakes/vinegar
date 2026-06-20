@@ -70,6 +70,8 @@ export interface EditorState {
   updateSelectedStyle: (patch: Partial<StyleStylableFields>) => void;
   bringToFront: () => void;
   sendToBack: () => void;
+  groupSelected: () => void;
+  ungroupSelected: () => void;
 
   // interaction transactions (for drags) ----------------------------------
   beginInteraction: () => void;
@@ -81,12 +83,13 @@ export interface EditorState {
   redo: () => void;
 }
 
-/** Style fields that live directly on a shape and can be edited in the panel. */
+/** Shape fields that can be edited from the properties panel. */
 export interface StyleStylableFields {
   fill: string | null;
   stroke: string | null;
   strokeWidth: number;
   opacity: number;
+  rotation: number;
 }
 
 const HISTORY_LIMIT = 100;
@@ -234,6 +237,30 @@ export const useEditor = create<EditorState>((set, get) => {
       transact({ ...doc, order: [...moved, ...rest] });
     },
 
+    groupSelected: () => {
+      const { doc, selection } = get();
+      if (selection.length < 2) return;
+      const gid = makeId("group");
+      const shapes = { ...doc.shapes };
+      for (const id of selection) {
+        if (shapes[id]) shapes[id] = { ...shapes[id], groupId: gid };
+      }
+      transact({ ...doc, shapes });
+    },
+
+    ungroupSelected: () => {
+      const { doc, selection } = get();
+      const shapes = { ...doc.shapes };
+      let changed = false;
+      for (const id of selection) {
+        if (shapes[id]?.groupId) {
+          shapes[id] = { ...shapes[id], groupId: null };
+          changed = true;
+        }
+      }
+      if (changed) transact({ ...doc, shapes });
+    },
+
     beginInteraction: () => set({ _pending: clone(get().doc), _dirty: false }),
 
     applyShapes: (next) => {
@@ -278,14 +305,35 @@ export const useEditor = create<EditorState>((set, get) => {
   };
 });
 
-/** Build a shape style record from the current style defaults. */
+/** Build a shape's common fields from the current style defaults. */
 export function styleFromDefaults(style: StyleDefaults) {
   return {
     fill: style.fill,
     stroke: style.stroke,
     strokeWidth: style.strokeWidth,
     opacity: 1,
+    rotation: 0,
+    groupId: null,
   };
+}
+
+/**
+ * Expand a set of shape ids to include every other member of any group they
+ * belong to, so grouped shapes are always selected together.
+ */
+export function expandToGroups(doc: Document, ids: string[]): string[] {
+  const groups = new Set<string>();
+  for (const id of ids) {
+    const g = doc.shapes[id]?.groupId;
+    if (g) groups.add(g);
+  }
+  if (groups.size === 0) return ids;
+  const result = new Set(ids);
+  for (const oid of doc.order) {
+    const g = doc.shapes[oid]?.groupId;
+    if (g && groups.has(g)) result.add(oid);
+  }
+  return [...result];
 }
 
 export { makeId };

@@ -20,6 +20,10 @@ export interface BaseShape {
   strokeWidth: number;
   /** 0..1 */
   opacity: number;
+  /** Rotation in radians about the shape's local bounding-box center. */
+  rotation: number;
+  /** Shapes sharing a non-null groupId are selected and edited together. */
+  groupId?: string | null;
 }
 
 /** Axis-aligned rectangle, defined by its top-left corner and size. */

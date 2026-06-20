@@ -1,5 +1,5 @@
 import { bezierSegments } from "../model/bezier";
-import { shapeBounds } from "../model/bounds";
+import { shapeBounds, shapeCenter } from "../model/bounds";
 import type { BezierShape, Document, Shape } from "../model/types";
 import { contentBounds } from "./exportBounds";
 
@@ -21,6 +21,11 @@ function commonAttrs(shape: Shape): string {
     parts.push(`stroke-linejoin="round" stroke-linecap="round"`);
   }
   if (shape.opacity < 1) parts.push(`opacity="${num(shape.opacity)}"`);
+  if (shape.rotation) {
+    const c = shapeCenter(shape);
+    const deg = (shape.rotation * 180) / Math.PI;
+    parts.push(`transform="rotate(${num(deg)} ${num(c.x)} ${num(c.y)})"`);
+  }
   return parts.join(" ");
 }
 

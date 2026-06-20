@@ -25,8 +25,10 @@ pnpm typecheck  # types only
   first anchor to close, or Enter / double-click to finish, Esc to cancel
 - Node editing: drag anchors and control handles (Alt to break handle symmetry),
   Delete to remove an anchor
-- Move, resize (8 handles), multi-select (shift-click & marquee)
-- Fill / stroke color, stroke width, opacity
+- Move, resize (8 handles), **rotate** (rotation handle; Shift snaps to 15°)
+- **Group / ungroup** (Ctrl/⌘+G, Ctrl/⌘+Shift+G) — grouped shapes select together
+- Multi-select (shift-click & marquee)
+- Fill / stroke color, stroke width, opacity, rotation
 - Arrange: bring to front / send to back
 - Undo / redo (Ctrl+Z / Ctrl+Shift+Z)
 - Pan (Space + drag, or middle mouse) and zoom (Ctrl/⌘ + wheel)
@@ -38,6 +40,7 @@ pnpm typecheck  # types only
 | --- | --- |
 | `V` `N` `R` `O` `L` `P` `B` | Select / Nodes / Rect / Ellipse / Line / Pen / Pencil |
 | `Enter` | Finish the current pen path |
+| `Ctrl/⌘ + G` / `+ Shift + G` | Group / Ungroup |
 | `Delete` / `Backspace` | Delete selection (or the active node) |
 | `Ctrl/⌘ + Z` | Undo |
 | `Ctrl/⌘ + Shift + Z` | Redo |

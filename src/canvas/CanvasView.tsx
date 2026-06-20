@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef } from "react";
-import { shapeBounds, unionBounds } from "../model/bounds";
+import { shapeCenter, worldShapeBounds } from "../model/bounds";
 import { hitTestShape } from "../model/hitTest";
+import { rotateAbout, snapAngle } from "../model/rotate";
 import { resizeShapeToBounds, translateShape } from "../model/transforms";
 import {
   makeId,
@@ -11,21 +12,33 @@ import {
 } from "../model/types";
 import { screenToWorld, worldToScreen, zoomAt } from "../model/viewport";
 import {
+  expandToGroups,
   styleFromDefaults,
   useEditor,
   type EditorState,
 } from "../store/editorStore";
 import {
+  frameHandlePoint,
+  frameRotationPoint,
+  getSelectionFrame,
+  type SelectionFrame,
+} from "./frame";
+import {
   HANDLE_IDS,
   HANDLE_SIZE,
   handleCursor,
-  handlePoint,
   resizeBounds,
   type HandleId,
 } from "./handles";
 import { hitBezierNodes, moveAnchor, moveHandle } from "./nodes";
 import { drawNodes, drawOverlay, drawPenDraft } from "./overlay";
+import { resizeSingleShape } from "./resize";
 import { renderScene } from "./render";
+
+type FrameHit =
+  | { type: "resize"; id: HandleId }
+  | { type: "rotate" }
+  | null;
 
 type Interaction =
   | { kind: "none" }
@@ -35,6 +48,13 @@ type Interaction =
       kind: "resize";
       handle: HandleId;
       from: Bounds;
+      originals: Record<string, Shape>;
+      single: boolean;
+    }
+  | {
+      kind: "rotate";
+      pivot: Vec2;
+      startAngle: number;
       originals: Record<string, Shape>;
     }
   | { kind: "create"; start: Vec2 }
@@ -100,8 +120,7 @@ export default function CanvasView() {
     drawOverlay(ctx, {
       dpr,
       viewport,
-      selectionBounds:
-        tool === "select" ? unionBounds(selectedShapes) : null,
+      frame: tool === "select" ? getSelectionFrame(selectedShapes) : null,
       marquee: marqueeRef.current,
       showHandles: tool === "select" && selectedShapes.length > 0,
     });
@@ -196,20 +215,32 @@ export default function CanvasView() {
 
   const pickTolerance = () => 5 / useEditor.getState().viewport.scale;
 
-  const hitHandle = (screen: Vec2): HandleId | null => {
-    const { doc, selection, viewport } = useEditor.getState();
+  const selectionFrame = (): SelectionFrame | null => {
+    const { doc, selection } = useEditor.getState();
     const shapes = selection
       .map((id) => doc.shapes[id])
       .filter(Boolean) as Shape[];
-    const b = unionBounds(shapes);
-    if (!b) return null;
+    return getSelectionFrame(shapes);
+  };
+
+  /** Hit-test the resize handles and rotation handle of the selection frame. */
+  const hitFrameHandle = (screen: Vec2): FrameHit => {
+    const { viewport } = useEditor.getState();
+    const frame = selectionFrame();
+    if (!frame) return null;
+    const rot = worldToScreen(viewport, frameRotationPoint(frame, viewport.scale));
+    if (
+      Math.abs(rot.x - screen.x) <= HANDLE_SIZE &&
+      Math.abs(rot.y - screen.y) <= HANDLE_SIZE
+    )
+      return { type: "rotate" };
     for (const id of HANDLE_IDS) {
-      const sp = worldToScreen(viewport, handlePoint(b, id));
+      const sp = worldToScreen(viewport, frameHandlePoint(frame, id));
       if (
         Math.abs(sp.x - screen.x) <= HANDLE_SIZE &&
         Math.abs(sp.y - screen.y) <= HANDLE_SIZE
       )
-        return id;
+        return { type: "resize", id };
     }
     return null;
   };
@@ -278,42 +309,67 @@ export default function CanvasView() {
     scheduleDraw();
   };
 
+  const snapshot = (ids: string[]): Record<string, Shape> => {
+    const { doc } = useEditor.getState();
+    const out: Record<string, Shape> = {};
+    for (const id of ids) if (doc.shapes[id]) out[id] = doc.shapes[id];
+    return out;
+  };
+
   const onSelectDown = (
     e: React.PointerEvent,
     state: EditorState,
     screen: Vec2,
     world: Vec2
   ) => {
-    const handle = hitHandle(screen);
-    if (handle) {
-      const shapes = state.selection
-        .map((id) => state.doc.shapes[id])
-        .filter(Boolean) as Shape[];
-      const from = unionBounds(shapes)!;
-      const originals: Record<string, Shape> = {};
-      for (const s of shapes) originals[s.id] = s;
+    // Rotation / resize handles take priority over picking shapes.
+    const hit = hitFrameHandle(screen);
+    if (hit?.type === "rotate") {
+      const frame = selectionFrame()!;
       state.beginInteraction();
-      interactionRef.current = { kind: "resize", handle, from, originals };
+      interactionRef.current = {
+        kind: "rotate",
+        pivot: frame.center,
+        startAngle: Math.atan2(world.y - frame.center.y, world.x - frame.center.x),
+        originals: snapshot(state.selection),
+      };
+      return;
+    }
+    if (hit?.type === "resize") {
+      const frame = selectionFrame()!;
+      state.beginInteraction();
+      interactionRef.current = {
+        kind: "resize",
+        handle: hit.id,
+        from: frame.bounds,
+        originals: snapshot(state.selection),
+        single: state.selection.length === 1,
+      };
       return;
     }
 
     const hitId = pickShape(world);
     if (hitId) {
-      let selection = state.selection;
+      let selection: string[];
       if (e.shiftKey) {
-        state.toggleSelection(hitId);
-        selection = useEditor.getState().selection;
-      } else if (!selection.includes(hitId)) {
-        state.setSelection([hitId]);
-        selection = [hitId];
-      }
-      const originals: Record<string, Shape> = {};
-      for (const id of selection) {
-        const s = useEditor.getState().doc.shapes[id];
-        if (s) originals[id] = s;
+        const group = expandToGroups(state.doc, [hitId]);
+        const has = group.every((id) => state.selection.includes(id));
+        selection = has
+          ? state.selection.filter((id) => !group.includes(id))
+          : [...new Set([...state.selection, ...group])];
+        state.setSelection(selection);
+      } else if (!state.selection.includes(hitId)) {
+        selection = expandToGroups(state.doc, [hitId]);
+        state.setSelection(selection);
+      } else {
+        selection = state.selection;
       }
       state.beginInteraction();
-      interactionRef.current = { kind: "move", start: world, originals };
+      interactionRef.current = {
+        kind: "move",
+        start: world,
+        originals: snapshot(selection),
+      };
       return;
     }
 
@@ -426,10 +482,34 @@ export default function CanvasView() {
         break;
       }
       case "resize": {
-        const to = resizeBounds(inter.from, inter.handle, world);
+        if (inter.single) {
+          const entry = Object.entries(inter.originals)[0];
+          if (entry) {
+            state.applyShapes({
+              [entry[0]]: resizeSingleShape(entry[1], inter.handle, world),
+            });
+          }
+        } else {
+          const to = resizeBounds(inter.from, inter.handle, world);
+          const next: Record<string, Shape> = {};
+          for (const [id, orig] of Object.entries(inter.originals)) {
+            next[id] = resizeShapeToBounds(orig, inter.from, to);
+          }
+          state.applyShapes(next);
+        }
+        break;
+      }
+      case "rotate": {
+        let delta =
+          Math.atan2(world.y - inter.pivot.y, world.x - inter.pivot.x) -
+          inter.startAngle;
+        if (e.shiftKey) delta = snapAngle(delta, 15);
         const next: Record<string, Shape> = {};
         for (const [id, orig] of Object.entries(inter.originals)) {
-          next[id] = resizeShapeToBounds(orig, inter.from, to);
+          const c = shapeCenter(orig);
+          const nc = rotateAbout(inter.pivot, c, delta);
+          const moved = translateShape(orig, nc.x - c.x, nc.y - c.y);
+          next[id] = { ...moved, rotation: (orig.rotation || 0) + delta };
         }
         state.applyShapes(next);
         break;
@@ -505,6 +585,7 @@ export default function CanvasView() {
     switch (inter.kind) {
       case "move":
       case "resize":
+      case "rotate":
       case "node-anchor":
       case "node-handle":
         state.endInteraction();
@@ -533,10 +614,12 @@ export default function CanvasView() {
         const region = boundsFromPoints(inter.start, end);
         const hits = state.doc.order.filter((id) => {
           const s = state.doc.shapes[id];
-          return s && boundsIntersect(shapeBounds(s), region);
+          return s && boundsIntersect(worldShapeBounds(s), region);
         });
         const base = inter.additive ? state.selection : [];
-        state.setSelection(Array.from(new Set([...base, ...hits])));
+        state.setSelection(
+          expandToGroups(state.doc, [...new Set([...base, ...hits])])
+        );
         marqueeRef.current = null;
         scheduleDraw();
         break;
@@ -569,9 +652,13 @@ export default function CanvasView() {
           : "default";
       return;
     }
-    const handle = hitHandle(screen);
-    if (handle) {
-      canvas.style.cursor = handleCursor(handle);
+    const hit = hitFrameHandle(screen);
+    if (hit?.type === "rotate") {
+      canvas.style.cursor = "grab";
+      return;
+    }
+    if (hit?.type === "resize") {
+      canvas.style.cursor = handleCursor(hit.id);
       return;
     }
     canvas.style.cursor = pickShape(world) ? "move" : "default";

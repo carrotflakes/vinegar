@@ -11,12 +11,16 @@ export default function PropertiesPanel() {
   const deleteSelected = useEditor((s) => s.deleteSelected);
   const bringToFront = useEditor((s) => s.bringToFront);
   const sendToBack = useEditor((s) => s.sendToBack);
+  const groupSelected = useEditor((s) => s.groupSelected);
+  const ungroupSelected = useEditor((s) => s.ungroupSelected);
 
   const selected = selection
     .map((id) => doc.shapes[id])
     .filter(Boolean) as Shape[];
   const hasSelection = selected.length > 0;
   const first = selected[0];
+  const canGroup = selected.length >= 2;
+  const canUngroup = selected.some((s) => s.groupId);
 
   // Effective values: selected shape's values, else the new-shape defaults.
   const fill = hasSelection ? first.fill : style.fill;
@@ -87,6 +91,37 @@ export default function PropertiesPanel() {
             </div>
           </div>
         )}
+
+        {selected.length === 1 && (
+          <div className="field">
+            <label>Rotation</label>
+            <div className="field-row">
+              <input
+                type="range"
+                min={-180}
+                max={180}
+                step={1}
+                value={Math.round((first.rotation * 180) / Math.PI)}
+                onChange={(e) =>
+                  updateSelectedStyle({
+                    rotation: (Number(e.target.value) * Math.PI) / 180,
+                  })
+                }
+              />
+              <input
+                type="number"
+                className="num"
+                step={1}
+                value={Math.round((first.rotation * 180) / Math.PI)}
+                onChange={(e) =>
+                  updateSelectedStyle({
+                    rotation: (Number(e.target.value) * Math.PI) / 180,
+                  })
+                }
+              />
+            </div>
+          </div>
+        )}
       </div>
 
       {hasSelection && (
@@ -100,6 +135,24 @@ export default function PropertiesPanel() {
               Send to back
             </button>
           </div>
+          {(canGroup || canUngroup) && (
+            <div className="btn-row">
+              <button
+                className="ghost-btn"
+                disabled={!canGroup}
+                onClick={groupSelected}
+              >
+                Group
+              </button>
+              <button
+                className="ghost-btn"
+                disabled={!canUngroup}
+                onClick={ungroupSelected}
+              >
+                Ungroup
+              </button>
+            </div>
+          )}
           <div className="btn-row">
             <button className="ghost-btn danger" onClick={deleteSelected}>
               Delete

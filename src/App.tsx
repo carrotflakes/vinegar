@@ -57,6 +57,12 @@ export default function App() {
         s.redo();
         return;
       }
+      if (mod && e.key.toLowerCase() === "g") {
+        e.preventDefault();
+        if (e.shiftKey) s.ungroupSelected();
+        else s.groupSelected();
+        return;
+      }
       if (e.key === "Delete" || e.key === "Backspace") {
         if (s.editNode) {
           e.preventDefault();

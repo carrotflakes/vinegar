@@ -1,5 +1,6 @@
 import { flattenBezier } from "./bezier";
-import { shapeBounds } from "./bounds";
+import { shapeBounds, shapeCenter } from "./bounds";
+import { rotateAbout } from "./rotate";
 import type { Shape, Vec2 } from "./types";
 
 /** Even-odd point-in-polygon test. */
@@ -50,6 +51,11 @@ export function distToSegment(p: Vec2, a: Vec2, b: Vec2): number {
 export function hitTestShape(shape: Shape, p: Vec2, tol: number): boolean {
   const hasFill = shape.fill !== null;
   const pickTol = Math.max(tol, shape.stroke ? shape.strokeWidth / 2 + tol : tol);
+
+  // Work in the shape's unrotated local frame by inverse-rotating the point.
+  if (shape.rotation) {
+    p = rotateAbout(shapeCenter(shape), p, -shape.rotation);
+  }
 
   switch (shape.type) {
     case "rect": {

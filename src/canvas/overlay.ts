@@ -1,6 +1,12 @@
 import type { Bounds, BezierShape, Vec2 } from "../model/types";
 import { worldToScreen, type Viewport } from "../model/viewport";
-import { HANDLE_IDS, HANDLE_SIZE, handlePoint } from "./handles";
+import { HANDLE_IDS, HANDLE_SIZE } from "./handles";
+import {
+  frameCorners,
+  frameHandlePoint,
+  frameRotationPoint,
+  type SelectionFrame,
+} from "./frame";
 import { ANCHOR_SIZE, HANDLE_DOT } from "./nodes";
 
 const ACCENT = "#3b82f6";
@@ -8,11 +14,11 @@ const ACCENT = "#3b82f6";
 export interface OverlayOptions {
   dpr: number;
   viewport: Viewport;
-  /** World-space bounds of the current selection, if any. */
-  selectionBounds: Bounds | null;
+  /** Oriented frame around the current selection, if any. */
+  frame: SelectionFrame | null;
   /** Screen-space marquee rect, if a selection drag is active. */
   marquee: Bounds | null;
-  /** Whether handles should be drawn (single shape / scalable selection). */
+  /** Whether resize/rotate handles should be drawn. */
   showHandles: boolean;
 }
 
@@ -21,32 +27,47 @@ export function drawOverlay(
   ctx: CanvasRenderingContext2D,
   opts: OverlayOptions
 ): void {
-  const { dpr, viewport, selectionBounds, marquee } = opts;
+  const { dpr, viewport, frame, marquee } = opts;
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 
-  if (selectionBounds) {
-    const tl = worldToScreen(viewport, {
-      x: selectionBounds.x,
-      y: selectionBounds.y,
-    });
-    const br = worldToScreen(viewport, {
-      x: selectionBounds.x + selectionBounds.width,
-      y: selectionBounds.y + selectionBounds.height,
-    });
+  if (frame) {
+    const toS = (w: Vec2) => worldToScreen(viewport, w);
+    const corners = frameCorners(frame).map(toS);
 
+    // Oriented bounding box.
     ctx.strokeStyle = ACCENT;
     ctx.lineWidth = 1;
     ctx.setLineDash([4, 3]);
-    ctx.strokeRect(tl.x, tl.y, br.x - tl.x, br.y - tl.y);
+    ctx.beginPath();
+    ctx.moveTo(corners[0].x, corners[0].y);
+    for (let i = 1; i < corners.length; i++)
+      ctx.lineTo(corners[i].x, corners[i].y);
+    ctx.closePath();
+    ctx.stroke();
     ctx.setLineDash([]);
 
     if (opts.showHandles) {
-      const half = HANDLE_SIZE / 2;
+      // Rotation handle: a stalk above the top edge ending in a circle.
+      const topMid = toS(frameHandlePoint(frame, "n"));
+      const rot = toS(frameRotationPoint(frame, viewport.scale));
+      ctx.strokeStyle = ACCENT;
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(topMid.x, topMid.y);
+      ctx.lineTo(rot.x, rot.y);
+      ctx.stroke();
       ctx.fillStyle = "#ffffff";
       ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.arc(rot.x, rot.y, HANDLE_SIZE / 2, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+
+      // Resize handles.
+      const half = HANDLE_SIZE / 2;
+      ctx.fillStyle = "#ffffff";
       for (const id of HANDLE_IDS) {
-        const wp = handlePoint(selectionBounds, id);
-        const sp = worldToScreen(viewport, wp);
+        const sp = toS(frameHandlePoint(frame, id));
         ctx.beginPath();
         ctx.rect(
           Math.round(sp.x - half),

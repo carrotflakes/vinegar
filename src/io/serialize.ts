@@ -42,7 +42,9 @@ export function parseDocument(text: string): Document {
   for (const id of doc.order) {
     const s = doc.shapes[id];
     if (s && typeof s === "object" && SHAPE_TYPES.includes((s as Shape).type)) {
-      shapes[id] = s as Shape;
+      // Default fields that may be absent in files from older versions.
+      const shape = s as Shape;
+      shapes[id] = { ...shape, rotation: shape.rotation ?? 0 };
     }
   }
   const order = doc.order.filter((id) => shapes[id]);
