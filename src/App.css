@@ -416,3 +416,19 @@
 .statusbar .dot {
   opacity: 0.5;
 }
+
+.status-spacer {
+  flex: 1;
+}
+
+.snap-toggle {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.snap-toggle input {
+  cursor: pointer;
+}

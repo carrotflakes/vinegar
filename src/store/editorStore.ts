@@ -43,6 +43,8 @@ export interface EditorState {
   history: HistoryState;
   /** Anchor highlighted for node editing (pen vertex tool). */
   editNode: EditNode | null;
+  /** Whether move-drag snaps to other shapes' alignment lines. */
+  snapEnabled: boolean;
 
   // --- internal interaction bookkeeping (not for UI) ---
   _pending: Document | null;
@@ -56,6 +58,7 @@ export interface EditorState {
   clearSelection: () => void;
   setEditNode: (node: EditNode | null) => void;
   deleteEditNode: () => void;
+  toggleSnap: () => void;
 
   // style ------------------------------------------------------------------
   setStyle: (patch: Partial<StyleDefaults>) => void;
@@ -124,6 +127,7 @@ export const useEditor = create<EditorState>((set, get) => {
     style: { fill: "#4f8cff", stroke: "#1b1b1b", strokeWidth: 2 },
     history: { past: [], future: [] },
     editNode: null,
+    snapEnabled: true,
     _pending: null,
     _dirty: false,
 
@@ -147,6 +151,7 @@ export const useEditor = create<EditorState>((set, get) => {
     },
     clearSelection: () => set({ selection: [], editNode: null }),
     setEditNode: (node) => set({ editNode: node }),
+    toggleSnap: () => set({ snapEnabled: !get().snapEnabled }),
 
     deleteEditNode: () => {
       const { doc, editNode } = get();

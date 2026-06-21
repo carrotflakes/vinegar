@@ -31,6 +31,8 @@ export default function App() {
   const shapeCount = useEditor((s) => s.doc.order.length);
   const canUndo = useEditor((s) => s.history.past.length > 0);
   const canRedo = useEditor((s) => s.history.future.length > 0);
+  const snapEnabled = useEditor((s) => s.snapEnabled);
+  const toggleSnap = useEditor((s) => s.toggleSnap);
 
   // Global keyboard shortcuts.
   useEffect(() => {
@@ -150,6 +152,15 @@ export default function App() {
         <span>{shapeCount} shapes</span>
         <span className="dot">·</span>
         <span>Space + drag to pan · Ctrl/⌘ + wheel to zoom</span>
+        <span className="status-spacer" />
+        <label className="snap-toggle">
+          <input
+            type="checkbox"
+            checked={snapEnabled}
+            onChange={toggleSnap}
+          />
+          Snap
+        </label>
       </footer>
     </div>
   );

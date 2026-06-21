@@ -1,7 +1,17 @@
 import { useCallback, useEffect, useRef } from "react";
-import { shapeCenter, worldShapeBounds } from "../model/bounds";
+import {
+  shapeCenter,
+  unionWorldBounds,
+  worldShapeBounds,
+} from "../model/bounds";
 import { hitTestShape } from "../model/hitTest";
 import { rotateAbout, snapAngle } from "../model/rotate";
+import {
+  collectSnapTargets,
+  computeSnap,
+  type Guide,
+  type SnapTargets,
+} from "../model/snap";
 import { resizeShapeToBounds, translateShape } from "../model/transforms";
 import {
   makeId,
@@ -31,7 +41,7 @@ import {
   type HandleId,
 } from "./handles";
 import { hitBezierNodes, moveAnchor, moveHandle } from "./nodes";
-import { drawNodes, drawOverlay, drawPenDraft } from "./overlay";
+import { drawGuides, drawNodes, drawOverlay, drawPenDraft } from "./overlay";
 import { resizeSingleShape } from "./resize";
 import { renderScene } from "./render";
 
@@ -43,7 +53,13 @@ type FrameHit =
 type Interaction =
   | { kind: "none" }
   | { kind: "pan"; startScreen: Vec2; startOffset: Vec2 }
-  | { kind: "move"; start: Vec2; originals: Record<string, Shape> }
+  | {
+      kind: "move";
+      start: Vec2;
+      originals: Record<string, Shape>;
+      origUnion: Bounds;
+      targets: SnapTargets;
+    }
   | {
       kind: "resize";
       handle: HandleId;
@@ -90,6 +106,7 @@ export default function CanvasView() {
   const marqueeRef = useRef<Bounds | null>(null);
   const penDraftRef = useRef<BezierShape | null>(null);
   const hoverRef = useRef<Vec2 | null>(null);
+  const guidesRef = useRef<Guide[]>([]);
   const rafRef = useRef<number | null>(null);
   const spaceRef = useRef(false);
 
@@ -138,6 +155,7 @@ export default function CanvasView() {
     if (tool === "pen" && penDraftRef.current) {
       drawPenDraft(ctx, dpr, viewport, penDraftRef.current, hoverRef.current);
     }
+    drawGuides(ctx, dpr, viewport, guidesRef.current);
   }, []);
 
   const scheduleDraw = useCallback(() => {
@@ -370,11 +388,23 @@ export default function CanvasView() {
       } else {
         selection = state.selection;
       }
+      const originals = snapshot(selection);
+      const selSet = new Set(selection);
+      const others = state.doc.order
+        .map((id) => state.doc.shapes[id])
+        .filter((s): s is Shape => !!s && !selSet.has(s.id) && !s.hidden);
       state.beginInteraction();
       interactionRef.current = {
         kind: "move",
         start: world,
-        originals: snapshot(selection),
+        originals,
+        origUnion: unionWorldBounds(Object.values(originals)) ?? {
+          x: world.x,
+          y: world.y,
+          width: 0,
+          height: 0,
+        },
+        targets: collectSnapTargets(others),
       };
       return;
     }
@@ -478,8 +508,28 @@ export default function CanvasView() {
         });
         break;
       case "move": {
-        const dx = world.x - inter.start.x;
-        const dy = world.y - inter.start.y;
+        const rawDx = world.x - inter.start.x;
+        const rawDy = world.y - inter.start.y;
+        let dx = rawDx;
+        let dy = rawDy;
+        if (state.snapEnabled) {
+          const movingBox = {
+            x: inter.origUnion.x + rawDx,
+            y: inter.origUnion.y + rawDy,
+            width: inter.origUnion.width,
+            height: inter.origUnion.height,
+          };
+          const snap = computeSnap(
+            movingBox,
+            inter.targets,
+            6 / state.viewport.scale
+          );
+          dx += snap.dx;
+          dy += snap.dy;
+          guidesRef.current = snap.guides;
+        } else {
+          guidesRef.current = [];
+        }
         const next: Record<string, Shape> = {};
         for (const [id, orig] of Object.entries(inter.originals)) {
           next[id] = translateShape(orig, dx, dy);
@@ -587,6 +637,7 @@ export default function CanvasView() {
     const inter = interactionRef.current;
     interactionRef.current = { kind: "none" };
     const state = useEditor.getState();
+    guidesRef.current = [];
 
     switch (inter.kind) {
       case "move":
@@ -595,6 +646,7 @@ export default function CanvasView() {
       case "node-anchor":
       case "node-handle":
         state.endInteraction();
+        scheduleDraw();
         break;
       case "create": {
         const shape = previewRef.current;

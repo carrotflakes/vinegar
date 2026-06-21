@@ -32,6 +32,8 @@ pnpm typecheck  # types only
 - Arrange: bring to front / send to back
 - **Layers panel**: z-order list, click to select, drag to reorder, show/hide,
   lock/unlock, double-click to rename
+- **Snapping & alignment guides**: while dragging, edges/centers snap to other
+  shapes with magenta guide lines (toggle "Snap" in the status bar)
 - Undo / redo (Ctrl+Z / Ctrl+Shift+Z)
 - Pan (Space + drag, or middle mouse) and zoom (Ctrl/⌘ + wheel)
 - File: New, Open, Save (.json), Export PNG, Export SVG
@@ -55,14 +57,15 @@ src/
   model/        document types, geometry, hit-testing, transforms, viewport
   store/        zustand editor store (state + undo/redo)
   canvas/       CanvasView (interaction), rendering, overlay, handles
-  ui/           Toolbar, PropertiesPanel
+  io/           JSON save/load, PNG/SVG export, snapping/export bounds
+  ui/           Toolbar, PropertiesPanel, LayersPanel, FileMenu
   App.tsx       layout, app bar, global shortcuts
 ```
 
 ## Ideas for next steps
 
-- Save / load documents (JSON) and PNG/SVG export
-- Bézier pen tool and per-vertex editing
-- Rotation and group/transform support
-- Layers panel
-- Snapping & alignment guides
+- Equal-spacing / distribution guides and grid snapping
+- Nested groups and a true group transform container
+- Boolean path operations (union / subtract / intersect)
+- Text tool
+- Copy / paste / duplicate

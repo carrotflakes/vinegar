@@ -1,3 +1,4 @@
+import type { Guide } from "../model/snap";
 import type { Bounds, BezierShape, Vec2 } from "../model/types";
 import { worldToScreen, type Viewport } from "../model/viewport";
 import { HANDLE_IDS, HANDLE_SIZE } from "./handles";
@@ -92,6 +93,36 @@ export function drawOverlay(
       marquee.width,
       marquee.height
     );
+  }
+}
+
+/** Draw magenta alignment guides (in screen space). */
+export function drawGuides(
+  ctx: CanvasRenderingContext2D,
+  dpr: number,
+  viewport: Viewport,
+  guides: Guide[]
+): void {
+  if (guides.length === 0) return;
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.strokeStyle = "#f0398b";
+  ctx.lineWidth = 1;
+  for (const g of guides) {
+    if (g.axis === "x") {
+      const a = worldToScreen(viewport, { x: g.value, y: g.from });
+      const b = worldToScreen(viewport, { x: g.value, y: g.to });
+      ctx.beginPath();
+      ctx.moveTo(Math.round(a.x) + 0.5, a.y);
+      ctx.lineTo(Math.round(b.x) + 0.5, b.y);
+      ctx.stroke();
+    } else {
+      const a = worldToScreen(viewport, { x: g.from, y: g.value });
+      const b = worldToScreen(viewport, { x: g.to, y: g.value });
+      ctx.beginPath();
+      ctx.moveTo(a.x, Math.round(a.y) + 0.5);
+      ctx.lineTo(b.x, Math.round(b.y) + 0.5);
+      ctx.stroke();
+    }
   }
 }
 
