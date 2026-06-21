@@ -1,5 +1,5 @@
 import { worldShapeBounds } from "./bounds";
-import type { Bounds, Shape } from "./types";
+import type { Bounds, Shape, Vec2 } from "./types";
 
 /** A line other shapes can snap to, with the perpendicular extent of its source. */
 interface Candidate {
@@ -216,4 +216,37 @@ export function computeSnap(
   if (yPick?.kind === "dist") spacings.push(...yPick.spacings);
 
   return { dx: xPick?.offset ?? 0, dy: yPick?.offset ?? 0, guides, spacings };
+}
+
+export interface PointSnapContext {
+  targets: SnapTargets;
+  gridSize: number | null;
+}
+
+/**
+ * Snap a single point to alignment lines and the grid (no distribution).
+ * Used for shape creation, resize handles and vertex editing.
+ */
+export function snapPoint(
+  p: Vec2,
+  ctx: PointSnapContext,
+  threshold: number
+): { point: Vec2; guides: Guide[] } {
+  const xPick = pick([
+    alignSnap("x", [p.x], [p.y, p.y], ctx.targets.x, threshold),
+    ctx.gridSize ? gridSnap([p.x], ctx.gridSize, threshold) : null,
+  ]);
+  const yPick = pick([
+    alignSnap("y", [p.y], [p.x, p.x], ctx.targets.y, threshold),
+    ctx.gridSize ? gridSnap([p.y], ctx.gridSize, threshold) : null,
+  ]);
+
+  const guides: Guide[] = [];
+  if (xPick?.kind === "align") guides.push(xPick.guide);
+  if (yPick?.kind === "align") guides.push(yPick.guide);
+
+  return {
+    point: { x: p.x + (xPick?.offset ?? 0), y: p.y + (yPick?.offset ?? 0) },
+    guides,
+  };
 }

@@ -9,6 +9,7 @@ import { rotateAbout, snapAngle } from "../model/rotate";
 import {
   collectSnapTargets,
   computeSnap,
+  snapPoint,
   type Guide,
   type SnapTargets,
   type Spacing,
@@ -289,6 +290,36 @@ export default function CanvasView() {
     return null;
   };
 
+  /**
+   * Snap a single world point to alignment lines / grid (for creation, resize
+   * and vertex editing). Updates the on-screen guides and returns the point.
+   */
+  const pointSnap = (world: Vec2, exclude: Set<string>): Vec2 => {
+    const state = useEditor.getState();
+    spacingsRef.current = [];
+    if (!state.snapEnabled && !state.gridSnap) {
+      guidesRef.current = [];
+      return world;
+    }
+    const others = state.doc.order
+      .map((id) => state.doc.shapes[id])
+      .filter((s): s is Shape => !!s && !s.hidden && !exclude.has(s.id));
+    const res = snapPoint(
+      world,
+      {
+        targets: state.snapEnabled
+          ? collectSnapTargets(others)
+          : { x: [], y: [] },
+        gridSize: state.gridSnap ? state.gridSize : null,
+      },
+      6 / state.viewport.scale
+    );
+    guidesRef.current = res.guides;
+    return res.point;
+  };
+
+  const EMPTY_EXCLUDE = new Set<string>();
+
   // ---- pointer handling --------------------------------------------------
   const onPointerDown = (e: React.PointerEvent<HTMLCanvasElement>) => {
     const canvas = canvasRef.current!;
@@ -338,8 +369,9 @@ export default function CanvasView() {
     }
 
     // rect / ellipse / line
-    previewRef.current = makeCreatedShape(tool, world, world, state.style);
-    interactionRef.current = { kind: "create", start: world };
+    const start = pointSnap(world, EMPTY_EXCLUDE);
+    previewRef.current = makeCreatedShape(tool, start, start, state.style);
+    interactionRef.current = { kind: "create", start };
     scheduleDraw();
   };
 
@@ -460,6 +492,7 @@ export default function CanvasView() {
   };
 
   const onPenDown = (state: EditorState, screen: Vec2, world: Vec2) => {
+    world = pointSnap(world, EMPTY_EXCLUDE);
     const draft = penDraftRef.current;
     if (!draft) {
       const shape: BezierShape = {
@@ -501,7 +534,7 @@ export default function CanvasView() {
 
     if (inter.kind === "none") {
       if (state.tool === "pen" && penDraftRef.current) {
-        hoverRef.current = world;
+        hoverRef.current = pointSnap(world, EMPTY_EXCLUDE);
         scheduleDraw();
       }
       updateHoverCursor(screen, world);
@@ -558,15 +591,16 @@ export default function CanvasView() {
         break;
       }
       case "resize": {
+        const handlePt = pointSnap(world, new Set(Object.keys(inter.originals)));
         if (inter.single) {
           const entry = Object.entries(inter.originals)[0];
           if (entry) {
             state.applyShapes({
-              [entry[0]]: resizeSingleShape(entry[1], inter.handle, world),
+              [entry[0]]: resizeSingleShape(entry[1], inter.handle, handlePt),
             });
           }
         } else {
-          const to = resizeBounds(inter.from, inter.handle, world);
+          const to = resizeBounds(inter.from, inter.handle, handlePt);
           const next: Record<string, Shape> = {};
           for (const [id, orig] of Object.entries(inter.originals)) {
             next[id] = resizeShapeToBounds(orig, inter.from, to);
@@ -594,7 +628,7 @@ export default function CanvasView() {
         previewRef.current = makeCreatedShape(
           state.tool,
           inter.start,
-          world,
+          pointSnap(world, EMPTY_EXCLUDE),
           state.style
         );
         scheduleDraw();
@@ -620,11 +654,13 @@ export default function CanvasView() {
         }
         break;
       }
-      case "node-anchor":
+      case "node-anchor": {
+        const snapped = pointSnap(world, new Set([inter.shapeId]));
         state.applyShapes({
-          [inter.shapeId]: moveAnchor(inter.orig, inter.index, world),
+          [inter.shapeId]: moveAnchor(inter.orig, inter.index, snapped),
         });
         break;
+      }
       case "node-handle":
         state.applyShapes({
           [inter.shapeId]: moveHandle(
