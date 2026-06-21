@@ -54,6 +54,15 @@ function tracePath(ctx: CanvasRenderingContext2D, shape: Shape): void {
       if (shape.closed) ctx.closePath();
       break;
     }
+    case "polygon": {
+      for (const ring of shape.polys.flat()) {
+        if (ring.length === 0) continue;
+        ctx.moveTo(ring[0].x, ring[0].y);
+        for (let i = 1; i < ring.length; i++) ctx.lineTo(ring[i].x, ring[i].y);
+        ctx.closePath();
+      }
+      break;
+    }
   }
 }
 
@@ -77,7 +86,7 @@ export function paintShape(ctx: CanvasRenderingContext2D, shape: Shape): void {
     !(shape.type === "bezier" && !shape.closed);
   if (fillable) {
     ctx.fillStyle = shape.fill as string;
-    ctx.fill();
+    ctx.fill(shape.type === "polygon" ? "evenodd" : "nonzero");
   }
   if (shape.stroke !== null && shape.strokeWidth > 0) {
     ctx.strokeStyle = shape.stroke;

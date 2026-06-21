@@ -117,5 +117,20 @@ export function hitTestShape(shape: Shape, p: Vec2, tol: number): boolean {
       if (hasFill && shape.closed && pointInPolygon(p, flat)) return true;
       return distToPolyline(p, flat, shape.closed) <= pickTol;
     }
+    case "polygon": {
+      const rings = shape.polys.flat();
+      if (hasFill) {
+        // Even-odd across all rings, so holes are excluded.
+        const inside = rings.reduce(
+          (acc, ring) => acc !== pointInPolygon(p, ring),
+          false
+        );
+        if (inside) return true;
+      }
+      for (const ring of rings) {
+        if (distToPolyline(p, ring, true) <= pickTol) return true;
+      }
+      return false;
+    }
   }
 }

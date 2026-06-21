@@ -1,3 +1,4 @@
+import { isAreal } from "../model/boolean";
 import { shapeBounds } from "../model/bounds";
 import type { Shape } from "../model/types";
 import { useEditor } from "../store/editorStore";
@@ -14,6 +15,7 @@ export default function PropertiesPanel() {
   const groupSelected = useEditor((s) => s.groupSelected);
   const ungroupSelected = useEditor((s) => s.ungroupSelected);
   const duplicateSelected = useEditor((s) => s.duplicateSelected);
+  const booleanSelected = useEditor((s) => s.booleanSelected);
 
   const selected = selection
     .map((id) => doc.shapes[id])
@@ -22,6 +24,7 @@ export default function PropertiesPanel() {
   const first = selected[0];
   const canGroup = selected.length >= 2;
   const canUngroup = selected.some((s) => s.groupId);
+  const canBoolean = selected.filter(isAreal).length >= 2;
 
   // Effective values: selected shape's values, else the new-shape defaults.
   const fill = hasSelection ? first.fill : style.fill;
@@ -165,6 +168,34 @@ export default function PropertiesPanel() {
           {selected.length === 1 && <Geometry shape={first} />}
         </div>
       )}
+
+      {canBoolean && (
+        <div className="panel-section">
+          <div className="panel-title">Boolean</div>
+          <div className="btn-row">
+            <button className="ghost-btn" onClick={() => booleanSelected("union")}>
+              Union
+            </button>
+            <button
+              className="ghost-btn"
+              onClick={() => booleanSelected("subtract")}
+            >
+              Subtract
+            </button>
+          </div>
+          <div className="btn-row">
+            <button
+              className="ghost-btn"
+              onClick={() => booleanSelected("intersect")}
+            >
+              Intersect
+            </button>
+            <button className="ghost-btn" onClick={() => booleanSelected("xor")}>
+              Exclude
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -225,5 +256,7 @@ function typeName(shape: Shape): string {
       return "Path";
     case "bezier":
       return "Curve";
+    case "polygon":
+      return "Shape";
   }
 }

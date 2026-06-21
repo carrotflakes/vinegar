@@ -32,6 +32,12 @@ export function transformShape(shape: Shape, fn: (p: Vec2) => Vec2): Shape {
         })),
       };
     }
+    case "polygon": {
+      return {
+        ...shape,
+        polys: shape.polys.map((poly) => poly.map((ring) => ring.map(fn))),
+      };
+    }
   }
 }
 

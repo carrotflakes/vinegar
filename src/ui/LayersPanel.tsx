@@ -8,6 +8,7 @@ const TYPE_ICON: Record<Shape["type"], string> = {
   line: "╱",
   path: "〜",
   bezier: "✒",
+  polygon: "⬟",
 };
 
 export default function LayersPanel() {

@@ -7,7 +7,13 @@
 
 export type Vec2 = { x: number; y: number };
 
-export type ShapeType = "rect" | "ellipse" | "line" | "path" | "bezier";
+export type ShapeType =
+  | "rect"
+  | "ellipse"
+  | "line"
+  | "path"
+  | "bezier"
+  | "polygon";
 
 /** Common visual + identity fields shared by every shape. */
 export interface BaseShape {
@@ -82,12 +88,28 @@ export interface BezierShape extends BaseShape {
   closed: boolean;
 }
 
+/**
+ * Multi-polygon, produced by boolean operations. `polys` is an array of
+ * polygons, each `[outerRing, ...holeRings]`; rings are closed loops with no
+ * repeated final point. Rendered with the even-odd rule so holes show through.
+ */
+export interface PolygonShape extends BaseShape {
+  type: "polygon";
+  polys: Vec2[][][];
+}
+
+/** Flatten a polygon shape's polys into a flat list of rings. */
+export function polygonRings(shape: PolygonShape): Vec2[][] {
+  return shape.polys.flat();
+}
+
 export type Shape =
   | RectShape
   | EllipseShape
   | LineShape
   | PathShape
-  | BezierShape;
+  | BezierShape
+  | PolygonShape;
 
 /** Axis-aligned bounding box. */
 export interface Bounds {

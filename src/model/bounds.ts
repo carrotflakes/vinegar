@@ -48,6 +48,8 @@ export function shapeBounds(shape: Shape): Bounds {
       return pointsBounds(shape.points);
     case "bezier":
       return pointsBounds(flattenBezier(shape));
+    case "polygon":
+      return pointsBounds(shape.polys.flat(2));
   }
 }
 

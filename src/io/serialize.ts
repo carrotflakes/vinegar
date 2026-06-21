@@ -12,7 +12,14 @@ export function serializeDocument(doc: Document): string {
   return JSON.stringify(file, null, 2);
 }
 
-const SHAPE_TYPES: ShapeType[] = ["rect", "ellipse", "line", "path", "bezier"];
+const SHAPE_TYPES: ShapeType[] = [
+  "rect",
+  "ellipse",
+  "line",
+  "path",
+  "bezier",
+  "polygon",
+];
 
 /**
  * Parse a `.vinegar.json` file back into a Document. Throws on anything

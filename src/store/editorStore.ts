@@ -5,6 +5,7 @@ import {
   type Document,
   type Shape,
 } from "../model/types";
+import { booleanShapes, type BoolOp } from "../model/boolean";
 import { translateShape } from "../model/transforms";
 import { initialViewport, type Viewport } from "../model/viewport";
 
@@ -87,6 +88,7 @@ export interface EditorState {
   sendToBack: () => void;
   groupSelected: () => void;
   ungroupSelected: () => void;
+  booleanSelected: (op: BoolOp) => void;
   toggleHidden: (id: string) => void;
   toggleLocked: (id: string) => void;
   renameShape: (id: string, name: string) => void;
@@ -353,6 +355,31 @@ export const useEditor = create<EditorState>((set, get) => {
         }
       }
       if (changed) transact({ ...doc, shapes });
+    },
+
+    booleanSelected: (op) => {
+      const { doc, selection } = get();
+      if (selection.length < 2) return;
+      const sel = new Set(selection);
+      const ordered = doc.order.filter((id) => sel.has(id));
+      const result = booleanShapes(
+        ordered.map((id) => doc.shapes[id]),
+        op
+      );
+      if (!result) return;
+
+      const minIdx = Math.min(...ordered.map((id) => doc.order.indexOf(id)));
+      const keptBefore = doc.order.filter(
+        (id, i) => !sel.has(id) && i < minIdx
+      ).length;
+      const order = doc.order.filter((id) => !sel.has(id));
+      order.splice(keptBefore, 0, result.id);
+
+      const shapes = { ...doc.shapes };
+      for (const id of selection) delete shapes[id];
+      shapes[result.id] = result;
+      transact({ shapes, order });
+      set({ selection: [result.id] });
     },
 
     toggleHidden: (id) => {

@@ -7,6 +7,7 @@ A browser-based **vector drawing app** built with React + TypeScript + Vite, ren
 - React 18 + TypeScript + Vite
 - Zustand for state (with undo/redo history)
 - Canvas 2D rendering (no SVG/WebGL)
+- `polygon-clipping` for boolean path operations
 - Package manager: **pnpm**
 
 ## Getting started
@@ -29,6 +30,8 @@ pnpm typecheck  # types only
 - **Group / ungroup** (Ctrl/⌘+G, Ctrl/⌘+Shift+G) — grouped shapes select together
 - Multi-select (shift-click & marquee)
 - Copy / cut / paste / duplicate (groups stay grouped on paste)
+- **Boolean operations**: union, subtract, intersect, exclude (closed shapes →
+  a single polygon with holes, via `polygon-clipping`)
 - Fill / stroke color, stroke width, opacity, rotation
 - Arrange: bring to front / send to back
 - **Layers panel**: z-order list, click to select, drag to reorder, show/hide,

@@ -55,6 +55,18 @@ function shapeToSvg(shape: Shape): string {
     }
     case "bezier":
       return `<path d="${bezierPathData(shape)}" ${attrs} />`;
+    case "polygon": {
+      const d = shape.polys
+        .flat()
+        .map(
+          (ring) =>
+            "M " +
+            ring.map((p) => `${num(p.x)} ${num(p.y)}`).join(" L ") +
+            " Z"
+        )
+        .join(" ");
+      return `<path d="${d}" fill-rule="evenodd" ${attrs} />`;
+    }
   }
 }
 
