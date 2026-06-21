@@ -52,6 +52,8 @@ export interface EditorState {
   gridSize: number;
   /** Recently used colors (most recent first), persisted across sessions. */
   recentColors: string[];
+  /** User-saved color swatches, persisted across sessions. */
+  savedSwatches: string[];
 
   // --- internal interaction bookkeeping (not for UI) ---
   _pending: Document | null;
@@ -68,6 +70,8 @@ export interface EditorState {
   toggleSnap: () => void;
   toggleGridSnap: () => void;
   addRecentColor: (hex: string) => void;
+  addSwatch: (hex: string) => void;
+  removeSwatch: (hex: string) => void;
 
   // style ------------------------------------------------------------------
   setStyle: (patch: Partial<StyleDefaults>) => void;
@@ -121,15 +125,24 @@ const HISTORY_LIMIT = 100;
 const PASTE_OFFSET = 12;
 const RECENT_COLORS_KEY = "vinegar.recentColors";
 const RECENT_COLORS_MAX = 12;
+const SAVED_SWATCHES_KEY = "vinegar.savedSwatches";
 
-function loadRecentColors(): string[] {
+function loadColorList(key: string, max = Infinity): string[] {
   try {
-    const raw = JSON.parse(localStorage.getItem(RECENT_COLORS_KEY) || "[]");
+    const raw = JSON.parse(localStorage.getItem(key) || "[]");
     return Array.isArray(raw)
-      ? raw.filter((c) => typeof c === "string").slice(0, RECENT_COLORS_MAX)
+      ? raw.filter((c) => typeof c === "string").slice(0, max)
       : [];
   } catch {
     return [];
+  }
+}
+
+function saveColorList(key: string, list: string[]): void {
+  try {
+    localStorage.setItem(key, JSON.stringify(list));
+  } catch {
+    // ignore storage errors (private mode, etc.)
   }
 }
 
@@ -164,8 +177,30 @@ function clone(doc: Document): Document {
 }
 
 export const useEditor = create<EditorState>((set, get) => {
-  /** Push the current doc onto the undo stack, then apply `next`. */
-  function transact(next: Document) {
+  // History coalescing: consecutive transacts with the same key within a short
+  // window fold into a single undo step (e.g. dragging a color/opacity slider).
+  let coalesceKey: string | null = null;
+  let coalesceTime = 0;
+  const COALESCE_MS = 600;
+
+  function resetCoalesce() {
+    coalesceKey = null;
+  }
+
+  /**
+   * Push the current doc onto the undo stack, then apply `next`. When `key` is
+   * given and matches the previous transact within COALESCE_MS, the change is
+   * merged into the current undo step instead of starting a new one.
+   */
+  function transact(next: Document, key?: string) {
+    const now = Date.now();
+    if (key && key === coalesceKey && now - coalesceTime < COALESCE_MS) {
+      coalesceTime = now;
+      set({ doc: next });
+      return;
+    }
+    coalesceKey = key ?? null;
+    coalesceTime = now;
     const { doc, history } = get();
     const past = [...history.past, clone(doc)];
     if (past.length > HISTORY_LIMIT) past.shift();
@@ -183,7 +218,8 @@ export const useEditor = create<EditorState>((set, get) => {
     snapEnabled: true,
     gridSnap: false,
     gridSize: 50,
-    recentColors: loadRecentColors(),
+    recentColors: loadColorList(RECENT_COLORS_KEY, RECENT_COLORS_MAX),
+    savedSwatches: loadColorList(SAVED_SWATCHES_KEY),
     clipboard: [],
     _pending: null,
     _dirty: false,
@@ -217,12 +253,22 @@ export const useEditor = create<EditorState>((set, get) => {
         0,
         RECENT_COLORS_MAX
       );
-      try {
-        localStorage.setItem(RECENT_COLORS_KEY, JSON.stringify(next));
-      } catch {
-        // ignore storage errors (private mode, etc.)
-      }
+      saveColorList(RECENT_COLORS_KEY, next);
       set({ recentColors: next });
+    },
+
+    addSwatch: (hex) => {
+      const c = hex.toLowerCase();
+      if (get().savedSwatches.includes(c)) return;
+      const next = [...get().savedSwatches, c];
+      saveColorList(SAVED_SWATCHES_KEY, next);
+      set({ savedSwatches: next });
+    },
+
+    removeSwatch: (hex) => {
+      const next = get().savedSwatches.filter((x) => x !== hex.toLowerCase());
+      saveColorList(SAVED_SWATCHES_KEY, next);
+      set({ savedSwatches: next });
     },
 
     deleteEditNode: () => {
@@ -346,7 +392,8 @@ export const useEditor = create<EditorState>((set, get) => {
       for (const id of selection) {
         if (shapes[id]) shapes[id] = { ...shapes[id], ...patch } as Shape;
       }
-      transact({ ...doc, shapes });
+      // Coalesce rapid edits of the same field (slider/color drag) into one undo.
+      transact({ ...doc, shapes }, "style:" + Object.keys(patch).sort().join(","));
     },
 
     bringToFront: () => {
@@ -480,6 +527,7 @@ export const useEditor = create<EditorState>((set, get) => {
     setDoc: (doc) => set({ doc, _dirty: true }),
 
     endInteraction: () => {
+      resetCoalesce();
       const { _pending, _dirty, history } = get();
       if (_pending && _dirty) {
         const past = [...history.past, _pending];
@@ -490,6 +538,7 @@ export const useEditor = create<EditorState>((set, get) => {
     },
 
     undo: () => {
+      resetCoalesce();
       const { history, doc } = get();
       if (history.past.length === 0) return;
       const past = [...history.past];
@@ -502,6 +551,7 @@ export const useEditor = create<EditorState>((set, get) => {
     },
 
     redo: () => {
+      resetCoalesce();
       const { history, doc } = get();
       if (history.future.length === 0) return;
       const [next, ...future] = history.future;

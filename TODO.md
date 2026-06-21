@@ -28,6 +28,8 @@ A running list of what's built and what's next. Check items off as they land.
 
 ### Color
 - [x] Color swatch popover: preset palette, recent colors (persisted), hex, none
+- [x] Saved swatches (persisted, add/Alt-click remove) + eyedropper (EyeDropper API)
+- [x] History coalescing for color/slider drags (one undo per drag)
 
 ### File / IO
 - [x] New / Open / Save (.json)
@@ -44,7 +46,7 @@ A running list of what's built and what's next. Check items off as they land.
 - [ ] Align & distribute buttons (left/center/right, top/middle/bottom, spacing)
 
 ## Backlog / ideas
-- [ ] Color: alpha/opacity per color, document swatches, eyedropper
+- [ ] Color: alpha/opacity per color; swatches saved in the document
 - [ ] System clipboard integration (paste across tabs/apps)
 - [ ] Text tool
 - [ ] Nested groups / true group transform container
@@ -52,5 +54,12 @@ A running list of what's built and what's next. Check items off as they land.
 - [ ] Configurable pencil smoothing strength
 
 ## Known issues / polish
-- [ ] Dragging the native color spectrum can add several undo steps (batch it)
+- [x] Dragging the native color spectrum can add several undo steps (batch it)
 - [ ] Resizing a rotated multi-selection is approximate (per-child rotation)
+
+## User ideas / wishlist
+- [ ] Rectangleの角丸
+- [ ] 塗り機能
+- [ ] グラデーション
+- [ ] テクスチャ
+- [ ] ラスタ画像

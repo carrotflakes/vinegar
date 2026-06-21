@@ -18,6 +18,19 @@ function normalizeHex(input: string): string | null {
   return /^#[0-9a-f]{6}$/.test(v) ? v : null;
 }
 
+function Eyedropper() {
+  return (
+    <svg width="15" height="15" viewBox="0 0 16 16" fill="none" aria-hidden>
+      <path
+        d="M10.5 2.5a1.8 1.8 0 0 1 2.5 2.5l-1.2 1.2 1 1-1 1-1-1L6 13l-2.5.5L4 11l5.3-5.3-1-1 1-1 1 1 .2-1.2Z"
+        stroke="currentColor"
+        strokeWidth="1.1"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
 interface Props {
   label: string;
   value: string | null;
@@ -27,9 +40,23 @@ interface Props {
 export default function ColorField({ label, value, onChange }: Props) {
   const recentColors = useEditor((s) => s.recentColors);
   const addRecentColor = useEditor((s) => s.addRecentColor);
+  const savedSwatches = useEditor((s) => s.savedSwatches);
+  const addSwatch = useEditor((s) => s.addSwatch);
+  const removeSwatch = useEditor((s) => s.removeSwatch);
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
   const enabled = value !== null;
+  const hasEyeDropper = typeof window !== "undefined" && !!window.EyeDropper;
+
+  const pickFromScreen = async () => {
+    if (!window.EyeDropper) return;
+    try {
+      const { sRGBHex } = await new window.EyeDropper().open();
+      onChange(sRGBHex.toLowerCase());
+    } catch {
+      // user cancelled
+    }
+  };
 
   const close = () => {
     setOpen(false);
@@ -76,6 +103,15 @@ export default function ColorField({ label, value, onChange }: Props) {
               value={enabled ? value : "#888888"}
               onChange={(e) => onChange(e.target.value)}
             />
+            {hasEyeDropper && (
+              <button
+                className="icon-btn"
+                title="Pick color from screen"
+                onClick={pickFromScreen}
+              >
+                <Eyedropper />
+              </button>
+            )}
             <input
               key={value ?? "none"}
               className="hex-input"
@@ -91,6 +127,34 @@ export default function ColorField({ label, value, onChange }: Props) {
                 if (n) onChange(n);
               }}
             />
+          </div>
+
+          <div className="color-pop-label">
+            Saved
+            <button
+              className="swatch-add"
+              title="Save current color"
+              disabled={!enabled}
+              onClick={() => enabled && addSwatch(value)}
+            >
+              +
+            </button>
+          </div>
+          <div className="swatch-grid">
+            {savedSwatches.length === 0 && (
+              <span className="swatch-hint">Save colors with +</span>
+            )}
+            {savedSwatches.map((c) => (
+              <button
+                key={c}
+                className="mini-swatch"
+                style={{ background: c }}
+                title={`${c} — Alt-click to remove`}
+                onClick={(e) =>
+                  e.altKey ? removeSwatch(c) : onChange(c)
+                }
+              />
+            ))}
           </div>
 
           {recentColors.length > 0 && (
