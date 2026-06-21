@@ -50,6 +50,8 @@ export interface EditorState {
   /** Whether move-drag snaps to a fixed world-unit grid. */
   gridSnap: boolean;
   gridSize: number;
+  /** Recently used colors (most recent first), persisted across sessions. */
+  recentColors: string[];
 
   // --- internal interaction bookkeeping (not for UI) ---
   _pending: Document | null;
@@ -65,6 +67,7 @@ export interface EditorState {
   deleteEditNode: () => void;
   toggleSnap: () => void;
   toggleGridSnap: () => void;
+  addRecentColor: (hex: string) => void;
 
   // style ------------------------------------------------------------------
   setStyle: (patch: Partial<StyleDefaults>) => void;
@@ -116,6 +119,19 @@ export interface StyleStylableFields {
 
 const HISTORY_LIMIT = 100;
 const PASTE_OFFSET = 12;
+const RECENT_COLORS_KEY = "vinegar.recentColors";
+const RECENT_COLORS_MAX = 12;
+
+function loadRecentColors(): string[] {
+  try {
+    const raw = JSON.parse(localStorage.getItem(RECENT_COLORS_KEY) || "[]");
+    return Array.isArray(raw)
+      ? raw.filter((c) => typeof c === "string").slice(0, RECENT_COLORS_MAX)
+      : [];
+  } catch {
+    return [];
+  }
+}
 
 /**
  * Deep-clone shapes for paste/duplicate: assign fresh ids, remap group ids so
@@ -167,6 +183,7 @@ export const useEditor = create<EditorState>((set, get) => {
     snapEnabled: true,
     gridSnap: false,
     gridSize: 50,
+    recentColors: loadRecentColors(),
     clipboard: [],
     _pending: null,
     _dirty: false,
@@ -193,6 +210,20 @@ export const useEditor = create<EditorState>((set, get) => {
     setEditNode: (node) => set({ editNode: node }),
     toggleSnap: () => set({ snapEnabled: !get().snapEnabled }),
     toggleGridSnap: () => set({ gridSnap: !get().gridSnap }),
+
+    addRecentColor: (hex) => {
+      const c = hex.toLowerCase();
+      const next = [c, ...get().recentColors.filter((x) => x !== c)].slice(
+        0,
+        RECENT_COLORS_MAX
+      );
+      try {
+        localStorage.setItem(RECENT_COLORS_KEY, JSON.stringify(next));
+      } catch {
+        // ignore storage errors (private mode, etc.)
+      }
+      set({ recentColors: next });
+    },
 
     deleteEditNode: () => {
       const { doc, editNode } = get();

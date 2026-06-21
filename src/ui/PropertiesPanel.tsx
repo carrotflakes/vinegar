@@ -2,6 +2,7 @@ import { isAreal } from "../model/boolean";
 import { shapeBounds } from "../model/bounds";
 import type { Shape } from "../model/types";
 import { useEditor } from "../store/editorStore";
+import ColorField from "./ColorField";
 
 export default function PropertiesPanel() {
   const doc = useEditor((s) => s.doc);
@@ -223,38 +224,6 @@ function Geometry({ shape }: { shape: Shape }) {
       <span>Y {Math.round(b.y)}</span>
       <span>W {Math.round(b.width)}</span>
       <span>H {Math.round(b.height)}</span>
-    </div>
-  );
-}
-
-function ColorField({
-  label,
-  value,
-  onChange,
-}: {
-  label: string;
-  value: string | null;
-  onChange: (v: string | null) => void;
-}) {
-  const enabled = value !== null;
-  return (
-    <div className="field">
-      <label>{label}</label>
-      <div className="field-row">
-        <input
-          type="checkbox"
-          checked={enabled}
-          onChange={(e) => onChange(e.target.checked ? "#888888" : null)}
-          title={enabled ? "Disable" : "Enable"}
-        />
-        <input
-          type="color"
-          disabled={!enabled}
-          value={enabled ? value : "#888888"}
-          onChange={(e) => onChange(e.target.value)}
-        />
-        <span className="swatch-text">{enabled ? value : "none"}</span>
-      </div>
     </div>
   );
 }

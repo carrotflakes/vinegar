@@ -34,7 +34,8 @@ pnpm typecheck  # types only
 - Copy / cut / paste / duplicate (groups stay grouped on paste)
 - **Boolean operations**: union, subtract, intersect, exclude (closed shapes →
   a single polygon with holes, via `polygon-clipping`)
-- Fill / stroke color, stroke width, opacity, rotation
+- Fill / stroke color (swatch popover with preset palette, recent colors, hex
+  input and "none"), stroke width, opacity, rotation
 - Arrange: bring to front / send to back
 - **Layers panel**: z-order list, click to select, drag to reorder, show/hide,
   lock/unlock, double-click to rename
