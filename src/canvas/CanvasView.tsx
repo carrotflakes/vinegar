@@ -4,6 +4,7 @@ import {
   unionWorldBounds,
   worldShapeBounds,
 } from "../model/bounds";
+import { pointsToAnchors, simplifyPath } from "../model/freehand";
 import { hitTestShape } from "../model/hitTest";
 import { rotateAbout, snapAngle } from "../model/rotate";
 import {
@@ -716,7 +717,7 @@ export default function CanvasView() {
         const shape = previewRef.current;
         previewRef.current = null;
         if (shape && shape.type === "path" && shape.points.length >= 2) {
-          state.addShape(shape);
+          state.addShape(freehandToBezier(shape.points, state));
         }
         scheduleDraw();
         break;
@@ -898,6 +899,36 @@ function makeCreatedShape(
     x2: b.x,
     y2: b.y,
     ...base,
+    fill: null,
+  };
+}
+
+/**
+ * Convert a freehand polyline into a smooth, editable Bézier shape. Closes the
+ * path when the stroke ends near where it began.
+ */
+function freehandToBezier(rawPoints: Vec2[], state: EditorState): BezierShape {
+  let pts = rawPoints;
+  const first = pts[0];
+  const last = pts[pts.length - 1];
+  const closeTol = 10 / state.viewport.scale;
+  let closed = false;
+  if (
+    pts.length > 3 &&
+    Math.hypot(last.x - first.x, last.y - first.y) <= closeTol
+  ) {
+    closed = true;
+    pts = pts.slice(0, -1);
+  }
+  const simplified = simplifyPath(pts, 2 / state.viewport.scale);
+  const anchors = pointsToAnchors(simplified.length >= 2 ? simplified : pts, closed);
+  return {
+    id: makeId("bezier"),
+    name: "Pencil",
+    type: "bezier",
+    anchors,
+    closed,
+    ...styleFromDefaults(state.style),
     fill: null,
   };
 }

@@ -22,6 +22,8 @@ pnpm typecheck  # types only
 ## Features
 
 - Tools: Select, Edit Nodes, Rectangle, Ellipse, Line, **Pen (Bézier)**, Pencil (freehand)
+- Pencil: freehand strokes are simplified and smoothed into an editable Bézier
+  path (tweak it with the Node tool); end near the start to close it
 - Pen tool: click for corner anchors, click-drag for smooth anchors; click the
   first anchor to close, or Enter / double-click to finish, Esc to cancel
 - Node editing: drag anchors and control handles (Alt to break handle symmetry),
