@@ -45,6 +45,9 @@ export interface EditorState {
   editNode: EditNode | null;
   /** Whether move-drag snaps to other shapes' alignment lines. */
   snapEnabled: boolean;
+  /** Whether move-drag snaps to a fixed world-unit grid. */
+  gridSnap: boolean;
+  gridSize: number;
 
   // --- internal interaction bookkeeping (not for UI) ---
   _pending: Document | null;
@@ -59,6 +62,7 @@ export interface EditorState {
   setEditNode: (node: EditNode | null) => void;
   deleteEditNode: () => void;
   toggleSnap: () => void;
+  toggleGridSnap: () => void;
 
   // style ------------------------------------------------------------------
   setStyle: (patch: Partial<StyleDefaults>) => void;
@@ -128,6 +132,8 @@ export const useEditor = create<EditorState>((set, get) => {
     history: { past: [], future: [] },
     editNode: null,
     snapEnabled: true,
+    gridSnap: false,
+    gridSize: 50,
     _pending: null,
     _dirty: false,
 
@@ -152,6 +158,7 @@ export const useEditor = create<EditorState>((set, get) => {
     clearSelection: () => set({ selection: [], editNode: null }),
     setEditNode: (node) => set({ editNode: node }),
     toggleSnap: () => set({ snapEnabled: !get().snapEnabled }),
+    toggleGridSnap: () => set({ gridSnap: !get().gridSnap }),
 
     deleteEditNode: () => {
       const { doc, editNode } = get();

@@ -11,6 +11,7 @@ import {
   computeSnap,
   type Guide,
   type SnapTargets,
+  type Spacing,
 } from "../model/snap";
 import { resizeShapeToBounds, translateShape } from "../model/transforms";
 import {
@@ -41,7 +42,13 @@ import {
   type HandleId,
 } from "./handles";
 import { hitBezierNodes, moveAnchor, moveHandle } from "./nodes";
-import { drawGuides, drawNodes, drawOverlay, drawPenDraft } from "./overlay";
+import {
+  drawGuides,
+  drawNodes,
+  drawOverlay,
+  drawPenDraft,
+  drawSpacings,
+} from "./overlay";
 import { resizeSingleShape } from "./resize";
 import { renderScene } from "./render";
 
@@ -59,6 +66,7 @@ type Interaction =
       originals: Record<string, Shape>;
       origUnion: Bounds;
       targets: SnapTargets;
+      boxes: Bounds[];
     }
   | {
       kind: "resize";
@@ -107,6 +115,7 @@ export default function CanvasView() {
   const penDraftRef = useRef<BezierShape | null>(null);
   const hoverRef = useRef<Vec2 | null>(null);
   const guidesRef = useRef<Guide[]>([]);
+  const spacingsRef = useRef<Spacing[]>([]);
   const rafRef = useRef<number | null>(null);
   const spaceRef = useRef(false);
 
@@ -156,6 +165,7 @@ export default function CanvasView() {
       drawPenDraft(ctx, dpr, viewport, penDraftRef.current, hoverRef.current);
     }
     drawGuides(ctx, dpr, viewport, guidesRef.current);
+    drawSpacings(ctx, dpr, viewport, spacingsRef.current);
   }, []);
 
   const scheduleDraw = useCallback(() => {
@@ -405,6 +415,7 @@ export default function CanvasView() {
           height: 0,
         },
         targets: collectSnapTargets(others),
+        boxes: others.map(worldShapeBounds),
       };
       return;
     }
@@ -512,7 +523,8 @@ export default function CanvasView() {
         const rawDy = world.y - inter.start.y;
         let dx = rawDx;
         let dy = rawDy;
-        if (state.snapEnabled) {
+        const gridSize = state.gridSnap ? state.gridSize : null;
+        if (state.snapEnabled || gridSize) {
           const movingBox = {
             x: inter.origUnion.x + rawDx,
             y: inter.origUnion.y + rawDy,
@@ -521,14 +533,22 @@ export default function CanvasView() {
           };
           const snap = computeSnap(
             movingBox,
-            inter.targets,
+            {
+              targets: state.snapEnabled
+                ? inter.targets
+                : { x: [], y: [] },
+              boxes: state.snapEnabled ? inter.boxes : [],
+              gridSize,
+            },
             6 / state.viewport.scale
           );
           dx += snap.dx;
           dy += snap.dy;
           guidesRef.current = snap.guides;
+          spacingsRef.current = snap.spacings;
         } else {
           guidesRef.current = [];
+          spacingsRef.current = [];
         }
         const next: Record<string, Shape> = {};
         for (const [id, orig] of Object.entries(inter.originals)) {
@@ -638,6 +658,7 @@ export default function CanvasView() {
     interactionRef.current = { kind: "none" };
     const state = useEditor.getState();
     guidesRef.current = [];
+    spacingsRef.current = [];
 
     switch (inter.kind) {
       case "move":

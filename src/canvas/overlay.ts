@@ -1,4 +1,4 @@
-import type { Guide } from "../model/snap";
+import type { Guide, Spacing } from "../model/snap";
 import type { Bounds, BezierShape, Vec2 } from "../model/types";
 import { worldToScreen, type Viewport } from "../model/viewport";
 import { HANDLE_IDS, HANDLE_SIZE } from "./handles";
@@ -123,6 +123,43 @@ export function drawGuides(
       ctx.lineTo(b.x, Math.round(b.y) + 0.5);
       ctx.stroke();
     }
+  }
+}
+
+/** Draw equal-spacing marker bars with end ticks (in screen space). */
+export function drawSpacings(
+  ctx: CanvasRenderingContext2D,
+  dpr: number,
+  viewport: Viewport,
+  spacings: Spacing[]
+): void {
+  if (spacings.length === 0) return;
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.strokeStyle = "#f0398b";
+  ctx.lineWidth = 1;
+  const tick = 4;
+  for (const s of spacings) {
+    const p1 = s.horizontal
+      ? worldToScreen(viewport, { x: s.a, y: s.pos })
+      : worldToScreen(viewport, { x: s.pos, y: s.a });
+    const p2 = s.horizontal
+      ? worldToScreen(viewport, { x: s.b, y: s.pos })
+      : worldToScreen(viewport, { x: s.pos, y: s.b });
+    ctx.beginPath();
+    ctx.moveTo(p1.x, p1.y);
+    ctx.lineTo(p2.x, p2.y);
+    if (s.horizontal) {
+      ctx.moveTo(p1.x, p1.y - tick);
+      ctx.lineTo(p1.x, p1.y + tick);
+      ctx.moveTo(p2.x, p2.y - tick);
+      ctx.lineTo(p2.x, p2.y + tick);
+    } else {
+      ctx.moveTo(p1.x - tick, p1.y);
+      ctx.lineTo(p1.x + tick, p1.y);
+      ctx.moveTo(p2.x - tick, p2.y);
+      ctx.lineTo(p2.x + tick, p2.y);
+    }
+    ctx.stroke();
   }
 }
 

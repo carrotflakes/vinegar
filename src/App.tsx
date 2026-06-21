@@ -33,6 +33,8 @@ export default function App() {
   const canRedo = useEditor((s) => s.history.future.length > 0);
   const snapEnabled = useEditor((s) => s.snapEnabled);
   const toggleSnap = useEditor((s) => s.toggleSnap);
+  const gridSnap = useEditor((s) => s.gridSnap);
+  const toggleGridSnap = useEditor((s) => s.toggleGridSnap);
 
   // Global keyboard shortcuts.
   useEffect(() => {
@@ -160,6 +162,14 @@ export default function App() {
             onChange={toggleSnap}
           />
           Snap
+        </label>
+        <label className="snap-toggle">
+          <input
+            type="checkbox"
+            checked={gridSnap}
+            onChange={toggleGridSnap}
+          />
+          Grid
         </label>
       </footer>
     </div>

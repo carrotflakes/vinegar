@@ -1,4 +1,4 @@
-import { unionWorldBounds, worldShapeBounds } from "./bounds";
+import { worldShapeBounds } from "./bounds";
 import type { Bounds, Shape } from "./types";
 
 /** A line other shapes can snap to, with the perpendicular extent of its source. */
@@ -21,10 +21,27 @@ export interface Guide {
   to: number;
 }
 
+/** An equal-spacing marker bar (world coordinates). */
+export interface Spacing {
+  horizontal: boolean;
+  a: number;
+  b: number;
+  pos: number;
+}
+
+export interface SnapContext {
+  targets: SnapTargets;
+  /** Other shapes' world AABBs, used for distribution (equal spacing). */
+  boxes: Bounds[];
+  /** Grid size in world units, or null to disable grid snapping. */
+  gridSize: number | null;
+}
+
 export interface SnapResult {
   dx: number;
   dy: number;
   guides: Guide[];
+  spacings: Spacing[];
 }
 
 function boxCandidates(b: Bounds): { x: Candidate[]; y: Candidate[] } {
@@ -56,12 +73,20 @@ export function collectSnapTargets(shapes: Shape[]): SnapTargets {
   return { x, y };
 }
 
-function snapAxis(
+// ---- per-axis snap candidates ---------------------------------------------
+
+type AxisSnap =
+  | { offset: number; kind: "align"; guide: Guide }
+  | { offset: number; kind: "grid" }
+  | { offset: number; kind: "dist"; spacings: Spacing[] };
+
+function alignSnap(
+  axis: "x" | "y",
   edges: number[],
   perp: [number, number],
   cands: Candidate[],
   threshold: number
-): { offset: number; value: number; lo: number; hi: number } | null {
+): AxisSnap | null {
   let best: { ad: number; offset: number; value: number } | null = null;
   for (const e of edges) {
     for (const c of cands) {
@@ -81,27 +106,114 @@ function snapAxis(
       hi = Math.max(hi, c.hi);
     }
   }
-  return { offset: best.offset, value: best.value, lo, hi };
+  return {
+    offset: best.offset,
+    kind: "align",
+    guide: { axis, value: best.value, from: lo, to: hi },
+  };
+}
+
+function gridSnap(edges: number[], grid: number, threshold: number): AxisSnap | null {
+  let best: number | null = null;
+  for (const e of edges) {
+    const off = Math.round(e / grid) * grid - e;
+    if (Math.abs(off) <= threshold && (best === null || Math.abs(off) < Math.abs(best))) {
+      best = off;
+    }
+  }
+  return best === null ? null : { offset: best, kind: "grid" };
 }
 
 /**
- * Snap a moving AABB to alignment targets. Returns the extra offset needed to
- * align (added on top of the raw move) plus the guides to draw.
+ * Distribution snap: centre the moving box in the gap between two neighbours
+ * that overlap it on the cross axis, producing equal-spacing markers.
+ */
+function distSnap(
+  horizontal: boolean,
+  box: Bounds,
+  boxes: Bounds[],
+  threshold: number
+): AxisSnap | null {
+  // Coordinates along the snapping axis vs. the cross axis.
+  const lo = horizontal ? box.x : box.y;
+  const size = horizontal ? box.width : box.height;
+  const crossLo = horizontal ? box.y : box.x;
+  const crossHi = crossLo + (horizontal ? box.height : box.width);
+  const center = lo + size / 2;
+
+  const band = boxes
+    .map((b) => ({
+      lo: horizontal ? b.x : b.y,
+      size: horizontal ? b.width : b.height,
+      cLo: horizontal ? b.y : b.x,
+      cSize: horizontal ? b.height : b.width,
+    }))
+    .filter((b) => b.cLo < crossHi && b.cLo + b.cSize > crossLo)
+    .sort((p, q) => p.lo - q.lo);
+
+  let best: AxisSnap | null = null;
+  for (let i = 0; i + 1 < band.length; i++) {
+    const p = band[i];
+    const q = band[i + 1];
+    const pEnd = p.lo + p.size;
+    const gap = q.lo - pEnd;
+    if (gap < size) continue;
+    const target = (pEnd + q.lo) / 2;
+    const off = target - center;
+    if (Math.abs(off) > threshold) continue;
+    if (best && Math.abs(off) >= Math.abs(best.offset)) continue;
+
+    const boxStart = target - size / 2;
+    const pos = crossLo + (crossHi - crossLo) / 2;
+    best = {
+      offset: off,
+      kind: "dist",
+      spacings: [
+        { horizontal, a: pEnd, b: boxStart, pos },
+        { horizontal, a: boxStart + size, b: q.lo, pos },
+      ],
+    };
+  }
+  return best;
+}
+
+function pick(cands: (AxisSnap | null)[]): AxisSnap | null {
+  let best: AxisSnap | null = null;
+  for (const c of cands) {
+    if (c && (!best || Math.abs(c.offset) < Math.abs(best.offset))) best = c;
+  }
+  return best;
+}
+
+/**
+ * Snap a moving AABB to alignment lines, grid and equal-spacing positions.
+ * Returns the extra offset to add on top of the raw move plus what to draw.
  */
 export function computeSnap(
   box: Bounds,
-  targets: SnapTargets,
+  ctx: SnapContext,
   threshold: number
 ): SnapResult {
   const xEdges = [box.x, box.x + box.width / 2, box.x + box.width];
   const yEdges = [box.y, box.y + box.height / 2, box.y + box.height];
-  const sx = snapAxis(xEdges, [box.y, box.y + box.height], targets.x, threshold);
-  const sy = snapAxis(yEdges, [box.x, box.x + box.width], targets.y, threshold);
+
+  const xPick = pick([
+    alignSnap("x", xEdges, [box.y, box.y + box.height], ctx.targets.x, threshold),
+    ctx.gridSize ? gridSnap(xEdges, ctx.gridSize, threshold) : null,
+    distSnap(true, box, ctx.boxes, threshold),
+  ]);
+  const yPick = pick([
+    alignSnap("y", yEdges, [box.x, box.x + box.width], ctx.targets.y, threshold),
+    ctx.gridSize ? gridSnap(yEdges, ctx.gridSize, threshold) : null,
+    distSnap(false, box, ctx.boxes, threshold),
+  ]);
 
   const guides: Guide[] = [];
-  if (sx) guides.push({ axis: "x", value: sx.value, from: sx.lo, to: sx.hi });
-  if (sy) guides.push({ axis: "y", value: sy.value, from: sy.lo, to: sy.hi });
-  return { dx: sx?.offset ?? 0, dy: sy?.offset ?? 0, guides };
-}
+  const spacings: Spacing[] = [];
+  if (xPick?.kind === "align") guides.push(xPick.guide);
+  if (xPick?.kind === "dist") spacings.push(...xPick.spacings);
+  if (yPick?.kind === "align") guides.push(yPick.guide);
+  if (yPick?.kind === "dist") spacings.push(...yPick.spacings);
 
-export { unionWorldBounds };
+  return { dx: xPick?.offset ?? 0, dy: yPick?.offset ?? 0, guides, spacings };
+}

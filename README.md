@@ -32,8 +32,9 @@ pnpm typecheck  # types only
 - Arrange: bring to front / send to back
 - **Layers panel**: z-order list, click to select, drag to reorder, show/hide,
   lock/unlock, double-click to rename
-- **Snapping & alignment guides**: while dragging, edges/centers snap to other
-  shapes with magenta guide lines (toggle "Snap" in the status bar)
+- **Snapping**: while dragging, edges/centers snap to other shapes (magenta
+  alignment guides), equal-spacing distribution between neighbours (spacing
+  markers), and an optional grid — toggle "Snap" / "Grid" in the status bar
 - Undo / redo (Ctrl+Z / Ctrl+Shift+Z)
 - Pan (Space + drag, or middle mouse) and zoom (Ctrl/⌘ + wheel)
 - File: New, Open, Save (.json), Export PNG, Export SVG
@@ -64,8 +65,6 @@ src/
 
 ## Ideas for next steps
 
-- Equal-spacing / distribution guides and grid snapping
 - Nested groups and a true group transform container
-- Boolean path operations (union / subtract / intersect)
 - Text tool
-- Copy / paste / duplicate
+- Snapping during resize (not just move)
