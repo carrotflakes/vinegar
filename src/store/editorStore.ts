@@ -5,6 +5,7 @@ import {
   type Document,
   type Shape,
 } from "../model/types";
+import { translateShape } from "../model/transforms";
 import { initialViewport, type Viewport } from "../model/viewport";
 
 export type ToolId =
@@ -71,6 +72,13 @@ export interface EditorState {
   newDocument: () => void;
   loadDocument: (doc: Document) => void;
 
+  // clipboard --------------------------------------------------------------
+  clipboard: Shape[];
+  copySelected: () => void;
+  cutSelected: () => void;
+  paste: () => void;
+  duplicateSelected: () => void;
+
   // history-wrapped mutations ---------------------------------------------
   addShape: (shape: Shape, select?: boolean) => void;
   deleteSelected: () => void;
@@ -104,6 +112,28 @@ export interface StyleStylableFields {
 }
 
 const HISTORY_LIMIT = 100;
+const PASTE_OFFSET = 12;
+
+/**
+ * Deep-clone shapes for paste/duplicate: assign fresh ids, remap group ids so
+ * pasted groups stay grouped (and independent of the source), and offset them.
+ */
+function cloneForPaste(shapes: Shape[], offset: number): Shape[] {
+  const groupMap = new Map<string, string>();
+  return shapes.map((s) => {
+    const copy = structuredClone(s);
+    copy.id = makeId(copy.type);
+    if (s.groupId) {
+      let gid = groupMap.get(s.groupId);
+      if (!gid) {
+        gid = makeId("group");
+        groupMap.set(s.groupId, gid);
+      }
+      copy.groupId = gid;
+    }
+    return translateShape(copy, offset, offset);
+  });
+}
 
 function clone(doc: Document): Document {
   return {
@@ -134,6 +164,7 @@ export const useEditor = create<EditorState>((set, get) => {
     snapEnabled: true,
     gridSnap: false,
     gridSize: 50,
+    clipboard: [],
     _pending: null,
     _dirty: false,
 
@@ -225,6 +256,53 @@ export const useEditor = create<EditorState>((set, get) => {
       };
       transact(next);
       set({ selection: [] });
+    },
+
+    copySelected: () => {
+      const { doc, selection } = get();
+      const sel = new Set(selection);
+      // Preserve document stacking order in the clipboard.
+      const shapes = doc.order
+        .filter((id) => sel.has(id))
+        .map((id) => structuredClone(doc.shapes[id]));
+      set({ clipboard: shapes });
+    },
+
+    cutSelected: () => {
+      get().copySelected();
+      get().deleteSelected();
+    },
+
+    paste: () => {
+      const { clipboard, doc } = get();
+      if (clipboard.length === 0) return;
+      const pasted = cloneForPaste(clipboard, PASTE_OFFSET);
+      const shapes = { ...doc.shapes };
+      const order = [...doc.order];
+      for (const s of pasted) {
+        shapes[s.id] = s;
+        order.push(s.id);
+      }
+      transact({ shapes, order });
+      set({ selection: pasted.map((s) => s.id) });
+    },
+
+    duplicateSelected: () => {
+      const { doc, selection } = get();
+      if (selection.length === 0) return;
+      const sel = new Set(selection);
+      const src = doc.order
+        .filter((id) => sel.has(id))
+        .map((id) => doc.shapes[id]);
+      const dup = cloneForPaste(src, PASTE_OFFSET);
+      const shapes = { ...doc.shapes };
+      const order = [...doc.order];
+      for (const s of dup) {
+        shapes[s.id] = s;
+        order.push(s.id);
+      }
+      transact({ shapes, order });
+      set({ selection: dup.map((s) => s.id) });
     },
 
     updateSelectedStyle: (patch) => {

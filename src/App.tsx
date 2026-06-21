@@ -68,6 +68,26 @@ export default function App() {
         else s.groupSelected();
         return;
       }
+      if (mod && e.key.toLowerCase() === "c") {
+        e.preventDefault();
+        s.copySelected();
+        return;
+      }
+      if (mod && e.key.toLowerCase() === "x") {
+        e.preventDefault();
+        s.cutSelected();
+        return;
+      }
+      if (mod && e.key.toLowerCase() === "v") {
+        e.preventDefault();
+        s.paste();
+        return;
+      }
+      if (mod && e.key.toLowerCase() === "d") {
+        e.preventDefault();
+        s.duplicateSelected();
+        return;
+      }
       if (e.key === "Delete" || e.key === "Backspace") {
         if (s.editNode) {
           e.preventDefault();

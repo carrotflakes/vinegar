@@ -13,6 +13,7 @@ export default function PropertiesPanel() {
   const sendToBack = useEditor((s) => s.sendToBack);
   const groupSelected = useEditor((s) => s.groupSelected);
   const ungroupSelected = useEditor((s) => s.ungroupSelected);
+  const duplicateSelected = useEditor((s) => s.duplicateSelected);
 
   const selected = selection
     .map((id) => doc.shapes[id])
@@ -154,6 +155,9 @@ export default function PropertiesPanel() {
             </div>
           )}
           <div className="btn-row">
+            <button className="ghost-btn" onClick={duplicateSelected}>
+              Duplicate
+            </button>
             <button className="ghost-btn danger" onClick={deleteSelected}>
               Delete
             </button>

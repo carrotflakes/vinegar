@@ -28,6 +28,7 @@ pnpm typecheck  # types only
 - Move, resize (8 handles), **rotate** (rotation handle; Shift snaps to 15°)
 - **Group / ungroup** (Ctrl/⌘+G, Ctrl/⌘+Shift+G) — grouped shapes select together
 - Multi-select (shift-click & marquee)
+- Copy / cut / paste / duplicate (groups stay grouped on paste)
 - Fill / stroke color, stroke width, opacity, rotation
 - Arrange: bring to front / send to back
 - **Layers panel**: z-order list, click to select, drag to reorder, show/hide,
@@ -46,6 +47,8 @@ pnpm typecheck  # types only
 | `V` `N` `R` `O` `L` `P` `B` | Select / Nodes / Rect / Ellipse / Line / Pen / Pencil |
 | `Enter` | Finish the current pen path |
 | `Ctrl/⌘ + G` / `+ Shift + G` | Group / Ungroup |
+| `Ctrl/⌘ + C / X / V` | Copy / Cut / Paste |
+| `Ctrl/⌘ + D` | Duplicate |
 | `Delete` / `Backspace` | Delete selection (or the active node) |
 | `Ctrl/⌘ + Z` | Undo |
 | `Ctrl/⌘ + Shift + Z` | Redo |
