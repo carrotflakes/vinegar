@@ -16,6 +16,7 @@ export default function PropertiesPanel() {
   const ungroupSelected = useEditor((s) => s.ungroupSelected);
   const duplicateSelected = useEditor((s) => s.duplicateSelected);
   const booleanSelected = useEditor((s) => s.booleanSelected);
+  const setClosedSelected = useEditor((s) => s.setClosedSelected);
 
   const selected = selection
     .map((id) => doc.shapes[id])
@@ -25,6 +26,10 @@ export default function PropertiesPanel() {
   const canGroup = selected.length >= 2;
   const canUngroup = selected.some((s) => s.groupId);
   const canBoolean = selected.filter(isAreal).length >= 2;
+  const closable = selected.filter(
+    (s) => s.type === "path" || s.type === "bezier"
+  );
+  const anyOpen = closable.some((s) => "closed" in s && !s.closed);
 
   // Effective values: selected shape's values, else the new-shape defaults.
   const fill = hasSelection ? first.fill : style.fill;
@@ -154,6 +159,16 @@ export default function PropertiesPanel() {
                 onClick={ungroupSelected}
               >
                 Ungroup
+              </button>
+            </div>
+          )}
+          {closable.length > 0 && (
+            <div className="btn-row">
+              <button
+                className="ghost-btn"
+                onClick={() => setClosedSelected(anyOpen)}
+              >
+                {anyOpen ? "Close path" : "Open path"}
               </button>
             </div>
           )}

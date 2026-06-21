@@ -27,7 +27,7 @@ pnpm typecheck  # types only
 - Pen tool: click for corner anchors, click-drag for smooth anchors; click the
   first anchor to close, or Enter / double-click to finish, Esc to cancel
 - Node editing: drag anchors and control handles (Alt to break handle symmetry),
-  Delete to remove an anchor
+  Delete to remove an anchor; open/close a path anytime via the properties panel
 - Move, resize (8 handles), **rotate** (rotation handle; Shift snaps to 15°)
 - **Group / ungroup** (Ctrl/⌘+G, Ctrl/⌘+Shift+G) — grouped shapes select together
 - Multi-select (shift-click & marquee)

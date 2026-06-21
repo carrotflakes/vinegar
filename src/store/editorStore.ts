@@ -88,6 +88,7 @@ export interface EditorState {
   sendToBack: () => void;
   groupSelected: () => void;
   ungroupSelected: () => void;
+  setClosedSelected: (closed: boolean) => void;
   booleanSelected: (op: BoolOp) => void;
   toggleHidden: (id: string) => void;
   toggleLocked: (id: string) => void;
@@ -351,6 +352,24 @@ export const useEditor = create<EditorState>((set, get) => {
       for (const id of selection) {
         if (shapes[id]?.groupId) {
           shapes[id] = { ...shapes[id], groupId: null };
+          changed = true;
+        }
+      }
+      if (changed) transact({ ...doc, shapes });
+    },
+
+    setClosedSelected: (closed) => {
+      const { doc, selection } = get();
+      const shapes = { ...doc.shapes };
+      let changed = false;
+      for (const id of selection) {
+        const s = shapes[id];
+        if (
+          s &&
+          (s.type === "path" || s.type === "bezier") &&
+          s.closed !== closed
+        ) {
+          shapes[id] = { ...s, closed };
           changed = true;
         }
       }
