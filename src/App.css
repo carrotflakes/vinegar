@@ -738,3 +738,8 @@
 .snap-toggle input {
   cursor: pointer;
 }
+
+.grid-size-input {
+  width: 52px;
+  cursor: text;
+}

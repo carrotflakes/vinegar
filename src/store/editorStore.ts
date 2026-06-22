@@ -80,6 +80,7 @@ export interface EditorState {
   deleteEditNode: () => void;
   toggleSnap: () => void;
   toggleGridSnap: () => void;
+  setGridSize: (size: number) => void;
   addRecentColor: (hex: string) => void;
   addSwatch: (hex: string) => void;
   removeSwatch: (hex: string) => void;
@@ -293,6 +294,8 @@ export const useEditor = create<EditorState>((set, get) => {
     setEditNode: (node) => set({ editNode: node }),
     toggleSnap: () => set({ snapEnabled: !get().snapEnabled }),
     toggleGridSnap: () => set({ gridSnap: !get().gridSnap }),
+    setGridSize: (size) =>
+      set({ gridSize: Math.max(1, Math.round(size)) }),
 
     addRecentColor: (hex) => {
       const c = hex.toLowerCase();

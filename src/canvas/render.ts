@@ -108,6 +108,8 @@ export interface RenderOptions {
   preview?: Shape | null;
   background?: string;
   showGrid?: boolean;
+  /** World units between grid lines (defaults to 50). */
+  gridSize?: number;
 }
 
 /** Full scene render: background, grid, shapes, preview. */
@@ -139,7 +141,7 @@ export function renderScene(
 
 function drawGrid(ctx: CanvasRenderingContext2D, opts: RenderOptions): void {
   const { viewport, width, height } = opts;
-  const base = 50; // world units between major lines
+  const base = opts.gridSize ?? 50; // world units between major lines
   let step = base * viewport.scale;
   // Keep on-screen spacing readable across zoom levels.
   while (step < 24) step *= 2;

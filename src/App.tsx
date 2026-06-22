@@ -35,6 +35,8 @@ export default function App() {
   const toggleSnap = useEditor((s) => s.toggleSnap);
   const gridSnap = useEditor((s) => s.gridSnap);
   const toggleGridSnap = useEditor((s) => s.toggleGridSnap);
+  const gridSize = useEditor((s) => s.gridSize);
+  const setGridSize = useEditor((s) => s.setGridSize);
   const [showScript, setShowScript] = useState(false);
 
   // Global keyboard shortcuts.
@@ -193,6 +195,20 @@ export default function App() {
             onChange={toggleGridSnap}
           />
           Grid
+        </label>
+        <label className="snap-toggle">
+          Size
+          <input
+            type="number"
+            min={1}
+            step={1}
+            value={gridSize}
+            onChange={(e) => {
+              const v = Number(e.target.value);
+              if (Number.isFinite(v) && v >= 1) setGridSize(v);
+            }}
+            className="grid-size-input"
+          />
         </label>
       </footer>
     </div>

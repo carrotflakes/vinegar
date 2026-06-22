@@ -66,4 +66,10 @@ A running list of what's built and what's next. Check items off as they land.
 - [ ] テクスチャ
 - [ ] ラスタ画像
 - [x] スクリプティング（one-shot 生成）
-- [ ] change grid size
+  - [ ] 既存図形を参照、編集
+  - [ ] 実行後に生成物へビューを自動フィット
+  - [ ] DSL に bezier() を追加
+  - [ ] エディタの行番号・簡易ハイライト・エラー行表示
+  - [ ] サンプル/スニペット集
+  - [ ] パラメトリック生成（パラメータ変更で再生成）
+- [x] change grid size

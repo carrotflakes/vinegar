@@ -140,6 +140,7 @@ export default function CanvasView() {
       preview: previewRef.current,
       background: "#ffffff",
       showGrid: true,
+      gridSize: state.gridSize,
     });
 
     const selectedShapes = selection
