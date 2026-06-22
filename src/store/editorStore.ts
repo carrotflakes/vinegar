@@ -2,11 +2,13 @@ import { create } from "zustand";
 import {
   createEmptyDocument,
   makeId,
+  type Bounds,
   type Document,
   type Shape,
 } from "../model/types";
 import { booleanShapes, type BoolOp } from "../model/boolean";
-import { translateShape } from "../model/transforms";
+import { shapeBounds, unionWorldBounds, worldShapeBounds } from "../model/bounds";
+import { resizeShapeToBounds, translateShape } from "../model/transforms";
 import { initialViewport, type Viewport } from "../model/viewport";
 
 export type ToolId =
@@ -23,6 +25,14 @@ export interface EditNode {
   shapeId: string;
   index: number;
 }
+
+export type AlignType =
+  | "left"
+  | "hcenter"
+  | "right"
+  | "top"
+  | "vmiddle"
+  | "bottom";
 
 /** Default visual style applied to newly created shapes. */
 export interface StyleDefaults {
@@ -91,10 +101,16 @@ export interface EditorState {
   addShape: (shape: Shape, select?: boolean) => void;
   deleteSelected: () => void;
   updateSelectedStyle: (patch: Partial<StyleStylableFields>) => void;
+  setShapeGeometry: (
+    id: string,
+    patch: Partial<{ x: number; y: number; width: number; height: number }>
+  ) => void;
   bringToFront: () => void;
   sendToBack: () => void;
   groupSelected: () => void;
   ungroupSelected: () => void;
+  alignSelected: (type: AlignType) => void;
+  distributeSelected: (axis: "h" | "v") => void;
   setClosedSelected: (closed: boolean) => void;
   booleanSelected: (op: BoolOp) => void;
   toggleHidden: (id: string) => void;
@@ -144,6 +160,34 @@ function saveColorList(key: string, list: string[]): void {
   } catch {
     // ignore storage errors (private mode, etc.)
   }
+}
+
+/** Align/distribute item: a single shape or a whole group, with its world AABB. */
+interface AlignItem {
+  ids: string[];
+  bounds: Bounds;
+}
+
+/** Group the selection into alignment items (groups move as one unit). */
+function selectionItems(doc: Document, selection: string[]): AlignItem[] {
+  const groups = new Map<string, string[]>();
+  const items: AlignItem[] = [];
+  for (const id of selection) {
+    const s = doc.shapes[id];
+    if (!s) continue;
+    if (s.groupId) {
+      const arr = groups.get(s.groupId) ?? [];
+      arr.push(id);
+      groups.set(s.groupId, arr);
+    } else {
+      items.push({ ids: [id], bounds: worldShapeBounds(s) });
+    }
+  }
+  for (const ids of groups.values()) {
+    const b = unionWorldBounds(ids.map((i) => doc.shapes[i]));
+    if (b) items.push({ ids, bounds: b });
+  }
+  return items;
 }
 
 /**
@@ -396,6 +440,26 @@ export const useEditor = create<EditorState>((set, get) => {
       transact({ ...doc, shapes }, "style:" + Object.keys(patch).sort().join(","));
     },
 
+    setShapeGeometry: (id, patch) => {
+      const { doc } = get();
+      const s = doc.shapes[id];
+      if (!s) return;
+      const b = shapeBounds(s);
+      const width = Math.max(1, patch.width ?? b.width);
+      const height = Math.max(1, patch.height ?? b.height);
+      const x = patch.x ?? b.x;
+      const y = patch.y ?? b.y;
+      // Resize the (unrotated) local box anchored at its top-left, then move it.
+      let next = resizeShapeToBounds(s, b, {
+        x: b.x,
+        y: b.y,
+        width,
+        height,
+      });
+      next = translateShape(next, x - b.x, y - b.y);
+      transact({ ...doc, shapes: { ...doc.shapes, [id]: next } }, "geom:" + id);
+    },
+
     bringToFront: () => {
       const { doc, selection } = get();
       if (selection.length === 0) return;
@@ -434,6 +498,82 @@ export const useEditor = create<EditorState>((set, get) => {
         }
       }
       if (changed) transact({ ...doc, shapes });
+    },
+
+    alignSelected: (type) => {
+      const { doc, selection } = get();
+      const items = selectionItems(doc, selection);
+      if (items.length < 2) return;
+      const union = unionWorldBounds(
+        selection.map((id) => doc.shapes[id]).filter(Boolean) as Shape[]
+      );
+      if (!union) return;
+      const shapes = { ...doc.shapes };
+      for (const item of items) {
+        const b = item.bounds;
+        let dx = 0;
+        let dy = 0;
+        switch (type) {
+          case "left":
+            dx = union.x - b.x;
+            break;
+          case "hcenter":
+            dx = union.x + union.width / 2 - (b.x + b.width / 2);
+            break;
+          case "right":
+            dx = union.x + union.width - (b.x + b.width);
+            break;
+          case "top":
+            dy = union.y - b.y;
+            break;
+          case "vmiddle":
+            dy = union.y + union.height / 2 - (b.y + b.height / 2);
+            break;
+          case "bottom":
+            dy = union.y + union.height - (b.y + b.height);
+            break;
+        }
+        if (dx || dy) {
+          for (const id of item.ids)
+            shapes[id] = translateShape(shapes[id], dx, dy);
+        }
+      }
+      transact({ ...doc, shapes });
+    },
+
+    distributeSelected: (axis) => {
+      const { doc, selection } = get();
+      const items = selectionItems(doc, selection);
+      if (items.length < 3) return;
+      const horiz = axis === "h";
+      const start = (b: Bounds) => (horiz ? b.x : b.y);
+      const size = (b: Bounds) => (horiz ? b.width : b.height);
+      const sorted = [...items].sort(
+        (a, b) => start(a.bounds) - start(b.bounds)
+      );
+      const first = sorted[0];
+      const last = sorted[sorted.length - 1];
+      const span =
+        start(last.bounds) + size(last.bounds) - start(first.bounds);
+      const totalSize = sorted.reduce((sum, it) => sum + size(it.bounds), 0);
+      const gap = (span - totalSize) / (sorted.length - 1);
+
+      const shapes = { ...doc.shapes };
+      let cursor = start(first.bounds) + size(first.bounds) + gap;
+      for (let i = 1; i < sorted.length - 1; i++) {
+        const it = sorted[i];
+        const delta = cursor - start(it.bounds);
+        if (delta) {
+          for (const id of it.ids)
+            shapes[id] = translateShape(
+              shapes[id],
+              horiz ? delta : 0,
+              horiz ? 0 : delta
+            );
+        }
+        cursor += size(it.bounds) + gap;
+      }
+      transact({ ...doc, shapes });
     },
 
     setClosedSelected: (closed) => {

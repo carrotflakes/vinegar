@@ -15,6 +15,8 @@ export default function PropertiesPanel() {
   const sendToBack = useEditor((s) => s.sendToBack);
   const groupSelected = useEditor((s) => s.groupSelected);
   const ungroupSelected = useEditor((s) => s.ungroupSelected);
+  const alignSelected = useEditor((s) => s.alignSelected);
+  const distributeSelected = useEditor((s) => s.distributeSelected);
   const duplicateSelected = useEditor((s) => s.duplicateSelected);
   const booleanSelected = useEditor((s) => s.booleanSelected);
   const setClosedSelected = useEditor((s) => s.setClosedSelected);
@@ -185,6 +187,40 @@ export default function PropertiesPanel() {
         </div>
       )}
 
+      {selected.length >= 2 && (
+        <div className="panel-section">
+          <div className="panel-title">Align</div>
+          <div className="btn-row">
+            <button className="ghost-btn align-btn" title="Align left" onClick={() => alignSelected("left")}>⇤</button>
+            <button className="ghost-btn align-btn" title="Align horizontal centers" onClick={() => alignSelected("hcenter")}>⇔</button>
+            <button className="ghost-btn align-btn" title="Align right" onClick={() => alignSelected("right")}>⇥</button>
+          </div>
+          <div className="btn-row">
+            <button className="ghost-btn align-btn" title="Align top" onClick={() => alignSelected("top")}>⤒</button>
+            <button className="ghost-btn align-btn" title="Align vertical centers" onClick={() => alignSelected("vmiddle")}>⇕</button>
+            <button className="ghost-btn align-btn" title="Align bottom" onClick={() => alignSelected("bottom")}>⤓</button>
+          </div>
+          <div className="btn-row">
+            <button
+              className="ghost-btn"
+              disabled={selected.length < 3}
+              title="Distribute horizontally"
+              onClick={() => distributeSelected("h")}
+            >
+              Dist H
+            </button>
+            <button
+              className="ghost-btn"
+              disabled={selected.length < 3}
+              title="Distribute vertically"
+              onClick={() => distributeSelected("v")}
+            >
+              Dist V
+            </button>
+          </div>
+        </div>
+      )}
+
       {canBoolean && (
         <div className="panel-section">
           <div className="panel-title">Boolean</div>
@@ -217,13 +253,38 @@ export default function PropertiesPanel() {
 }
 
 function Geometry({ shape }: { shape: Shape }) {
+  const setShapeGeometry = useEditor((s) => s.setShapeGeometry);
   const b = shapeBounds(shape);
+
+  const field = (key: "x" | "y" | "width" | "height", label: string) => {
+    const v = Math.round(b[key]);
+    return (
+      <label className="geo-field">
+        <span>{label}</span>
+        <input
+          type="number"
+          key={`${key}:${v}`}
+          defaultValue={v}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") e.currentTarget.blur();
+          }}
+          onBlur={(e) => {
+            const n = Number(e.target.value);
+            if (e.target.value !== "" && !Number.isNaN(n)) {
+              setShapeGeometry(shape.id, { [key]: n });
+            }
+          }}
+        />
+      </label>
+    );
+  };
+
   return (
-    <div className="geometry">
-      <span>X {Math.round(b.x)}</span>
-      <span>Y {Math.round(b.y)}</span>
-      <span>W {Math.round(b.width)}</span>
-      <span>H {Math.round(b.height)}</span>
+    <div className="geometry-grid">
+      {field("x", "X")}
+      {field("y", "Y")}
+      {field("width", "W")}
+      {field("height", "H")}
     </div>
   );
 }

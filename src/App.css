@@ -449,6 +449,11 @@
   cursor: default;
 }
 
+.align-btn {
+  font-size: 15px;
+  line-height: 1;
+}
+
 .ghost-btn.danger {
   color: var(--danger);
   border-color: #f3c6c8;
@@ -458,12 +463,31 @@
   background: #fdecec;
 }
 
-.geometry {
+.geometry-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 4px 12px;
+  gap: 6px 8px;
+}
+
+.geo-field {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.geo-field > span {
+  width: 14px;
   font-size: 12px;
   color: var(--muted);
+}
+
+.geo-field > input {
+  flex: 1;
+  min-width: 0;
+  padding: 4px 6px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font-size: 12px;
   font-variant-numeric: tabular-nums;
 }
 
