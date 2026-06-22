@@ -630,7 +630,9 @@ export default function CanvasView() {
           state.tool,
           inter.start,
           pointSnap(world, EMPTY_EXCLUDE),
-          state.style
+          state.style,
+          e.shiftKey,
+          e.altKey
         );
         scheduleDraw();
         break;
@@ -859,47 +861,65 @@ export default function CanvasView() {
 // helpers
 // ===========================================================================
 
+/** Snap point b onto the nearest 45° ray from a (for Shift-constrained lines). */
+function constrain45(a: Vec2, b: Vec2): Vec2 {
+  const dx = b.x - a.x;
+  const dy = b.y - a.y;
+  const len = Math.hypot(dx, dy);
+  if (len === 0) return b;
+  const ang = Math.round(Math.atan2(dy, dx) / (Math.PI / 4)) * (Math.PI / 4);
+  return { x: a.x + Math.cos(ang) * len, y: a.y + Math.sin(ang) * len };
+}
+
 function makeCreatedShape(
   tool: string,
   a: Vec2,
-  b: Vec2,
-  style: { fill: string | null; stroke: string | null; strokeWidth: number }
+  bRaw: Vec2,
+  style: { fill: string | null; stroke: string | null; strokeWidth: number },
+  shift = false,
+  alt = false
 ): Shape {
   const base = { ...styleFromDefaults(style) };
-  if (tool === "rect") {
+
+  if (tool === "line") {
+    const b = shift ? constrain45(a, bRaw) : bRaw;
     return {
-      id: makeId("rect"),
-      name: "Rectangle",
-      type: "rect",
-      x: a.x,
-      y: a.y,
-      width: b.x - a.x,
-      height: b.y - a.y,
+      id: makeId("line"),
+      name: "Line",
+      type: "line",
+      x1: a.x,
+      y1: a.y,
+      x2: b.x,
+      y2: b.y,
       ...base,
+      fill: null,
     };
   }
-  if (tool === "ellipse") {
-    return {
-      id: makeId("ellipse"),
-      name: "Ellipse",
-      type: "ellipse",
-      x: a.x,
-      y: a.y,
-      width: b.x - a.x,
-      height: b.y - a.y,
-      ...base,
-    };
+
+  // rect / ellipse — Shift = square/circle, Alt = grow from center.
+  let dx = bRaw.x - a.x;
+  let dy = bRaw.y - a.y;
+  if (shift) {
+    const m = Math.max(Math.abs(dx), Math.abs(dy));
+    dx = (dx < 0 ? -1 : 1) * m;
+    dy = (dy < 0 ? -1 : 1) * m;
   }
+  const p1 = alt ? { x: a.x - dx, y: a.y - dy } : a;
+  const p2 = { x: a.x + dx, y: a.y + dy };
+  const x = Math.min(p1.x, p2.x);
+  const y = Math.min(p1.y, p2.y);
+  const width = Math.abs(p2.x - p1.x);
+  const height = Math.abs(p2.y - p1.y);
+
   return {
-    id: makeId("line"),
-    name: "Line",
-    type: "line",
-    x1: a.x,
-    y1: a.y,
-    x2: b.x,
-    y2: b.y,
+    id: makeId(tool),
+    name: tool === "rect" ? "Rectangle" : "Ellipse",
+    type: tool === "rect" ? "rect" : "ellipse",
+    x,
+    y,
+    width,
+    height,
     ...base,
-    fill: null,
   };
 }
 

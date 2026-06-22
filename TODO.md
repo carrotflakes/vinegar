@@ -39,11 +39,11 @@ A running list of what's built and what's next. Check items off as they land.
 - [x] Draggable divider between Properties and Layers (persisted)
 
 ## Next (candidates)
-- [ ] Numeric X / Y / W / H editing in the properties panel (currently read-only)
+- [x] Numeric X / Y / W / H editing in the properties panel
+- [x] Rect/ellipse: Shift = square/circle, Alt = draw from center (line: Shift = 45°)
+- [x] Align & distribute buttons (left/center/right, top/middle/bottom, spacing)
 - [ ] Rotation snapping (ease toward 0/45/90° without holding Shift)
 - [ ] Alignment guides during resize and rotate (currently move only)
-- [ ] Rect/ellipse: Shift = square/circle, Alt = draw from center
-- [ ] Align & distribute buttons (left/center/right, top/middle/bottom, spacing)
 
 ## Backlog / ideas
 - [ ] Color: alpha/opacity per color; swatches saved in the document
