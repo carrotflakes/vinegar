@@ -20,6 +20,7 @@ export default function PropertiesPanel() {
   const duplicateSelected = useEditor((s) => s.duplicateSelected);
   const booleanSelected = useEditor((s) => s.booleanSelected);
   const setClosedSelected = useEditor((s) => s.setClosedSelected);
+  const outlineStrokeSelected = useEditor((s) => s.outlineStrokeSelected);
 
   const selected = selection
     .map((id) => doc.shapes[id])
@@ -33,6 +34,9 @@ export default function PropertiesPanel() {
     (s) => s.type === "path" || s.type === "bezier"
   );
   const anyOpen = closable.some((s) => "closed" in s && !s.closed);
+  const canOutline = selected.some(
+    (s) => s.stroke !== null && s.strokeWidth > 0
+  );
 
   // Effective values: selected shape's values, else the new-shape defaults.
   const fill = hasSelection ? first.fill : style.fill;
@@ -172,6 +176,17 @@ export default function PropertiesPanel() {
                 onClick={() => setClosedSelected(anyOpen)}
               >
                 {anyOpen ? "Close path" : "Open path"}
+              </button>
+            </div>
+          )}
+          {canOutline && (
+            <div className="btn-row">
+              <button
+                className="ghost-btn"
+                title="Convert stroke to a filled path"
+                onClick={outlineStrokeSelected}
+              >
+                Outline stroke
               </button>
             </div>
           )}

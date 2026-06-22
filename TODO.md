@@ -19,6 +19,7 @@ A running list of what's built and what's next. Check items off as they land.
 - [x] Group / ungroup (groupId-based)
 - [x] Copy / cut / paste / duplicate
 - [x] Boolean ops: union / subtract / intersect / exclude (polygon-clipping)
+- [x] Outline stroke: convert a shape's stroke to a filled path (clipper-lib)
 
 ### Snapping
 - [x] Alignment guides (edges/centers to other shapes)

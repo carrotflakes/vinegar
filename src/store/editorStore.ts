@@ -6,8 +6,9 @@ import {
   type Document,
   type Shape,
 } from "../model/types";
-import { booleanShapes, type BoolOp } from "../model/boolean";
+import { booleanShapes, isAreal, type BoolOp } from "../model/boolean";
 import { shapeBounds, unionWorldBounds, worldShapeBounds } from "../model/bounds";
+import { strokeOutline } from "../model/outlineStroke";
 import { resizeShapeToBounds, translateShape } from "../model/transforms";
 import { initialViewport, type Viewport } from "../model/viewport";
 
@@ -112,6 +113,7 @@ export interface EditorState {
   alignSelected: (type: AlignType) => void;
   distributeSelected: (axis: "h" | "v") => void;
   setClosedSelected: (closed: boolean) => void;
+  outlineStrokeSelected: () => void;
   booleanSelected: (op: BoolOp) => void;
   toggleHidden: (id: string) => void;
   toggleLocked: (id: string) => void;
@@ -592,6 +594,61 @@ export const useEditor = create<EditorState>((set, get) => {
         }
       }
       if (changed) transact({ ...doc, shapes });
+    },
+
+    outlineStrokeSelected: () => {
+      const { doc, selection } = get();
+      const shapes = { ...doc.shapes };
+      let order = [...doc.order];
+      const newSelection: string[] = [];
+      let changed = false;
+
+      for (const id of selection) {
+        const s = shapes[id];
+        if (!s || s.stroke === null || s.strokeWidth <= 0) {
+          if (s) newSelection.push(id);
+          continue;
+        }
+        const polys = strokeOutline(s);
+        if (!polys || polys.length === 0) {
+          newSelection.push(id);
+          continue;
+        }
+        const outline: Shape = {
+          id: makeId("polygon"),
+          name: "Outline",
+          type: "polygon",
+          polys,
+          fill: s.stroke,
+          stroke: null,
+          strokeWidth: 0,
+          opacity: s.opacity,
+          rotation: 0,
+          groupId: null,
+        };
+        const keepFill = isAreal(s) && s.fill !== null;
+        const idx = order.indexOf(id);
+        if (keepFill) {
+          // Keep the original as a fill-only object; group the outline above it.
+          const gid = makeId("group");
+          shapes[id] = { ...s, stroke: null, groupId: gid };
+          outline.groupId = gid;
+          shapes[outline.id] = outline;
+          order.splice(idx + 1, 0, outline.id);
+          newSelection.push(id, outline.id);
+        } else {
+          delete shapes[id];
+          shapes[outline.id] = outline;
+          order.splice(idx, 1, outline.id);
+          newSelection.push(outline.id);
+        }
+        changed = true;
+      }
+
+      if (changed) {
+        transact({ shapes, order });
+        set({ selection: newSelection });
+      }
     },
 
     booleanSelected: (op) => {
