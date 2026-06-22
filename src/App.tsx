@@ -1,10 +1,11 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import CanvasView from "./canvas/CanvasView";
 import { initialViewport, zoomAt } from "./model/viewport";
 import { useEditor, type ToolId } from "./store/editorStore";
 import Toolbar from "./ui/Toolbar";
 import RightSidebar from "./ui/RightSidebar";
 import FileMenu from "./ui/FileMenu";
+import ScriptPanel from "./ui/ScriptPanel";
 import "./App.css";
 
 const TOOL_KEYS: Record<string, ToolId> = {
@@ -34,6 +35,7 @@ export default function App() {
   const toggleSnap = useEditor((s) => s.toggleSnap);
   const gridSnap = useEditor((s) => s.gridSnap);
   const toggleGridSnap = useEditor((s) => s.toggleGridSnap);
+  const [showScript, setShowScript] = useState(false);
 
   // Global keyboard shortcuts.
   useEffect(() => {
@@ -120,6 +122,9 @@ export default function App() {
           <span className="brand-mark">▰</span> Vinegar
         </div>
         <FileMenu />
+        <button className="ghost-btn" onClick={() => setShowScript(true)}>
+          Script
+        </button>
         <div className="appbar-group">
           <button
             className="ghost-btn"
@@ -165,6 +170,8 @@ export default function App() {
         </main>
         <RightSidebar />
       </div>
+
+      <ScriptPanel open={showScript} onClose={() => setShowScript(false)} />
 
       <footer className="statusbar">
         <span>{shapeCount} shapes</span>

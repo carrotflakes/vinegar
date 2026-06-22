@@ -614,6 +614,97 @@
   bottom: -1px;
 }
 
+/* ---- script modal ----------------------------------------------------- */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  background: rgba(20, 26, 36, 0.4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.modal {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  box-shadow: 0 16px 48px rgba(20, 26, 36, 0.3);
+  display: flex;
+  flex-direction: column;
+}
+
+.script-modal {
+  width: min(680px, 92vw);
+  height: min(560px, 86vh);
+}
+
+.modal-head,
+.modal-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 14px;
+}
+
+.modal-head {
+  border-bottom: 1px solid var(--border);
+  font-weight: 600;
+}
+
+.modal-foot {
+  border-top: 1px solid var(--border);
+}
+
+.script-editor {
+  flex: 1;
+  min-height: 0;
+  resize: none;
+  border: none;
+  outline: none;
+  padding: 12px 14px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--text);
+  background: #fbfcfe;
+  white-space: pre;
+  overflow: auto;
+  tab-size: 2;
+}
+
+.script-status {
+  font-size: 12px;
+  color: var(--muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.script-status.ok {
+  color: #1f9d55;
+}
+
+.script-status.err {
+  color: var(--danger);
+}
+
+.run-btn {
+  flex: none;
+  padding: 7px 18px;
+  border: none;
+  border-radius: 7px;
+  background: var(--accent);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.run-btn:disabled {
+  opacity: 0.6;
+}
+
 /* ---- status bar ------------------------------------------------------- */
 .statusbar {
   height: 26px;

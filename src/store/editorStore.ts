@@ -100,6 +100,7 @@ export interface EditorState {
 
   // history-wrapped mutations ---------------------------------------------
   addShape: (shape: Shape, select?: boolean) => void;
+  addShapes: (shapes: Shape[], select?: boolean) => void;
   deleteSelected: () => void;
   updateSelectedStyle: (patch: Partial<StyleStylableFields>) => void;
   setShapeGeometry: (
@@ -369,6 +370,19 @@ export const useEditor = create<EditorState>((set, get) => {
       };
       transact(next);
       if (select) set({ selection: [shape.id] });
+    },
+
+    addShapes: (newShapes, select = true) => {
+      if (newShapes.length === 0) return;
+      const { doc } = get();
+      const shapes = { ...doc.shapes };
+      const order = [...doc.order];
+      for (const s of newShapes) {
+        shapes[s.id] = s;
+        order.push(s.id);
+      }
+      transact({ shapes, order });
+      if (select) set({ selection: newShapes.map((s) => s.id) });
     },
 
     deleteSelected: () => {
