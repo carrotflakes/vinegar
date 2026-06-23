@@ -66,10 +66,13 @@ A running list of what's built and what's next. Check items off as they land.
 - [ ] テクスチャ
 - [ ] ラスタ画像
 - [x] スクリプティング（one-shot 生成）
-  - [ ] 既存図形を参照、編集
+  - [x] 既存図形を参照、編集（shapes/selection/bounds/move/remove・直接編集→diff）
   - [ ] 実行後に生成物へビューを自動フィット
   - [ ] DSL に bezier() を追加
   - [ ] エディタの行番号・簡易ハイライト・エラー行表示
   - [ ] サンプル/スニペット集
   - [ ] パラメトリック生成（パラメータ変更で再生成）
 - [x] change grid size
+- [ ] ペン入力最適化
+  - [ ] 筆圧対応（線幅・不透明度）
+  - [ ] 傾き対応（線幅・不透明度）

@@ -1,7 +1,12 @@
-// Web Worker that runs a user drawing script in isolation and returns plain
-// shape specs. Runs off the main thread so infinite loops can be terminated.
+// Web Worker that runs a user drawing script in isolation. It receives a
+// snapshot of the document, lets the script create / read / edit / delete
+// shapes, and returns a changeset. Running off the main thread means infinite
+// loops can be terminated.
 
-type Vec = { x: number; y: number };
+import { shapeBounds, worldShapeBounds } from "../model/bounds";
+import { translateShape } from "../model/transforms";
+import type { Shape, Vec2 } from "../model/types";
+
 // 2D affine matrix [a, b, c, d, e, f]: x' = a*x + c*y + e, y' = b*x + d*y + f
 type Mat = [number, number, number, number, number, number];
 
@@ -10,6 +15,17 @@ interface Style {
   stroke: string | null;
   strokeWidth: number;
   opacity: number;
+}
+
+interface DocSnapshot {
+  shapes: Shape[];
+  selectionIds: string[];
+}
+
+interface Changeset {
+  created: unknown[];
+  updated: Shape[];
+  deleted: string[];
 }
 
 const MAX_SHAPES = 20000;
@@ -25,12 +41,26 @@ function multiply(m: Mat, n: Mat): Mat {
   ];
 }
 
-function apply(m: Mat, x: number, y: number): Vec {
+function apply(m: Mat, x: number, y: number): Vec2 {
   return { x: m[0] * x + m[2] * y + m[4], y: m[1] * x + m[3] * y + m[5] };
 }
 
-/** Run one script, returning the collected shape specs (or throwing). */
-function run(code: string): unknown[] {
+function run(code: string, snap: DocSnapshot): Changeset {
+  // ---- existing shapes: mutable copies tracked for diffing ----------------
+  const copies: Shape[] = snap.shapes.map((s) => structuredClone(s));
+  const idOf = new Map<Shape, string>();
+  const origJson = new Map<string, string>();
+  for (let i = 0; i < copies.length; i++) {
+    const id = snap.shapes[i].id;
+    idOf.set(copies[i], id);
+    origJson.set(id, JSON.stringify(snap.shapes[i]));
+  }
+  const selIds = new Set(snap.selectionIds);
+  const selection = copies.filter((s) => selIds.has(idOf.get(s)!));
+  const removed = new Set<string>();
+
+  // ---- new shapes ---------------------------------------------------------
+  const created: unknown[] = [];
   let matrix: Mat = [1, 0, 0, 1, 0, 0];
   let style: Style = {
     fill: "#4f8cff",
@@ -39,19 +69,17 @@ function run(code: string): unknown[] {
     opacity: 1,
   };
   const stack: { matrix: Mat; style: Style }[] = [];
-  const shapes: unknown[] = [];
 
   const emit = (s: Record<string, unknown>) => {
-    if (shapes.length >= MAX_SHAPES) {
+    if (created.length >= MAX_SHAPES) {
       throw new Error(`Too many shapes (limit ${MAX_SHAPES})`);
     }
-    shapes.push({ ...style, rotation: 0, groupId: null, ...s });
+    created.push({ ...style, rotation: 0, groupId: null, ...s });
   };
 
-  // Seeded PRNG (mulberry32) so scripts are reproducible.
+  // Seeded PRNG (mulberry32) for reproducible scripts.
   let rngState = 0x9e3779b9 >>> 0;
   const rng = () => {
-    rngState |= 0;
     rngState = (rngState + 0x6d2b79f5) | 0;
     let t = Math.imul(rngState ^ (rngState >>> 15), 1 | rngState);
     t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
@@ -64,7 +92,7 @@ function run(code: string): unknown[] {
     sy: Math.hypot(m[2], m[3]),
   });
 
-  const toPoints = (pts: ([number, number] | Vec)[]): Vec[] =>
+  const toPoints = (pts: ([number, number] | Vec2)[]): Vec2[] =>
     pts.map((p) => {
       const x = Array.isArray(p) ? p[0] : p.x;
       const y = Array.isArray(p) ? p[1] : p.y;
@@ -76,6 +104,32 @@ function run(code: string): unknown[] {
     TAU: Math.PI * 2,
     DEG: Math.PI / 180,
 
+    // --- reference existing shapes ---
+    shapes: copies,
+    selection,
+    byType: (type: string) => copies.filter((s) => s.type === type),
+    bounds: (shape: Shape) => {
+      const b = worldShapeBounds(shape);
+      return {
+        x: b.x,
+        y: b.y,
+        width: b.width,
+        height: b.height,
+        cx: b.x + b.width / 2,
+        cy: b.y + b.height / 2,
+      };
+    },
+    localBounds: (shape: Shape) => shapeBounds(shape),
+    move: (shape: Shape, dx: number, dy: number) => {
+      Object.assign(shape, translateShape(shape, dx, dy));
+    },
+    remove: (shapeOrId: Shape | string) => {
+      const id =
+        typeof shapeOrId === "string" ? shapeOrId : idOf.get(shapeOrId);
+      if (id) removed.add(id);
+    },
+
+    // --- transform stack ---
     push: () => stack.push({ matrix: [...matrix] as Mat, style: { ...style } }),
     pop: () => {
       const s = stack.pop();
@@ -99,6 +153,7 @@ function run(code: string): unknown[] {
       matrix = [1, 0, 0, 1, 0, 0];
     },
 
+    // --- style for new shapes ---
     fill: (c: string | null) => {
       style.fill = c;
     },
@@ -112,6 +167,7 @@ function run(code: string): unknown[] {
       style.opacity = o;
     },
 
+    // --- create shapes ---
     rect: (x: number, y: number, w: number, h: number) => {
       const { rotation, sx, sy } = decompose(matrix);
       const c = apply(matrix, x + w / 2, y + h / 2);
@@ -156,7 +212,7 @@ function run(code: string): unknown[] {
         fill: null,
       });
     },
-    path: (pts: ([number, number] | Vec)[], closed = false) => {
+    path: (pts: ([number, number] | Vec2)[], closed = false) => {
       const points = toPoints(pts);
       emit({
         type: "path",
@@ -166,8 +222,9 @@ function run(code: string): unknown[] {
         fill: closed ? style.fill : null,
       });
     },
-    polygon: (pts: ([number, number] | Vec)[]) => api.path(pts, true),
+    polygon: (pts: ([number, number] | Vec2)[]) => api.path(pts, true),
 
+    // --- utilities ---
     repeat: (n: number, fn: (i: number) => void) => {
       for (let i = 0; i < n; i++) fn(i);
     },
@@ -184,14 +241,22 @@ function run(code: string): unknown[] {
 
   const fn = new Function(...Object.keys(api), code);
   fn(...Object.values(api));
-  return shapes;
+
+  // ---- diff edited copies into the changeset ------------------------------
+  const updated: Shape[] = [];
+  for (const copy of copies) {
+    const id = idOf.get(copy)!;
+    if (removed.has(id)) continue;
+    if (JSON.stringify(copy) !== origJson.get(id)) updated.push(copy);
+  }
+
+  return { created, updated, deleted: [...removed] };
 }
 
 const worker = self as unknown as Worker;
-worker.onmessage = (e: MessageEvent<{ code: string }>) => {
+worker.onmessage = (e: MessageEvent<{ code: string; doc: DocSnapshot }>) => {
   try {
-    const shapes = run(e.data.code);
-    worker.postMessage({ shapes });
+    worker.postMessage(run(e.data.code, e.data.doc));
   } catch (err) {
     worker.postMessage({
       error: err instanceof Error ? err.message : String(err),
