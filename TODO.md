@@ -47,6 +47,12 @@ A running list of what's built and what's next. Check items off as they land.
 - [ ] Rotation snapping (ease toward 0/45/90° without holding Shift)
 - [ ] Alignment guides during resize and rotate (currently move only)
 
+## Mobile / touch
+- [x] Responsive layout: icon-only toolbar rail + slide-in Properties/Layers drawer; reflowed app bar / status bar on narrow screens
+- [x] Enlarged hit targets & selection/node chrome for coarse (touch) pointers
+- [ ] Pinch-to-zoom & two-finger pan (multi-pointer gestures)
+- [ ] On-screen alternatives for keyboard-only actions (delete, copy/paste, group, pen finish/cancel, modifier keys)
+
 ## Backlog / ideas
 - [ ] Color: alpha/opacity per color; swatches saved in the document
 - [ ] System clipboard integration (paste across tabs/apps)

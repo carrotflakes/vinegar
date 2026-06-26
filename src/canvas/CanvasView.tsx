@@ -43,7 +43,13 @@ import {
   resizeBounds,
   type HandleId,
 } from "./handles";
-import { hitBezierNodes, moveAnchor, moveHandle } from "./nodes";
+import {
+  ANCHOR_SIZE,
+  HANDLE_DOT,
+  hitBezierNodes,
+  moveAnchor,
+  moveHandle,
+} from "./nodes";
 import {
   drawGuides,
   drawNodes,
@@ -99,6 +105,10 @@ type Interaction =
 /** Distance below which a created shape is considered an accidental click. */
 const CLICK_SLOP = 3;
 const NODE_GRAB = 8;
+/** Hit tolerances grow by this factor for coarse (touch) pointers. */
+const TOUCH_HIT_SCALE = 2.2;
+/** Selection/node chrome is drawn this much larger for touch. */
+const TOUCH_DRAW_SCALE = 1.6;
 
 function selectedBezier(state: EditorState): BezierShape | null {
   if (state.selection.length !== 1) return null;
@@ -120,6 +130,12 @@ export default function CanvasView() {
   const spacingsRef = useRef<Spacing[]>([]);
   const rafRef = useRef<number | null>(null);
   const spaceRef = useRef(false);
+  const coarseRef = useRef(
+    typeof matchMedia === "function" && matchMedia("(pointer: coarse)").matches
+  );
+
+  /** Multiplier that enlarges hit targets when the primary pointer is touch. */
+  const hitScale = () => (coarseRef.current ? TOUCH_HIT_SCALE : 1);
 
   // ---- drawing -----------------------------------------------------------
   const draw = useCallback(() => {
@@ -143,6 +159,7 @@ export default function CanvasView() {
       gridSize: state.gridSize,
     });
 
+    const chrome = coarseRef.current ? TOUCH_DRAW_SCALE : 1;
     const selectedShapes = selection
       .map((id) => doc.shapes[id])
       .filter(Boolean) as Shape[];
@@ -152,6 +169,7 @@ export default function CanvasView() {
       frame: tool === "select" ? getSelectionFrame(selectedShapes) : null,
       marquee: marqueeRef.current,
       showHandles: tool === "select" && selectedShapes.length > 0,
+      handleSize: HANDLE_SIZE * chrome,
     });
 
     if (tool === "node") {
@@ -161,7 +179,15 @@ export default function CanvasView() {
           state.editNode && state.editNode.shapeId === sel.id
             ? state.editNode.index
             : null;
-        drawNodes(ctx, dpr, viewport, sel, active);
+        drawNodes(
+          ctx,
+          dpr,
+          viewport,
+          sel,
+          active,
+          ANCHOR_SIZE * chrome,
+          HANDLE_DOT * chrome
+        );
       }
     }
     if (tool === "pen" && penDraftRef.current) {
@@ -244,7 +270,8 @@ export default function CanvasView() {
     return { x: e.clientX - rect.left, y: e.clientY - rect.top };
   };
 
-  const pickTolerance = () => 5 / useEditor.getState().viewport.scale;
+  const pickTolerance = () =>
+    (5 * hitScale()) / useEditor.getState().viewport.scale;
 
   const selectionFrame = (): SelectionFrame | null => {
     const { doc, selection } = useEditor.getState();
@@ -259,17 +286,18 @@ export default function CanvasView() {
     const { viewport } = useEditor.getState();
     const frame = selectionFrame();
     if (!frame) return null;
+    const tol = HANDLE_SIZE * hitScale();
     const rot = worldToScreen(viewport, frameRotationPoint(frame, viewport.scale));
     if (
-      Math.abs(rot.x - screen.x) <= HANDLE_SIZE &&
-      Math.abs(rot.y - screen.y) <= HANDLE_SIZE
+      Math.abs(rot.x - screen.x) <= tol &&
+      Math.abs(rot.y - screen.y) <= tol
     )
       return { type: "rotate" };
     for (const id of HANDLE_IDS) {
       const sp = worldToScreen(viewport, frameHandlePoint(frame, id));
       if (
-        Math.abs(sp.x - screen.x) <= HANDLE_SIZE &&
-        Math.abs(sp.y - screen.y) <= HANDLE_SIZE
+        Math.abs(sp.x - screen.x) <= tol &&
+        Math.abs(sp.y - screen.y) <= tol
       )
         return { type: "resize", id };
     }
@@ -466,7 +494,12 @@ export default function CanvasView() {
   const onNodeDown = (state: EditorState, screen: Vec2, world: Vec2) => {
     const sel = selectedBezier(state);
     if (sel) {
-      const hit = hitBezierNodes(sel, screen, state.viewport, NODE_GRAB);
+      const hit = hitBezierNodes(
+        sel,
+        screen,
+        state.viewport,
+        NODE_GRAB * hitScale()
+      );
       if (hit) {
         state.setEditNode({ shapeId: sel.id, index: hit.index });
         state.beginInteraction();
@@ -771,7 +804,7 @@ export default function CanvasView() {
     if (state.tool === "node") {
       const sel = selectedBezier(state);
       canvas.style.cursor =
-        sel && hitBezierNodes(sel, screen, state.viewport, NODE_GRAB)
+        sel && hitBezierNodes(sel, screen, state.viewport, NODE_GRAB * hitScale())
           ? "move"
           : "default";
       return;
@@ -788,6 +821,18 @@ export default function CanvasView() {
     }
     canvas.style.cursor = pickShape(world) ? "move" : "default";
   };
+
+  // ---- coarse-pointer (touch) detection ----------------------------------
+  useEffect(() => {
+    if (typeof matchMedia !== "function") return;
+    const mq = matchMedia("(pointer: coarse)");
+    const update = () => {
+      coarseRef.current = mq.matches;
+      scheduleDraw();
+    };
+    mq.addEventListener("change", update);
+    return () => mq.removeEventListener("change", update);
+  }, [scheduleDraw]);
 
   // ---- wheel zoom / pan --------------------------------------------------
   useEffect(() => {

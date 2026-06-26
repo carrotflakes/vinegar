@@ -21,6 +21,8 @@ export interface OverlayOptions {
   marquee: Bounds | null;
   /** Whether resize/rotate handles should be drawn. */
   showHandles: boolean;
+  /** Screen-space size of resize handles (enlarged for touch). */
+  handleSize?: number;
 }
 
 /** Draw selection chrome on top of the rendered scene, in screen space. */
@@ -29,6 +31,7 @@ export function drawOverlay(
   opts: OverlayOptions
 ): void {
   const { dpr, viewport, frame, marquee } = opts;
+  const handleSize = opts.handleSize ?? HANDLE_SIZE;
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 
   if (frame) {
@@ -60,12 +63,12 @@ export function drawOverlay(
       ctx.fillStyle = "#ffffff";
       ctx.lineWidth = 1.5;
       ctx.beginPath();
-      ctx.arc(rot.x, rot.y, HANDLE_SIZE / 2, 0, Math.PI * 2);
+      ctx.arc(rot.x, rot.y, handleSize / 2, 0, Math.PI * 2);
       ctx.fill();
       ctx.stroke();
 
       // Resize handles.
-      const half = HANDLE_SIZE / 2;
+      const half = handleSize / 2;
       ctx.fillStyle = "#ffffff";
       for (const id of HANDLE_IDS) {
         const sp = toS(frameHandlePoint(frame, id));
@@ -73,8 +76,8 @@ export function drawOverlay(
         ctx.rect(
           Math.round(sp.x - half),
           Math.round(sp.y - half),
-          HANDLE_SIZE,
-          HANDLE_SIZE
+          handleSize,
+          handleSize
         );
         ctx.fill();
         ctx.stroke();
@@ -180,7 +183,9 @@ export function drawNodes(
   dpr: number,
   viewport: Viewport,
   shape: BezierShape,
-  activeIndex: number | null
+  activeIndex: number | null,
+  anchorSize = ANCHOR_SIZE,
+  dotSize = HANDLE_DOT
 ): void {
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   const toS = (w: Vec2) => worldToScreen(viewport, w);
@@ -198,7 +203,7 @@ export function drawNodes(
       ctx.moveTo(sp.x, sp.y);
       ctx.lineTo(sh.x, sh.y);
       ctx.stroke();
-      dot(ctx, sh, HANDLE_DOT / 2);
+      dot(ctx, sh, dotSize / 2);
       ctx.fill();
       ctx.strokeStyle = ACCENT;
       ctx.stroke();
@@ -210,7 +215,7 @@ export function drawNodes(
   ctx.lineWidth = 1.5;
   shape.anchors.forEach((a, i) => {
     const sp = toS(a.p);
-    square(ctx, sp, ANCHOR_SIZE);
+    square(ctx, sp, anchorSize);
     ctx.fillStyle = i === activeIndex ? ACCENT : "#ffffff";
     ctx.fill();
     ctx.strokeStyle = ACCENT;

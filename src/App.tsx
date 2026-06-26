@@ -38,6 +38,7 @@ export default function App() {
   const gridSize = useEditor((s) => s.gridSize);
   const setGridSize = useEditor((s) => s.setGridSize);
   const [showScript, setShowScript] = useState(false);
+  const [showPanel, setShowPanel] = useState(false);
 
   // Global keyboard shortcuts.
   useEffect(() => {
@@ -121,7 +122,8 @@ export default function App() {
     <div className="app">
       <header className="appbar">
         <div className="brand">
-          <span className="brand-mark">▰</span> Vinegar
+          <span className="brand-mark">▰</span>
+          <span className="brand-word">Vinegar</span>
         </div>
         <FileMenu />
         <button className="ghost-btn" onClick={() => setShowScript(true)}>
@@ -161,6 +163,14 @@ export default function App() {
             +
           </button>
         </div>
+        <button
+          className="ghost-btn panel-toggle"
+          onClick={() => setShowPanel((v) => !v)}
+          aria-pressed={showPanel}
+          title="Toggle panel"
+        >
+          Panel
+        </button>
       </header>
 
       <div className="body">
@@ -170,15 +180,23 @@ export default function App() {
         <main className="stage">
           <CanvasView />
         </main>
-        <RightSidebar />
+        {showPanel && (
+          <div
+            className="panel-backdrop"
+            onClick={() => setShowPanel(false)}
+          />
+        )}
+        <RightSidebar open={showPanel} />
       </div>
 
       <ScriptPanel open={showScript} onClose={() => setShowScript(false)} />
 
       <footer className="statusbar">
         <span>{shapeCount} shapes</span>
-        <span className="dot">·</span>
-        <span>Space + drag to pan · Ctrl/⌘ + wheel to zoom</span>
+        <span className="dot status-hint">·</span>
+        <span className="status-hint">
+          Space + drag to pan · Ctrl/⌘ + wheel to zoom
+        </span>
         <span className="status-spacer" />
         <label className="snap-toggle">
           <input

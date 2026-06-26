@@ -11,7 +11,7 @@ const DIVIDER = 7;
  * (bottom). The split height is user-controlled and persisted, so the panes
  * never resize themselves when the selection changes.
  */
-export default function RightSidebar() {
+export default function RightSidebar({ open = false }: { open?: boolean }) {
   const wrapRef = useRef<HTMLDivElement>(null);
   const dragRef = useRef<{ startY: number; startH: number } | null>(null);
   const [propsHeight, setPropsHeight] = useState<number>(() => {
@@ -53,7 +53,7 @@ export default function RightSidebar() {
   };
 
   return (
-    <div className="right" ref={wrapRef}>
+    <div className={"right" + (open ? " open" : "")} ref={wrapRef}>
       <div className="props-pane" style={{ height: propsHeight }}>
         <PropertiesPanel />
       </div>
