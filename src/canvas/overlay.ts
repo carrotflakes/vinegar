@@ -236,17 +236,18 @@ export function drawPenDraft(
   const anchors = shape.anchors;
   if (anchors.length === 0) return;
 
-  // Rubber band from the last anchor (via its out handle) to the cursor.
+  // Rubber band from the last anchor to the cursor, curving out via its handle.
   if (hover) {
     const last = anchors[anchors.length - 1];
-    const from = toS(last.hOut ?? last.p);
+    const from = toS(last.p);
+    const c1 = toS(last.hOut ?? last.p);
     const to = toS(hover);
     ctx.strokeStyle = "#c7d7f7";
     ctx.lineWidth = 1;
     ctx.setLineDash([4, 3]);
     ctx.beginPath();
     ctx.moveTo(from.x, from.y);
-    ctx.lineTo(to.x, to.y);
+    ctx.bezierCurveTo(c1.x, c1.y, to.x, to.y, to.x, to.y);
     ctx.stroke();
     ctx.setLineDash([]);
   }
