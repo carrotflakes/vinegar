@@ -46,6 +46,9 @@ A running list of what's built and what's next. Check items off as they land.
 - [x] Align & distribute buttons (left/center/right, top/middle/bottom, spacing)
 - [ ] Rotation snapping (ease toward 0/45/90° without holding Shift)
 - [ ] Alignment guides during resize and rotate (currently move only)
+- [ ] Status bar: live numbers during interactions (W×H while creating, ΔX/ΔY while moving, angle while rotating, new size while resizing)
+- [ ] Status bar: selection info (count; type + name for a single selection) instead of always showing the total shape count
+- [ ] Status bar: per-tool hints (pen: Enter to finish / Esc to cancel / click near start to close; select: Shift+click to add)
 
 ## Mobile / touch
 - [x] Responsive layout: icon-only toolbar rail + slide-in Properties/Layers drawer; reflowed app bar / status bar on narrow screens
@@ -60,6 +63,8 @@ A running list of what's built and what's next. Check items off as they land.
 - [ ] Nested groups / true group transform container
 - [ ] Distribution: match an existing gap (not just centering)
 - [ ] Configurable pencil smoothing strength
+- [ ] Status bar: color swatch under the cursor (eyedropper-style; watch getImageData cost)
+- [ ] Status bar: unsaved-changes indicator (or autosave status)
 
 ## Known issues / polish
 - [x] Dragging the native color spectrum can add several undo steps (batch it)

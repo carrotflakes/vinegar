@@ -30,6 +30,7 @@ import {
   useEditor,
   type EditorState,
 } from "../store/editorStore";
+import { setPointer } from "../store/pointerStore";
 import {
   frameHandlePoint,
   frameRotationPoint,
@@ -580,6 +581,7 @@ export default function CanvasView() {
     const state = useEditor.getState();
     const screen = screenPoint(e);
     const world = screenToWorld(state.viewport, screen);
+    setPointer(world);
 
     if (inter.kind === "none") {
       if (state.tool === "pen" && penDraftRef.current) {
@@ -921,6 +923,7 @@ export default function CanvasView() {
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
         onPointerUp={onPointerUp}
+        onPointerLeave={() => setPointer(null)}
         onDoubleClick={onDoubleClick}
       />
     </div>

@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import CanvasView from "./canvas/CanvasView";
 import { initialViewport, zoomAt } from "./model/viewport";
 import { useEditor, type ToolId } from "./store/editorStore";
+import { usePointer } from "./store/pointerStore";
 import Toolbar from "./ui/Toolbar";
 import RightSidebar from "./ui/RightSidebar";
 import FileMenu from "./ui/FileMenu";
@@ -17,6 +18,16 @@ const TOOL_KEYS: Record<string, ToolId> = {
   p: "pen",
   b: "pencil",
 };
+
+/** Live pointer position in world coordinates, shown in the status bar. */
+function PointerReadout() {
+  const pos = usePointer((s) => s.pos);
+  return (
+    <span className="pointer-readout">
+      {pos ? `${Math.round(pos.x)}, ${Math.round(pos.y)}` : ""}
+    </span>
+  );
+}
 
 function canvasCenter(): { x: number; y: number } {
   const el = document.querySelector(".canvas-wrap");
@@ -192,6 +203,8 @@ export default function App() {
       <ScriptPanel open={showScript} onClose={() => setShowScript(false)} />
 
       <footer className="statusbar">
+        <PointerReadout />
+        <span className="dot status-hint">·</span>
         <span>{shapeCount} shapes</span>
         <span className="dot status-hint">·</span>
         <span className="status-hint">

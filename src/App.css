@@ -738,6 +738,11 @@
   opacity: 0.5;
 }
 
+.pointer-readout {
+  min-width: 88px;
+  font-variant-numeric: tabular-nums;
+}
+
 .status-spacer {
   flex: 1;
 }
