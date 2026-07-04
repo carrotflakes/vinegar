@@ -231,6 +231,20 @@ export default function CanvasView() {
     scheduleDraw();
   }, [scheduleDraw]);
 
+  // Soft undo: drop the last-placed anchor without discarding the whole draft.
+  const undoPenAnchor = useCallback(() => {
+    const draft = penDraftRef.current;
+    if (!draft) return;
+    draft.anchors.pop();
+    if (draft.anchors.length === 0) {
+      cancelPenDraft();
+      return;
+    }
+    interactionRef.current = { kind: "none" };
+    previewRef.current = draft;
+    scheduleDraw();
+  }, [cancelPenDraft, scheduleDraw]);
+
   // Redraw on any store change; commit a pending pen path when leaving the tool.
   useEffect(
     () =>
@@ -869,12 +883,22 @@ export default function CanvasView() {
         return;
       }
       if (penDraftRef.current) {
+        const mod = e.ctrlKey || e.metaKey;
         if (e.key === "Enter") {
           e.preventDefault();
           commitPenDraft();
         } else if (e.key === "Escape") {
           e.preventDefault();
           cancelPenDraft();
+        } else if (
+          (mod && !e.shiftKey && e.key.toLowerCase() === "z") ||
+          e.key === "Backspace" ||
+          e.key === "Delete"
+        ) {
+          // Step back one anchor instead of running the document-level undo.
+          e.preventDefault();
+          e.stopImmediatePropagation();
+          undoPenAnchor();
         }
       }
     };
@@ -887,7 +911,7 @@ export default function CanvasView() {
       window.removeEventListener("keydown", down);
       window.removeEventListener("keyup", up);
     };
-  }, [commitPenDraft, cancelPenDraft]);
+  }, [commitPenDraft, cancelPenDraft, undoPenAnchor]);
 
   return (
     <div className="canvas-wrap" ref={wrapRef}>
