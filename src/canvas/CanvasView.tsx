@@ -1,12 +1,13 @@
 import { useCallback, useEffect, useRef } from "react";
 import {
+  shapeBounds,
   shapeCenter,
   unionWorldBounds,
   worldShapeBounds,
 } from "../model/bounds";
 import { pointsToAnchors, simplifyPath } from "../model/freehand";
 import { hitTestShape } from "../model/hitTest";
-import { rotateAbout, snapAngle } from "../model/rotate";
+import { magnetAngle, rotateAbout, snapAngle } from "../model/rotate";
 import {
   collectSnapTargets,
   computeSnap,
@@ -30,7 +31,7 @@ import {
   useEditor,
   type EditorState,
 } from "../store/editorStore";
-import { setPointer } from "../store/pointerStore";
+import { setPointer, setReadout } from "../store/pointerStore";
 import {
   frameHandlePoint,
   frameRotationPoint,
@@ -88,6 +89,8 @@ type Interaction =
       kind: "rotate";
       pivot: Vec2;
       startAngle: number;
+      /** Frame rotation at drag start; magnetic snapping targets the result. */
+      startRotation: number;
       originals: Record<string, Shape>;
     }
   | { kind: "create"; start: Vec2 }
@@ -442,6 +445,7 @@ export default function CanvasView() {
         kind: "rotate",
         pivot: frame.center,
         startAngle: Math.atan2(world.y - frame.center.y, world.x - frame.center.x),
+        startRotation: frame.rotation,
         originals: snapshot(state.selection),
       };
       return;
@@ -639,6 +643,7 @@ export default function CanvasView() {
           next[id] = translateShape(orig, dx, dy);
         }
         state.applyShapes(next);
+        setReadout(`Δ ${Math.round(dx)}, ${Math.round(dy)}`);
         break;
       }
       case "resize": {
@@ -646,9 +651,10 @@ export default function CanvasView() {
         if (inter.single) {
           const entry = Object.entries(inter.originals)[0];
           if (entry) {
-            state.applyShapes({
-              [entry[0]]: resizeSingleShape(entry[1], inter.handle, handlePt),
-            });
+            const resized = resizeSingleShape(entry[1], inter.handle, handlePt);
+            state.applyShapes({ [entry[0]]: resized });
+            const b = shapeBounds(resized);
+            setReadout(formatSize(b.width, b.height));
           }
         } else {
           const to = resizeBounds(inter.from, inter.handle, handlePt);
@@ -657,6 +663,7 @@ export default function CanvasView() {
             next[id] = resizeShapeToBounds(orig, inter.from, to);
           }
           state.applyShapes(next);
+          setReadout(formatSize(to.width, to.height));
         }
         break;
       }
@@ -664,7 +671,13 @@ export default function CanvasView() {
         let delta =
           Math.atan2(world.y - inter.pivot.y, world.x - inter.pivot.x) -
           inter.startAngle;
-        if (e.shiftKey) delta = snapAngle(delta, 15);
+        if (e.shiftKey) {
+          delta = snapAngle(delta, 15);
+        } else {
+          // Ease the resulting angle onto 0/45/90… when close enough.
+          const eased = magnetAngle(inter.startRotation + delta, 45, 4);
+          if (eased !== null) delta = eased - inter.startRotation;
+        }
         const next: Record<string, Shape> = {};
         for (const [id, orig] of Object.entries(inter.originals)) {
           const c = shapeCenter(orig);
@@ -673,10 +686,11 @@ export default function CanvasView() {
           next[id] = { ...moved, rotation: (orig.rotation || 0) + delta };
         }
         state.applyShapes(next);
+        setReadout(formatAngle(inter.startRotation + delta));
         break;
       }
-      case "create":
-        previewRef.current = makeCreatedShape(
+      case "create": {
+        const shape = makeCreatedShape(
           state.tool,
           inter.start,
           pointSnap(world, EMPTY_EXCLUDE),
@@ -684,8 +698,17 @@ export default function CanvasView() {
           e.shiftKey,
           e.altKey
         );
+        previewRef.current = shape;
+        if (shape.type === "line") {
+          const len = Math.hypot(shape.x2 - shape.x1, shape.y2 - shape.y1);
+          const ang = Math.atan2(shape.y2 - shape.y1, shape.x2 - shape.x1);
+          setReadout(`L ${Math.round(len)} · ${formatAngle(ang)}`);
+        } else if (shape.type === "rect" || shape.type === "ellipse") {
+          setReadout(formatSize(shape.width, shape.height));
+        }
         scheduleDraw();
         break;
+      }
       case "pencil": {
         const shape = previewRef.current;
         if (shape && shape.type === "path") {
@@ -748,6 +771,7 @@ export default function CanvasView() {
     const state = useEditor.getState();
     guidesRef.current = [];
     spacingsRef.current = [];
+    setReadout(null);
 
     switch (inter.kind) {
       case "move":
@@ -933,6 +957,19 @@ export default function CanvasView() {
 // ===========================================================================
 // helpers
 // ===========================================================================
+
+/** Status-bar readout for a size, e.g. "120 × 80". */
+function formatSize(width: number, height: number): string {
+  return `${Math.round(Math.abs(width))} × ${Math.round(Math.abs(height))}`;
+}
+
+/** Status-bar readout for an angle in radians, normalized to (-180°, 180°]. */
+function formatAngle(rad: number): string {
+  let deg = (rad * 180) / Math.PI;
+  deg = ((((deg + 180) % 360) + 360) % 360) - 180;
+  if (deg === -180) deg = 180;
+  return `${Math.round(deg * 10) / 10}°`;
+}
 
 /** Snap point b onto the nearest 45° ray from a (for Shift-constrained lines). */
 function constrain45(a: Vec2, b: Vec2): Vec2 {

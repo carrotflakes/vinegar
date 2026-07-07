@@ -19,14 +19,59 @@ const TOOL_KEYS: Record<string, ToolId> = {
   b: "pencil",
 };
 
-/** Live pointer position in world coordinates, shown in the status bar. */
+/**
+ * Live pointer position in world coordinates. While an interaction is in
+ * progress it shows the interaction readout instead (W×H, ΔX/ΔY, angle…).
+ */
 function PointerReadout() {
   const pos = usePointer((s) => s.pos);
+  const readout = usePointer((s) => s.readout);
   return (
-    <span className="pointer-readout">
-      {pos ? `${Math.round(pos.x)}, ${Math.round(pos.y)}` : ""}
+    <span className={readout ? "pointer-readout live" : "pointer-readout"}>
+      {readout ?? (pos ? `${Math.round(pos.x)}, ${Math.round(pos.y)}` : "")}
     </span>
   );
+}
+
+const TYPE_LABELS: Record<string, string> = {
+  rect: "Rectangle",
+  ellipse: "Ellipse",
+  line: "Line",
+  path: "Path",
+  bezier: "Curve",
+  polygon: "Polygon",
+};
+
+/** Selection summary: count, or type + name for a single selection. */
+function SelectionInfo() {
+  const label = useEditor((s) => {
+    const total = s.doc.order.length;
+    const n = s.selection.length;
+    if (n === 1) {
+      const shape = s.doc.shapes[s.selection[0]];
+      if (shape) return `${TYPE_LABELS[shape.type] ?? shape.type} · ${shape.name}`;
+    }
+    if (n > 1) return `${n} of ${total} selected`;
+    return `${total} shape${total === 1 ? "" : "s"}`;
+  });
+  return <span>{label}</span>;
+}
+
+const TOOL_HINTS: Record<ToolId, string> = {
+  select:
+    "Shift+click to add · Space+drag to pan · Ctrl/⌘+wheel to zoom",
+  node: "Drag anchors & handles · Alt breaks handle symmetry",
+  rect: "Shift = square · Alt = from center",
+  ellipse: "Shift = circle · Alt = from center",
+  line: "Shift = 45°",
+  pen: "Click to add · drag to curve · Enter finish · Esc cancel · click start to close",
+  pencil: "Drag to draw · end near start to close",
+};
+
+/** Per-tool usage hint for the status bar. */
+function ToolHint() {
+  const tool = useEditor((s) => s.tool);
+  return <span className="status-hint">{TOOL_HINTS[tool]}</span>;
 }
 
 function canvasCenter(): { x: number; y: number } {
@@ -39,7 +84,6 @@ function canvasCenter(): { x: number; y: number } {
 export default function App() {
   const viewport = useEditor((s) => s.viewport);
   const setViewport = useEditor((s) => s.setViewport);
-  const shapeCount = useEditor((s) => s.doc.order.length);
   const canUndo = useEditor((s) => s.history.past.length > 0);
   const canRedo = useEditor((s) => s.history.future.length > 0);
   const snapEnabled = useEditor((s) => s.snapEnabled);
@@ -205,11 +249,9 @@ export default function App() {
       <footer className="statusbar">
         <PointerReadout />
         <span className="dot status-hint">·</span>
-        <span>{shapeCount} shapes</span>
+        <SelectionInfo />
         <span className="dot status-hint">·</span>
-        <span className="status-hint">
-          Space + drag to pan · Ctrl/⌘ + wheel to zoom
-        </span>
+        <ToolHint />
         <span className="status-spacer" />
         <label className="snap-toggle">
           <input

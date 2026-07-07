@@ -44,11 +44,11 @@ A running list of what's built and what's next. Check items off as they land.
 - [x] Numeric X / Y / W / H editing in the properties panel
 - [x] Rect/ellipse: Shift = square/circle, Alt = draw from center (line: Shift = 45°)
 - [x] Align & distribute buttons (left/center/right, top/middle/bottom, spacing)
-- [ ] Rotation snapping (ease toward 0/45/90° without holding Shift)
+- [x] Rotation snapping (ease toward 0/45/90° without holding Shift)
 - [ ] Alignment guides during resize and rotate (currently move only)
-- [ ] Status bar: live numbers during interactions (W×H while creating, ΔX/ΔY while moving, angle while rotating, new size while resizing)
-- [ ] Status bar: selection info (count; type + name for a single selection) instead of always showing the total shape count
-- [ ] Status bar: per-tool hints (pen: Enter to finish / Esc to cancel / click near start to close; select: Shift+click to add)
+- [x] Status bar: live numbers during interactions (W×H while creating, ΔX/ΔY while moving, angle while rotating, new size while resizing)
+- [x] Status bar: selection info (count; type + name for a single selection) instead of always showing the total shape count
+- [x] Status bar: per-tool hints (pen: Enter to finish / Esc to cancel / click near start to close; select: Shift+click to add)
 
 ## Mobile / touch
 - [x] Responsive layout: icon-only toolbar rail + slide-in Properties/Layers drawer; reflowed app bar / status bar on narrow screens
@@ -87,3 +87,4 @@ A running list of what's built and what's next. Check items off as they land.
 - [ ] ペン入力最適化
   - [ ] 筆圧対応（線幅・不透明度）
   - [ ] 傾き対応（線幅・不透明度）
+- [ ] アニメーション機能　パラメトリックに動かす

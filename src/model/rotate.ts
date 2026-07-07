@@ -18,3 +18,19 @@ export function snapAngle(angle: number, stepDeg = 15): number {
   const step = (stepDeg * Math.PI) / 180;
   return Math.round(angle / step) * step;
 }
+
+/**
+ * Magnetic snap: the nearest multiple of `stepDeg` if `angle` (radians) is
+ * within `withinDeg` of it, otherwise null. Used to ease rotation toward
+ * 0/45/90° without holding Shift.
+ */
+export function magnetAngle(
+  angle: number,
+  stepDeg: number,
+  withinDeg: number
+): number | null {
+  const snapped = snapAngle(angle, stepDeg);
+  return Math.abs(angle - snapped) <= (withinDeg * Math.PI) / 180
+    ? snapped
+    : null;
+}

@@ -743,6 +743,11 @@
   font-variant-numeric: tabular-nums;
 }
 
+.pointer-readout.live {
+  color: var(--accent);
+  font-weight: 600;
+}
+
 .status-spacer {
   flex: 1;
 }
