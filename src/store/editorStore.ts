@@ -6,6 +6,7 @@ import {
   type Document,
   type Shape,
 } from "../model/types";
+import { toggleAnchorSmooth } from "../model/bezier";
 import { booleanShapes, isAreal, type BoolOp } from "../model/boolean";
 import { shapeBounds, unionWorldBounds, worldShapeBounds } from "../model/bounds";
 import { strokeOutline } from "../model/outlineStroke";
@@ -102,6 +103,10 @@ export interface EditorState {
   // history-wrapped mutations ---------------------------------------------
   addShape: (shape: Shape, select?: boolean) => void;
   addShapes: (shapes: Shape[], select?: boolean) => void;
+  /** Replace an existing shape wholesale (used by pen path extension). */
+  updateShape: (shape: Shape, select?: boolean) => void;
+  /** Toggle a Bézier anchor between smooth and corner. */
+  toggleNodeSmooth: (shapeId: string, index: number) => void;
   applyScriptChanges: (changes: {
     created: Shape[];
     updated: Shape[];
@@ -391,6 +396,23 @@ export const useEditor = create<EditorState>((set, get) => {
       }
       transact({ shapes, order });
       if (select) set({ selection: newShapes.map((s) => s.id) });
+    },
+
+    updateShape: (shape, select = true) => {
+      const { doc } = get();
+      if (!doc.shapes[shape.id]) return;
+      transact({ ...doc, shapes: { ...doc.shapes, [shape.id]: shape } });
+      if (select) set({ selection: [shape.id] });
+    },
+
+    toggleNodeSmooth: (shapeId, index) => {
+      const { doc } = get();
+      const shape = doc.shapes[shapeId];
+      if (!shape || shape.type !== "bezier") return;
+      transact({
+        ...doc,
+        shapes: { ...doc.shapes, [shapeId]: toggleAnchorSmooth(shape, index) },
+      });
     },
 
     applyScriptChanges: ({ created, updated, deleted }) => {

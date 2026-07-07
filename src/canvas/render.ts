@@ -131,6 +131,9 @@ export function renderScene(
   ctx.scale(viewport.scale, viewport.scale);
 
   for (const id of doc.order) {
+    // A preview that shares a document shape's id supersedes it (the pen
+    // extending an existing path); skip the stale copy underneath.
+    if (opts.preview && id === opts.preview.id) continue;
     const shape = doc.shapes[id];
     if (shape && !shape.hidden) paintShape(ctx, shape);
   }

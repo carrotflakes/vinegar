@@ -60,11 +60,11 @@ function SelectionInfo() {
 const TOOL_HINTS: Record<ToolId, string> = {
   select:
     "Shift+click to add · Space+drag to pan · Ctrl/⌘+wheel to zoom",
-  node: "Drag anchors & handles · Alt breaks handle symmetry",
+  node: "Click path to add a point · double-click a point: smooth ↔ corner · Alt breaks symmetry",
   rect: "Shift = square · Alt = from center",
   ellipse: "Shift = circle · Alt = from center",
   line: "Shift = 45°",
-  pen: "Click to add · drag to curve · Enter finish · Esc cancel · click start to close",
+  pen: "Click/drag to add · click start to close · click an open end to continue · Shift = 45° · Enter finish · Esc cancel",
   pencil: "Drag to draw · end near start to close",
 };
 

@@ -5,6 +5,11 @@ import {
   unionWorldBounds,
   worldShapeBounds,
 } from "../model/bounds";
+import {
+  closestPointOnBezier,
+  insertAnchorOnSegment,
+  reverseBezier,
+} from "../model/bezier";
 import { pointsToAnchors, simplifyPath } from "../model/freehand";
 import { hitTestShape } from "../model/hitTest";
 import { magnetAngle, rotateAbout, snapAngle } from "../model/rotate";
@@ -129,6 +134,12 @@ export default function CanvasView() {
   const previewRef = useRef<Shape | null>(null);
   const marqueeRef = useRef<Bounds | null>(null);
   const penDraftRef = useRef<BezierShape | null>(null);
+  /** When the pen picked up an existing open path, its pre-edit original. */
+  const penExtendRef = useRef<BezierShape | null>(null);
+  /** Last segment-click insertion, so a double-click doesn't also toggle it. */
+  const lastInsertRef = useRef<{ shapeId: string; index: number; time: number } | null>(
+    null
+  );
   const hoverRef = useRef<Vec2 | null>(null);
   const guidesRef = useRef<Guide[]>([]);
   const spacingsRef = useRef<Spacing[]>([]);
@@ -212,7 +223,9 @@ export default function CanvasView() {
   // ---- pen draft lifecycle ----------------------------------------------
   const commitPenDraft = useCallback(() => {
     const draft = penDraftRef.current;
+    const extended = penExtendRef.current;
     penDraftRef.current = null;
+    penExtendRef.current = null;
     previewRef.current = null;
     hoverRef.current = null;
     if (draft) {
@@ -223,13 +236,24 @@ export default function CanvasView() {
         const b = anchors[anchors.length - 2].p;
         if (Math.hypot(a.x - b.x, a.y - b.y) < 0.5) anchors.pop();
       }
-      if (anchors.length >= 2) useEditor.getState().addShape(draft);
+      if (anchors.length >= 2) {
+        const state = useEditor.getState();
+        if (extended && state.doc.shapes[draft.id]) {
+          // Skip the no-op case (picked an endpoint up but changed nothing).
+          if (JSON.stringify(draft) !== JSON.stringify(extended)) {
+            state.updateShape(draft);
+          }
+        } else {
+          state.addShape(draft);
+        }
+      }
     }
     scheduleDraw();
   }, [scheduleDraw]);
 
   const cancelPenDraft = useCallback(() => {
     penDraftRef.current = null;
+    penExtendRef.current = null;
     previewRef.current = null;
     hoverRef.current = null;
     scheduleDraw();
@@ -397,7 +421,7 @@ export default function CanvasView() {
       return;
     }
     if (tool === "pen") {
-      onPenDown(state, screen, world);
+      onPenDown(state, screen, world, e.shiftKey);
       return;
     }
     if (tool === "pencil") {
@@ -534,6 +558,26 @@ export default function CanvasView() {
               };
         return;
       }
+      // Clicking the path itself (not a node) inserts an anchor there and
+      // starts dragging it, all as one undo step.
+      const loc = closestPointOnBezier(sel, world);
+      if (loc && loc.distance <= pickTolerance()) {
+        const next = insertAnchorOnSegment(sel, loc.segIndex, loc.t);
+        if (next !== sel) {
+          const index = loc.segIndex + 1;
+          state.beginInteraction();
+          state.applyShapes({ [sel.id]: next });
+          state.setEditNode({ shapeId: sel.id, index });
+          lastInsertRef.current = { shapeId: sel.id, index, time: Date.now() };
+          interactionRef.current = {
+            kind: "node-anchor",
+            shapeId: sel.id,
+            index,
+            orig: next,
+          };
+        }
+        return;
+      }
     }
     // Select another Bézier shape, or clear.
     const id = pickShape(world);
@@ -545,10 +589,67 @@ export default function CanvasView() {
     }
   };
 
-  const onPenDown = (state: EditorState, screen: Vec2, world: Vec2) => {
-    world = pointSnap(world, EMPTY_EXCLUDE);
+  /** Find the topmost open Bézier path with an endpoint under `screen`. */
+  const pickOpenEndpoint = (
+    state: EditorState,
+    screen: Vec2
+  ): { shape: BezierShape; end: "start" | "end" } | null => {
+    const tol = NODE_GRAB * hitScale();
+    const { doc, viewport } = state;
+    const near = (w: Vec2) => {
+      const sp = worldToScreen(viewport, w);
+      return Math.hypot(sp.x - screen.x, sp.y - screen.y) <= tol;
+    };
+    for (let i = doc.order.length - 1; i >= 0; i--) {
+      const s = doc.shapes[doc.order[i]];
+      if (
+        !s ||
+        s.type !== "bezier" ||
+        s.closed ||
+        s.hidden ||
+        s.locked ||
+        s.rotation || // anchors live in unrotated space; extending would misplace
+        s.anchors.length < 2
+      )
+        continue;
+      if (near(s.anchors[s.anchors.length - 1].p)) return { shape: s, end: "end" };
+      if (near(s.anchors[0].p)) return { shape: s, end: "start" };
+    }
+    return null;
+  };
+
+  const onPenDown = (
+    state: EditorState,
+    screen: Vec2,
+    world: Vec2,
+    shift: boolean
+  ) => {
     const draft = penDraftRef.current;
+    const last = draft?.anchors[draft.anchors.length - 1];
+    if (shift && last) {
+      world = constrain45(last.p, world);
+      guidesRef.current = [];
+    } else {
+      world = pointSnap(world, EMPTY_EXCLUDE);
+    }
     if (!draft) {
+      // Clicking an endpoint of an existing open path picks it up and
+      // continues it; the commit then replaces the original shape.
+      const pick = pickOpenEndpoint(state, screen);
+      if (pick) {
+        const baseline =
+          pick.end === "start" ? reverseBezier(pick.shape) : pick.shape;
+        penExtendRef.current = baseline;
+        const shape = structuredClone(baseline);
+        penDraftRef.current = shape;
+        previewRef.current = shape;
+        interactionRef.current = {
+          kind: "pen-anchor",
+          index: shape.anchors.length - 1,
+        };
+        scheduleDraw();
+        return;
+      }
       const shape: BezierShape = {
         id: makeId("bezier"),
         name: "Curve",
@@ -589,7 +690,12 @@ export default function CanvasView() {
 
     if (inter.kind === "none") {
       if (state.tool === "pen" && penDraftRef.current) {
-        hoverRef.current = pointSnap(world, EMPTY_EXCLUDE);
+        const draft = penDraftRef.current;
+        const last = draft.anchors[draft.anchors.length - 1];
+        hoverRef.current =
+          e.shiftKey && last
+            ? constrain45(last.p, world)
+            : pointSnap(world, EMPTY_EXCLUDE);
         scheduleDraw();
       }
       updateHoverCursor(screen, world);
@@ -724,16 +830,26 @@ export default function CanvasView() {
         const draft = penDraftRef.current;
         if (draft) {
           const a = draft.anchors[inter.index];
-          a.hOut = world;
-          a.hIn = { x: 2 * a.p.x - world.x, y: 2 * a.p.y - world.y };
+          const target = e.shiftKey ? constrain45(a.p, world) : world;
+          a.hOut = target;
+          a.hIn = { x: 2 * a.p.x - target.x, y: 2 * a.p.y - target.y };
           scheduleDraw();
         }
         break;
       }
       case "node-anchor": {
-        const snapped = pointSnap(world, new Set([inter.shapeId]));
+        let target: Vec2;
+        if (e.shiftKey) {
+          // Constrain to 45° rays from the anchor's original position.
+          const origP = inter.orig.anchors[inter.index]?.p ?? world;
+          target = constrain45(origP, world);
+          guidesRef.current = [];
+          spacingsRef.current = [];
+        } else {
+          target = pointSnap(world, new Set([inter.shapeId]));
+        }
         state.applyShapes({
-          [inter.shapeId]: moveAnchor(inter.orig, inter.index, snapped),
+          [inter.shapeId]: moveAnchor(inter.orig, inter.index, target),
         });
         break;
       }
@@ -824,9 +940,34 @@ export default function CanvasView() {
     }
   };
 
-  const onDoubleClick = () => {
-    if (useEditor.getState().tool === "pen" && penDraftRef.current) {
+  const onDoubleClick = (e: React.MouseEvent<HTMLCanvasElement>) => {
+    const state = useEditor.getState();
+    if (state.tool === "pen" && penDraftRef.current) {
       commitPenDraft();
+      return;
+    }
+    if (state.tool === "node") {
+      const sel = selectedBezier(state);
+      if (!sel) return;
+      const hit = hitBezierNodes(
+        sel,
+        screenPoint(e),
+        state.viewport,
+        NODE_GRAB * hitScale()
+      );
+      if (hit?.part !== "anchor") return;
+      // The first click of this double-click may have just inserted this
+      // anchor; don't immediately flip it to a corner as well.
+      const ins = lastInsertRef.current;
+      if (
+        ins &&
+        ins.shapeId === sel.id &&
+        ins.index === hit.index &&
+        Date.now() - ins.time < 600
+      )
+        return;
+      state.toggleNodeSmooth(sel.id, hit.index);
+      state.setEditNode({ shapeId: sel.id, index: hit.index });
     }
   };
 
@@ -838,15 +979,25 @@ export default function CanvasView() {
       return;
     }
     if (state.tool === "pen" || state.tool === "pencil") {
-      canvas.style.cursor = "crosshair";
+      // Highlight continuable endpoints of open paths.
+      canvas.style.cursor =
+        state.tool === "pen" &&
+        !penDraftRef.current &&
+        pickOpenEndpoint(state, screen)
+          ? "pointer"
+          : "crosshair";
       return;
     }
     if (state.tool === "node") {
       const sel = selectedBezier(state);
+      if (sel && hitBezierNodes(sel, screen, state.viewport, NODE_GRAB * hitScale())) {
+        canvas.style.cursor = "move";
+        return;
+      }
+      // "copy" (arrow + plus) over the path itself: a click inserts a point.
+      const loc = sel ? closestPointOnBezier(sel, world) : null;
       canvas.style.cursor =
-        sel && hitBezierNodes(sel, screen, state.viewport, NODE_GRAB * hitScale())
-          ? "move"
-          : "default";
+        loc && loc.distance <= pickTolerance() ? "copy" : "default";
       return;
     }
     const hit = hitFrameHandle(screen);

@@ -15,6 +15,10 @@ A running list of what's built and what's next. Check items off as they land.
 - [x] Bézier pen + node editing (anchors & handles, Alt breaks symmetry)
 - [x] Pencil → simplified + smoothed editable Bézier; close by ending near start
 - [x] Open / close a path after creation
+- [x] Node tool: click a segment to insert an anchor (curve-preserving split) and drag it in one gesture
+- [x] Node tool: double-click an anchor to toggle smooth ↔ corner
+- [x] Pen: click an endpoint of an existing open path to continue it (commit replaces the original)
+- [x] Shift = 45° constraint for pen anchors/handles and node-anchor drags
 - [x] Rotation (handle, Shift = 15°) incl. rotated resize; rotation-aware cursors
 - [x] Group / ungroup (groupId-based)
 - [x] Copy / cut / paste / duplicate
