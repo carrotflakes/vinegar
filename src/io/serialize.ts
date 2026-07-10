@@ -1,38 +1,45 @@
 import { pruneGroups } from "../model/groups";
 import {
-  BLEND_MODES,
-  type BlendMode,
   type Document,
   type Group,
   type Shape,
   type ShapeType,
 } from "../model/types";
 
-/** On-disk file wrapper for a Vinegar document. */
+export const CURRENT_FILE_VERSION = 3 as const;
+
+/** Current on-disk format. Older formats are intentionally unsupported. */
 export interface VinegarFile {
   app: "vinegar";
-  version: 2;
+  version: typeof CURRENT_FILE_VERSION;
   document: Document;
 }
 
 export function serializeDocument(doc: Document): string {
-  const file: VinegarFile = { app: "vinegar", version: 2, document: doc };
+  const file: VinegarFile = {
+    app: "vinegar",
+    version: CURRENT_FILE_VERSION,
+    document: {
+      ...doc,
+      metadata: { ...doc.metadata, modifiedAt: new Date().toISOString() },
+    },
+  };
   return JSON.stringify(file, null, 2);
 }
 
-const SHAPE_TYPES: ShapeType[] = [
+const SHAPE_TYPES = new Set<ShapeType>([
   "rect",
   "ellipse",
   "line",
   "path",
   "bezier",
   "polygon",
-];
+]);
 
-/**
- * Parse a `.vinegar.json` file back into a Document. Throws on anything
- * that does not look like a valid document.
- */
+const isObject = (value: unknown): value is Record<string, unknown> =>
+  !!value && typeof value === "object" && !Array.isArray(value);
+
+/** Parse the current format and repair only cross-reference invariants. */
 export function parseDocument(text: string): Document {
   let data: unknown;
   try {
@@ -40,50 +47,75 @@ export function parseDocument(text: string): Document {
   } catch {
     throw new Error("File is not valid JSON.");
   }
-  if (!data || typeof data !== "object") {
-    throw new Error("Unexpected file contents.");
-  }
-  const file = data as Partial<VinegarFile>;
-  if (file.app !== "vinegar") {
+
+  if (!isObject(data) || data.app !== "vinegar") {
     throw new Error("Not a Vinegar file.");
   }
-  const doc = file.document;
-  if (!doc || typeof doc !== "object" || !Array.isArray(doc.order) || !doc.shapes) {
+  if (data.version !== CURRENT_FILE_VERSION) {
+    throw new Error(`Unsupported Vinegar file version: ${String(data.version)}.`);
+  }
+  if (!isCurrentDocument(data.document)) {
     throw new Error("Document data is missing or malformed.");
   }
 
-  // Keep only well-formed shapes that are referenced by `order`.
+  const raw = data.document;
   const shapes: Record<string, Shape> = {};
-  for (const id of doc.order) {
-    const s = doc.shapes[id];
-    if (s && typeof s === "object" && SHAPE_TYPES.includes((s as Shape).type)) {
-      // Default fields that may be absent in files from older versions.
-      const shape = s as Shape;
-      shapes[id] = {
-        ...shape,
-        rotation: shape.rotation ?? 0,
-        blendMode: validBlend(shape.blendMode),
-      };
+  const order: string[] = [];
+  const seen = new Set<string>();
+  for (const id of raw.order) {
+    if (seen.has(id)) continue;
+    seen.add(id);
+    const shape = raw.shapes[id];
+    if (shape?.id === id && SHAPE_TYPES.has(shape.type)) {
+      shapes[id] = structuredClone(shape);
+      order.push(id);
     }
   }
-  const order = doc.order.filter((id) => shapes[id]);
 
-  // Keep only well-formed group entities; prune fixes dangling references.
-  const groups: Record<string, Group> = {};
-  for (const [gid, g] of Object.entries(doc.groups ?? {})) {
-    if (!g || typeof g !== "object" || (g as Group).id !== gid) continue;
-    const group = g as Group;
-    groups[gid] = {
-      ...group,
-      name: typeof group.name === "string" ? group.name : "Group",
-      blendMode: validBlend(group.blendMode),
-    };
-  }
-  return pruneGroups({ shapes, order, groups });
+  const groups = structuredClone(raw.groups);
+  repairGroupParents(groups);
+  return pruneGroups({
+    ...structuredClone(raw),
+    shapes,
+    order,
+    groups,
+  });
 }
 
-function validBlend(v: unknown): BlendMode | undefined {
-  return v && v !== "normal" && BLEND_MODES.includes(v as BlendMode)
-    ? (v as BlendMode)
-    : undefined;
+function isCurrentDocument(value: unknown): value is Document {
+  if (!isObject(value)) return false;
+  return (
+    Array.isArray(value.order) &&
+    value.order.every((id) => typeof id === "string") &&
+    isObject(value.shapes) &&
+    isObject(value.groups) &&
+    isObject(value.settings) &&
+    isObject(value.metadata) &&
+    isObject(value.assets) &&
+    isObject(value.extensions)
+  );
+}
+
+/** Remove dangling parents and break cycles in the group forest. */
+function repairGroupParents(groups: Record<string, Group>): void {
+  for (const [id, group] of Object.entries(groups)) {
+    if (!group || group.id !== id) {
+      delete groups[id];
+      continue;
+    }
+    if (group.parentId && !groups[group.parentId]) group.parentId = null;
+  }
+
+  for (const start of Object.keys(groups)) {
+    const seen = new Set<string>();
+    let id: string | null = start;
+    while (id && groups[id]) {
+      if (seen.has(id)) {
+        groups[id].parentId = null;
+        break;
+      }
+      seen.add(id);
+      id = groups[id].parentId ?? null;
+    }
+  }
 }

@@ -167,19 +167,65 @@ export interface Bounds {
   height: number;
 }
 
+/** Document-wide values that should travel with the drawing file. */
+export interface DocumentSettings {
+  /** Authoring unit. Geometry continues to be stored as unitless numbers. */
+  unit: "px" | "mm" | "cm" | "in" | "pt";
+  /** Resolution used when converting physical units to pixels. */
+  dpi: number;
+  /** Document grid, as opposed to the user's transient snap preference. */
+  gridSize: number;
+}
+
+/** Metadata for forward-compatible document management. */
+export interface DocumentMetadata {
+  createdAt: string;
+  modifiedAt: string;
+}
+
+/**
+ * Binary resources are referenced by id instead of being embedded in shapes.
+ * `source` is intentionally a discriminated union so packaged/external asset
+ * locations can be added without changing every image-like node.
+ */
+export interface DocumentAsset {
+  id: string;
+  kind: "image";
+  mimeType: string;
+  name?: string;
+  source: { type: "data"; data: string };
+}
+
 /** The whole drawing document. `order` lists shape ids back-to-front. */
 export interface Document {
   shapes: Record<string, Shape>;
   order: string[];
   groups: Record<string, Group>;
+  settings: DocumentSettings;
+  metadata: DocumentMetadata;
+  assets: Record<string, DocumentAsset>;
+  /** Namespaced data reserved for future plugins/importers. */
+  extensions: Record<string, unknown>;
 }
 
 export function createEmptyDocument(): Document {
-  return { shapes: {}, order: [], groups: {} };
+  const now = new Date().toISOString();
+  return {
+    shapes: {},
+    order: [],
+    groups: {},
+    settings: { unit: "px", dpi: 96, gridSize: 50 },
+    metadata: { createdAt: now, modifiedAt: now },
+    assets: {},
+    extensions: {},
+  };
 }
 
 let idCounter = 0;
 export function makeId(prefix = "shape"): string {
+  if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
+    return `${prefix}_${crypto.randomUUID()}`;
+  }
   idCounter += 1;
   return `${prefix}_${Date.now().toString(36)}_${idCounter}`;
 }

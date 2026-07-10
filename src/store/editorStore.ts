@@ -288,6 +288,7 @@ function cloneForPaste(
 
 function clone(doc: Document): Document {
   return {
+    ...doc,
     order: [...doc.order],
     shapes: Object.fromEntries(
       Object.entries(doc.shapes).map(([k, v]) => [k, { ...v }])
@@ -295,6 +296,12 @@ function clone(doc: Document): Document {
     groups: Object.fromEntries(
       Object.entries(doc.groups).map(([k, v]) => [k, { ...v }])
     ),
+    settings: { ...doc.settings },
+    metadata: { ...doc.metadata },
+    assets: Object.fromEntries(
+      Object.entries(doc.assets).map(([k, v]) => [k, structuredClone(v)])
+    ),
+    extensions: structuredClone(doc.extensions),
   };
 }
 
@@ -378,8 +385,14 @@ export const useEditor = create<EditorState>((set, get) => {
     setEditNode: (node) => set({ editNode: node }),
     toggleSnap: () => set({ snapEnabled: !get().snapEnabled }),
     toggleGridSnap: () => set({ gridSnap: !get().gridSnap }),
-    setGridSize: (size) =>
-      set({ gridSize: Math.max(1, Math.round(size)) }),
+    setGridSize: (size) => {
+      const gridSize = Math.max(1, Math.round(size));
+      const doc = get().doc;
+      set({
+        gridSize,
+        doc: { ...doc, settings: { ...doc.settings, gridSize } },
+      });
+    },
 
     addRecentColor: (hex) => {
       const c = hex.toLowerCase();
@@ -434,18 +447,22 @@ export const useEditor = create<EditorState>((set, get) => {
 
     setStyle: (patch) => set({ style: { ...get().style, ...patch } }),
 
-    newDocument: () =>
+    newDocument: () => {
+      const doc = createEmptyDocument();
       set({
-        doc: createEmptyDocument(),
+        doc,
+        gridSize: doc.settings.gridSize,
         selection: [],
         history: { past: [], future: [] },
         _pending: null,
         _dirty: false,
-      }),
+      });
+    },
 
     loadDocument: (doc) =>
       set({
         doc,
+        gridSize: doc.settings.gridSize,
         selection: [],
         history: { past: [], future: [] },
         _pending: null,
@@ -565,7 +582,7 @@ export const useEditor = create<EditorState>((set, get) => {
         order.push(s.id);
       }
       for (const g of pasted.groups) groups[g.id] = g;
-      transact({ shapes, order, groups });
+      transact({ ...doc, shapes, order, groups });
       set({ selection: pasted.shapes.map((s) => s.id) });
     },
 
@@ -582,7 +599,7 @@ export const useEditor = create<EditorState>((set, get) => {
         order.push(s.id);
       }
       for (const g of dup.groups) groups[g.id] = g;
-      transact({ shapes, order, groups });
+      transact({ ...doc, shapes, order, groups });
       set({ selection: dup.shapes.map((s) => s.id) });
     },
 
@@ -662,7 +679,7 @@ export const useEditor = create<EditorState>((set, get) => {
         .slice(0, frontIdx)
         .filter((id) => !sel.has(id)).length;
       const order = [...rest.slice(0, below), ...members, ...rest.slice(below)];
-      transact({ shapes, order, groups });
+      transact({ ...doc, shapes, order, groups });
     },
 
     ungroupSelected: () => {
@@ -839,7 +856,7 @@ export const useEditor = create<EditorState>((set, get) => {
       }
 
       if (changed) {
-        transact(pruneGroups({ shapes, order, groups }));
+        transact(pruneGroups({ ...doc, shapes, order, groups }));
         set({ selection: newSelection });
       }
     },
