@@ -1,4 +1,12 @@
+import {
+  autoUpdate,
+  flip,
+  offset,
+  shift,
+  useFloating,
+} from "@floating-ui/react-dom";
 import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { useEditor } from "../store/editorStore";
 
 /** A curated default palette (grayscale + a hue wheel + tints). */
@@ -48,6 +56,14 @@ export default function ColorField({ label, value, onChange }: Props) {
   const enabled = value !== null;
   const hasEyeDropper = typeof window !== "undefined" && !!window.EyeDropper;
 
+  // The popover portals to <body> so the sidebar's overflow can't clip it;
+  // Floating UI keeps it anchored to the swatch (and inside the viewport).
+  const { refs, floatingStyles } = useFloating({
+    placement: "bottom-start",
+    middleware: [offset(6), flip({ padding: 8 }), shift({ padding: 8 })],
+    whileElementsMounted: autoUpdate,
+  });
+
   const pickFromScreen = async () => {
     if (!window.EyeDropper) return;
     try {
@@ -69,9 +85,10 @@ export default function ColorField({ label, value, onChange }: Props) {
   useEffect(() => {
     if (!open) return;
     const onDown = (e: PointerEvent) => {
-      if (rootRef.current && !rootRef.current.contains(e.target as Node)) {
-        close();
-      }
+      const t = e.target as Node;
+      if (rootRef.current?.contains(t)) return;
+      if (refs.floating.current?.contains(t)) return; // popover lives in a portal
+      close();
     };
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
@@ -94,6 +111,7 @@ export default function ColorField({ label, value, onChange }: Props) {
       <label>{label}</label>
       <div className="field-row">
         <button
+          ref={refs.setReference}
           className={"color-swatch" + (enabled ? "" : " is-none")}
           style={enabled ? { background: value } : undefined}
           onClick={() => setOpen((o) => !o)}
@@ -102,8 +120,13 @@ export default function ColorField({ label, value, onChange }: Props) {
         <span className="swatch-text">{enabled ? value : "none"}</span>
       </div>
 
-      {open && (
-        <div className="color-popover">
+      {open &&
+        createPortal(
+          <div
+            className="color-popover"
+            ref={refs.setFloating}
+            style={floatingStyles}
+          >
           <div className="color-pop-row">
             <button
               className={"none-btn" + (enabled ? "" : " active")}
@@ -199,8 +222,9 @@ export default function ColorField({ label, value, onChange }: Props) {
               />
             ))}
           </div>
-        </div>
-      )}
+          </div>,
+          document.body
+        )}
     </div>
   );
 }
