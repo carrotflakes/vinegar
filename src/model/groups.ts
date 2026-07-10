@@ -111,6 +111,23 @@ export function selectionUnits(
 }
 
 /**
+ * Whether the selection can be grouped: at least two top-level units, all
+ * sharing one parent container (so the new group nests cleanly).
+ */
+export function canGroupSelection(
+  doc: Document,
+  selection: string[]
+): boolean {
+  const units = selectionUnits(doc, selection);
+  if (units.groups.length + units.shapes.length < 2) return false;
+  const parents = new Set<string | null>([
+    ...units.groups.map((g) => g.parentId ?? null),
+    ...units.shapes.map((s) => s.groupId ?? null),
+  ]);
+  return parents.size === 1;
+}
+
+/**
  * The single (outermost) group the selection exactly covers, if any. Used to
  * surface group properties in the UI.
  */

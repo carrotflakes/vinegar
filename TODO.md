@@ -95,4 +95,7 @@ A running list of what's built and what's next. Check items off as they land.
   - [ ] 筆圧対応（線幅・不透明度）
   - [ ] 傾き対応（線幅・不透明度）
 - [ ] アニメーション機能　パラメトリックに動かす
-- [ ] コンテキストメニュー
+- [x] コンテキストメニュー（土台: 汎用メニュー基盤＋キャンバス/レイヤーパネル右クリック。Paste here・Select all(Ctrl+A)追加）
+  - [ ] 項目の拡充（Align / Boolean / パス操作などコンテキスト依存の項目）
+  - [ ] タッチ長押しで表示（モバイル）
+  - [ ] キーボードナビゲーション（↑↓Enter）

@@ -2,6 +2,8 @@ import { Fragment, useState } from "react";
 import { buildRenderTree, type RenderNode } from "../canvas/render";
 import type { Group, Shape } from "../model/types";
 import { useEditor } from "../store/editorStore";
+import { openContextMenu } from "../store/menuStore";
+import { selectionMenu } from "./menus";
 
 const TYPE_ICON: Record<Shape["type"], string> = {
   rect: "▭",
@@ -184,6 +186,23 @@ export default function LayersPanel() {
         onDragOver={(e) => onRowDragOver(e, path)}
         {...dropProps}
         onClick={(e) => selectIds([id], e.shiftKey)}
+        onContextMenu={(e) => {
+          e.preventDefault();
+          if (!selection.includes(id)) selectIds([id], false);
+          openContextMenu(e.clientX, e.clientY, [
+            { label: "Rename", onSelect: () => setEditing(id) },
+            {
+              label: shape.hidden ? "Show" : "Hide",
+              onSelect: () => toggleHidden(id),
+            },
+            {
+              label: shape.locked ? "Unlock" : "Lock",
+              onSelect: () => toggleLocked(id),
+            },
+            "separator",
+            ...selectionMenu(),
+          ]);
+        }}
       >
         <button
           className="layer-icon-btn"
@@ -244,6 +263,25 @@ export default function LayersPanel() {
         onDragOver={(e) => onRowDragOver(e, path)}
         {...dropProps}
         onClick={(e) => selectIds(ids, e.shiftKey)}
+        onContextMenu={(e) => {
+          e.preventDefault();
+          if (!ids.every((sid) => selection.includes(sid))) {
+            selectIds(ids, false);
+          }
+          openContextMenu(e.clientX, e.clientY, [
+            { label: "Rename", onSelect: () => setEditing(gid) },
+            {
+              label: group.hidden ? "Show group" : "Hide group",
+              onSelect: () => updateGroupStyle(gid, { hidden: !group.hidden }),
+            },
+            {
+              label: group.locked ? "Unlock group" : "Lock group",
+              onSelect: () => updateGroupStyle(gid, { locked: !group.locked }),
+            },
+            "separator",
+            ...selectionMenu(),
+          ]);
+        }}
       >
         <button
           className="layer-icon-btn layer-chevron"

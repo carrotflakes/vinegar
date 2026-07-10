@@ -7,6 +7,7 @@ import Toolbar from "./ui/Toolbar";
 import RightSidebar from "./ui/RightSidebar";
 import FileMenu from "./ui/FileMenu";
 import ScriptPanel from "./ui/ScriptPanel";
+import ContextMenuHost from "./ui/ContextMenu";
 import "./App.css";
 
 const TOOL_KEYS: Record<string, ToolId> = {
@@ -147,6 +148,11 @@ export default function App() {
         s.duplicateSelected();
         return;
       }
+      if (mod && e.key.toLowerCase() === "a") {
+        e.preventDefault();
+        s.selectAll();
+        return;
+      }
       if (e.key === "Delete" || e.key === "Backspace") {
         if (s.editNode) {
           e.preventDefault();
@@ -245,6 +251,7 @@ export default function App() {
       </div>
 
       <ScriptPanel open={showScript} onClose={() => setShowScript(false)} />
+      <ContextMenuHost />
 
       <footer className="statusbar">
         <PointerReadout />

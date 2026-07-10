@@ -7,9 +7,12 @@ import {
   type Document,
   type Group,
   type Shape,
+  type Vec2,
 } from "../model/types";
 import {
   groupChain,
+  isShapeHidden,
+  isShapeLocked,
   pruneGroups,
   rootGroupId,
   selectionUnits,
@@ -86,6 +89,8 @@ export interface EditorState {
   setSelection: (ids: string[]) => void;
   toggleSelection: (id: string) => void;
   clearSelection: () => void;
+  /** Select every shape that is neither hidden nor locked. */
+  selectAll: () => void;
   setEditNode: (node: EditNode | null) => void;
   deleteEditNode: () => void;
   toggleSnap: () => void;
@@ -107,7 +112,8 @@ export interface EditorState {
   clipboardGroups: Group[];
   copySelected: () => void;
   cutSelected: () => void;
-  paste: () => void;
+  /** Paste the clipboard; when `at` is given, center the paste on it. */
+  paste: (at?: Vec2) => void;
   duplicateSelected: () => void;
 
   // history-wrapped mutations ---------------------------------------------
@@ -360,6 +366,15 @@ export const useEditor = create<EditorState>((set, get) => {
       });
     },
     clearSelection: () => set({ selection: [], editNode: null }),
+    selectAll: () => {
+      const { doc } = get();
+      set({
+        selection: doc.order.filter((id) => {
+          const s = doc.shapes[id];
+          return s && !isShapeHidden(doc, s) && !isShapeLocked(doc, s);
+        }),
+      });
+    },
     setEditNode: (node) => set({ editNode: node }),
     toggleSnap: () => set({ snapEnabled: !get().snapEnabled }),
     toggleGridSnap: () => set({ gridSnap: !get().gridSnap }),
@@ -524,10 +539,24 @@ export const useEditor = create<EditorState>((set, get) => {
       get().deleteSelected();
     },
 
-    paste: () => {
+    paste: (at) => {
       const { clipboard, clipboardGroups, doc } = get();
       if (clipboard.length === 0) return;
-      const pasted = cloneForPaste(clipboard, clipboardGroups, PASTE_OFFSET);
+      const pasted = cloneForPaste(
+        clipboard,
+        clipboardGroups,
+        at ? 0 : PASTE_OFFSET
+      );
+      if (at) {
+        const b = unionWorldBounds(pasted.shapes);
+        if (b) {
+          const dx = at.x - (b.x + b.width / 2);
+          const dy = at.y - (b.y + b.height / 2);
+          pasted.shapes = pasted.shapes.map((s) =>
+            translateShape(s, dx, dy)
+          );
+        }
+      }
       const shapes = { ...doc.shapes };
       const order = [...doc.order];
       const groups = { ...doc.groups };

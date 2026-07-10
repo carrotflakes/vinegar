@@ -37,7 +37,9 @@ import {
   useEditor,
   type EditorState,
 } from "../store/editorStore";
+import { openContextMenu } from "../store/menuStore";
 import { setPointer, setReadout } from "../store/pointerStore";
+import { canvasMenu, selectionMenu } from "../ui/menus";
 import {
   frameHandlePoint,
   frameRotationPoint,
@@ -398,6 +400,8 @@ export default function CanvasView() {
 
   // ---- pointer handling --------------------------------------------------
   const onPointerDown = (e: React.PointerEvent<HTMLCanvasElement>) => {
+    // Right button is reserved for the context menu (see onContextMenu).
+    if (e.button === 2) return;
     const canvas = canvasRef.current!;
     canvas.setPointerCapture(e.pointerId);
     const screen = screenPoint(e);
@@ -978,6 +982,23 @@ export default function CanvasView() {
     }
   };
 
+  const onContextMenu = (e: React.MouseEvent<HTMLCanvasElement>) => {
+    e.preventDefault();
+    const state = useEditor.getState();
+    const world = screenToWorld(state.viewport, screenPoint(e));
+    if (state.tool === "select" || state.tool === "node") {
+      const hitId = pickShape(world);
+      if (hitId) {
+        if (!state.selection.includes(hitId)) {
+          state.setSelection(expandToGroups(state.doc, [hitId]));
+        }
+        openContextMenu(e.clientX, e.clientY, selectionMenu());
+        return;
+      }
+    }
+    openContextMenu(e.clientX, e.clientY, canvasMenu(world));
+  };
+
   const updateHoverCursor = (screen: Vec2, world: Vec2) => {
     const canvas = canvasRef.current!;
     const state = useEditor.getState();
@@ -1107,6 +1128,7 @@ export default function CanvasView() {
         onPointerUp={onPointerUp}
         onPointerLeave={() => setPointer(null)}
         onDoubleClick={onDoubleClick}
+        onContextMenu={onContextMenu}
       />
     </div>
   );

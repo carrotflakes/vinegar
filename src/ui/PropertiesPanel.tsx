@@ -1,6 +1,10 @@
 import { isAreal } from "../model/boolean";
 import { shapeBounds } from "../model/bounds";
-import { exactlySelectedGroup, selectionUnits } from "../model/groups";
+import {
+  canGroupSelection,
+  exactlySelectedGroup,
+  selectionUnits,
+} from "../model/groups";
 import { BLEND_MODES, type BlendMode, type Shape } from "../model/types";
 import { useEditor } from "../store/editorStore";
 import ColorField from "./ColorField";
@@ -29,14 +33,8 @@ export default function PropertiesPanel() {
     .filter(Boolean) as Shape[];
   const hasSelection = selected.length > 0;
   const first = selected[0];
-  const units = selectionUnits(doc, selection);
-  const unitParents = new Set<string | null>([
-    ...units.groups.map((g) => g.parentId ?? null),
-    ...units.shapes.map((s) => s.groupId ?? null),
-  ]);
-  const canGroup =
-    units.groups.length + units.shapes.length >= 2 && unitParents.size === 1;
-  const canUngroup = units.groups.length > 0;
+  const canGroup = canGroupSelection(doc, selection);
+  const canUngroup = selectionUnits(doc, selection).groups.length > 0;
   const selectedGroup = exactlySelectedGroup(doc, selection);
   const canBoolean = selected.filter(isAreal).length >= 2;
   const closable = selected.filter(
