@@ -2,6 +2,7 @@ import {
   BLEND_MODES,
   makeId,
   type BlendMode,
+  type Matrix,
   type Shape,
   type Vec2,
 } from "../model/types";
@@ -33,6 +34,10 @@ const blendOr = (v: unknown, fallback: BlendMode | undefined) => {
     ? (v as BlendMode)
     : undefined;
 };
+const transformOr = (v: unknown, fallback: Matrix): Matrix =>
+  Array.isArray(v) && v.length === 6 && v.every(Number.isFinite)
+    ? [...v] as Matrix
+    : [...fallback];
 
 function validPoints(v: unknown): Vec2[] | null {
   if (!Array.isArray(v)) return null;
@@ -86,7 +91,7 @@ function buildCreated(spec: Record<string, unknown>): Shape | null {
     strokeWidth: Math.max(0, num(spec.strokeWidth, 1)),
     opacity: clamp01(num(spec.opacity, 1)),
     blendMode: blendOr(spec.blendMode, undefined),
-    rotation: num(spec.rotation, 0),
+    transform: transformOr(spec.transform, [1, 0, 0, 1, 0, 0]),
     groupId: null,
   };
   switch (type) {
@@ -130,7 +135,7 @@ function reconcile(existing: Shape, edited: Record<string, unknown>): Shape {
     strokeWidth: Math.max(0, num(edited.strokeWidth, existing.strokeWidth)),
     opacity: clamp01(num(edited.opacity, existing.opacity)),
     blendMode: blendOr(edited.blendMode, existing.blendMode),
-    rotation: num(edited.rotation, existing.rotation),
+    transform: transformOr(edited.transform, existing.transform),
     hidden:
       typeof edited.hidden === "boolean" ? edited.hidden : existing.hidden,
     locked:

@@ -1,6 +1,12 @@
 import { isAreal } from "../model/boolean";
 import { shapeBounds } from "../model/bounds";
 import {
+  applyMatrix,
+  matrixAngle,
+  multiply,
+  rotationAbout,
+} from "../model/matrix";
+import {
   canGroupSelection,
   exactlySelectedGroup,
   selectionUnits,
@@ -8,6 +14,7 @@ import {
 import { BLEND_MODES, type BlendMode, type Shape } from "../model/types";
 import { useEditor } from "../store/editorStore";
 import ColorField from "./ColorField";
+import { getSelectionFrame } from "../canvas/frame";
 
 export default function PropertiesPanel() {
   const doc = useEditor((s) => s.doc);
@@ -59,6 +66,43 @@ export default function PropertiesPanel() {
     hasSelection
       ? updateSelectedStyle({ strokeWidth: v })
       : setStyle({ strokeWidth: v });
+  const rotationDeg = hasSelection
+    ? Math.round((matrixAngle(first.transform) * 180) / Math.PI)
+    : 0;
+  const setRotation = (degrees: number) => {
+    const bounds = shapeBounds(first);
+    const localCenter = {
+      x: bounds.x + bounds.width / 2,
+      y: bounds.y + bounds.height / 2,
+    };
+    const pivot = applyMatrix(first.transform, localCenter);
+    const target = (degrees * Math.PI) / 180;
+    const delta = target - matrixAngle(first.transform);
+    updateSelectedStyle({
+      transform: multiply(rotationAbout(pivot, delta), first.transform),
+    });
+  };
+  const groupRotationDeg = selectedGroup
+    ? Math.round((matrixAngle(selectedGroup.transform) * 180) / Math.PI)
+    : 0;
+  const setGroupRotation = (degrees: number) => {
+    if (!selectedGroup) return;
+    const frame = getSelectionFrame(doc, selected, selectedGroup);
+    if (!frame) return;
+    const localCenter = {
+      x: frame.bounds.x + frame.bounds.width / 2,
+      y: frame.bounds.y + frame.bounds.height / 2,
+    };
+    const pivot = applyMatrix(selectedGroup.transform, localCenter);
+    const target = (degrees * Math.PI) / 180;
+    const delta = target - matrixAngle(selectedGroup.transform);
+    updateGroupStyle(selectedGroup.id, {
+      transform: multiply(
+        rotationAbout(pivot, delta),
+        selectedGroup.transform
+      ),
+    });
+  };
 
   return (
     <div className="panel">
@@ -137,7 +181,7 @@ export default function PropertiesPanel() {
           </div>
         )}
 
-        {selected.length === 1 && (
+        {selected.length === 1 && !selectedGroup && (
           <div className="field">
             <label>Rotation</label>
             <div className="field-row">
@@ -146,23 +190,15 @@ export default function PropertiesPanel() {
                 min={-180}
                 max={180}
                 step={1}
-                value={Math.round((first.rotation * 180) / Math.PI)}
-                onChange={(e) =>
-                  updateSelectedStyle({
-                    rotation: (Number(e.target.value) * Math.PI) / 180,
-                  })
-                }
+                value={rotationDeg}
+                onChange={(e) => setRotation(Number(e.target.value))}
               />
               <input
                 type="number"
                 className="num"
                 step={1}
-                value={Math.round((first.rotation * 180) / Math.PI)}
-                onChange={(e) =>
-                  updateSelectedStyle({
-                    rotation: (Number(e.target.value) * Math.PI) / 180,
-                  })
-                }
+                value={rotationDeg}
+                onChange={(e) => setRotation(Number(e.target.value))}
               />
             </div>
           </div>
@@ -190,6 +226,26 @@ export default function PropertiesPanel() {
               <span className="num readout">
                 {Math.round((selectedGroup.opacity ?? 1) * 100)}%
               </span>
+            </div>
+          </div>
+          <div className="field">
+            <label>Group rotation</label>
+            <div className="field-row">
+              <input
+                type="range"
+                min={-180}
+                max={180}
+                step={1}
+                value={groupRotationDeg}
+                onChange={(e) => setGroupRotation(Number(e.target.value))}
+              />
+              <input
+                type="number"
+                className="num"
+                step={1}
+                value={groupRotationDeg}
+                onChange={(e) => setGroupRotation(Number(e.target.value))}
+              />
             </div>
           </div>
           <div className="field">

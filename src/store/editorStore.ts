@@ -24,6 +24,12 @@ import { shapeBounds, unionWorldBounds, worldShapeBounds } from "../model/bounds
 import { strokeOutline } from "../model/outlineStroke";
 import { resizeShapeToBounds, translateShape } from "../model/transforms";
 import { initialViewport, type Viewport } from "../model/viewport";
+import {
+  IDENTITY,
+  applyWorldTransform,
+  multiply,
+  translation as translationMatrix,
+} from "../model/matrix";
 
 export type ToolId =
   | "select"
@@ -150,7 +156,9 @@ export interface EditorState {
   /** Edit a group entity's visual props (opacity/blend/hidden/locked). */
   updateGroupStyle: (
     gid: string,
-    patch: Partial<Pick<Group, "opacity" | "blendMode" | "hidden" | "locked">>
+    patch: Partial<
+      Pick<Group, "opacity" | "blendMode" | "hidden" | "locked" | "transform">
+    >
   ) => void;
   setOrder: (order: string[]) => void;
 
@@ -171,7 +179,7 @@ export interface StyleStylableFields {
   strokeWidth: number;
   opacity: number;
   blendMode: BlendMode | undefined;
-  rotation: number;
+  transform: Shape["transform"];
 }
 
 const HISTORY_LIMIT = 100;
@@ -218,11 +226,11 @@ function selectionItems(doc: Document, selection: string[]): AlignItem[] {
       arr.push(id);
       groups.set(root, arr);
     } else {
-      items.push({ ids: [id], bounds: worldShapeBounds(s) });
+      items.push({ ids: [id], bounds: worldShapeBounds(doc, s) });
     }
   }
   for (const ids of groups.values()) {
-    const b = unionWorldBounds(ids.map((i) => doc.shapes[i]));
+    const b = unionWorldBounds(doc, ids.map((i) => doc.shapes[i]));
     if (b) items.push({ ids, bounds: b });
   }
   return items;
@@ -272,16 +280,28 @@ function cloneForPaste(
 ): { shapes: Shape[]; groups: Group[] } {
   const groupMap = new Map<string, string>();
   for (const g of groups) groupMap.set(g.id, makeId("group"));
-  const newGroups = groups.map((g) => ({
-    ...g,
-    id: groupMap.get(g.id)!,
-    parentId: g.parentId ? groupMap.get(g.parentId) ?? null : null,
-  }));
+  const newGroups = groups.map((g) => {
+    const parentId = g.parentId ? groupMap.get(g.parentId) ?? null : null;
+    return {
+      ...g,
+      id: groupMap.get(g.id)!,
+      parentId,
+      transform: parentId
+        ? [...g.transform] as Group["transform"]
+        : multiply(translationMatrix(offset, offset), g.transform),
+    };
+  });
   const newShapes = shapes.map((s) => {
     const copy = structuredClone(s);
     copy.id = makeId(copy.type);
     copy.groupId = s.groupId ? groupMap.get(s.groupId) ?? null : null;
-    return translateShape(copy, offset, offset);
+    if (!copy.groupId) {
+      copy.transform = multiply(
+        translationMatrix(offset, offset),
+        copy.transform
+      );
+    }
+    return copy;
   });
   return { shapes: newShapes, groups: newGroups };
 }
@@ -291,10 +311,16 @@ function clone(doc: Document): Document {
     ...doc,
     order: [...doc.order],
     shapes: Object.fromEntries(
-      Object.entries(doc.shapes).map(([k, v]) => [k, { ...v }])
+      Object.entries(doc.shapes).map(([k, v]) => [
+        k,
+        { ...v, transform: [...v.transform] },
+      ])
     ),
     groups: Object.fromEntries(
-      Object.entries(doc.groups).map(([k, v]) => [k, { ...v }])
+      Object.entries(doc.groups).map(([k, v]) => [
+        k,
+        { ...v, transform: [...v.transform] },
+      ])
     ),
     settings: { ...doc.settings },
     metadata: { ...doc.metadata },
@@ -565,12 +591,18 @@ export const useEditor = create<EditorState>((set, get) => {
         at ? 0 : PASTE_OFFSET
       );
       if (at) {
-        const b = unionWorldBounds(pasted.shapes);
+        const pasteDoc: Document = {
+          ...doc,
+          shapes: Object.fromEntries(pasted.shapes.map((s) => [s.id, s])),
+          order: pasted.shapes.map((s) => s.id),
+          groups: Object.fromEntries(pasted.groups.map((g) => [g.id, g])),
+        };
+        const b = unionWorldBounds(pasteDoc, pasted.shapes);
         if (b) {
           const dx = at.x - (b.x + b.width / 2);
           const dy = at.y - (b.y + b.height / 2);
           pasted.shapes = pasted.shapes.map((s) =>
-            translateShape(s, dx, dy)
+            applyWorldTransform(pasteDoc, s, translationMatrix(dx, dy))
           );
         }
       }
@@ -664,7 +696,12 @@ export const useEditor = create<EditorState>((set, get) => {
       const gid = makeId("group");
       const groups: Record<string, Group> = {
         ...doc.groups,
-        [gid]: { id: gid, name: "Group", parentId: [...parents][0] },
+        [gid]: {
+          id: gid,
+          name: "Group",
+          parentId: [...parents][0],
+          transform: [...IDENTITY],
+        },
       };
       const shapes = { ...doc.shapes };
       for (const g of units.groups) groups[g.id] = { ...g, parentId: gid };
@@ -693,13 +730,21 @@ export const useEditor = create<EditorState>((set, get) => {
       for (const g of units) {
         for (const [id, other] of Object.entries(groups)) {
           if (other.parentId === g.id) {
-            groups[id] = { ...other, parentId: g.parentId ?? null };
+            groups[id] = {
+              ...other,
+              parentId: g.parentId ?? null,
+              transform: multiply(g.transform, other.transform),
+            };
           }
         }
         for (const id of doc.order) {
           const s = shapes[id];
           if (s?.groupId === g.id) {
-            shapes[id] = { ...s, groupId: g.parentId ?? null };
+            shapes[id] = {
+              ...s,
+              groupId: g.parentId ?? null,
+              transform: multiply(g.transform, s.transform),
+            };
           }
         }
         delete groups[g.id];
@@ -711,7 +756,7 @@ export const useEditor = create<EditorState>((set, get) => {
       const { doc, selection } = get();
       const items = selectionItems(doc, selection);
       if (items.length < 2) return;
-      const union = unionWorldBounds(
+      const union = unionWorldBounds(doc,
         selection.map((id) => doc.shapes[id]).filter(Boolean) as Shape[]
       );
       if (!union) return;
@@ -742,7 +787,11 @@ export const useEditor = create<EditorState>((set, get) => {
         }
         if (dx || dy) {
           for (const id of item.ids)
-            shapes[id] = translateShape(shapes[id], dx, dy);
+            shapes[id] = applyWorldTransform(
+              doc,
+              shapes[id],
+              translationMatrix(dx, dy)
+            );
         }
       }
       transact({ ...doc, shapes });
@@ -772,10 +821,10 @@ export const useEditor = create<EditorState>((set, get) => {
         const delta = cursor - start(it.bounds);
         if (delta) {
           for (const id of it.ids)
-            shapes[id] = translateShape(
+            shapes[id] = applyWorldTransform(
+              doc,
               shapes[id],
-              horiz ? delta : 0,
-              horiz ? 0 : delta
+              translationMatrix(horiz ? delta : 0, horiz ? 0 : delta)
             );
         }
         cursor += size(it.bounds) + gap;
@@ -830,7 +879,7 @@ export const useEditor = create<EditorState>((set, get) => {
           strokeWidth: 0,
           opacity: s.opacity,
           blendMode: s.blendMode,
-          rotation: 0,
+          transform: [...IDENTITY],
           groupId: null,
         };
         const keepFill = isAreal(s) && s.fill !== null;
@@ -839,7 +888,12 @@ export const useEditor = create<EditorState>((set, get) => {
           // Keep the original as a fill-only object; group the outline above
           // it, nested wherever the original lived.
           const gid = makeId("group");
-          groups[gid] = { id: gid, name: "Group", parentId: s.groupId ?? null };
+          groups[gid] = {
+            id: gid,
+            name: "Group",
+            parentId: s.groupId ?? null,
+            transform: [...IDENTITY],
+          };
           shapes[id] = { ...s, stroke: null, groupId: gid };
           outline.groupId = gid;
           shapes[outline.id] = outline;
@@ -866,11 +920,17 @@ export const useEditor = create<EditorState>((set, get) => {
       if (selection.length < 2) return;
       const sel = new Set(selection);
       const ordered = doc.order.filter((id) => sel.has(id));
+      const parents = new Set(
+        ordered.map((id) => doc.shapes[id]?.groupId ?? null)
+      );
+      // Boolean geometry is baked into the shared parent coordinate space.
+      if (parents.size !== 1) return;
       const result = booleanShapes(
         ordered.map((id) => doc.shapes[id]),
         op
       );
       if (!result) return;
+      result.groupId = [...parents][0];
 
       const minIdx = Math.min(...ordered.map((id) => doc.order.indexOf(id)));
       const keptBefore = doc.order.filter(
@@ -999,7 +1059,7 @@ export function styleFromDefaults(style: StyleDefaults) {
     stroke: style.stroke,
     strokeWidth: style.strokeWidth,
     opacity: 1,
-    rotation: 0,
+    transform: [...IDENTITY] as Shape["transform"],
     groupId: null,
   };
 }

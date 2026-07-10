@@ -1,7 +1,8 @@
 import { flattenBezier } from "./bezier";
-import { shapeBounds, shapeCenter } from "./bounds";
-import { rotateAbout } from "./rotate";
-import type { Shape, Vec2 } from "./types";
+import { shapeBounds } from "./bounds";
+import { invertMatrix, matrixScale, shapeWorldMatrix } from "./matrix";
+import type { Document, Shape, Vec2 } from "./types";
+import { applyMatrix } from "./matrix";
 
 /** Even-odd point-in-polygon test. */
 function pointInPolygon(p: Vec2, poly: Vec2[]): boolean {
@@ -48,14 +49,15 @@ export function distToSegment(p: Vec2, a: Vec2, b: Vec2): number {
  * Whether world-point `p` hits the given shape.
  * `tol` is an extra tolerance in world units (scaled for stroke pickability).
  */
-export function hitTestShape(shape: Shape, p: Vec2, tol: number): boolean {
+export function hitTestShape(doc: Document, shape: Shape, p: Vec2, tol: number): boolean {
+  const worldMatrix = shapeWorldMatrix(doc, shape);
+  tol /= matrixScale(worldMatrix);
   const hasFill = shape.fill !== null;
   const pickTol = Math.max(tol, shape.stroke ? shape.strokeWidth / 2 + tol : tol);
 
-  // Work in the shape's unrotated local frame by inverse-rotating the point.
-  if (shape.rotation) {
-    p = rotateAbout(shapeCenter(shape), p, -shape.rotation);
-  }
+  const inverse = invertMatrix(worldMatrix);
+  if (!inverse) return false;
+  p = applyMatrix(inverse, p);
 
   switch (shape.type) {
     case "rect": {

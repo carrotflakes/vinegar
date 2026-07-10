@@ -1,11 +1,12 @@
 // ===========================================================================
-// Document model — vector shapes are stored in world coordinates.
-// Geometry is intentionally explicit (no transform matrices yet) to keep
-// hit-testing, selection and editing straightforward. Rotation/transform
-// support can be layered on later.
+// Document model — shape geometry is local and each node carries an affine
+// transform into its parent coordinate space.
 // ===========================================================================
 
 export type Vec2 = { x: number; y: number };
+
+/** Canvas/SVG-compatible 2D affine matrix [a, b, c, d, e, f]. */
+export type Matrix = [number, number, number, number, number, number];
 
 export type ShapeType =
   | "rect"
@@ -53,8 +54,8 @@ export interface BaseShape {
   opacity: number;
   /** How the shape composites onto what's below. Absent = "normal". */
   blendMode?: BlendMode;
-  /** Rotation in radians about the shape's local bounding-box center. */
-  rotation: number;
+  /** Maps the shape's geometry from local space into its parent space. */
+  transform: Matrix;
   /** Immediate enclosing group (see `Group`); `null`/absent = ungrouped. */
   groupId?: string | null;
   /** Hidden shapes are not rendered and cannot be picked on the canvas. */
@@ -90,7 +91,7 @@ export interface LineShape extends BaseShape {
   y2: number;
 }
 
-/** Freehand / multi-point path. Points are absolute world coordinates. */
+/** Freehand / multi-point path. Points are in the shape's local space. */
 export interface PathShape extends BaseShape {
   type: "path";
   points: Vec2[];
@@ -99,7 +100,7 @@ export interface PathShape extends BaseShape {
 
 /**
  * A single anchor of a Bézier path. Control handles are stored as absolute
- * world points (so transforms map them like any other point). A `null` handle
+ * points in the shape's local space. A `null` handle
  * means that side is a sharp corner.
  */
 export interface BezierAnchor {
@@ -141,6 +142,8 @@ export interface Group {
   name: string;
   /** Enclosing group; `null`/absent = top level. */
   parentId?: string | null;
+  /** Maps children from this group's local space into its parent space. */
+  transform: Matrix;
   /** 0..1 group-layer opacity. Absent = 1. */
   opacity?: number;
   /** How the group layer composites onto what's below. Absent = "normal". */

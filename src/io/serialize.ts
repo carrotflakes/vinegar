@@ -6,7 +6,7 @@ import {
   type ShapeType,
 } from "../model/types";
 
-export const CURRENT_FILE_VERSION = 3 as const;
+export const CURRENT_FILE_VERSION = 4 as const;
 
 /** Current on-disk format. Older formats are intentionally unsupported. */
 export interface VinegarFile {
@@ -88,13 +88,24 @@ function isCurrentDocument(value: unknown): value is Document {
     Array.isArray(value.order) &&
     value.order.every((id) => typeof id === "string") &&
     isObject(value.shapes) &&
+    Object.values(value.shapes).every(
+      (shape) => isObject(shape) && isMatrix(shape.transform)
+    ) &&
     isObject(value.groups) &&
+    Object.values(value.groups).every(
+      (group) => isObject(group) && isMatrix(group.transform)
+    ) &&
     isObject(value.settings) &&
     isObject(value.metadata) &&
     isObject(value.assets) &&
     isObject(value.extensions)
   );
 }
+
+const isMatrix = (value: unknown): boolean =>
+  Array.isArray(value) &&
+  value.length === 6 &&
+  value.every((entry) => typeof entry === "number" && Number.isFinite(entry));
 
 /** Remove dangling parents and break cycles in the group forest. */
 function repairGroupParents(groups: Record<string, Group>): void {

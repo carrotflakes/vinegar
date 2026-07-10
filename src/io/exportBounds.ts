@@ -1,5 +1,6 @@
-import { shapeBounds, unionBounds } from "../model/bounds";
+import { worldShapeBounds } from "../model/bounds";
 import { isShapeHidden } from "../model/groups";
+import { matrixScale, shapeWorldMatrix } from "../model/matrix";
 import type { Bounds, Document, Shape } from "../model/types";
 
 /**
@@ -13,7 +14,7 @@ export function contentBounds(
   const shapes = (doc.order
     .map((id) => doc.shapes[id])
     .filter(Boolean) as Shape[]).filter((s) => !isShapeHidden(doc, s));
-  if (!unionBounds(shapes)) return null;
+  if (shapes.length === 0) return null;
 
   // Expand each shape's box by half its stroke width, then add the margin.
   let minX = Infinity;
@@ -21,8 +22,10 @@ export function contentBounds(
   let maxX = -Infinity;
   let maxY = -Infinity;
   for (const s of shapes) {
-    const b = shapeBounds(s);
-    const half = s.stroke !== null ? s.strokeWidth / 2 : 0;
+    const b = worldShapeBounds(doc, s);
+    const half = s.stroke !== null
+      ? (s.strokeWidth / 2) * matrixScale(shapeWorldMatrix(doc, s))
+      : 0;
     minX = Math.min(minX, b.x - half);
     minY = Math.min(minY, b.y - half);
     maxX = Math.max(maxX, b.x + b.width + half);

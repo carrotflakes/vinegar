@@ -1,5 +1,6 @@
 import { bezierSegments } from "../model/bezier";
-import { shapeBounds, shapeCenter } from "../model/bounds";
+import { shapeBounds } from "../model/bounds";
+import { isIdentity } from "../model/matrix";
 import type { Document, Group, Shape } from "../model/types";
 import { worldToScreen, type Viewport } from "../model/viewport";
 
@@ -47,28 +48,35 @@ export function buildRenderTree(doc: Document): RenderNode[] {
 export function paintNode(
   ctx: CanvasRenderingContext2D,
   node: RenderNode,
-  skipShapeId?: string
+  preview?: Shape | null
 ): void {
   if (node.kind === "shape") {
-    if (node.shape.hidden || node.shape.id === skipShapeId) return;
-    paintShape(ctx, node.shape);
+    if (node.shape.hidden) return;
+    paintShape(ctx, preview?.id === node.shape.id ? preview : node.shape);
     return;
   }
   const g = node.group;
   if (g.hidden) return;
+  ctx.save();
+  ctx.transform(...g.transform);
   const alpha = g.opacity ?? 1;
   const blend = g.blendMode && g.blendMode !== "normal" ? g.blendMode : null;
   if (alpha >= 1 && !blend) {
-    for (const c of node.children) paintNode(ctx, c, skipShapeId);
+    for (const c of node.children) paintNode(ctx, c, preview);
+    ctx.restore();
     return;
   }
   const layer = document.createElement("canvas");
   layer.width = ctx.canvas.width;
   layer.height = ctx.canvas.height;
   const lctx = layer.getContext("2d");
-  if (!lctx) return;
+  if (!lctx) {
+    ctx.restore();
+    return;
+  }
   lctx.setTransform(ctx.getTransform());
-  for (const c of node.children) paintNode(lctx, c, skipShapeId);
+  for (const c of node.children) paintNode(lctx, c, preview);
+  ctx.restore();
   ctx.save();
   ctx.setTransform(1, 0, 0, 1, 0, 0);
   ctx.globalAlpha = Math.max(0, Math.min(1, alpha));
@@ -147,12 +155,7 @@ export function paintShape(ctx: CanvasRenderingContext2D, shape: Shape): void {
   if (shape.blendMode && shape.blendMode !== "normal") {
     ctx.globalCompositeOperation = shape.blendMode;
   }
-  if (shape.rotation) {
-    const c = shapeCenter(shape);
-    ctx.translate(c.x, c.y);
-    ctx.rotate(shape.rotation);
-    ctx.translate(-c.x, -c.y);
-  }
+  if (!isIdentity(shape.transform)) ctx.transform(...shape.transform);
   tracePath(ctx, shape);
 
   // Lines and open paths/curves are never filled.
@@ -210,9 +213,9 @@ export function renderScene(
   // A preview that shares a document shape's id supersedes it (the pen
   // extending an existing path); skip the stale copy underneath.
   for (const node of buildRenderTree(doc)) {
-    paintNode(ctx, node, opts.preview?.id);
+    paintNode(ctx, node, opts.preview);
   }
-  if (opts.preview) paintShape(ctx, opts.preview);
+  if (opts.preview && !doc.shapes[opts.preview.id]) paintShape(ctx, opts.preview);
 
   ctx.restore();
 }

@@ -23,7 +23,9 @@ loaded; changing the persisted shape of `Document` requires bumping
 
 ## Coordinate policy
 
-Geometry currently uses explicit world coordinates. Do not add a transform
-field until rendering, bounds, hit-testing, snapping, editing and export all
-apply it consistently. A partially supported transform is invalid document
-state.
+Geometry is stored in node-local coordinates. Each shape and group has a
+Canvas/SVG-compatible affine matrix `[a, b, c, d, e, f]` mapping it into its
+parent space. World transforms are composed from the root toward the node.
+
+Rendering, bounds, hit-testing, snapping, editing and export must all use the
+same composed matrix. A partially applied transform is invalid document state.

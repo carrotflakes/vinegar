@@ -1,5 +1,5 @@
 import { worldShapeBounds } from "./bounds";
-import type { Bounds, Shape, Vec2 } from "./types";
+import type { Bounds, Document, Shape, Vec2 } from "./types";
 
 /** A line other shapes can snap to, with the perpendicular extent of its source. */
 interface Candidate {
@@ -62,11 +62,11 @@ function boxCandidates(b: Bounds): { x: Candidate[]; y: Candidate[] } {
 }
 
 /** Collect snap lines (left/center/right, top/middle/bottom) from `shapes`. */
-export function collectSnapTargets(shapes: Shape[]): SnapTargets {
+export function collectSnapTargets(doc: Document, shapes: Shape[]): SnapTargets {
   const x: Candidate[] = [];
   const y: Candidate[] = [];
   for (const s of shapes) {
-    const c = boxCandidates(worldShapeBounds(s));
+    const c = boxCandidates(worldShapeBounds(doc, s));
     x.push(...c.x);
     y.push(...c.y);
   }

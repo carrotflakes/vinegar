@@ -3,7 +3,8 @@
 // shapes, and returns a changeset. Running off the main thread means infinite
 // loops can be terminated.
 
-import { shapeBounds, worldShapeBounds } from "../model/bounds";
+import { shapeBounds } from "../model/bounds";
+import { transformBounds } from "../model/matrix";
 import { translateShape } from "../model/transforms";
 import type { Shape, Vec2 } from "../model/types";
 
@@ -75,7 +76,12 @@ function run(code: string, snap: DocSnapshot): Changeset {
     if (created.length >= MAX_SHAPES) {
       throw new Error(`Too many shapes (limit ${MAX_SHAPES})`);
     }
-    created.push({ ...style, rotation: 0, groupId: null, ...s });
+    created.push({
+      ...style,
+      transform: [1, 0, 0, 1, 0, 0],
+      groupId: null,
+      ...s,
+    });
   };
 
   // Seeded PRNG (mulberry32) for reproducible scripts.
@@ -86,12 +92,6 @@ function run(code: string, snap: DocSnapshot): Changeset {
     t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
     return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
   };
-
-  const decompose = (m: Mat) => ({
-    rotation: Math.atan2(m[1], m[0]),
-    sx: Math.hypot(m[0], m[1]),
-    sy: Math.hypot(m[2], m[3]),
-  });
 
   const toPoints = (pts: ([number, number] | Vec2)[]): Vec2[] =>
     pts.map((p) => {
@@ -110,7 +110,7 @@ function run(code: string, snap: DocSnapshot): Changeset {
     selection,
     byType: (type: string) => copies.filter((s) => s.type === type),
     bounds: (shape: Shape) => {
-      const b = worldShapeBounds(shape);
+      const b = transformBounds(shapeBounds(shape), shape.transform);
       return {
         x: b.x,
         y: b.y,
@@ -173,33 +173,25 @@ function run(code: string, snap: DocSnapshot): Changeset {
 
     // --- create shapes ---
     rect: (x: number, y: number, w: number, h: number) => {
-      const { rotation, sx, sy } = decompose(matrix);
-      const c = apply(matrix, x + w / 2, y + h / 2);
-      const W = Math.abs(w * sx);
-      const H = Math.abs(h * sy);
       emit({
         type: "rect",
         name: "Rectangle",
-        x: c.x - W / 2,
-        y: c.y - H / 2,
-        width: W,
-        height: H,
-        rotation,
+        x,
+        y,
+        width: Math.abs(w),
+        height: Math.abs(h),
+        transform: [...matrix],
       });
     },
     ellipse: (cx: number, cy: number, rx: number, ry = rx) => {
-      const { rotation, sx, sy } = decompose(matrix);
-      const c = apply(matrix, cx, cy);
-      const W = Math.abs(rx * 2 * sx);
-      const H = Math.abs(ry * 2 * sy);
       emit({
         type: "ellipse",
         name: "Ellipse",
-        x: c.x - W / 2,
-        y: c.y - H / 2,
-        width: W,
-        height: H,
-        rotation,
+        x: cx - rx,
+        y: cy - ry,
+        width: Math.abs(rx * 2),
+        height: Math.abs(ry * 2),
+        transform: [...matrix],
       });
     },
     circle: (cx: number, cy: number, r: number) => api.ellipse(cx, cy, r, r),

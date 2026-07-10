@@ -1,12 +1,17 @@
 import { buildRenderTree, type RenderNode } from "../canvas/render";
 import { bezierSegments } from "../model/bezier";
-import { shapeBounds, shapeCenter } from "../model/bounds";
-import type { BezierShape, Document, Shape } from "../model/types";
+import { shapeBounds } from "../model/bounds";
+import { isIdentity } from "../model/matrix";
+import type { BezierShape, Document, Matrix, Shape } from "../model/types";
 import { contentBounds } from "./exportBounds";
 
 function num(n: number): string {
   // Trim to a sane precision and drop trailing zeros.
   return parseFloat(n.toFixed(3)).toString();
+}
+
+function matrixAttr(matrix: Matrix): string {
+  return `matrix(${matrix.map(num).join(" ")})`;
 }
 
 function commonAttrs(shape: Shape): string {
@@ -25,10 +30,8 @@ function commonAttrs(shape: Shape): string {
   if (shape.blendMode && shape.blendMode !== "normal") {
     parts.push(`style="mix-blend-mode:${shape.blendMode}"`);
   }
-  if (shape.rotation) {
-    const c = shapeCenter(shape);
-    const deg = (shape.rotation * 180) / Math.PI;
-    parts.push(`transform="rotate(${num(deg)} ${num(c.x)} ${num(c.y)})"`);
+  if (!isIdentity(shape.transform)) {
+    parts.push(`transform="${matrixAttr(shape.transform)}"`);
   }
   return parts.join(" ");
 }
@@ -100,6 +103,7 @@ function nodeToSvg(node: RenderNode, indent: string): string[] {
   const g = node.group;
   if (g.hidden) return [];
   const attrs: string[] = [];
+  if (!isIdentity(g.transform)) attrs.push(`transform="${matrixAttr(g.transform)}"`);
   const alpha = g.opacity ?? 1;
   if (alpha < 1) attrs.push(`opacity="${num(alpha)}"`);
   if (g.blendMode && g.blendMode !== "normal") {

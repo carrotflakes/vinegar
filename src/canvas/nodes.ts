@@ -1,4 +1,5 @@
-import type { BezierShape, Vec2 } from "../model/types";
+import { applyMatrix } from "../model/matrix";
+import type { BezierShape, Matrix, Vec2 } from "../model/types";
 import { worldToScreen, type Viewport } from "../model/viewport";
 
 export type NodePart = "anchor" | "in" | "out";
@@ -18,12 +19,13 @@ export const HANDLE_DOT = 7;
  */
 export function hitBezierNodes(
   shape: BezierShape,
+  transform: Matrix,
   screen: Vec2,
   viewport: Viewport,
   grabPx = 8
 ): NodeHit | null {
   const near = (w: Vec2, tol: number) => {
-    const s = worldToScreen(viewport, w);
+    const s = worldToScreen(viewport, applyMatrix(transform, w));
     return Math.abs(s.x - screen.x) <= tol && Math.abs(s.y - screen.y) <= tol;
   };
   // Handles first.

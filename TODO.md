@@ -64,8 +64,8 @@ A running list of what's built and what's next. Check items off as they land.
 - [ ] Color: alpha/opacity per color; swatches saved in the document
 - [ ] System clipboard integration (paste across tabs/apps)
 - [ ] Text tool
-- [x] Nested groups: real group entities (name/opacity/blend/hide/lock, nesting) rendered as composited layers; layers-panel tree + group section in properties. Current file format is v3; older formats are intentionally unsupported.
-  - [ ] True group transform container (matrix on groups; would fix rotated multi-resize)
+- [x] Nested groups: real group entities (name/opacity/blend/hide/lock, nesting) rendered as composited layers; layers-panel tree + group section in properties. Current file format is v4; older formats are intentionally unsupported.
+  - [x] True affine transform matrices on shapes and groups
 - [ ] Distribution: match an existing gap (not just centering)
 - [ ] Configurable pencil smoothing strength
 - [ ] Status bar: color swatch under the cursor (eyedropper-style; watch getImageData cost)
@@ -73,7 +73,14 @@ A running list of what's built and what's next. Check items off as they land.
 
 ## Known issues / polish
 - [x] Dragging the native color spectrum can add several undo steps (batch it)
-- [ ] Resizing a rotated multi-selection is approximate (per-child rotation)
+- [x] Accurate resize for rotated shapes, groups and multi-selection via affine transforms
+- [ ] Transform manual smoke test: nested rotated group → move → resize → rotate → undo/redo → SVG/PNG export
+- [ ] Verify nested group transforms combined with group opacity/blend-mode compositing across browsers
+- [ ] Skew-aware resize cursors (selection geometry is correct; CSS cursor currently follows rotation only)
+- [ ] Decide whether dragging a resize handle across its opposite side should create a flipped/negative-scale transform
+- [ ] Make Outline Stroke exactly match Canvas strokes under non-uniform scale/skew
+- [ ] Boolean operations across different parent groups (currently limited to shapes sharing one immediate parent)
+- [ ] Update scripting examples/docs for matrix-based `shape.transform`; direct `shape.rotation` no longer exists
 
 ## User ideas / wishlist
 - [ ] Rectangleの角丸

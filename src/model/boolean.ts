@@ -1,8 +1,8 @@
 import polygonClipping from "polygon-clipping";
 import type { MultiPolygon, Ring } from "polygon-clipping";
 import { flattenBezier } from "./bezier";
-import { shapeBounds, shapeCenter } from "./bounds";
-import { rotateAbout } from "./rotate";
+import { shapeBounds } from "./bounds";
+import { applyMatrix, IDENTITY } from "./matrix";
 import { makeId, type PolygonShape, type Shape, type Vec2 } from "./types";
 
 export type BoolOp = "union" | "subtract" | "intersect" | "xor";
@@ -19,10 +19,8 @@ function ringFrom(points: Vec2[]): Ring {
   return ring;
 }
 
-function withRotation(shape: Shape, points: Vec2[]): Vec2[] {
-  if (!shape.rotation) return points;
-  const c = shapeCenter(shape);
-  return points.map((p) => rotateAbout(c, p, shape.rotation));
+function withTransform(shape: Shape, points: Vec2[]): Vec2[] {
+  return points.map((p) => applyMatrix(shape.transform, p));
 }
 
 /** Convert a shape to a MultiPolygon in world space, or null if it has no area. */
@@ -36,7 +34,7 @@ function shapeToGeom(shape: Shape): MultiPolygon | null {
         { x: b.x + b.width, y: b.y + b.height },
         { x: b.x, y: b.y + b.height },
       ];
-      return [[ringFrom(withRotation(shape, pts))]];
+      return [[ringFrom(withTransform(shape, pts))]];
     }
     case "ellipse": {
       const b = shapeBounds(shape);
@@ -49,20 +47,20 @@ function shapeToGeom(shape: Shape): MultiPolygon | null {
         const a = (i / ELLIPSE_SEGMENTS) * Math.PI * 2;
         pts.push({ x: cx + Math.cos(a) * rx, y: cy + Math.sin(a) * ry });
       }
-      return [[ringFrom(withRotation(shape, pts))]];
+      return [[ringFrom(withTransform(shape, pts))]];
     }
     case "path":
       if (!shape.closed || shape.points.length < 3) return null;
-      return [[ringFrom(withRotation(shape, shape.points))]];
+      return [[ringFrom(withTransform(shape, shape.points))]];
     case "bezier": {
       if (!shape.closed) return null;
       const pts = flattenBezier(shape);
       if (pts.length < 3) return null;
-      return [[ringFrom(withRotation(shape, pts))]];
+      return [[ringFrom(withTransform(shape, pts))]];
     }
     case "polygon":
       return shape.polys.map((poly) =>
-        poly.map((ring) => ringFrom(withRotation(shape, ring)))
+        poly.map((ring) => ringFrom(withTransform(shape, ring)))
       );
     case "line":
       return null;
@@ -141,7 +139,7 @@ export function booleanShapes(shapes: Shape[], op: BoolOp): PolygonShape | null 
     strokeWidth: base.strokeWidth,
     opacity: base.opacity,
     blendMode: base.blendMode,
-    rotation: 0,
+    transform: [...IDENTITY],
     groupId: null,
   };
 }

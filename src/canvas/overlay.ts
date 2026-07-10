@@ -1,5 +1,6 @@
 import type { Guide, Spacing } from "../model/snap";
-import type { Bounds, BezierShape, Vec2 } from "../model/types";
+import { applyMatrix } from "../model/matrix";
+import type { Bounds, BezierShape, Matrix, Vec2 } from "../model/types";
 import { worldToScreen, type Viewport } from "../model/viewport";
 import { HANDLE_IDS, HANDLE_SIZE } from "./handles";
 import {
@@ -183,12 +184,13 @@ export function drawNodes(
   dpr: number,
   viewport: Viewport,
   shape: BezierShape,
+  transform: Matrix,
   activeIndex: number | null,
   anchorSize = ANCHOR_SIZE,
   dotSize = HANDLE_DOT
 ): void {
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-  const toS = (w: Vec2) => worldToScreen(viewport, w);
+  const toS = (w: Vec2) => worldToScreen(viewport, applyMatrix(transform, w));
 
   // Handle lines + dots.
   ctx.strokeStyle = "#9bbcf6";
@@ -229,10 +231,11 @@ export function drawPenDraft(
   dpr: number,
   viewport: Viewport,
   shape: BezierShape,
+  transform: Matrix,
   hover: Vec2 | null
 ): void {
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-  const toS = (w: Vec2) => worldToScreen(viewport, w);
+  const toS = (w: Vec2) => worldToScreen(viewport, applyMatrix(transform, w));
   const anchors = shape.anchors;
   if (anchors.length === 0) return;
 

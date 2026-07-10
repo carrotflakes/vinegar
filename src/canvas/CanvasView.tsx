@@ -1,7 +1,5 @@
 import { useCallback, useEffect, useRef } from "react";
 import {
-  shapeBounds,
-  shapeCenter,
   unionWorldBounds,
   worldShapeBounds,
 } from "../model/bounds";
@@ -13,7 +11,19 @@ import {
 import { pointsToAnchors, simplifyPath } from "../model/freehand";
 import { isShapeHidden, isShapeLocked } from "../model/groups";
 import { hitTestShape } from "../model/hitTest";
-import { magnetAngle, rotateAbout, snapAngle } from "../model/rotate";
+import { magnetAngle, snapAngle } from "../model/rotate";
+import {
+  applyMatrix,
+  applyWorldTransform,
+  applyWorldTransformToGroup,
+  boundsTransform,
+  invertMatrix,
+  matrixScale,
+  multiply,
+  rotationAbout as matrixRotationAbout,
+  shapeWorldMatrix,
+  translation as translationMatrix,
+} from "../model/matrix";
 import {
   collectSnapTargets,
   computeSnap,
@@ -22,11 +32,12 @@ import {
   type SnapTargets,
   type Spacing,
 } from "../model/snap";
-import { resizeShapeToBounds, translateShape } from "../model/transforms";
 import {
   makeId,
   type BezierShape,
   type Bounds,
+  type Matrix,
+  type Group,
   type Shape,
   type Vec2,
 } from "../model/types";
@@ -37,6 +48,7 @@ import {
   useEditor,
   type EditorState,
 } from "../store/editorStore";
+import { exactlySelectedGroup } from "../model/groups";
 import { openContextMenu } from "../store/menuStore";
 import { setPointer, setReadout } from "../store/pointerStore";
 import { canvasMenu, selectionMenu } from "../ui/menus";
@@ -67,7 +79,6 @@ import {
   drawPenDraft,
   drawSpacings,
 } from "./overlay";
-import { resizeSingleShape } from "./resize";
 import { renderScene } from "./render";
 
 type FrameHit =
@@ -85,13 +96,16 @@ type Interaction =
       origUnion: Bounds;
       targets: SnapTargets;
       boxes: Bounds[];
+      group?: Group;
     }
   | {
       kind: "resize";
       handle: HandleId;
       from: Bounds;
+      frameTransform: Matrix;
       originals: Record<string, Shape>;
       single: boolean;
+      group?: Group;
     }
   | {
       kind: "rotate";
@@ -100,6 +114,7 @@ type Interaction =
       /** Frame rotation at drag start; magnetic snapping targets the result. */
       startRotation: number;
       originals: Record<string, Shape>;
+      group?: Group;
     }
   | { kind: "create"; start: Vec2 }
   | { kind: "pencil" }
@@ -184,7 +199,14 @@ export default function CanvasView() {
     drawOverlay(ctx, {
       dpr,
       viewport,
-      frame: tool === "select" ? getSelectionFrame(selectedShapes) : null,
+      frame:
+        tool === "select"
+          ? getSelectionFrame(
+              doc,
+              selectedShapes,
+              exactlySelectedGroup(doc, selection)
+            )
+          : null,
       marquee: marqueeRef.current,
       showHandles: tool === "select" && selectedShapes.length > 0,
       handleSize: HANDLE_SIZE * chrome,
@@ -202,6 +224,7 @@ export default function CanvasView() {
           dpr,
           viewport,
           sel,
+          shapeWorldMatrix(doc, sel),
           active,
           ANCHOR_SIZE * chrome,
           HANDLE_DOT * chrome
@@ -209,7 +232,14 @@ export default function CanvasView() {
       }
     }
     if (tool === "pen" && penDraftRef.current) {
-      drawPenDraft(ctx, dpr, viewport, penDraftRef.current, hoverRef.current);
+      drawPenDraft(
+        ctx,
+        dpr,
+        viewport,
+        penDraftRef.current,
+        shapeWorldMatrix(doc, penDraftRef.current),
+        hoverRef.current
+      );
     }
     drawGuides(ctx, dpr, viewport, guidesRef.current);
     drawSpacings(ctx, dpr, viewport, spacingsRef.current);
@@ -323,7 +353,7 @@ export default function CanvasView() {
     const shapes = selection
       .map((id) => doc.shapes[id])
       .filter(Boolean) as Shape[];
-    return getSelectionFrame(shapes);
+    return getSelectionFrame(doc, shapes, exactlySelectedGroup(doc, selection));
   };
 
   /** Hit-test the resize handles and rotation handle of the selection frame. */
@@ -358,7 +388,7 @@ export default function CanvasView() {
         shape &&
         !isShapeHidden(doc, shape) &&
         !isShapeLocked(doc, shape) &&
-        hitTestShape(shape, world, tol)
+        hitTestShape(doc, shape, world, tol)
       )
         return doc.order[i];
     }
@@ -386,7 +416,7 @@ export default function CanvasView() {
       world,
       {
         targets: state.snapEnabled
-          ? collectSnapTargets(others)
+          ? collectSnapTargets(state.doc, others)
           : { x: [], y: [] },
         gridSize: state.gridSnap ? state.gridSize : null,
       },
@@ -479,6 +509,7 @@ export default function CanvasView() {
         startAngle: Math.atan2(world.y - frame.center.y, world.x - frame.center.x),
         startRotation: frame.rotation,
         originals: snapshot(state.selection),
+        group: exactlySelectedGroup(state.doc, state.selection) ?? undefined,
       };
       return;
     }
@@ -489,8 +520,10 @@ export default function CanvasView() {
         kind: "resize",
         handle: hit.id,
         from: frame.bounds,
+        frameTransform: frame.transform,
         originals: snapshot(state.selection),
         single: state.selection.length === 1,
+        group: exactlySelectedGroup(state.doc, state.selection) ?? undefined,
       };
       return;
     }
@@ -524,14 +557,15 @@ export default function CanvasView() {
         kind: "move",
         start: world,
         originals,
-        origUnion: unionWorldBounds(Object.values(originals)) ?? {
+        origUnion: unionWorldBounds(state.doc, Object.values(originals)) ?? {
           x: world.x,
           y: world.y,
           width: 0,
           height: 0,
         },
-        targets: collectSnapTargets(others),
-        boxes: others.map(worldShapeBounds),
+        targets: collectSnapTargets(state.doc, others),
+        boxes: others.map((shape) => worldShapeBounds(state.doc, shape)),
+        group: exactlySelectedGroup(state.doc, selection) ?? undefined,
       };
       return;
     }
@@ -550,6 +584,7 @@ export default function CanvasView() {
     if (sel) {
       const hit = hitBezierNodes(
         sel,
+        shapeWorldMatrix(state.doc, sel),
         screen,
         state.viewport,
         NODE_GRAB * hitScale()
@@ -571,8 +606,11 @@ export default function CanvasView() {
       }
       // Clicking the path itself (not a node) inserts an anchor there and
       // starts dragging it, all as one undo step.
-      const loc = closestPointOnBezier(sel, world);
-      if (loc && loc.distance <= pickTolerance()) {
+      const inverse = invertMatrix(shapeWorldMatrix(state.doc, sel));
+      const local = inverse ? applyMatrix(inverse, world) : world;
+      const loc = closestPointOnBezier(sel, local);
+      const localScale = matrixScale(shapeWorldMatrix(state.doc, sel));
+      if (loc && loc.distance * localScale <= pickTolerance()) {
         const next = insertAnchorOnSegment(sel, loc.segIndex, loc.t);
         if (next !== sel) {
           const index = loc.segIndex + 1;
@@ -607,8 +645,11 @@ export default function CanvasView() {
   ): { shape: BezierShape; end: "start" | "end" } | null => {
     const tol = NODE_GRAB * hitScale();
     const { doc, viewport } = state;
-    const near = (w: Vec2) => {
-      const sp = worldToScreen(viewport, w);
+    const near = (shape: Shape, w: Vec2) => {
+      const sp = worldToScreen(
+        viewport,
+        shape ? applyMatrix(shapeWorldMatrix(doc, shape), w) : w
+      );
       return Math.hypot(sp.x - screen.x, sp.y - screen.y) <= tol;
     };
     for (let i = doc.order.length - 1; i >= 0; i--) {
@@ -619,12 +660,13 @@ export default function CanvasView() {
         s.closed ||
         isShapeHidden(doc, s) ||
         isShapeLocked(doc, s) ||
-        s.rotation || // anchors live in unrotated space; extending would misplace
         s.anchors.length < 2
       )
         continue;
-      if (near(s.anchors[s.anchors.length - 1].p)) return { shape: s, end: "end" };
-      if (near(s.anchors[0].p)) return { shape: s, end: "start" };
+      if (near(s, s.anchors[s.anchors.length - 1].p)) {
+        return { shape: s, end: "end" };
+      }
+      if (near(s, s.anchors[0].p)) return { shape: s, end: "start" };
     }
     return null;
   };
@@ -636,12 +678,17 @@ export default function CanvasView() {
     shift: boolean
   ) => {
     const draft = penDraftRef.current;
+    const draftInverse = draft
+      ? invertMatrix(shapeWorldMatrix(state.doc, draft))
+      : null;
+    const localWorld = draftInverse ? applyMatrix(draftInverse, world) : world;
     const last = draft?.anchors[draft.anchors.length - 1];
     if (shift && last) {
-      world = constrain45(last.p, world);
+      world = constrain45(last.p, localWorld);
       guidesRef.current = [];
     } else {
-      world = pointSnap(world, EMPTY_EXCLUDE);
+      const snapped = pointSnap(world, EMPTY_EXCLUDE);
+      world = draftInverse ? applyMatrix(draftInverse, snapped) : snapped;
     }
     if (!draft) {
       // Clicking an endpoint of an existing open path picks it up and
@@ -678,7 +725,10 @@ export default function CanvasView() {
 
     // Click near the first anchor closes the path.
     if (draft.anchors.length >= 2) {
-      const first = worldToScreen(state.viewport, draft.anchors[0].p);
+      const first = worldToScreen(
+        state.viewport,
+        applyMatrix(shapeWorldMatrix(state.doc, draft), draft.anchors[0].p)
+      );
       if (Math.hypot(first.x - screen.x, first.y - screen.y) <= NODE_GRAB) {
         draft.closed = true;
         commitPenDraft();
@@ -702,11 +752,16 @@ export default function CanvasView() {
     if (inter.kind === "none") {
       if (state.tool === "pen" && penDraftRef.current) {
         const draft = penDraftRef.current;
+        const inverse = invertMatrix(shapeWorldMatrix(state.doc, draft));
+        const localWorld = inverse ? applyMatrix(inverse, world) : world;
         const last = draft.anchors[draft.anchors.length - 1];
         hoverRef.current =
           e.shiftKey && last
-            ? constrain45(last.p, world)
-            : pointSnap(world, EMPTY_EXCLUDE);
+            ? constrain45(last.p, localWorld)
+            : (() => {
+                const snapped = pointSnap(world, EMPTY_EXCLUDE);
+                return inverse ? applyMatrix(inverse, snapped) : snapped;
+              })();
         scheduleDraw();
       }
       updateHoverCursor(screen, world);
@@ -755,33 +810,52 @@ export default function CanvasView() {
           guidesRef.current = [];
           spacingsRef.current = [];
         }
-        const next: Record<string, Shape> = {};
-        for (const [id, orig] of Object.entries(inter.originals)) {
-          next[id] = translateShape(orig, dx, dy);
+        const delta = translationMatrix(dx, dy);
+        if (inter.group) {
+          const group = applyWorldTransformToGroup(state.doc, inter.group, delta);
+          state.setDoc({
+            ...state.doc,
+            groups: { ...state.doc.groups, [group.id]: group },
+          });
+        } else {
+          const next: Record<string, Shape> = {};
+          for (const [id, orig] of Object.entries(inter.originals)) {
+            next[id] = applyWorldTransform(state.doc, orig, delta);
+          }
+          state.applyShapes(next);
         }
-        state.applyShapes(next);
         setReadout(`Δ ${Math.round(dx)}, ${Math.round(dy)}`);
         break;
       }
       case "resize": {
         const handlePt = pointSnap(world, new Set(Object.keys(inter.originals)));
-        if (inter.single) {
-          const entry = Object.entries(inter.originals)[0];
-          if (entry) {
-            const resized = resizeSingleShape(entry[1], inter.handle, handlePt);
-            state.applyShapes({ [entry[0]]: resized });
-            const b = shapeBounds(resized);
-            setReadout(formatSize(b.width, b.height));
-          }
+        const inverseFrame = invertMatrix(inter.frameTransform);
+        if (!inverseFrame) break;
+        const localPointer = applyMatrix(inverseFrame, handlePt);
+        const to = resizeBounds(inter.from, inter.handle, localPointer);
+        const localDelta = boundsTransform(inter.from, to);
+        const worldDelta = multiply(
+          inter.frameTransform,
+          multiply(localDelta, inverseFrame)
+        );
+        if (inter.group) {
+          const group = applyWorldTransformToGroup(
+            state.doc,
+            inter.group,
+            worldDelta
+          );
+          state.setDoc({
+            ...state.doc,
+            groups: { ...state.doc.groups, [group.id]: group },
+          });
         } else {
-          const to = resizeBounds(inter.from, inter.handle, handlePt);
           const next: Record<string, Shape> = {};
           for (const [id, orig] of Object.entries(inter.originals)) {
-            next[id] = resizeShapeToBounds(orig, inter.from, to);
+            next[id] = applyWorldTransform(state.doc, orig, worldDelta);
           }
           state.applyShapes(next);
-          setReadout(formatSize(to.width, to.height));
         }
+        setReadout(formatSize(to.width, to.height));
         break;
       }
       case "rotate": {
@@ -795,14 +869,24 @@ export default function CanvasView() {
           const eased = magnetAngle(inter.startRotation + delta, 45, 4);
           if (eased !== null) delta = eased - inter.startRotation;
         }
-        const next: Record<string, Shape> = {};
-        for (const [id, orig] of Object.entries(inter.originals)) {
-          const c = shapeCenter(orig);
-          const nc = rotateAbout(inter.pivot, c, delta);
-          const moved = translateShape(orig, nc.x - c.x, nc.y - c.y);
-          next[id] = { ...moved, rotation: (orig.rotation || 0) + delta };
+        const rotationDelta = matrixRotationAbout(inter.pivot, delta);
+        if (inter.group) {
+          const group = applyWorldTransformToGroup(
+            state.doc,
+            inter.group,
+            rotationDelta
+          );
+          state.setDoc({
+            ...state.doc,
+            groups: { ...state.doc.groups, [group.id]: group },
+          });
+        } else {
+          const next: Record<string, Shape> = {};
+          for (const [id, orig] of Object.entries(inter.originals)) {
+            next[id] = applyWorldTransform(state.doc, orig, rotationDelta);
+          }
+          state.applyShapes(next);
         }
-        state.applyShapes(next);
         setReadout(formatAngle(inter.startRotation + delta));
         break;
       }
@@ -840,8 +924,12 @@ export default function CanvasView() {
       case "pen-anchor": {
         const draft = penDraftRef.current;
         if (draft) {
+          const inverse = invertMatrix(shapeWorldMatrix(state.doc, draft));
+          const localWorld = inverse ? applyMatrix(inverse, world) : world;
           const a = draft.anchors[inter.index];
-          const target = e.shiftKey ? constrain45(a.p, world) : world;
+          const target = e.shiftKey
+            ? constrain45(a.p, localWorld)
+            : localWorld;
           a.hOut = target;
           a.hIn = { x: 2 * a.p.x - target.x, y: 2 * a.p.y - target.y };
           scheduleDraw();
@@ -849,32 +937,44 @@ export default function CanvasView() {
         break;
       }
       case "node-anchor": {
+        const current = state.doc.shapes[inter.shapeId];
+        const inverse = current
+          ? invertMatrix(shapeWorldMatrix(state.doc, current))
+          : null;
+        const localWorld = inverse ? applyMatrix(inverse, world) : world;
         let target: Vec2;
         if (e.shiftKey) {
           // Constrain to 45° rays from the anchor's original position.
-          const origP = inter.orig.anchors[inter.index]?.p ?? world;
-          target = constrain45(origP, world);
+          const origP = inter.orig.anchors[inter.index]?.p ?? localWorld;
+          target = constrain45(origP, localWorld);
           guidesRef.current = [];
           spacingsRef.current = [];
         } else {
-          target = pointSnap(world, new Set([inter.shapeId]));
+          const snapped = pointSnap(world, new Set([inter.shapeId]));
+          target = inverse ? applyMatrix(inverse, snapped) : snapped;
         }
         state.applyShapes({
           [inter.shapeId]: moveAnchor(inter.orig, inter.index, target),
         });
         break;
       }
-      case "node-handle":
+      case "node-handle": {
+        const current = state.doc.shapes[inter.shapeId];
+        const inverse = current
+          ? invertMatrix(shapeWorldMatrix(state.doc, current))
+          : null;
+        const localWorld = inverse ? applyMatrix(inverse, world) : world;
         state.applyShapes({
           [inter.shapeId]: moveHandle(
             inter.orig,
             inter.index,
             inter.part,
-            world,
+            localWorld,
             !e.altKey
           ),
         });
         break;
+      }
       case "marquee": {
         const start = worldToScreen(state.viewport, inter.start);
         marqueeRef.current = {
@@ -937,7 +1037,7 @@ export default function CanvasView() {
             s &&
             !isShapeHidden(state.doc, s) &&
             !isShapeLocked(state.doc, s) &&
-            boundsIntersect(worldShapeBounds(s), region)
+            boundsIntersect(worldShapeBounds(state.doc, s), region)
           );
         });
         const base = inter.additive ? state.selection : [];
@@ -962,6 +1062,7 @@ export default function CanvasView() {
       if (!sel) return;
       const hit = hitBezierNodes(
         sel,
+        shapeWorldMatrix(state.doc, sel),
         screenPoint(e),
         state.viewport,
         NODE_GRAB * hitScale()
@@ -1018,14 +1119,33 @@ export default function CanvasView() {
     }
     if (state.tool === "node") {
       const sel = selectedBezier(state);
-      if (sel && hitBezierNodes(sel, screen, state.viewport, NODE_GRAB * hitScale())) {
+      if (
+        sel &&
+        hitBezierNodes(
+          sel,
+          shapeWorldMatrix(state.doc, sel),
+          screen,
+          state.viewport,
+          NODE_GRAB * hitScale()
+        )
+      ) {
         canvas.style.cursor = "move";
         return;
       }
       // "copy" (arrow + plus) over the path itself: a click inserts a point.
-      const loc = sel ? closestPointOnBezier(sel, world) : null;
+      const inverse = sel
+        ? invertMatrix(shapeWorldMatrix(state.doc, sel))
+        : null;
+      const loc = sel
+        ? closestPointOnBezier(sel, inverse ? applyMatrix(inverse, world) : world)
+        : null;
+      const localScale = sel
+        ? matrixScale(shapeWorldMatrix(state.doc, sel))
+        : 1;
       canvas.style.cursor =
-        loc && loc.distance <= pickTolerance() ? "copy" : "default";
+        loc && loc.distance * localScale <= pickTolerance()
+          ? "copy"
+          : "default";
       return;
     }
     const hit = hitFrameHandle(screen);

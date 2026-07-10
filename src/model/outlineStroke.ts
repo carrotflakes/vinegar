@@ -1,7 +1,7 @@
 import ClipperLib, { type IntPoint, type PolyNode } from "clipper-lib";
 import { flattenBezier } from "./bezier";
-import { shapeBounds, shapeCenter } from "./bounds";
-import { rotateAbout } from "./rotate";
+import { shapeBounds } from "./bounds";
+import { applyMatrix } from "./matrix";
 import type { Shape, Vec2 } from "./types";
 
 // Clipper works in integers; scale world units up for sub-pixel precision.
@@ -12,10 +12,8 @@ interface Polyline {
   closed: boolean;
 }
 
-function withRotation(shape: Shape, points: Vec2[]): Vec2[] {
-  if (!shape.rotation) return points;
-  const c = shapeCenter(shape);
-  return points.map((p) => rotateAbout(c, p, shape.rotation));
+function withTransform(shape: Shape, points: Vec2[]): Vec2[] {
+  return points.map((p) => applyMatrix(shape.transform, p));
 }
 
 /** The stroked centerline(s) of a shape, before rotation. */
@@ -83,7 +81,7 @@ export function strokeOutline(shape: Shape): Vec2[][][] | null {
   const co = new ClipperLib.ClipperOffset(2, 0.25 * SCALE);
   let added = false;
   for (const pl of centerlines(shape)) {
-    const pts = withRotation(shape, pl.points);
+    const pts = withTransform(shape, pl.points);
     if (pts.length < 2) continue;
     const path: IntPoint[] = pts.map((p) => ({
       X: Math.round(p.x * SCALE),
