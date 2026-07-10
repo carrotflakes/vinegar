@@ -83,6 +83,23 @@ export function drawOverlay(
         ctx.fill();
         ctx.stroke();
       }
+
+      // Rotation pivot: target marker, draggable independently of the frame.
+      const pivot = toS(frame.pivot);
+      const radius = Math.max(4, handleSize * 0.45);
+      ctx.fillStyle = "#ffffff";
+      ctx.strokeStyle = ACCENT;
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.arc(pivot.x, pivot.y, radius, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(pivot.x - radius - 3, pivot.y);
+      ctx.lineTo(pivot.x + radius + 3, pivot.y);
+      ctx.moveTo(pivot.x, pivot.y - radius - 3);
+      ctx.lineTo(pivot.x, pivot.y + radius + 3);
+      ctx.stroke();
     }
   }
 

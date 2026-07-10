@@ -10,13 +10,14 @@ import {
 } from "../model/bezier";
 import { pointsToAnchors, simplifyPath } from "../model/freehand";
 import { isShapeHidden, isShapeLocked } from "../model/groups";
-import { hitTestShape } from "../model/hitTest";
+import { hitTestShape, marqueeHitShape } from "../model/hitTest";
 import { magnetAngle, snapAngle } from "../model/rotate";
 import {
   applyMatrix,
   applyWorldTransform,
   applyWorldTransformToGroup,
   boundsTransform,
+  groupWorldMatrix,
   invertMatrix,
   matrixScale,
   multiply,
@@ -82,6 +83,7 @@ import {
 import { renderScene } from "./render";
 
 type FrameHit =
+  | { type: "pivot" }
   | { type: "resize"; id: HandleId }
   | { type: "rotate" }
   | null;
@@ -90,6 +92,12 @@ type Interaction =
   | { kind: "none" }
   | { kind: "pan"; startScreen: Vec2; startOffset: Vec2 }
   | {
+      kind: "pivot";
+      shapeId?: string;
+      groupId?: string;
+      persistent: boolean;
+    }
+  | {
       kind: "move";
       start: Vec2;
       originals: Record<string, Shape>;
@@ -97,6 +105,8 @@ type Interaction =
       targets: SnapTargets;
       boxes: Bounds[];
       group?: Group;
+      selectionPivot?: Vec2;
+      selectionTransform?: Matrix;
     }
   | {
       kind: "resize";
@@ -106,6 +116,8 @@ type Interaction =
       originals: Record<string, Shape>;
       single: boolean;
       group?: Group;
+      selectionPivot?: Vec2;
+      selectionTransform?: Matrix;
     }
   | {
       kind: "rotate";
@@ -115,6 +127,8 @@ type Interaction =
       startRotation: number;
       originals: Record<string, Shape>;
       group?: Group;
+      selectionPivot?: Vec2;
+      selectionTransform?: Matrix;
     }
   | { kind: "create"; start: Vec2 }
   | { kind: "pencil" }
@@ -204,7 +218,9 @@ export default function CanvasView() {
           ? getSelectionFrame(
               doc,
               selectedShapes,
-              exactlySelectedGroup(doc, selection)
+              exactlySelectedGroup(doc, selection),
+              state.selectionPivot,
+              state.selectionTransform
             )
           : null,
       marquee: marqueeRef.current,
@@ -349,11 +365,18 @@ export default function CanvasView() {
     (5 * hitScale()) / useEditor.getState().viewport.scale;
 
   const selectionFrame = (): SelectionFrame | null => {
-    const { doc, selection } = useEditor.getState();
+    const { doc, selection, selectionPivot, selectionTransform } =
+      useEditor.getState();
     const shapes = selection
       .map((id) => doc.shapes[id])
       .filter(Boolean) as Shape[];
-    return getSelectionFrame(doc, shapes, exactlySelectedGroup(doc, selection));
+    return getSelectionFrame(
+      doc,
+      shapes,
+      exactlySelectedGroup(doc, selection),
+      selectionPivot,
+      selectionTransform
+    );
   };
 
   /** Hit-test the resize handles and rotation handle of the selection frame. */
@@ -362,6 +385,13 @@ export default function CanvasView() {
     const frame = selectionFrame();
     if (!frame) return null;
     const tol = HANDLE_SIZE * hitScale();
+    const pivot = worldToScreen(viewport, frame.pivot);
+    if (
+      Math.abs(pivot.x - screen.x) <= tol &&
+      Math.abs(pivot.y - screen.y) <= tol
+    ) {
+      return { type: "pivot" };
+    }
     const rot = worldToScreen(viewport, frameRotationPoint(frame, viewport.scale));
     if (
       Math.abs(rot.x - screen.x) <= tol &&
@@ -500,21 +530,48 @@ export default function CanvasView() {
   ) => {
     // Rotation / resize handles take priority over picking shapes.
     const hit = hitFrameHandle(screen);
+    if (hit?.type === "pivot") {
+      const group = exactlySelectedGroup(state.doc, state.selection);
+      const shape =
+        !group && state.selection.length === 1
+          ? state.doc.shapes[state.selection[0]]
+          : null;
+      const persistent = !!group || !!shape;
+      if (persistent) state.beginInteraction();
+      interactionRef.current = {
+        kind: "pivot",
+        groupId: group?.id,
+        shapeId: shape?.id,
+        persistent,
+      };
+      return;
+    }
     if (hit?.type === "rotate") {
       const frame = selectionFrame()!;
+      const group = exactlySelectedGroup(state.doc, state.selection);
+      const transient = !group && state.selection.length > 1;
+      if (transient && !state.selectionPivot) {
+        state.setSelectionPivot(frame.pivot);
+      }
       state.beginInteraction();
       interactionRef.current = {
         kind: "rotate",
-        pivot: frame.center,
-        startAngle: Math.atan2(world.y - frame.center.y, world.x - frame.center.x),
+        pivot: frame.pivot,
+        startAngle: Math.atan2(world.y - frame.pivot.y, world.x - frame.pivot.x),
         startRotation: frame.rotation,
         originals: snapshot(state.selection),
-        group: exactlySelectedGroup(state.doc, state.selection) ?? undefined,
+        group: group ?? undefined,
+        selectionPivot: transient
+          ? state.selectionPivot ?? frame.pivot
+          : undefined,
+        selectionTransform: transient ? frame.transform : undefined,
       };
       return;
     }
     if (hit?.type === "resize") {
       const frame = selectionFrame()!;
+      const group = exactlySelectedGroup(state.doc, state.selection);
+      const transient = !group && state.selection.length > 1;
       state.beginInteraction();
       interactionRef.current = {
         kind: "resize",
@@ -523,7 +580,9 @@ export default function CanvasView() {
         frameTransform: frame.transform,
         originals: snapshot(state.selection),
         single: state.selection.length === 1,
-        group: exactlySelectedGroup(state.doc, state.selection) ?? undefined,
+        group: group ?? undefined,
+        selectionPivot: transient ? state.selectionPivot ?? undefined : undefined,
+        selectionTransform: transient ? frame.transform : undefined,
       };
       return;
     }
@@ -545,6 +604,8 @@ export default function CanvasView() {
         selection = state.selection;
       }
       const originals = snapshot(selection);
+      const selectedGroup = exactlySelectedGroup(state.doc, selection);
+      const transient = !selectedGroup && selection.length > 1;
       const selSet = new Set(selection);
       const others = state.doc.order
         .map((id) => state.doc.shapes[id])
@@ -565,7 +626,11 @@ export default function CanvasView() {
         },
         targets: collectSnapTargets(state.doc, others),
         boxes: others.map((shape) => worldShapeBounds(state.doc, shape)),
-        group: exactlySelectedGroup(state.doc, selection) ?? undefined,
+        group: selectedGroup ?? undefined,
+        selectionPivot: transient ? state.selectionPivot ?? undefined : undefined,
+        selectionTransform: transient
+          ? state.selectionTransform ?? undefined
+          : undefined,
       };
       return;
     }
@@ -778,6 +843,42 @@ export default function CanvasView() {
           },
         });
         break;
+      case "pivot": {
+        if (inter.groupId) {
+          const group = state.doc.groups[inter.groupId];
+          const inverse = group
+            ? invertMatrix(groupWorldMatrix(state.doc, group.id))
+            : null;
+          if (group && inverse) {
+            state.setDoc({
+              ...state.doc,
+              groups: {
+                ...state.doc.groups,
+                [group.id]: {
+                  ...group,
+                  transformOrigin: applyMatrix(inverse, world),
+                },
+              },
+            });
+          }
+        } else if (inter.shapeId) {
+          const shape = state.doc.shapes[inter.shapeId];
+          const inverse = shape
+            ? invertMatrix(shapeWorldMatrix(state.doc, shape))
+            : null;
+          if (shape && inverse) {
+            state.applyShapes({
+              [shape.id]: {
+                ...shape,
+                transformOrigin: applyMatrix(inverse, world),
+              },
+            });
+          }
+        } else {
+          state.setSelectionPivot(world);
+        }
+        break;
+      }
       case "move": {
         const rawDx = world.x - inter.start.x;
         const rawDy = world.y - inter.start.y;
@@ -824,6 +925,14 @@ export default function CanvasView() {
           }
           state.applyShapes(next);
         }
+        if (inter.selectionPivot) {
+          state.setSelectionPivot(applyMatrix(delta, inter.selectionPivot));
+        }
+        if (inter.selectionTransform) {
+          state.setSelectionTransform(
+            multiply(delta, inter.selectionTransform)
+          );
+        }
         setReadout(`Δ ${Math.round(dx)}, ${Math.round(dy)}`);
         break;
       }
@@ -854,6 +963,16 @@ export default function CanvasView() {
             next[id] = applyWorldTransform(state.doc, orig, worldDelta);
           }
           state.applyShapes(next);
+        }
+        if (inter.selectionPivot) {
+          state.setSelectionPivot(
+            applyMatrix(worldDelta, inter.selectionPivot)
+          );
+        }
+        if (inter.selectionTransform) {
+          state.setSelectionTransform(
+            multiply(worldDelta, inter.selectionTransform)
+          );
         }
         setReadout(formatSize(to.width, to.height));
         break;
@@ -886,6 +1005,16 @@ export default function CanvasView() {
             next[id] = applyWorldTransform(state.doc, orig, rotationDelta);
           }
           state.applyShapes(next);
+        }
+        if (inter.selectionPivot) {
+          state.setSelectionPivot(
+            applyMatrix(rotationDelta, inter.selectionPivot)
+          );
+        }
+        if (inter.selectionTransform) {
+          state.setSelectionTransform(
+            multiply(rotationDelta, inter.selectionTransform)
+          );
         }
         setReadout(formatAngle(inter.startRotation + delta));
         break;
@@ -1001,6 +1130,10 @@ export default function CanvasView() {
     setReadout(null);
 
     switch (inter.kind) {
+      case "pivot":
+        if (inter.persistent) state.endInteraction();
+        scheduleDraw();
+        break;
       case "move":
       case "resize":
       case "rotate":
@@ -1037,7 +1170,7 @@ export default function CanvasView() {
             s &&
             !isShapeHidden(state.doc, s) &&
             !isShapeLocked(state.doc, s) &&
-            boundsIntersect(worldShapeBounds(state.doc, s), region)
+            marqueeHitShape(state.doc, s, region)
           );
         });
         const base = inter.additive ? state.selection : [];
@@ -1053,6 +1186,21 @@ export default function CanvasView() {
 
   const onDoubleClick = (e: React.MouseEvent<HTMLCanvasElement>) => {
     const state = useEditor.getState();
+    if (
+      state.tool === "select" &&
+      hitFrameHandle(screenPoint(e))?.type === "pivot"
+    ) {
+      const group = exactlySelectedGroup(state.doc, state.selection);
+      if (group) {
+        state.updateGroupStyle(group.id, { transformOrigin: null });
+      } else if (state.selection.length === 1) {
+        state.updateSelectedStyle({ transformOrigin: null });
+      } else {
+        state.setSelectionPivot(null);
+      }
+      scheduleDraw();
+      return;
+    }
     if (state.tool === "pen" && penDraftRef.current) {
       commitPenDraft();
       return;
@@ -1149,6 +1297,10 @@ export default function CanvasView() {
       return;
     }
     const hit = hitFrameHandle(screen);
+    if (hit?.type === "pivot") {
+      canvas.style.cursor = "crosshair";
+      return;
+    }
     if (hit?.type === "rotate") {
       canvas.style.cursor = "grab";
       return;
@@ -1382,15 +1534,6 @@ function boundsFromPoints(a: Vec2, b: Vec2): Bounds {
     width: Math.abs(a.x - b.x),
     height: Math.abs(a.y - b.y),
   };
-}
-
-function boundsIntersect(a: Bounds, b: Bounds): boolean {
-  return (
-    a.x <= b.x + b.width &&
-    a.x + a.width >= b.x &&
-    a.y <= b.y + b.height &&
-    a.y + a.height >= b.y
-  );
 }
 
 function isTypingTarget(target: EventTarget | null): boolean {

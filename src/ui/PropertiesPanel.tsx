@@ -19,8 +19,10 @@ import { getSelectionFrame } from "../canvas/frame";
 export default function PropertiesPanel() {
   const doc = useEditor((s) => s.doc);
   const selection = useEditor((s) => s.selection);
+  const selectionPivot = useEditor((s) => s.selectionPivot);
   const style = useEditor((s) => s.style);
   const updateSelectedStyle = useEditor((s) => s.updateSelectedStyle);
+  const setSelectionPivot = useEditor((s) => s.setSelectionPivot);
   const setStyle = useEditor((s) => s.setStyle);
   const deleteSelected = useEditor((s) => s.deleteSelected);
   const bringToFront = useEditor((s) => s.bringToFront);
@@ -71,11 +73,11 @@ export default function PropertiesPanel() {
     : 0;
   const setRotation = (degrees: number) => {
     const bounds = shapeBounds(first);
-    const localCenter = {
+    const localOrigin = first.transformOrigin ?? {
       x: bounds.x + bounds.width / 2,
       y: bounds.y + bounds.height / 2,
     };
-    const pivot = applyMatrix(first.transform, localCenter);
+    const pivot = applyMatrix(first.transform, localOrigin);
     const target = (degrees * Math.PI) / 180;
     const delta = target - matrixAngle(first.transform);
     updateSelectedStyle({
@@ -89,7 +91,7 @@ export default function PropertiesPanel() {
     if (!selectedGroup) return;
     const frame = getSelectionFrame(doc, selected, selectedGroup);
     if (!frame) return;
-    const localCenter = {
+    const localCenter = selectedGroup.transformOrigin ?? {
       x: frame.bounds.x + frame.bounds.width / 2,
       y: frame.bounds.y + frame.bounds.height / 2,
     };
@@ -201,6 +203,13 @@ export default function PropertiesPanel() {
                 onChange={(e) => setRotation(Number(e.target.value))}
               />
             </div>
+            <button
+              className="ghost-btn"
+              disabled={first.transformOrigin === null}
+              onClick={() => updateSelectedStyle({ transformOrigin: null })}
+            >
+              Reset rotation center
+            </button>
           </div>
         )}
       </div>
@@ -247,6 +256,15 @@ export default function PropertiesPanel() {
                 onChange={(e) => setGroupRotation(Number(e.target.value))}
               />
             </div>
+            <button
+              className="ghost-btn"
+              disabled={selectedGroup.transformOrigin === null}
+              onClick={() =>
+                updateGroupStyle(selectedGroup.id, { transformOrigin: null })
+              }
+            >
+              Reset rotation center
+            </button>
           </div>
           <div className="field">
             <label>Group blend mode</label>
@@ -267,6 +285,18 @@ export default function PropertiesPanel() {
               ))}
             </select>
           </div>
+        </div>
+      )}
+
+      {selected.length > 1 && !selectedGroup && selectionPivot && (
+        <div className="panel-section">
+          <div className="panel-title">Transform</div>
+          <button
+            className="ghost-btn"
+            onClick={() => setSelectionPivot(null)}
+          >
+            Reset rotation center
+          </button>
         </div>
       )}
 

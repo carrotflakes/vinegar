@@ -56,6 +56,8 @@ export interface BaseShape {
   blendMode?: BlendMode;
   /** Maps the shape's geometry from local space into its parent space. */
   transform: Matrix;
+  /** Explicit rotation center in local space; null uses the geometry center. */
+  transformOrigin: Vec2 | null;
   /** Immediate enclosing group (see `Group`); `null`/absent = ungrouped. */
   groupId?: string | null;
   /** Hidden shapes are not rendered and cannot be picked on the canvas. */
@@ -144,6 +146,8 @@ export interface Group {
   parentId?: string | null;
   /** Maps children from this group's local space into its parent space. */
   transform: Matrix;
+  /** Explicit rotation center in group-local space; null uses content center. */
+  transformOrigin: Vec2 | null;
   /** 0..1 group-layer opacity. Absent = 1. */
   opacity?: number;
   /** How the group layer composites onto what's below. Absent = "normal". */

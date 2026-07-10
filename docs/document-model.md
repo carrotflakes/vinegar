@@ -27,5 +27,10 @@ Geometry is stored in node-local coordinates. Each shape and group has a
 Canvas/SVG-compatible affine matrix `[a, b, c, d, e, f]` mapping it into its
 parent space. World transforms are composed from the root toward the node.
 
+Each shape and group also stores `transformOrigin` in its own local space.
+`null` means the current geometry/content bounds center; an explicit point may
+sit outside those bounds and is preserved across selection and file reloads.
+Ad-hoc multi-selection pivots are editor state and are not persisted.
+
 Rendering, bounds, hit-testing, snapping, editing and export must all use the
 same composed matrix. A partially applied transform is invalid document state.

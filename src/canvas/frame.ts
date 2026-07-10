@@ -18,7 +18,10 @@ import { handlePoint, type HandleId } from "./handles";
  * - Multiple shapes: `bounds` is the world AABB and `rotation` is 0.
  */
 export interface SelectionFrame {
+  /** Geometric center of the selection in world space. */
   center: Vec2;
+  /** Effective rotation center in world space. */
+  pivot: Vec2;
   rotation: number;
   bounds: Bounds;
   transform: Matrix;
@@ -30,7 +33,9 @@ export const ROTATE_OFFSET = 22;
 export function getSelectionFrame(
   doc: Document,
   shapes: Shape[],
-  group?: Group | null
+  group?: Group | null,
+  selectionPivot?: Vec2 | null,
+  selectionTransform?: Matrix | null
 ): SelectionFrame | null {
   if (shapes.length === 0) return null;
   if (group) {
@@ -53,6 +58,13 @@ export function getSelectionFrame(
           x: x + bounds.width / 2,
           y: y + bounds.height / 2,
         }),
+        pivot: applyMatrix(
+          transform,
+          group.transformOrigin ?? {
+            x: x + bounds.width / 2,
+            y: y + bounds.height / 2,
+          }
+        ),
         rotation: matrixAngle(transform),
         bounds,
         transform,
@@ -63,19 +75,54 @@ export function getSelectionFrame(
     const s = shapes[0];
     const bounds = shapeBounds(s);
     const transform = shapeWorldMatrix(doc, s);
-    return {
-      center: applyMatrix(transform, {
+    const center = applyMatrix(transform, {
         x: bounds.x + bounds.width / 2,
         y: bounds.y + bounds.height / 2,
-      }),
+      });
+    return {
+      center,
+      pivot: s.transformOrigin
+        ? applyMatrix(transform, s.transformOrigin)
+        : center,
       rotation: matrixAngle(transform),
       bounds,
       transform,
     };
   }
+  if (selectionTransform) {
+    const inverse = invertMatrix(selectionTransform);
+    if (inverse) {
+      const localBounds = shapes.map((shape) =>
+        transformBounds(
+          shapeBounds(shape),
+          multiply(inverse, shapeWorldMatrix(doc, shape))
+        )
+      );
+      const x = Math.min(...localBounds.map((b) => b.x));
+      const y = Math.min(...localBounds.map((b) => b.y));
+      const right = Math.max(...localBounds.map((b) => b.x + b.width));
+      const bottom = Math.max(...localBounds.map((b) => b.y + b.height));
+      const bounds = { x, y, width: right - x, height: bottom - y };
+      const center = applyMatrix(selectionTransform, {
+        x: x + bounds.width / 2,
+        y: y + bounds.height / 2,
+      });
+      return {
+        center,
+        pivot: selectionPivot ?? center,
+        rotation: matrixAngle(selectionTransform),
+        bounds,
+        transform: selectionTransform,
+      };
+    }
+  }
   const b = unionWorldBounds(doc, shapes)!;
   return {
     center: { x: b.x + b.width / 2, y: b.y + b.height / 2 },
+    pivot: selectionPivot ?? {
+      x: b.x + b.width / 2,
+      y: b.y + b.height / 2,
+    },
     rotation: 0,
     bounds: b,
     transform: [1, 0, 0, 1, 0, 0],

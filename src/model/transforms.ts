@@ -6,21 +6,31 @@ import type { Bounds, Shape, Vec2 } from "./types";
  * return a new shape. Works for translation and axis-aligned scaling.
  */
 export function transformShape(shape: Shape, fn: (p: Vec2) => Vec2): Shape {
+  const transformOrigin = shape.transformOrigin
+    ? fn(shape.transformOrigin)
+    : null;
   switch (shape.type) {
     case "rect":
     case "ellipse": {
       const a = fn({ x: shape.x, y: shape.y });
       const b = fn({ x: shape.x + shape.width, y: shape.y + shape.height });
       const r = normalizeRect(a.x, a.y, b.x - a.x, b.y - a.y);
-      return { ...shape, x: r.x, y: r.y, width: r.width, height: r.height };
+      return {
+        ...shape,
+        x: r.x,
+        y: r.y,
+        width: r.width,
+        height: r.height,
+        transformOrigin,
+      };
     }
     case "line": {
       const a = fn({ x: shape.x1, y: shape.y1 });
       const b = fn({ x: shape.x2, y: shape.y2 });
-      return { ...shape, x1: a.x, y1: a.y, x2: b.x, y2: b.y };
+      return { ...shape, x1: a.x, y1: a.y, x2: b.x, y2: b.y, transformOrigin };
     }
     case "path": {
-      return { ...shape, points: shape.points.map(fn) };
+      return { ...shape, points: shape.points.map(fn), transformOrigin };
     }
     case "bezier": {
       return {
@@ -30,12 +40,14 @@ export function transformShape(shape: Shape, fn: (p: Vec2) => Vec2): Shape {
           hIn: an.hIn ? fn(an.hIn) : null,
           hOut: an.hOut ? fn(an.hOut) : null,
         })),
+        transformOrigin,
       };
     }
     case "polygon": {
       return {
         ...shape,
         polys: shape.polys.map((poly) => poly.map((ring) => ring.map(fn))),
+        transformOrigin,
       };
     }
   }

@@ -64,8 +64,9 @@ A running list of what's built and what's next. Check items off as they land.
 - [ ] Color: alpha/opacity per color; swatches saved in the document
 - [ ] System clipboard integration (paste across tabs/apps)
 - [ ] Text tool
-- [x] Nested groups: real group entities (name/opacity/blend/hide/lock, nesting) rendered as composited layers; layers-panel tree + group section in properties. Current file format is v4; older formats are intentionally unsupported.
+- [x] Nested groups: real group entities (name/opacity/blend/hide/lock, nesting) rendered as composited layers; layers-panel tree + group section in properties. Current file format is v5; older formats are intentionally unsupported.
   - [x] True affine transform matrices on shapes and groups
+  - [x] Movable, persisted rotation centers for shapes and groups; transient pivot for multi-selection
 - [ ] Distribution: match an existing gap (not just centering)
 - [ ] Configurable pencil smoothing strength
 - [ ] Status bar: color swatch under the cursor (eyedropper-style; watch getImageData cost)

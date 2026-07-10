@@ -1,7 +1,7 @@
 import { flattenBezier } from "./bezier";
-import { shapeBounds } from "./bounds";
+import { shapeBounds, worldShapeBounds } from "./bounds";
 import { invertMatrix, matrixScale, shapeWorldMatrix } from "./matrix";
-import type { Document, Shape, Vec2 } from "./types";
+import type { Bounds, Document, Shape, Vec2 } from "./types";
 import { applyMatrix } from "./matrix";
 
 /** Even-odd point-in-polygon test. */
@@ -135,4 +135,162 @@ export function hitTestShape(doc: Document, shape: Shape, p: Vec2, tol: number):
       return false;
     }
   }
+}
+
+interface WorldPolyline {
+  points: Vec2[];
+  closed: boolean;
+}
+
+/** Whether a marquee rectangle intersects the shape's rendered geometry. */
+export function marqueeHitShape(
+  doc: Document,
+  shape: Shape,
+  region: Bounds
+): boolean {
+  if (!rectsIntersect(worldShapeBounds(doc, shape), region)) return false;
+  const matrix = shapeWorldMatrix(doc, shape);
+  const lines = localPolylines(shape).map((line) => ({
+    ...line,
+    points: line.points.map((point) => applyMatrix(matrix, point)),
+  }));
+  const stroke = shape.stroke
+    ? (shape.strokeWidth / 2) * matrixScale(matrix)
+    : 0;
+  const edgeRegion = expandBounds(region, stroke);
+
+  for (const line of lines) {
+    if (line.points.some((point) => pointInRect(point, edgeRegion))) return true;
+    for (let i = 0; i + 1 < line.points.length; i++) {
+      if (segmentIntersectsRect(line.points[i], line.points[i + 1], edgeRegion)) {
+        return true;
+      }
+    }
+    if (
+      line.closed &&
+      line.points.length > 2 &&
+      segmentIntersectsRect(
+        line.points[line.points.length - 1],
+        line.points[0],
+        edgeRegion
+      )
+    ) {
+      return true;
+    }
+  }
+
+  const fillable =
+    shape.fill !== null &&
+    shape.type !== "line" &&
+    !(shape.type === "path" && !shape.closed) &&
+    !(shape.type === "bezier" && !shape.closed);
+  if (!fillable) return false;
+  const corners = [
+    { x: region.x, y: region.y },
+    { x: region.x + region.width, y: region.y },
+    { x: region.x + region.width, y: region.y + region.height },
+    { x: region.x, y: region.y + region.height },
+  ];
+  return corners.some((corner) => hitTestShape(doc, shape, corner, 0));
+}
+
+function rectsIntersect(a: Bounds, b: Bounds): boolean {
+  return (
+    a.x <= b.x + b.width &&
+    a.x + a.width >= b.x &&
+    a.y <= b.y + b.height &&
+    a.y + a.height >= b.y
+  );
+}
+
+function localPolylines(shape: Shape): WorldPolyline[] {
+  switch (shape.type) {
+    case "rect": {
+      const b = shapeBounds(shape);
+      return [{
+        points: [
+          { x: b.x, y: b.y },
+          { x: b.x + b.width, y: b.y },
+          { x: b.x + b.width, y: b.y + b.height },
+          { x: b.x, y: b.y + b.height },
+        ],
+        closed: true,
+      }];
+    }
+    case "ellipse": {
+      const b = shapeBounds(shape);
+      const cx = b.x + b.width / 2;
+      const cy = b.y + b.height / 2;
+      const rx = b.width / 2;
+      const ry = b.height / 2;
+      return [{
+        points: Array.from({ length: 64 }, (_, i) => {
+          const angle = (i / 64) * Math.PI * 2;
+          return {
+            x: cx + Math.cos(angle) * rx,
+            y: cy + Math.sin(angle) * ry,
+          };
+        }),
+        closed: true,
+      }];
+    }
+    case "line":
+      return [{
+        points: [
+          { x: shape.x1, y: shape.y1 },
+          { x: shape.x2, y: shape.y2 },
+        ],
+        closed: false,
+      }];
+    case "path":
+      return [{ points: shape.points, closed: shape.closed }];
+    case "bezier":
+      return [{ points: flattenBezier(shape), closed: shape.closed }];
+    case "polygon":
+      return shape.polys.flat().map((points) => ({ points, closed: true }));
+  }
+}
+
+function expandBounds(bounds: Bounds, amount: number): Bounds {
+  return {
+    x: bounds.x - amount,
+    y: bounds.y - amount,
+    width: bounds.width + amount * 2,
+    height: bounds.height + amount * 2,
+  };
+}
+
+function pointInRect(point: Vec2, bounds: Bounds): boolean {
+  return (
+    point.x >= bounds.x &&
+    point.x <= bounds.x + bounds.width &&
+    point.y >= bounds.y &&
+    point.y <= bounds.y + bounds.height
+  );
+}
+
+/** Liang–Barsky segment/axis-aligned-rectangle intersection. */
+function segmentIntersectsRect(a: Vec2, b: Vec2, bounds: Bounds): boolean {
+  const dx = b.x - a.x;
+  const dy = b.y - a.y;
+  const p = [-dx, dx, -dy, dy];
+  const q = [
+    a.x - bounds.x,
+    bounds.x + bounds.width - a.x,
+    a.y - bounds.y,
+    bounds.y + bounds.height - a.y,
+  ];
+  let lo = 0;
+  let hi = 1;
+  for (let i = 0; i < 4; i++) {
+    if (p[i] === 0) {
+      if (q[i] < 0) return false;
+      continue;
+    }
+    const t = q[i] / p[i];
+    if (p[i] < 0) lo = Math.max(lo, t);
+    else hi = Math.min(hi, t);
+    if (lo > hi) return false;
+  }
+  return true;
 }

@@ -6,6 +6,7 @@ import {
   type Bounds,
   type Document,
   type Group,
+  type Matrix,
   type Shape,
   type Vec2,
 } from "../model/types";
@@ -69,6 +70,10 @@ interface HistoryState {
 export interface EditorState {
   doc: Document;
   selection: string[];
+  /** Transient world-space pivot for an ad-hoc multi-selection. */
+  selectionPivot: Vec2 | null;
+  /** Transient local-to-world frame for an ad-hoc multi-selection. */
+  selectionTransform: Matrix | null;
   tool: ToolId;
   viewport: Viewport;
   style: StyleDefaults;
@@ -93,6 +98,8 @@ export interface EditorState {
   setTool: (tool: ToolId) => void;
   setViewport: (vp: Viewport) => void;
   setSelection: (ids: string[]) => void;
+  setSelectionPivot: (pivot: Vec2 | null) => void;
+  setSelectionTransform: (transform: Matrix | null) => void;
   toggleSelection: (id: string) => void;
   clearSelection: () => void;
   /** Select every shape that is neither hidden nor locked. */
@@ -157,7 +164,15 @@ export interface EditorState {
   updateGroupStyle: (
     gid: string,
     patch: Partial<
-      Pick<Group, "opacity" | "blendMode" | "hidden" | "locked" | "transform">
+      Pick<
+        Group,
+        | "opacity"
+        | "blendMode"
+        | "hidden"
+        | "locked"
+        | "transform"
+        | "transformOrigin"
+      >
     >
   ) => void;
   setOrder: (order: string[]) => void;
@@ -180,6 +195,7 @@ export interface StyleStylableFields {
   opacity: number;
   blendMode: BlendMode | undefined;
   transform: Shape["transform"];
+  transformOrigin: Vec2 | null;
 }
 
 const HISTORY_LIMIT = 100;
@@ -365,6 +381,8 @@ export const useEditor = create<EditorState>((set, get) => {
   return {
     doc: createEmptyDocument(),
     selection: [],
+    selectionPivot: null,
+    selectionTransform: null,
     tool: "select",
     viewport: initialViewport,
     style: { fill: "#4f8cff", stroke: "#1b1b1b", strokeWidth: 2 },
@@ -386,19 +404,40 @@ export const useEditor = create<EditorState>((set, get) => {
         // Keep the selection for tools that operate on it; clear for drawing.
         selection:
           tool === "select" || tool === "node" ? get().selection : [],
+        selectionPivot:
+          tool === "select" || tool === "node" ? get().selectionPivot : null,
+        selectionTransform:
+          tool === "select" || tool === "node"
+            ? get().selectionTransform
+            : null,
         editNode: null,
       }),
     setViewport: (viewport) => set({ viewport }),
-    setSelection: (ids) => set({ selection: ids }),
+    setSelection: (ids) =>
+      set({
+        selection: ids,
+        selectionPivot: null,
+        selectionTransform: null,
+      }),
+    setSelectionPivot: (selectionPivot) => set({ selectionPivot }),
+    setSelectionTransform: (selectionTransform) => set({ selectionTransform }),
     toggleSelection: (id) => {
       const cur = get().selection;
       set({
         selection: cur.includes(id)
           ? cur.filter((s) => s !== id)
           : [...cur, id],
+        selectionPivot: null,
+        selectionTransform: null,
       });
     },
-    clearSelection: () => set({ selection: [], editNode: null }),
+    clearSelection: () =>
+      set({
+        selection: [],
+        selectionPivot: null,
+        selectionTransform: null,
+        editNode: null,
+      }),
     selectAll: () => {
       const { doc } = get();
       set({
@@ -406,6 +445,8 @@ export const useEditor = create<EditorState>((set, get) => {
           const s = doc.shapes[id];
           return s && !isShapeHidden(doc, s) && !isShapeLocked(doc, s);
         }),
+        selectionPivot: null,
+        selectionTransform: null,
       });
     },
     setEditNode: (node) => set({ editNode: node }),
@@ -461,7 +502,12 @@ export const useEditor = create<EditorState>((set, get) => {
             order: doc.order.filter((id) => id !== editNode.shapeId),
           })
         );
-        set({ selection: [], editNode: null });
+        set({
+          selection: [],
+          selectionPivot: null,
+          selectionTransform: null,
+          editNode: null,
+        });
         return;
       }
       transact({
@@ -479,6 +525,8 @@ export const useEditor = create<EditorState>((set, get) => {
         doc,
         gridSize: doc.settings.gridSize,
         selection: [],
+        selectionPivot: null,
+        selectionTransform: null,
         history: { past: [], future: [] },
         _pending: null,
         _dirty: false,
@@ -490,6 +538,8 @@ export const useEditor = create<EditorState>((set, get) => {
         doc,
         gridSize: doc.settings.gridSize,
         selection: [],
+        selectionPivot: null,
+        selectionTransform: null,
         history: { past: [], future: [] },
         _pending: null,
         _dirty: false,
@@ -503,7 +553,13 @@ export const useEditor = create<EditorState>((set, get) => {
         order: [...doc.order, shape.id],
       };
       transact(next);
-      if (select) set({ selection: [shape.id] });
+      if (select) {
+        set({
+          selection: [shape.id],
+          selectionPivot: null,
+          selectionTransform: null,
+        });
+      }
     },
 
     addShapes: (newShapes, select = true) => {
@@ -516,14 +572,26 @@ export const useEditor = create<EditorState>((set, get) => {
         order.push(s.id);
       }
       transact({ ...doc, shapes, order });
-      if (select) set({ selection: newShapes.map((s) => s.id) });
+      if (select) {
+        set({
+          selection: newShapes.map((s) => s.id),
+          selectionPivot: null,
+          selectionTransform: null,
+        });
+      }
     },
 
     updateShape: (shape, select = true) => {
       const { doc } = get();
       if (!doc.shapes[shape.id]) return;
       transact({ ...doc, shapes: { ...doc.shapes, [shape.id]: shape } });
-      if (select) set({ selection: [shape.id] });
+      if (select) {
+        set({
+          selection: [shape.id],
+          selectionPivot: null,
+          selectionTransform: null,
+        });
+      }
     },
 
     toggleNodeSmooth: (shapeId, index) => {
@@ -553,6 +621,8 @@ export const useEditor = create<EditorState>((set, get) => {
           ...updated.filter((s) => !del.has(s.id)).map((s) => s.id),
           ...created.map((s) => s.id),
         ],
+        selectionPivot: null,
+        selectionTransform: null,
       });
     },
 
@@ -568,7 +638,11 @@ export const useEditor = create<EditorState>((set, get) => {
           order: doc.order.filter((id) => !selection.includes(id)),
         })
       );
-      set({ selection: [] });
+      set({
+        selection: [],
+        selectionPivot: null,
+        selectionTransform: null,
+      });
     },
 
     copySelected: () => {
@@ -615,7 +689,11 @@ export const useEditor = create<EditorState>((set, get) => {
       }
       for (const g of pasted.groups) groups[g.id] = g;
       transact({ ...doc, shapes, order, groups });
-      set({ selection: pasted.shapes.map((s) => s.id) });
+      set({
+        selection: pasted.shapes.map((s) => s.id),
+        selectionPivot: null,
+        selectionTransform: null,
+      });
     },
 
     duplicateSelected: () => {
@@ -632,7 +710,11 @@ export const useEditor = create<EditorState>((set, get) => {
       }
       for (const g of dup.groups) groups[g.id] = g;
       transact({ ...doc, shapes, order, groups });
-      set({ selection: dup.shapes.map((s) => s.id) });
+      set({
+        selection: dup.shapes.map((s) => s.id),
+        selectionPivot: null,
+        selectionTransform: null,
+      });
     },
 
     updateSelectedStyle: (patch) => {
@@ -701,6 +783,7 @@ export const useEditor = create<EditorState>((set, get) => {
           name: "Group",
           parentId: [...parents][0],
           transform: [...IDENTITY],
+          transformOrigin: null,
         },
       };
       const shapes = { ...doc.shapes };
@@ -717,6 +800,7 @@ export const useEditor = create<EditorState>((set, get) => {
         .filter((id) => !sel.has(id)).length;
       const order = [...rest.slice(0, below), ...members, ...rest.slice(below)];
       transact({ ...doc, shapes, order, groups });
+      set({ selectionPivot: null, selectionTransform: null });
     },
 
     ungroupSelected: () => {
@@ -750,6 +834,7 @@ export const useEditor = create<EditorState>((set, get) => {
         delete groups[g.id];
       }
       transact({ ...doc, shapes, groups });
+      set({ selectionPivot: null, selectionTransform: null });
     },
 
     alignSelected: (type) => {
@@ -795,6 +880,7 @@ export const useEditor = create<EditorState>((set, get) => {
         }
       }
       transact({ ...doc, shapes });
+      set({ selectionPivot: null, selectionTransform: null });
     },
 
     distributeSelected: (axis) => {
@@ -830,6 +916,7 @@ export const useEditor = create<EditorState>((set, get) => {
         cursor += size(it.bounds) + gap;
       }
       transact({ ...doc, shapes });
+      set({ selectionPivot: null, selectionTransform: null });
     },
 
     setClosedSelected: (closed) => {
@@ -880,6 +967,7 @@ export const useEditor = create<EditorState>((set, get) => {
           opacity: s.opacity,
           blendMode: s.blendMode,
           transform: [...IDENTITY],
+          transformOrigin: null,
           groupId: null,
         };
         const keepFill = isAreal(s) && s.fill !== null;
@@ -893,6 +981,7 @@ export const useEditor = create<EditorState>((set, get) => {
             name: "Group",
             parentId: s.groupId ?? null,
             transform: [...IDENTITY],
+            transformOrigin: null,
           };
           shapes[id] = { ...s, stroke: null, groupId: gid };
           outline.groupId = gid;
@@ -911,7 +1000,11 @@ export const useEditor = create<EditorState>((set, get) => {
 
       if (changed) {
         transact(pruneGroups({ ...doc, shapes, order, groups }));
-        set({ selection: newSelection });
+        set({
+          selection: newSelection,
+          selectionPivot: null,
+          selectionTransform: null,
+        });
       }
     },
 
@@ -943,7 +1036,11 @@ export const useEditor = create<EditorState>((set, get) => {
       for (const id of selection) delete shapes[id];
       shapes[result.id] = result;
       transact(pruneGroups({ ...doc, shapes, order }));
-      set({ selection: [result.id] });
+      set({
+        selection: [result.id],
+        selectionPivot: null,
+        selectionTransform: null,
+      });
     },
 
     toggleHidden: (id) => {
@@ -955,7 +1052,11 @@ export const useEditor = create<EditorState>((set, get) => {
         shapes: { ...doc.shapes, [id]: { ...s, hidden: !s.hidden } },
       });
       if (!s.hidden) {
-        set({ selection: get().selection.filter((x) => x !== id) });
+        set({
+          selection: get().selection.filter((x) => x !== id),
+          selectionPivot: null,
+          selectionTransform: null,
+        });
       }
     },
 
@@ -968,7 +1069,11 @@ export const useEditor = create<EditorState>((set, get) => {
         shapes: { ...doc.shapes, [id]: { ...s, locked: !s.locked } },
       });
       if (!s.locked) {
-        set({ selection: get().selection.filter((x) => x !== id) });
+        set({
+          selection: get().selection.filter((x) => x !== id),
+          selectionPivot: null,
+          selectionTransform: null,
+        });
       }
     },
 
@@ -996,7 +1101,11 @@ export const useEditor = create<EditorState>((set, get) => {
       );
       if (patch.hidden === true || patch.locked === true) {
         const members = new Set(shapesInGroup(get().doc, gid));
-        set({ selection: get().selection.filter((id) => !members.has(id)) });
+        set({
+          selection: get().selection.filter((id) => !members.has(id)),
+          selectionPivot: null,
+          selectionTransform: null,
+        });
       }
     },
 
@@ -1035,6 +1144,8 @@ export const useEditor = create<EditorState>((set, get) => {
         doc: prev,
         history: { past, future: [clone(doc), ...history.future] },
         selection: get().selection.filter((id) => prev.shapes[id]),
+        selectionPivot: null,
+        selectionTransform: null,
       });
     },
 
@@ -1047,6 +1158,8 @@ export const useEditor = create<EditorState>((set, get) => {
         doc: next,
         history: { past: [...history.past, clone(doc)], future },
         selection: get().selection.filter((id) => next.shapes[id]),
+        selectionPivot: null,
+        selectionTransform: null,
       });
     },
   };
@@ -1060,6 +1173,7 @@ export function styleFromDefaults(style: StyleDefaults) {
     strokeWidth: style.strokeWidth,
     opacity: 1,
     transform: [...IDENTITY] as Shape["transform"],
+    transformOrigin: null,
     groupId: null,
   };
 }

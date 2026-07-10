@@ -38,6 +38,12 @@ const transformOr = (v: unknown, fallback: Matrix): Matrix =>
   Array.isArray(v) && v.length === 6 && v.every(Number.isFinite)
     ? [...v] as Matrix
     : [...fallback];
+const pointOrNull = (v: unknown, fallback: Vec2 | null): Vec2 | null => {
+  if (v === null) return null;
+  return v && Number.isFinite((v as Vec2).x) && Number.isFinite((v as Vec2).y)
+    ? { x: (v as Vec2).x, y: (v as Vec2).y }
+    : fallback;
+};
 
 function validPoints(v: unknown): Vec2[] | null {
   if (!Array.isArray(v)) return null;
@@ -92,6 +98,7 @@ function buildCreated(spec: Record<string, unknown>): Shape | null {
     opacity: clamp01(num(spec.opacity, 1)),
     blendMode: blendOr(spec.blendMode, undefined),
     transform: transformOr(spec.transform, [1, 0, 0, 1, 0, 0]),
+    transformOrigin: pointOrNull(spec.transformOrigin, null),
     groupId: null,
   };
   switch (type) {
@@ -136,6 +143,10 @@ function reconcile(existing: Shape, edited: Record<string, unknown>): Shape {
     opacity: clamp01(num(edited.opacity, existing.opacity)),
     blendMode: blendOr(edited.blendMode, existing.blendMode),
     transform: transformOr(edited.transform, existing.transform),
+    transformOrigin: pointOrNull(
+      edited.transformOrigin,
+      existing.transformOrigin
+    ),
     hidden:
       typeof edited.hidden === "boolean" ? edited.hidden : existing.hidden,
     locked:

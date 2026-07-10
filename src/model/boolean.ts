@@ -140,6 +140,7 @@ export function booleanShapes(shapes: Shape[], op: BoolOp): PolygonShape | null 
     opacity: base.opacity,
     blendMode: base.blendMode,
     transform: [...IDENTITY],
+    transformOrigin: null,
     groupId: null,
   };
 }
