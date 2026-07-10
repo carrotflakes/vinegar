@@ -1,14 +1,22 @@
-import type { Document, Shape, ShapeType } from "../model/types";
+import { pruneGroups } from "../model/groups";
+import {
+  BLEND_MODES,
+  type BlendMode,
+  type Document,
+  type Group,
+  type Shape,
+  type ShapeType,
+} from "../model/types";
 
 /** On-disk file wrapper for a Vinegar document. */
 export interface VinegarFile {
   app: "vinegar";
-  version: 1;
+  version: 2;
   document: Document;
 }
 
 export function serializeDocument(doc: Document): string {
-  const file: VinegarFile = { app: "vinegar", version: 1, document: doc };
+  const file: VinegarFile = { app: "vinegar", version: 2, document: doc };
   return JSON.stringify(file, null, 2);
 }
 
@@ -51,9 +59,31 @@ export function parseDocument(text: string): Document {
     if (s && typeof s === "object" && SHAPE_TYPES.includes((s as Shape).type)) {
       // Default fields that may be absent in files from older versions.
       const shape = s as Shape;
-      shapes[id] = { ...shape, rotation: shape.rotation ?? 0 };
+      shapes[id] = {
+        ...shape,
+        rotation: shape.rotation ?? 0,
+        blendMode: validBlend(shape.blendMode),
+      };
     }
   }
   const order = doc.order.filter((id) => shapes[id]);
-  return { shapes, order };
+
+  // Keep only well-formed group entities; prune fixes dangling references.
+  const groups: Record<string, Group> = {};
+  for (const [gid, g] of Object.entries(doc.groups ?? {})) {
+    if (!g || typeof g !== "object" || (g as Group).id !== gid) continue;
+    const group = g as Group;
+    groups[gid] = {
+      ...group,
+      name: typeof group.name === "string" ? group.name : "Group",
+      blendMode: validBlend(group.blendMode),
+    };
+  }
+  return pruneGroups({ shapes, order, groups });
+}
+
+function validBlend(v: unknown): BlendMode | undefined {
+  return v && v !== "normal" && BLEND_MODES.includes(v as BlendMode)
+    ? (v as BlendMode)
+    : undefined;
 }

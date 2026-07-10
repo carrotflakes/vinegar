@@ -277,6 +277,15 @@
   font-size: 12px;
 }
 
+.blend-select {
+  padding: 4px 6px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font-size: 12px;
+  background: #fff;
+  color: var(--text);
+}
+
 .readout {
   text-align: right;
   color: var(--muted);
@@ -539,10 +548,6 @@
   color: var(--muted);
 }
 
-.layer-slot {
-  position: relative;
-}
-
 .layer-row {
   display: flex;
   align-items: center;
@@ -608,25 +613,27 @@
   min-width: 0;
 }
 
-.layer-group {
-  font-size: 11px;
+.layer-row.group-header .layer-name {
+  font-weight: 600;
+}
+
+.layer-chevron {
+  width: 16px;
+  font-size: 10px;
   color: var(--muted);
 }
 
-.drop-line {
-  position: absolute;
-  left: 6px;
-  right: 6px;
-  top: -1px;
-  height: 2px;
-  background: var(--accent);
-  border-radius: 2px;
-  z-index: 2;
+.layer-count {
+  font-size: 11px;
+  color: var(--muted);
+  padding-right: 4px;
 }
 
-.drop-line-end {
-  top: auto;
-  bottom: -1px;
+.drop-line-flow {
+  height: 2px;
+  margin: -1px 6px;
+  background: var(--accent);
+  border-radius: 2px;
 }
 
 /* ---- script modal ----------------------------------------------------- */

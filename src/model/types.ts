@@ -15,6 +15,31 @@ export type ShapeType =
   | "bezier"
   | "polygon";
 
+/**
+ * Blend modes shared verbatim by Canvas 2D (`globalCompositeOperation`) and
+ * CSS/SVG (`mix-blend-mode`). "normal" (or an absent field) means source-over.
+ */
+export const BLEND_MODES = [
+  "normal",
+  "multiply",
+  "screen",
+  "overlay",
+  "darken",
+  "lighten",
+  "color-dodge",
+  "color-burn",
+  "hard-light",
+  "soft-light",
+  "difference",
+  "exclusion",
+  "hue",
+  "saturation",
+  "color",
+  "luminosity",
+] as const;
+
+export type BlendMode = (typeof BLEND_MODES)[number];
+
 /** Common visual + identity fields shared by every shape. */
 export interface BaseShape {
   id: string;
@@ -26,9 +51,11 @@ export interface BaseShape {
   strokeWidth: number;
   /** 0..1 */
   opacity: number;
+  /** How the shape composites onto what's below. Absent = "normal". */
+  blendMode?: BlendMode;
   /** Rotation in radians about the shape's local bounding-box center. */
   rotation: number;
-  /** Shapes sharing a non-null groupId are selected and edited together. */
+  /** Immediate enclosing group (see `Group`); `null`/absent = ungrouped. */
   groupId?: string | null;
   /** Hidden shapes are not rendered and cannot be picked on the canvas. */
   hidden?: boolean;
@@ -103,6 +130,27 @@ export function polygonRings(shape: PolygonShape): Vec2[][] {
   return shape.polys.flat();
 }
 
+/**
+ * A group is a real document entity: it can nest (via `parentId`) and carries
+ * its own visual properties. Opacity/blend on a group composite the whole
+ * group as one layer. Membership lives on shapes (`shape.groupId` = immediate
+ * group); a group's block is kept contiguous in `order`.
+ */
+export interface Group {
+  id: string;
+  name: string;
+  /** Enclosing group; `null`/absent = top level. */
+  parentId?: string | null;
+  /** 0..1 group-layer opacity. Absent = 1. */
+  opacity?: number;
+  /** How the group layer composites onto what's below. Absent = "normal". */
+  blendMode?: BlendMode;
+  /** Hides every descendant. */
+  hidden?: boolean;
+  /** Locks every descendant. */
+  locked?: boolean;
+}
+
 export type Shape =
   | RectShape
   | EllipseShape
@@ -123,10 +171,11 @@ export interface Bounds {
 export interface Document {
   shapes: Record<string, Shape>;
   order: string[];
+  groups: Record<string, Group>;
 }
 
 export function createEmptyDocument(): Document {
-  return { shapes: {}, order: [] };
+  return { shapes: {}, order: [], groups: {} };
 }
 
 let idCounter = 0;

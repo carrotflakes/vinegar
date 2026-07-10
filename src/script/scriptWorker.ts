@@ -15,6 +15,7 @@ interface Style {
   stroke: string | null;
   strokeWidth: number;
   opacity: number;
+  blendMode?: string;
 }
 
 interface DocSnapshot {
@@ -165,6 +166,9 @@ function run(code: string, snap: DocSnapshot): Changeset {
     },
     opacity: (o: number) => {
       style.opacity = o;
+    },
+    blendMode: (m: string) => {
+      style.blendMode = m;
     },
 
     // --- create shapes ---

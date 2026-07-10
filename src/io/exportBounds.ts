@@ -1,17 +1,18 @@
 import { shapeBounds, unionBounds } from "../model/bounds";
+import { isShapeHidden } from "../model/groups";
 import type { Bounds, Document, Shape } from "../model/types";
 
 /**
- * Tight content bounds of a document, expanded to include stroke extents
- * plus an extra margin. Returns null when the document is empty.
+ * Tight content bounds of the document's visible shapes, expanded to include
+ * stroke extents plus an extra margin. Returns null when nothing is visible.
  */
 export function contentBounds(
   doc: Document,
   margin = 8
 ): Bounds | null {
-  const shapes = doc.order
+  const shapes = (doc.order
     .map((id) => doc.shapes[id])
-    .filter(Boolean) as Shape[];
+    .filter(Boolean) as Shape[]).filter((s) => !isShapeHidden(doc, s));
   if (!unionBounds(shapes)) return null;
 
   // Expand each shape's box by half its stroke width, then add the margin.

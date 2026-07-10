@@ -1,3 +1,4 @@
+import { buildRenderTree, type RenderNode } from "../canvas/render";
 import { bezierSegments } from "../model/bezier";
 import { shapeBounds, shapeCenter } from "../model/bounds";
 import type { BezierShape, Document, Shape } from "../model/types";
@@ -21,6 +22,9 @@ function commonAttrs(shape: Shape): string {
     parts.push(`stroke-linejoin="round" stroke-linecap="round"`);
   }
   if (shape.opacity < 1) parts.push(`opacity="${num(shape.opacity)}"`);
+  if (shape.blendMode && shape.blendMode !== "normal") {
+    parts.push(`style="mix-blend-mode:${shape.blendMode}"`);
+  }
   if (shape.rotation) {
     const c = shapeCenter(shape);
     const deg = (shape.rotation * 180) / Math.PI;
@@ -84,23 +88,59 @@ function bezierPathData(shape: BezierShape): string {
   return d;
 }
 
+/**
+ * Serialize a render node. Groups become `<g>`; ones that composite as a
+ * layer (opacity/blend) get `isolation:isolate` so their children blend
+ * within the group, matching the canvas.
+ */
+function nodeToSvg(node: RenderNode, indent: string): string[] {
+  if (node.kind === "shape") {
+    return node.shape.hidden ? [] : [indent + shapeToSvg(node.shape)];
+  }
+  const g = node.group;
+  if (g.hidden) return [];
+  const attrs: string[] = [];
+  const alpha = g.opacity ?? 1;
+  if (alpha < 1) attrs.push(`opacity="${num(alpha)}"`);
+  if (g.blendMode && g.blendMode !== "normal") {
+    attrs.push(`style="mix-blend-mode:${g.blendMode};isolation:isolate"`);
+  } else if (alpha < 1) {
+    attrs.push(`style="isolation:isolate"`);
+  }
+  return [
+    indent + `<g${attrs.length ? " " + attrs.join(" ") : ""}>`,
+    ...node.children.flatMap((c) => nodeToSvg(c, indent + "  ")),
+    indent + `</g>`,
+  ];
+}
+
+/** Whether any visible shape or group in the tree uses a blend mode. */
+function usesBlend(nodes: RenderNode[]): boolean {
+  return nodes.some((n) =>
+    n.kind === "shape"
+      ? !!n.shape.blendMode && n.shape.blendMode !== "normal"
+      : (!!n.group.blendMode && n.group.blendMode !== "normal") ||
+        usesBlend(n.children)
+  );
+}
+
 /** Serialize a document's shapes to a standalone SVG string. */
 export function exportSvg(doc: Document, margin = 8): string {
   const bounds = contentBounds(doc, margin);
   if (!bounds) throw new Error("Nothing to export.");
 
-  const body = doc.order
-    .map((id) => doc.shapes[id])
-    .filter(Boolean)
-    .map((s) => "  " + shapeToSvg(s as Shape))
-    .join("\n");
+  const tree = buildRenderTree(doc);
+  const body = tree.flatMap((n) => nodeToSvg(n, "  ")).join("\n");
+  // Blend modes should composite against the drawing only, not the page the
+  // SVG happens to be embedded in.
+  const isolate = usesBlend(tree) ? ` style="isolation:isolate"` : "";
 
   return [
     `<svg xmlns="http://www.w3.org/2000/svg" width="${num(
       bounds.width
     )}" height="${num(bounds.height)}" viewBox="${num(bounds.x)} ${num(
       bounds.y
-    )} ${num(bounds.width)} ${num(bounds.height)}">`,
+    )} ${num(bounds.width)} ${num(bounds.height)}"${isolate}>`,
     body,
     `</svg>`,
     "",

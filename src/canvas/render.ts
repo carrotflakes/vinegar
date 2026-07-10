@@ -1,7 +1,81 @@
 import { bezierSegments } from "../model/bezier";
 import { shapeBounds, shapeCenter } from "../model/bounds";
-import type { Document, Shape } from "../model/types";
+import type { Document, Group, Shape } from "../model/types";
 import { worldToScreen, type Viewport } from "../model/viewport";
+
+// ---- render tree -----------------------------------------------------------
+// Shapes stay in world coordinates, but groups need to composite as a unit
+// when they carry opacity or a blend mode. Since a group's members form a
+// contiguous block in `order`, the flat list folds into a tree.
+
+export type RenderNode =
+  | { kind: "shape"; shape: Shape }
+  | { kind: "group"; group: Group; children: RenderNode[] };
+
+export function buildRenderTree(doc: Document): RenderNode[] {
+  const roots: RenderNode[] = [];
+  const nodes = new Map<string, Extract<RenderNode, { kind: "group" }>>();
+  const nodeFor = (
+    gid: string,
+    visiting: Set<string>
+  ): Extract<RenderNode, { kind: "group" }> | null => {
+    const g = doc.groups[gid];
+    if (!g || visiting.has(gid)) return null;
+    let n = nodes.get(gid);
+    if (!n) {
+      n = { kind: "group", group: g, children: [] };
+      nodes.set(gid, n);
+      visiting.add(gid);
+      const parent = g.parentId ? nodeFor(g.parentId, visiting) : null;
+      (parent ? parent.children : roots).push(n);
+    }
+    return n;
+  };
+  for (const id of doc.order) {
+    const s = doc.shapes[id];
+    if (!s) continue;
+    const parent = s.groupId ? nodeFor(s.groupId, new Set()) : null;
+    (parent ? parent.children : roots).push({ kind: "shape", shape: s });
+  }
+  return roots;
+}
+
+/**
+ * Paint a render node. Groups with opacity/blend are drawn into an offscreen
+ * layer matching the target canvas, then composited in one draw.
+ */
+export function paintNode(
+  ctx: CanvasRenderingContext2D,
+  node: RenderNode,
+  skipShapeId?: string
+): void {
+  if (node.kind === "shape") {
+    if (node.shape.hidden || node.shape.id === skipShapeId) return;
+    paintShape(ctx, node.shape);
+    return;
+  }
+  const g = node.group;
+  if (g.hidden) return;
+  const alpha = g.opacity ?? 1;
+  const blend = g.blendMode && g.blendMode !== "normal" ? g.blendMode : null;
+  if (alpha >= 1 && !blend) {
+    for (const c of node.children) paintNode(ctx, c, skipShapeId);
+    return;
+  }
+  const layer = document.createElement("canvas");
+  layer.width = ctx.canvas.width;
+  layer.height = ctx.canvas.height;
+  const lctx = layer.getContext("2d");
+  if (!lctx) return;
+  lctx.setTransform(ctx.getTransform());
+  for (const c of node.children) paintNode(lctx, c, skipShapeId);
+  ctx.save();
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.globalAlpha = Math.max(0, Math.min(1, alpha));
+  if (blend) ctx.globalCompositeOperation = blend;
+  ctx.drawImage(layer, 0, 0);
+  ctx.restore();
+}
 
 /** Build the geometry of a shape onto the current canvas path. */
 function tracePath(ctx: CanvasRenderingContext2D, shape: Shape): void {
@@ -70,6 +144,9 @@ function tracePath(ctx: CanvasRenderingContext2D, shape: Shape): void {
 export function paintShape(ctx: CanvasRenderingContext2D, shape: Shape): void {
   ctx.save();
   ctx.globalAlpha = shape.opacity;
+  if (shape.blendMode && shape.blendMode !== "normal") {
+    ctx.globalCompositeOperation = shape.blendMode;
+  }
   if (shape.rotation) {
     const c = shapeCenter(shape);
     ctx.translate(c.x, c.y);
@@ -130,12 +207,10 @@ export function renderScene(
   ctx.translate(viewport.offset.x, viewport.offset.y);
   ctx.scale(viewport.scale, viewport.scale);
 
-  for (const id of doc.order) {
-    // A preview that shares a document shape's id supersedes it (the pen
-    // extending an existing path); skip the stale copy underneath.
-    if (opts.preview && id === opts.preview.id) continue;
-    const shape = doc.shapes[id];
-    if (shape && !shape.hidden) paintShape(ctx, shape);
+  // A preview that shares a document shape's id supersedes it (the pen
+  // extending an existing path); skip the stale copy underneath.
+  for (const node of buildRenderTree(doc)) {
+    paintNode(ctx, node, opts.preview?.id);
   }
   if (opts.preview) paintShape(ctx, opts.preview);
 

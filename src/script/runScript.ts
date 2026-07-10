@@ -1,4 +1,10 @@
-import { makeId, type Shape, type Vec2 } from "../model/types";
+import {
+  BLEND_MODES,
+  makeId,
+  type BlendMode,
+  type Shape,
+  type Vec2,
+} from "../model/types";
 
 export interface ScriptSnapshot {
   shapes: Shape[];
@@ -21,6 +27,12 @@ const num = (v: unknown, fallback = 0) => {
 };
 const colorOr = (v: unknown, fallback: string | null) =>
   v === null ? null : typeof v === "string" ? v : fallback;
+const blendOr = (v: unknown, fallback: BlendMode | undefined) => {
+  if (v === undefined) return fallback;
+  return v !== "normal" && BLEND_MODES.includes(v as BlendMode)
+    ? (v as BlendMode)
+    : undefined;
+};
 
 function validPoints(v: unknown): Vec2[] | null {
   if (!Array.isArray(v)) return null;
@@ -73,6 +85,7 @@ function buildCreated(spec: Record<string, unknown>): Shape | null {
     stroke: colorOr(spec.stroke, null),
     strokeWidth: Math.max(0, num(spec.strokeWidth, 1)),
     opacity: clamp01(num(spec.opacity, 1)),
+    blendMode: blendOr(spec.blendMode, undefined),
     rotation: num(spec.rotation, 0),
     groupId: null,
   };
@@ -116,6 +129,7 @@ function reconcile(existing: Shape, edited: Record<string, unknown>): Shape {
     stroke: colorOr(edited.stroke, existing.stroke),
     strokeWidth: Math.max(0, num(edited.strokeWidth, existing.strokeWidth)),
     opacity: clamp01(num(edited.opacity, existing.opacity)),
+    blendMode: blendOr(edited.blendMode, existing.blendMode),
     rotation: num(edited.rotation, existing.rotation),
     hidden:
       typeof edited.hidden === "boolean" ? edited.hidden : existing.hidden,

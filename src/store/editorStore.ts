@@ -2,10 +2,19 @@ import { create } from "zustand";
 import {
   createEmptyDocument,
   makeId,
+  type BlendMode,
   type Bounds,
   type Document,
+  type Group,
   type Shape,
 } from "../model/types";
+import {
+  groupChain,
+  pruneGroups,
+  rootGroupId,
+  selectionUnits,
+  shapesInGroup,
+} from "../model/groups";
 import { toggleAnchorSmooth } from "../model/bezier";
 import { booleanShapes, isAreal, type BoolOp } from "../model/boolean";
 import { shapeBounds, unionWorldBounds, worldShapeBounds } from "../model/bounds";
@@ -95,6 +104,7 @@ export interface EditorState {
 
   // clipboard --------------------------------------------------------------
   clipboard: Shape[];
+  clipboardGroups: Group[];
   copySelected: () => void;
   cutSelected: () => void;
   paste: () => void;
@@ -130,6 +140,12 @@ export interface EditorState {
   toggleHidden: (id: string) => void;
   toggleLocked: (id: string) => void;
   renameShape: (id: string, name: string) => void;
+  renameGroup: (gid: string, name: string) => void;
+  /** Edit a group entity's visual props (opacity/blend/hidden/locked). */
+  updateGroupStyle: (
+    gid: string,
+    patch: Partial<Pick<Group, "opacity" | "blendMode" | "hidden" | "locked">>
+  ) => void;
   setOrder: (order: string[]) => void;
 
   // interaction transactions (for drags) ----------------------------------
@@ -148,6 +164,7 @@ export interface StyleStylableFields {
   stroke: string | null;
   strokeWidth: number;
   opacity: number;
+  blendMode: BlendMode | undefined;
   rotation: number;
 }
 
@@ -182,17 +199,18 @@ interface AlignItem {
   bounds: Bounds;
 }
 
-/** Group the selection into alignment items (groups move as one unit). */
+/** Group the selection into alignment items (root groups move as one unit). */
 function selectionItems(doc: Document, selection: string[]): AlignItem[] {
   const groups = new Map<string, string[]>();
   const items: AlignItem[] = [];
   for (const id of selection) {
     const s = doc.shapes[id];
     if (!s) continue;
-    if (s.groupId) {
-      const arr = groups.get(s.groupId) ?? [];
+    const root = rootGroupId(doc, s.groupId);
+    if (root) {
+      const arr = groups.get(root) ?? [];
       arr.push(id);
-      groups.set(s.groupId, arr);
+      groups.set(root, arr);
     } else {
       items.push({ ids: [id], bounds: worldShapeBounds(s) });
     }
@@ -205,24 +223,61 @@ function selectionItems(doc: Document, selection: string[]): AlignItem[] {
 }
 
 /**
- * Deep-clone shapes for paste/duplicate: assign fresh ids, remap group ids so
- * pasted groups stay grouped (and independent of the source), and offset them.
+ * Snapshot a selection for copy/duplicate: cloned shapes in document order,
+ * plus the groups fully covered by the selection so structure survives the
+ * round-trip. Group references that point outside the set are cleared.
  */
-function cloneForPaste(shapes: Shape[], offset: number): Shape[] {
+function collectClipboard(
+  doc: Document,
+  selection: string[]
+): { shapes: Shape[]; groups: Group[] } {
+  const sel = new Set(selection);
+  const shapes = doc.order
+    .filter((id) => sel.has(id))
+    .map((id) => structuredClone(doc.shapes[id]));
+  const chains = new Set(shapes.flatMap((s) => groupChain(doc, s.groupId)));
+  const keep = new Set(
+    [...chains].filter((gid) =>
+      shapesInGroup(doc, gid).every((id) => sel.has(id))
+    )
+  );
+  const groups = [...keep].map((gid) => {
+    const g = doc.groups[gid];
+    return {
+      ...g,
+      parentId: g.parentId && keep.has(g.parentId) ? g.parentId : null,
+    };
+  });
+  for (const s of shapes) {
+    if (s.groupId && !keep.has(s.groupId)) s.groupId = null;
+  }
+  return { shapes, groups };
+}
+
+/**
+ * Deep-clone a clipboard payload for paste/duplicate: fresh shape and group
+ * ids (remapped consistently) and an offset so the copy doesn't sit exactly
+ * on the source.
+ */
+function cloneForPaste(
+  shapes: Shape[],
+  groups: Group[],
+  offset: number
+): { shapes: Shape[]; groups: Group[] } {
   const groupMap = new Map<string, string>();
-  return shapes.map((s) => {
+  for (const g of groups) groupMap.set(g.id, makeId("group"));
+  const newGroups = groups.map((g) => ({
+    ...g,
+    id: groupMap.get(g.id)!,
+    parentId: g.parentId ? groupMap.get(g.parentId) ?? null : null,
+  }));
+  const newShapes = shapes.map((s) => {
     const copy = structuredClone(s);
     copy.id = makeId(copy.type);
-    if (s.groupId) {
-      let gid = groupMap.get(s.groupId);
-      if (!gid) {
-        gid = makeId("group");
-        groupMap.set(s.groupId, gid);
-      }
-      copy.groupId = gid;
-    }
+    copy.groupId = s.groupId ? groupMap.get(s.groupId) ?? null : null;
     return translateShape(copy, offset, offset);
   });
+  return { shapes: newShapes, groups: newGroups };
 }
 
 function clone(doc: Document): Document {
@@ -230,6 +285,9 @@ function clone(doc: Document): Document {
     order: [...doc.order],
     shapes: Object.fromEntries(
       Object.entries(doc.shapes).map(([k, v]) => [k, { ...v }])
+    ),
+    groups: Object.fromEntries(
+      Object.entries(doc.groups).map(([k, v]) => [k, { ...v }])
     ),
   };
 }
@@ -279,6 +337,7 @@ export const useEditor = create<EditorState>((set, get) => {
     recentColors: loadColorList(RECENT_COLORS_KEY, RECENT_COLORS_MAX),
     savedSwatches: loadColorList(SAVED_SWATCHES_KEY),
     clipboard: [],
+    clipboardGroups: [],
     _pending: null,
     _dirty: false,
 
@@ -341,10 +400,13 @@ export const useEditor = create<EditorState>((set, get) => {
         // Too few anchors left to form a curve — remove the whole shape.
         const shapes = { ...doc.shapes };
         delete shapes[editNode.shapeId];
-        transact({
-          shapes,
-          order: doc.order.filter((id) => id !== editNode.shapeId),
-        });
+        transact(
+          pruneGroups({
+            ...doc,
+            shapes,
+            order: doc.order.filter((id) => id !== editNode.shapeId),
+          })
+        );
         set({ selection: [], editNode: null });
         return;
       }
@@ -378,6 +440,7 @@ export const useEditor = create<EditorState>((set, get) => {
     addShape: (shape, select = true) => {
       const { doc } = get();
       const next: Document = {
+        ...doc,
         shapes: { ...doc.shapes, [shape.id]: shape },
         order: [...doc.order, shape.id],
       };
@@ -394,7 +457,7 @@ export const useEditor = create<EditorState>((set, get) => {
         shapes[s.id] = s;
         order.push(s.id);
       }
-      transact({ shapes, order });
+      transact({ ...doc, shapes, order });
       if (select) set({ selection: newShapes.map((s) => s.id) });
     },
 
@@ -426,7 +489,7 @@ export const useEditor = create<EditorState>((set, get) => {
         ...doc.order.filter((id) => !del.has(id)),
         ...created.map((s) => s.id),
       ];
-      transact({ shapes, order });
+      transact(pruneGroups({ ...doc, shapes, order }));
       set({
         selection: [
           ...updated.filter((s) => !del.has(s.id)).map((s) => s.id),
@@ -440,22 +503,20 @@ export const useEditor = create<EditorState>((set, get) => {
       if (selection.length === 0) return;
       const shapes = { ...doc.shapes };
       for (const id of selection) delete shapes[id];
-      const next: Document = {
-        shapes,
-        order: doc.order.filter((id) => !selection.includes(id)),
-      };
-      transact(next);
+      transact(
+        pruneGroups({
+          ...doc,
+          shapes,
+          order: doc.order.filter((id) => !selection.includes(id)),
+        })
+      );
       set({ selection: [] });
     },
 
     copySelected: () => {
       const { doc, selection } = get();
-      const sel = new Set(selection);
-      // Preserve document stacking order in the clipboard.
-      const shapes = doc.order
-        .filter((id) => sel.has(id))
-        .map((id) => structuredClone(doc.shapes[id]));
-      set({ clipboard: shapes });
+      const { shapes, groups } = collectClipboard(doc, selection);
+      set({ clipboard: shapes, clipboardGroups: groups });
     },
 
     cutSelected: () => {
@@ -464,35 +525,36 @@ export const useEditor = create<EditorState>((set, get) => {
     },
 
     paste: () => {
-      const { clipboard, doc } = get();
+      const { clipboard, clipboardGroups, doc } = get();
       if (clipboard.length === 0) return;
-      const pasted = cloneForPaste(clipboard, PASTE_OFFSET);
+      const pasted = cloneForPaste(clipboard, clipboardGroups, PASTE_OFFSET);
       const shapes = { ...doc.shapes };
       const order = [...doc.order];
-      for (const s of pasted) {
+      const groups = { ...doc.groups };
+      for (const s of pasted.shapes) {
         shapes[s.id] = s;
         order.push(s.id);
       }
-      transact({ shapes, order });
-      set({ selection: pasted.map((s) => s.id) });
+      for (const g of pasted.groups) groups[g.id] = g;
+      transact({ shapes, order, groups });
+      set({ selection: pasted.shapes.map((s) => s.id) });
     },
 
     duplicateSelected: () => {
       const { doc, selection } = get();
       if (selection.length === 0) return;
-      const sel = new Set(selection);
-      const src = doc.order
-        .filter((id) => sel.has(id))
-        .map((id) => doc.shapes[id]);
-      const dup = cloneForPaste(src, PASTE_OFFSET);
+      const src = collectClipboard(doc, selection);
+      const dup = cloneForPaste(src.shapes, src.groups, PASTE_OFFSET);
       const shapes = { ...doc.shapes };
       const order = [...doc.order];
-      for (const s of dup) {
+      const groups = { ...doc.groups };
+      for (const s of dup.shapes) {
         shapes[s.id] = s;
         order.push(s.id);
       }
-      transact({ shapes, order });
-      set({ selection: dup.map((s) => s.id) });
+      for (const g of dup.groups) groups[g.id] = g;
+      transact({ shapes, order, groups });
+      set({ selection: dup.shapes.map((s) => s.id) });
     },
 
     updateSelectedStyle: (patch) => {
@@ -544,26 +606,59 @@ export const useEditor = create<EditorState>((set, get) => {
 
     groupSelected: () => {
       const { doc, selection } = get();
-      if (selection.length < 2) return;
+      const units = selectionUnits(doc, selection);
+      if (units.groups.length + units.shapes.length < 2) return;
+      // All units must share one parent container so the new group nests
+      // cleanly (and blocks stay contiguous).
+      const parents = new Set<string | null>([
+        ...units.groups.map((g) => g.parentId ?? null),
+        ...units.shapes.map((s) => s.groupId ?? null),
+      ]);
+      if (parents.size !== 1) return;
       const gid = makeId("group");
+      const groups: Record<string, Group> = {
+        ...doc.groups,
+        [gid]: { id: gid, name: "Group", parentId: [...parents][0] },
+      };
       const shapes = { ...doc.shapes };
-      for (const id of selection) {
-        if (shapes[id]) shapes[id] = { ...shapes[id], groupId: gid };
-      }
-      transact({ ...doc, shapes });
+      for (const g of units.groups) groups[g.id] = { ...g, parentId: gid };
+      for (const s of units.shapes) shapes[s.id] = { ...s, groupId: gid };
+      // Make the members contiguous in z-order, keeping the front-most member's
+      // position, so the group reads as one block in the layers panel.
+      const sel = new Set(selection);
+      const members = doc.order.filter((id) => sel.has(id));
+      const frontIdx = doc.order.indexOf(members[members.length - 1]);
+      const rest = doc.order.filter((id) => !sel.has(id));
+      const below = doc.order
+        .slice(0, frontIdx)
+        .filter((id) => !sel.has(id)).length;
+      const order = [...rest.slice(0, below), ...members, ...rest.slice(below)];
+      transact({ shapes, order, groups });
     },
 
     ungroupSelected: () => {
       const { doc, selection } = get();
+      // Dissolve one level: each fully-selected top group hands its children
+      // (shapes and subgroups) to its own parent.
+      const units = selectionUnits(doc, selection).groups;
+      if (units.length === 0) return;
+      const groups = { ...doc.groups };
       const shapes = { ...doc.shapes };
-      let changed = false;
-      for (const id of selection) {
-        if (shapes[id]?.groupId) {
-          shapes[id] = { ...shapes[id], groupId: null };
-          changed = true;
+      for (const g of units) {
+        for (const [id, other] of Object.entries(groups)) {
+          if (other.parentId === g.id) {
+            groups[id] = { ...other, parentId: g.parentId ?? null };
+          }
         }
+        for (const id of doc.order) {
+          const s = shapes[id];
+          if (s?.groupId === g.id) {
+            shapes[id] = { ...s, groupId: g.parentId ?? null };
+          }
+        }
+        delete groups[g.id];
       }
-      if (changed) transact({ ...doc, shapes });
+      transact({ ...doc, shapes, groups });
     },
 
     alignSelected: (type) => {
@@ -663,6 +758,7 @@ export const useEditor = create<EditorState>((set, get) => {
     outlineStrokeSelected: () => {
       const { doc, selection } = get();
       const shapes = { ...doc.shapes };
+      const groups = { ...doc.groups };
       let order = [...doc.order];
       const newSelection: string[] = [];
       let changed = false;
@@ -687,14 +783,17 @@ export const useEditor = create<EditorState>((set, get) => {
           stroke: null,
           strokeWidth: 0,
           opacity: s.opacity,
+          blendMode: s.blendMode,
           rotation: 0,
           groupId: null,
         };
         const keepFill = isAreal(s) && s.fill !== null;
         const idx = order.indexOf(id);
         if (keepFill) {
-          // Keep the original as a fill-only object; group the outline above it.
+          // Keep the original as a fill-only object; group the outline above
+          // it, nested wherever the original lived.
           const gid = makeId("group");
+          groups[gid] = { id: gid, name: "Group", parentId: s.groupId ?? null };
           shapes[id] = { ...s, stroke: null, groupId: gid };
           outline.groupId = gid;
           shapes[outline.id] = outline;
@@ -702,6 +801,7 @@ export const useEditor = create<EditorState>((set, get) => {
           newSelection.push(id, outline.id);
         } else {
           delete shapes[id];
+          outline.groupId = s.groupId ?? null;
           shapes[outline.id] = outline;
           order.splice(idx, 1, outline.id);
           newSelection.push(outline.id);
@@ -710,7 +810,7 @@ export const useEditor = create<EditorState>((set, get) => {
       }
 
       if (changed) {
-        transact({ shapes, order });
+        transact(pruneGroups({ shapes, order, groups }));
         set({ selection: newSelection });
       }
     },
@@ -736,7 +836,7 @@ export const useEditor = create<EditorState>((set, get) => {
       const shapes = { ...doc.shapes };
       for (const id of selection) delete shapes[id];
       shapes[result.id] = result;
-      transact({ shapes, order });
+      transact(pruneGroups({ ...doc, shapes, order }));
       set({ selection: [result.id] });
     },
 
@@ -771,6 +871,27 @@ export const useEditor = create<EditorState>((set, get) => {
       const s = doc.shapes[id];
       if (!s) return;
       transact({ ...doc, shapes: { ...doc.shapes, [id]: { ...s, name } } });
+    },
+
+    renameGroup: (gid, name) => {
+      const { doc } = get();
+      const g = doc.groups[gid];
+      if (!g) return;
+      transact({ ...doc, groups: { ...doc.groups, [gid]: { ...g, name } } });
+    },
+
+    updateGroupStyle: (gid, patch) => {
+      const { doc } = get();
+      const g = doc.groups[gid];
+      if (!g) return;
+      transact(
+        { ...doc, groups: { ...doc.groups, [gid]: { ...g, ...patch } } },
+        "gstyle:" + gid + ":" + Object.keys(patch).sort().join(",")
+      );
+      if (patch.hidden === true || patch.locked === true) {
+        const members = new Set(shapesInGroup(get().doc, gid));
+        set({ selection: get().selection.filter((id) => !members.has(id)) });
+      }
     },
 
     setOrder: (order) => {
@@ -837,23 +958,5 @@ export function styleFromDefaults(style: StyleDefaults) {
   };
 }
 
-/**
- * Expand a set of shape ids to include every other member of any group they
- * belong to, so grouped shapes are always selected together.
- */
-export function expandToGroups(doc: Document, ids: string[]): string[] {
-  const groups = new Set<string>();
-  for (const id of ids) {
-    const g = doc.shapes[id]?.groupId;
-    if (g) groups.add(g);
-  }
-  if (groups.size === 0) return ids;
-  const result = new Set(ids);
-  for (const oid of doc.order) {
-    const g = doc.shapes[oid]?.groupId;
-    if (g && groups.has(g)) result.add(oid);
-  }
-  return [...result];
-}
-
 export { makeId };
+export { expandToGroups } from "../model/groups";

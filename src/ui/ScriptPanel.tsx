@@ -8,7 +8,7 @@ const DEFAULT_SCRIPT = `// Drawing script — runs in a sandbox, then applies it
 // Create:  rect(x,y,w,h) ellipse(cx,cy,rx,ry) circle(cx,cy,r)
 //          line(x1,y1,x2,y2) path(points,closed) polygon(points)
 //          push() pop() translate(x,y) rotate(rad) scale(s)
-//          fill(c) stroke(c) strokeWidth(w) opacity(o)
+//          fill(c) stroke(c) strokeWidth(w) opacity(o) blendMode('multiply')
 // Existing: shapes, selection, byType('rect'), bounds(s) -> {x,y,width,height,cx,cy}
 //          edit a shape by mutating it; move(s,dx,dy); remove(s)
 // Utils:   repeat(n, i => ...) seed(n) random(a,b) lerp(a,b,t)  DEG TAU PI

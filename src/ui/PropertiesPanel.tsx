@@ -1,6 +1,7 @@
 import { isAreal } from "../model/boolean";
 import { shapeBounds } from "../model/bounds";
-import type { Shape } from "../model/types";
+import { exactlySelectedGroup, selectionUnits } from "../model/groups";
+import { BLEND_MODES, type BlendMode, type Shape } from "../model/types";
 import { useEditor } from "../store/editorStore";
 import ColorField from "./ColorField";
 
@@ -15,6 +16,7 @@ export default function PropertiesPanel() {
   const sendToBack = useEditor((s) => s.sendToBack);
   const groupSelected = useEditor((s) => s.groupSelected);
   const ungroupSelected = useEditor((s) => s.ungroupSelected);
+  const updateGroupStyle = useEditor((s) => s.updateGroupStyle);
   const alignSelected = useEditor((s) => s.alignSelected);
   const distributeSelected = useEditor((s) => s.distributeSelected);
   const duplicateSelected = useEditor((s) => s.duplicateSelected);
@@ -27,8 +29,15 @@ export default function PropertiesPanel() {
     .filter(Boolean) as Shape[];
   const hasSelection = selected.length > 0;
   const first = selected[0];
-  const canGroup = selected.length >= 2;
-  const canUngroup = selected.some((s) => s.groupId);
+  const units = selectionUnits(doc, selection);
+  const unitParents = new Set<string | null>([
+    ...units.groups.map((g) => g.parentId ?? null),
+    ...units.shapes.map((s) => s.groupId ?? null),
+  ]);
+  const canGroup =
+    units.groups.length + units.shapes.length >= 2 && unitParents.size === 1;
+  const canUngroup = units.groups.length > 0;
+  const selectedGroup = exactlySelectedGroup(doc, selection);
   const canBoolean = selected.filter(isAreal).length >= 2;
   const closable = selected.filter(
     (s) => s.type === "path" || s.type === "bezier"
@@ -108,6 +117,28 @@ export default function PropertiesPanel() {
           </div>
         )}
 
+        {hasSelection && (
+          <div className="field">
+            <label>Blend mode</label>
+            <select
+              className="blend-select"
+              value={first.blendMode ?? "normal"}
+              onChange={(e) => {
+                const v = e.target.value as BlendMode;
+                updateSelectedStyle({
+                  blendMode: v === "normal" ? undefined : v,
+                });
+              }}
+            >
+              {BLEND_MODES.map((m) => (
+                <option key={m} value={m}>
+                  {blendLabel(m)}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
+
         {selected.length === 1 && (
           <div className="field">
             <label>Rotation</label>
@@ -139,6 +170,51 @@ export default function PropertiesPanel() {
           </div>
         )}
       </div>
+
+      {selectedGroup && (
+        <div className="panel-section">
+          <div className="panel-title">Group “{selectedGroup.name}”</div>
+          <div className="field">
+            <label>Group opacity</label>
+            <div className="field-row">
+              <input
+                type="range"
+                min={0}
+                max={1}
+                step={0.01}
+                value={selectedGroup.opacity ?? 1}
+                onChange={(e) =>
+                  updateGroupStyle(selectedGroup.id, {
+                    opacity: Number(e.target.value),
+                  })
+                }
+              />
+              <span className="num readout">
+                {Math.round((selectedGroup.opacity ?? 1) * 100)}%
+              </span>
+            </div>
+          </div>
+          <div className="field">
+            <label>Group blend mode</label>
+            <select
+              className="blend-select"
+              value={selectedGroup.blendMode ?? "normal"}
+              onChange={(e) => {
+                const v = e.target.value as BlendMode;
+                updateGroupStyle(selectedGroup.id, {
+                  blendMode: v === "normal" ? undefined : v,
+                });
+              }}
+            >
+              {BLEND_MODES.map((m) => (
+                <option key={m} value={m}>
+                  {blendLabel(m)}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+      )}
 
       {hasSelection && (
         <div className="panel-section">
@@ -302,6 +378,11 @@ function Geometry({ shape }: { shape: Shape }) {
       {field("height", "H")}
     </div>
   );
+}
+
+function blendLabel(mode: BlendMode): string {
+  const words = mode.replace(/-/g, " ");
+  return words.charAt(0).toUpperCase() + words.slice(1);
 }
 
 function typeName(shape: Shape): string {

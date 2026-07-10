@@ -11,6 +11,7 @@ import {
   reverseBezier,
 } from "../model/bezier";
 import { pointsToAnchors, simplifyPath } from "../model/freehand";
+import { isShapeHidden, isShapeLocked } from "../model/groups";
 import { hitTestShape } from "../model/hitTest";
 import { magnetAngle, rotateAbout, snapAngle } from "../model/rotate";
 import {
@@ -353,8 +354,8 @@ export default function CanvasView() {
       const shape = doc.shapes[doc.order[i]];
       if (
         shape &&
-        !shape.hidden &&
-        !shape.locked &&
+        !isShapeHidden(doc, shape) &&
+        !isShapeLocked(doc, shape) &&
         hitTestShape(shape, world, tol)
       )
         return doc.order[i];
@@ -375,7 +376,10 @@ export default function CanvasView() {
     }
     const others = state.doc.order
       .map((id) => state.doc.shapes[id])
-      .filter((s): s is Shape => !!s && !s.hidden && !exclude.has(s.id));
+      .filter(
+        (s): s is Shape =>
+          !!s && !isShapeHidden(state.doc, s) && !exclude.has(s.id)
+      );
     const res = snapPoint(
       world,
       {
@@ -507,7 +511,10 @@ export default function CanvasView() {
       const selSet = new Set(selection);
       const others = state.doc.order
         .map((id) => state.doc.shapes[id])
-        .filter((s): s is Shape => !!s && !selSet.has(s.id) && !s.hidden);
+        .filter(
+          (s): s is Shape =>
+            !!s && !selSet.has(s.id) && !isShapeHidden(state.doc, s)
+        );
       state.beginInteraction();
       interactionRef.current = {
         kind: "move",
@@ -606,8 +613,8 @@ export default function CanvasView() {
         !s ||
         s.type !== "bezier" ||
         s.closed ||
-        s.hidden ||
-        s.locked ||
+        isShapeHidden(doc, s) ||
+        isShapeLocked(doc, s) ||
         s.rotation || // anchors live in unrotated space; extending would misplace
         s.anchors.length < 2
       )
@@ -924,8 +931,8 @@ export default function CanvasView() {
           const s = state.doc.shapes[id];
           return (
             s &&
-            !s.hidden &&
-            !s.locked &&
+            !isShapeHidden(state.doc, s) &&
+            !isShapeLocked(state.doc, s) &&
             boundsIntersect(worldShapeBounds(s), region)
           );
         });

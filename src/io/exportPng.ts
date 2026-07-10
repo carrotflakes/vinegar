@@ -1,5 +1,5 @@
-import { paintShape } from "../canvas/render";
-import type { Document, Shape } from "../model/types";
+import { buildRenderTree, paintNode } from "../canvas/render";
+import type { Document } from "../model/types";
 import { contentBounds } from "./exportBounds";
 
 export interface PngOptions {
@@ -32,10 +32,7 @@ export async function exportPng(
 
   ctx.scale(scale, scale);
   ctx.translate(-bounds.x, -bounds.y);
-  for (const id of doc.order) {
-    const shape = doc.shapes[id] as Shape | undefined;
-    if (shape) paintShape(ctx, shape);
-  }
+  for (const node of buildRenderTree(doc)) paintNode(ctx, node);
 
   return await new Promise<Blob>((resolve, reject) => {
     canvas.toBlob((blob) => {
