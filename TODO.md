@@ -64,7 +64,7 @@ A running list of what's built and what's next. Check items off as they land.
 - [ ] Color: alpha/opacity per color; swatches saved in the document
 - [ ] System clipboard integration (paste across tabs/apps)
 - [ ] Text tool
-- [x] Nested groups: real group entities (name/opacity/blend/hide/lock, nesting) rendered as composited layers; layers-panel tree + group section in properties. File format bumped to v2 (old files lose grouping).
+- [x] Nested groups: real group entities (name/opacity/blend/hide/lock, nesting) rendered as composited layers; layers-panel tree + group section in properties. Current file format is v3; older formats are intentionally unsupported.
   - [ ] True group transform container (matrix on groups; would fix rotated multi-resize)
 - [ ] Distribution: match an existing gap (not just centering)
 - [ ] Configurable pencil smoothing strength
