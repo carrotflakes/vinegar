@@ -63,15 +63,29 @@ export default function ColorField({ label, value, onChange }: Props) {
     if (value) addRecentColor(value);
   };
 
+  // Dismiss on outside press or Escape. Uses pointerdown (not mousedown):
+  // the canvas captures pointers on pointerdown, which suppresses the
+  // compatibility mouse events a mousedown listener would rely on.
   useEffect(() => {
     if (!open) return;
-    const onDown = (e: MouseEvent) => {
+    const onDown = (e: PointerEvent) => {
       if (rootRef.current && !rootRef.current.contains(e.target as Node)) {
         close();
       }
     };
-    window.addEventListener("mousedown", onDown);
-    return () => window.removeEventListener("mousedown", onDown);
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        // Capture phase: closing the popover shouldn't also clear selection.
+        e.stopPropagation();
+        close();
+      }
+    };
+    window.addEventListener("pointerdown", onDown, true);
+    window.addEventListener("keydown", onKey, true);
+    return () => {
+      window.removeEventListener("pointerdown", onDown, true);
+      window.removeEventListener("keydown", onKey, true);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, value]);
 
@@ -120,7 +134,6 @@ export default function ColorField({ label, value, onChange }: Props) {
               spellCheck={false}
               onKeyDown={(e) => {
                 if (e.key === "Enter") e.currentTarget.blur();
-                if (e.key === "Escape") setOpen(false);
               }}
               onBlur={(e) => {
                 const n = normalizeHex(e.target.value);
