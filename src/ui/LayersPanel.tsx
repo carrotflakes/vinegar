@@ -12,6 +12,7 @@ import {
   LuLockOpen,
   LuChevronRight,
   LuChevronDown,
+  LuCombine,
 } from "react-icons/lu";
 import type { Group, Shape } from "../model/types";
 import { descendantNodeIds, isGroup, isShape } from "../model/scene";
@@ -26,6 +27,7 @@ const TYPE_ICON: Record<Shape["type"], ComponentType> = {
   path: LuWaves,
   bezier: LuPenTool,
   polygon: LuHexagon,
+  compoundPath: LuCombine,
 };
 
 /** Display node: the render tree with every level front-most first. */

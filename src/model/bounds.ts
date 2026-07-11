@@ -52,6 +52,17 @@ export function shapeBounds(shape: Shape): Bounds {
       return pointsBounds(flattenBezier(shape));
     case "polygon":
       return pointsBounds(shape.polys.flat(2));
+    case "compoundPath": {
+      if (shape.components.length === 0) return { x: 0, y: 0, width: 0, height: 0 };
+      const bounds = shape.components.map((component) =>
+        transformBounds(shapeBounds(component), component.transform)
+      );
+      const x = Math.min(...bounds.map((b) => b.x));
+      const y = Math.min(...bounds.map((b) => b.y));
+      const right = Math.max(...bounds.map((b) => b.x + b.width));
+      const bottom = Math.max(...bounds.map((b) => b.y + b.height));
+      return { x, y, width: right - x, height: bottom - y };
+    }
   }
 }
 

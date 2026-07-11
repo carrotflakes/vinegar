@@ -32,6 +32,57 @@ function distToPolyline(p: Vec2, pts: Vec2[], closed: boolean): number {
   return best;
 }
 
+function containsLocal(shape: Shape, p: Vec2): boolean {
+  const inverse = invertMatrix(shape.transform);
+  if (!inverse) return false;
+  p = applyMatrix(inverse, p);
+  switch (shape.type) {
+    case "rect": {
+      const b = shapeBounds(shape);
+      return p.x >= b.x && p.x <= b.x + b.width && p.y >= b.y && p.y <= b.y + b.height;
+    }
+    case "ellipse": {
+      const b = shapeBounds(shape);
+      const rx = b.width / 2, ry = b.height / 2;
+      if (rx <= 0 || ry <= 0) return false;
+      const nx = (p.x - b.x - rx) / rx, ny = (p.y - b.y - ry) / ry;
+      return nx * nx + ny * ny <= 1;
+    }
+    case "path":
+      return shape.closed && pointInPolygon(p, shape.points);
+    case "bezier":
+      return shape.subpaths.reduce(
+        (inside, sp) => sp.closed ? inside !== pointInPolygon(p, flattenSubpath(sp)) : inside,
+        false
+      );
+    case "polygon":
+      return shape.polys.flat().reduce(
+        (inside, ring) => inside !== pointInPolygon(p, ring),
+        false
+      );
+    case "compoundPath":
+      return shape.components.reduce(
+        (inside, component) => inside !== containsLocal(component, p),
+        false
+      );
+    case "line":
+      return false;
+  }
+}
+
+function strokesLocal(shape: Shape, p: Vec2, tolerance: number): boolean {
+  const inverse = invertMatrix(shape.transform);
+  if (!inverse) return false;
+  p = applyMatrix(inverse, p);
+  tolerance /= matrixScale(shape.transform);
+  if (shape.type === "compoundPath") {
+    return shape.components.some((component) => strokesLocal(component, p, tolerance));
+  }
+  return localPolylines(shape).some(
+    (line) => distToPolyline(p, line.points, line.closed) <= tolerance
+  );
+}
+
 /** Distance from point p to the segment a-b. */
 export function distToSegment(p: Vec2, a: Vec2, b: Vec2): number {
   const dx = b.x - a.x;
@@ -144,6 +195,16 @@ export function hitTestShape(doc: Document, shape: Shape, p: Vec2, tol: number):
         if (distToPolyline(p, ring, true) <= pickTol) return true;
       }
       return false;
+    }
+    case "compoundPath": {
+      if (hasFill && shape.components.reduce(
+        (inside, component) => inside !== containsLocal(component, p),
+        false
+      )) return true;
+      return shape.stroke !== null && shape.strokeWidth > 0 &&
+        shape.components.some((component) =>
+          strokesLocal(component, p, shape.strokeWidth / 2 + tol)
+        );
     }
   }
 }
@@ -262,6 +323,13 @@ function localPolylines(shape: Shape): WorldPolyline[] {
       }));
     case "polygon":
       return shape.polys.flat().map((points) => ({ points, closed: true }));
+    case "compoundPath":
+      return shape.components.flatMap((component) =>
+        localPolylines(component).map((line) => ({
+          ...line,
+          points: line.points.map((point) => applyMatrix(component.transform, point)),
+        }))
+      );
   }
 }
 

@@ -43,6 +43,7 @@ const TYPE_LABELS: Record<string, string> = {
   path: "Path",
   bezier: "Curve",
   polygon: "Polygon",
+  compoundPath: "Compound Path",
 };
 
 /** Selection summary: count, or type + name for a single selection. */
@@ -128,6 +129,12 @@ export default function App() {
         e.preventDefault();
         if (e.shiftKey) s.ungroupSelected();
         else s.groupSelected();
+        return;
+      }
+      if (mod && e.key === "8") {
+        e.preventDefault();
+        if (e.altKey) s.releaseCompoundPathSelected();
+        else s.makeCompoundPathSelected();
         return;
       }
       if (mod && e.key.toLowerCase() === "c") {

@@ -127,20 +127,37 @@ export function createDemoDocument() {
     },
 
     demo_card_boolean: {
-      id: "demo_card_boolean", type: "group", name: "Polygon · opacity + blend group",
-      childIds: ["demo_card_c", "demo_polygon_hole", "demo_polygon_accent"],
+      id: "demo_card_boolean", type: "group", name: "Compound path · opacity + blend group",
+      childIds: ["demo_card_c", "demo_compound_path", "demo_polygon_accent"],
       transform: translation(570, 0), transformOrigin: null, opacity: 0.9, blendMode: "multiply",
     },
     demo_card_c: {
       id: "demo_card_c", type: "rect", ...shapeBase("Card C", "#e8fbf5", "#52617a"),
       x: 0, y: 0, width: 248, height: 174,
     },
-    demo_polygon_hole: {
-      id: "demo_polygon_hole", type: "polygon", ...shapeBase("Polygon with hole", "#3abf9c", "#1c6457"),
-      polys: [[
-        [{ x: 28, y: 30 }, { x: 218, y: 30 }, { x: 218, y: 144 }, { x: 28, y: 144 }],
-        [{ x: 82, y: 62 }, { x: 82, y: 116 }, { x: 164, y: 116 }, { x: 164, y: 62 }],
-      ]],
+    demo_compound_path: {
+      id: "demo_compound_path", type: "compoundPath",
+      ...shapeBase("Compound Path · retained path + ellipse", "#3abf9c", "#1c6457"),
+      fillRule: "evenodd",
+      components: [
+        {
+          id: "demo_compound_outer", type: "path",
+          ...shapeBase("Retained outer path", "#f29b72", "#28344f"),
+          points: [
+            { x: 28, y: 42 }, { x: 72, y: 26 }, { x: 124, y: 34 },
+            { x: 218, y: 62 }, { x: 184, y: 138 }, { x: 92, y: 146 },
+            { x: 46, y: 112 },
+          ],
+          closed: true,
+        },
+        {
+          id: "demo_compound_hole", type: "ellipse",
+          ...shapeBase("Retained ellipse hole", "#ffcf5c", null),
+          x: 82, y: 62, width: 82, height: 54,
+          transform: multiply(translation(2, -1), rotation(0.08)),
+          transformOrigin: { x: 123, y: 89 },
+        },
+      ],
     },
     demo_polygon_accent: {
       id: "demo_polygon_accent", type: "polygon", ...shapeBase("Multi-polygon", "#725ac1", null),
@@ -196,7 +213,7 @@ export function createDemoDocument() {
   doc.settings.gridSize = 40;
   doc.extensions["vinegar.demo"] = {
     purpose: "manual-debugging",
-    features: ["all-shape-types", "nested-groups", "empty-group", "transforms", "pivots", "blend", "hidden", "locked"],
+    features: ["all-shape-types", "compound-path", "nested-groups", "empty-group", "transforms", "pivots", "blend", "hidden", "locked"],
   };
   return doc;
 }

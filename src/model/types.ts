@@ -14,7 +14,8 @@ export type ShapeType =
   | "line"
   | "path"
   | "bezier"
-  | "polygon";
+  | "polygon"
+  | "compoundPath";
 
 /**
  * Blend modes shared verbatim by Canvas 2D (`globalCompositeOperation`) and
@@ -136,6 +137,17 @@ export interface PolygonShape extends BaseShape {
   polys: Vec2[][][];
 }
 
+/**
+ * A compound path paints several retained source shapes as one even-odd path.
+ * Components are deliberately not scene nodes: the compound path is a single
+ * selectable/layer item and its component geometry is not node-editable.
+ */
+export interface CompoundPathShape extends BaseShape {
+  type: "compoundPath";
+  components: PrimitiveShape[];
+  fillRule: "evenodd";
+}
+
 /** Flatten a polygon shape's polys into a flat list of rings. */
 export function polygonRings(shape: PolygonShape): Vec2[][] {
   return shape.polys.flat();
@@ -151,13 +163,15 @@ export interface Group extends BaseNode {
   childIds: string[];
 }
 
-export type Shape =
+export type PrimitiveShape =
   | RectShape
   | EllipseShape
   | LineShape
   | PathShape
   | BezierShape
   | PolygonShape;
+
+export type Shape = PrimitiveShape | CompoundPathShape;
 
 export type SceneNode = Shape | Group;
 

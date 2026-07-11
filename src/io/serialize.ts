@@ -1,6 +1,6 @@
 import { BLEND_MODES, type Document, type ShapeType } from "../model/types";
 
-export const CURRENT_FILE_VERSION = 7 as const;
+export const CURRENT_FILE_VERSION = 8 as const;
 
 export interface VinegarFile {
   app: "vinegar";
@@ -21,7 +21,7 @@ export function serializeDocument(doc: Document): string {
 }
 
 const NODE_TYPES = new Set<ShapeType | "group">([
-  "group", "rect", "ellipse", "line", "path", "bezier", "polygon",
+  "group", "rect", "ellipse", "line", "path", "bezier", "polygon", "compoundPath",
 ]);
 const isObject = (value: unknown): value is Record<string, unknown> =>
   !!value && typeof value === "object" && !Array.isArray(value);
@@ -67,6 +67,17 @@ const isNode = (id: string, node: unknown): boolean => {
     case "polygon":
       return Array.isArray(node.polys) && node.polys.every((poly) =>
         Array.isArray(poly) && poly.every(isPoints));
+    case "compoundPath":
+      return node.fillRule === "evenodd" &&
+        Array.isArray(node.components) && node.components.length > 0 &&
+        node.components.every((component: unknown) =>
+          isObject(component) && component.type !== "compoundPath" &&
+          component.type !== "line" && typeof component.id === "string" &&
+          isNode(component.id, component) &&
+          (component.type !== "path" || component.closed === true) &&
+          (component.type !== "bezier" ||
+            (component.subpaths as unknown[]).length > 0 &&
+            (component.subpaths as Array<{ closed?: unknown }>).every((sp) => sp.closed === true)));
     default:
       return false;
   }

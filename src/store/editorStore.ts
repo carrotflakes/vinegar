@@ -15,6 +15,12 @@ import { toggleAnchorSmooth } from "../model/bezier";
 import { booleanShapes, isAreal, type BoolOp } from "../model/boolean";
 import { nodeWorldBounds, shapeBounds, unionNodeWorldBounds } from "../model/bounds";
 import { strokeOutline } from "../model/outlineStroke";
+import {
+  canMakeCompoundPathSelection,
+  canReleaseCompoundPathSelection,
+  makeCompoundPath,
+  releaseCompoundPath,
+} from "../model/compoundPath";
 import { resizeShapeToBounds, translateShape } from "../model/transforms";
 import { initialViewport, type Viewport } from "../model/viewport";
 import {
@@ -114,6 +120,8 @@ export interface EditorState {
   setClosedSelected: (closed: boolean) => void;
   outlineStrokeSelected: () => void;
   booleanSelected: (op: BoolOp) => void;
+  makeCompoundPathSelected: () => void;
+  releaseCompoundPathSelected: () => void;
   toggleHidden: (id: string) => void;
   toggleLocked: (id: string) => void;
   renameShape: (id: string, name: string) => void;
@@ -367,6 +375,51 @@ export const useEditor = create<EditorState>((set, get) => {
     },
     booleanSelected: (op) => {
       const doc = get().doc; const roots = selectionRoots(doc, get().selection); if (roots.length < 2 || !roots.every((id) => isShape(doc.nodes[id]))) return; const parent = parentIdOf(doc, roots[0]); if (!roots.every((id) => parentIdOf(doc, id) === parent)) return; const siblings = childIdsOf(doc, parent); const selected = new Set(roots); const ordered = siblings.filter((id) => selected.has(id)); const result = booleanShapes(ordered.map((id) => doc.nodes[id] as Shape), op); if (!result) return; const nodes = { ...doc.nodes }; for (const id of roots) delete nodes[id]; nodes[result.id] = result; const order = siblings.filter((id) => !selected.has(id)); order.splice(siblings.slice(0, siblings.indexOf(ordered[0])).filter((id) => !selected.has(id)).length, 0, result.id); let next = replaceChildren({ ...doc, nodes }, parent, order); transact(next); set({ selection: [result.id], ...clearTransient });
+    },
+    makeCompoundPathSelected: () => {
+      const doc = get().doc;
+      const roots = selectionRoots(doc, get().selection);
+      if (!canMakeCompoundPathSelection(doc, roots)) return;
+      const parent = parentIdOf(doc, roots[0]);
+      const siblings = childIdsOf(doc, parent);
+      const selected = new Set(roots);
+      const ordered = siblings.filter((id) => selected.has(id));
+      const compound = makeCompoundPath(ordered.map((id) => doc.nodes[id] as Shape));
+      if (!compound) return;
+      const nodes = { ...doc.nodes };
+      for (const id of ordered) delete nodes[id];
+      nodes[compound.id] = compound;
+      const order = siblings.filter((id) => !selected.has(id));
+      const at = siblings.slice(0, siblings.indexOf(ordered[0])).filter((id) => !selected.has(id)).length;
+      order.splice(at, 0, compound.id);
+      const next = replaceChildren({ ...doc, nodes }, parent, order);
+      transact(next);
+      set({ selection: [compound.id], editNode: null, ...clearTransient });
+    },
+    releaseCompoundPathSelected: () => {
+      let doc = get().doc;
+      const roots = selectionRoots(doc, get().selection);
+      if (!canReleaseCompoundPathSelection(doc, roots)) return;
+      const selected: string[] = [];
+      for (const id of roots) {
+        const compound = doc.nodes[id];
+        if (!compound || compound.type !== "compoundPath") continue;
+        const parent = parentIdOf(doc, id);
+        const siblings = childIdsOf(doc, parent);
+        const at = siblings.indexOf(id);
+        const released = releaseCompoundPath(compound);
+        const nodes = { ...doc.nodes };
+        delete nodes[id];
+        for (const shape of released) nodes[shape.id] = shape;
+        const order = [...siblings];
+        order.splice(at, 1, ...released.map((shape) => shape.id));
+        doc = replaceChildren({ ...doc, nodes }, parent, order);
+        selected.push(...released.map((shape) => shape.id));
+      }
+      if (selected.length) {
+        transact(doc);
+        set({ selection: selected, editNode: null, ...clearTransient });
+      }
     },
     toggleHidden: (id) => { const doc = get().doc, node = doc.nodes[id]; if (!node) return; transact({ ...doc, nodes: { ...doc.nodes, [id]: { ...node, hidden: !node.hidden } } }); if (!node.hidden) { const affected = new Set([id, ...descendantNodeIds(doc, id)]); set({ selection: get().selection.filter((x) => !affected.has(x)), ...clearTransient }); } },
     toggleLocked: (id) => { const doc = get().doc, node = doc.nodes[id]; if (!node) return; transact({ ...doc, nodes: { ...doc.nodes, [id]: { ...node, locked: !node.locked } } }); if (!node.locked) { const affected = new Set([id, ...descendantNodeIds(doc, id)]); set({ selection: get().selection.filter((x) => !affected.has(x)), ...clearTransient }); } },

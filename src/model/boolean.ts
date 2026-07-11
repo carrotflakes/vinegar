@@ -60,6 +60,13 @@ function compound(paths: paper.Path[]): paper.PathItem | null {
   return new paper.CompoundPath({ children: paths, insert: false });
 }
 
+function pathsOf(item: paper.PathItem | null): paper.Path[] {
+  if (!item) return [];
+  return item instanceof paper.CompoundPath
+    ? (item.children as paper.Path[])
+    : [item as paper.Path];
+}
+
 /**
  * Convert a shape into paper.js geometry in its parent's coordinate space
  * (the shape's own transform baked in), or null if it encloses no area.
@@ -108,6 +115,13 @@ function shapeToGeom(shape: Shape): paper.PathItem | null {
       // so boolean ops must read them the same way.
       if (item) item.fillRule = "evenodd";
       break;
+    case "compoundPath":
+      item = compound(
+        shape.components
+          .flatMap((component) => pathsOf(shapeToGeom(component)))
+      );
+      if (item) item.fillRule = "evenodd";
+      break;
     case "line":
       return null;
   }
@@ -122,6 +136,7 @@ export function isAreal(shape: Shape): boolean {
     case "rect":
     case "ellipse":
     case "polygon":
+    case "compoundPath":
       return true;
     case "path":
       return shape.closed;

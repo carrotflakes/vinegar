@@ -54,8 +54,8 @@ export function paintNode(
 }
 
 /** Build the geometry of a shape onto the current canvas path. */
-function tracePath(ctx: CanvasRenderingContext2D, shape: Shape): void {
-  ctx.beginPath();
+function tracePath(ctx: CanvasRenderingContext2D, shape: Shape, begin = true): void {
+  if (begin) ctx.beginPath();
   switch (shape.type) {
     case "rect": {
       const b = shapeBounds(shape);
@@ -64,6 +64,10 @@ function tracePath(ctx: CanvasRenderingContext2D, shape: Shape): void {
     }
     case "ellipse": {
       const b = shapeBounds(shape);
+      // CanvasRenderingContext2D.ellipse() connects from the current point to
+      // the arc start. Compound paths already have a current point from the
+      // preceding component, so explicitly start a new subpath first.
+      ctx.moveTo(b.x + b.width, b.y + b.height / 2);
       ctx.ellipse(
         b.x + b.width / 2,
         b.y + b.height / 2,
@@ -115,6 +119,15 @@ function tracePath(ctx: CanvasRenderingContext2D, shape: Shape): void {
       }
       break;
     }
+    case "compoundPath": {
+      for (const component of shape.components) {
+        ctx.save();
+        ctx.transform(...component.transform);
+        tracePath(ctx, component, false);
+        ctx.restore();
+      }
+      break;
+    }
   }
 }
 
@@ -136,7 +149,11 @@ export function paintShape(ctx: CanvasRenderingContext2D, shape: Shape): void {
     !(shape.type === "bezier" && !shape.subpaths.some((sp) => sp.closed));
   if (fillable) {
     ctx.fillStyle = shape.fill as string;
-    ctx.fill(shape.type === "polygon" ? "evenodd" : "nonzero");
+    ctx.fill(
+      shape.type === "polygon" || shape.type === "compoundPath"
+        ? "evenodd"
+        : "nonzero"
+    );
   }
   if (shape.stroke !== null && shape.strokeWidth > 0) {
     ctx.strokeStyle = shape.stroke;

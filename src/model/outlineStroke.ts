@@ -65,6 +65,13 @@ function centerlines(shape: Shape): Polyline[] {
       }));
     case "polygon":
       return shape.polys.flat().map((ring) => ({ points: ring, closed: true }));
+    case "compoundPath":
+      return shape.components.flatMap((component) =>
+        centerlines(component).map((line) => ({
+          ...line,
+          points: line.points.map((point) => applyMatrix(component.transform, point)),
+        }))
+      );
   }
 }
 

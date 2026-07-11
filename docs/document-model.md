@@ -16,6 +16,9 @@ active tool, selection, viewport and undo history does not belong in the file.
 - Asset-bearing nodes reference entries in `assets` by id; binary data does not
   belong directly in a node.
 - Extension data uses namespaced keys in `extensions` and must be JSON-safe.
+- Compound paths are single scene nodes. Their closed source shapes are stored
+  inline in `components`, are not independently selectable, and are painted
+  once with the compound path's shared appearance using the even-odd rule.
 
 The file wrapper version is deliberately strict. Only the current version is
 loaded; changing the persisted shape of `Document` requires bumping

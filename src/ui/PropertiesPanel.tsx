@@ -9,6 +9,10 @@ import {
   LuAlignVerticalDistributeCenter,
 } from "react-icons/lu";
 import { isAreal } from "../model/boolean";
+import {
+  canMakeCompoundPathSelection,
+  canReleaseCompoundPathSelection,
+} from "../model/compoundPath";
 import { shapeBounds } from "../model/bounds";
 import {
   applyMatrix,
@@ -49,6 +53,8 @@ export default function PropertiesPanel() {
   const booleanSelected = useEditor((s) => s.booleanSelected);
   const setClosedSelected = useEditor((s) => s.setClosedSelected);
   const outlineStrokeSelected = useEditor((s) => s.outlineStrokeSelected);
+  const makeCompoundPathSelected = useEditor((s) => s.makeCompoundPathSelected);
+  const releaseCompoundPathSelected = useEditor((s) => s.releaseCompoundPathSelected);
 
   const selectedIds = selectionRoots(doc, selection).flatMap((id) =>
     isShape(doc.nodes[id]) ? [id] : descendantShapeIds(doc, id)
@@ -71,6 +77,8 @@ export default function PropertiesPanel() {
   const canOutline = !selectedGroup && selected.some(
     (s) => s.stroke !== null && s.strokeWidth > 0
   );
+  const canMakeCompound = canMakeCompoundPathSelection(doc, selection);
+  const canReleaseCompound = canReleaseCompoundPathSelection(doc, selection);
 
   // Effective values: selected shape's values, else the new-shape defaults.
   const fill = hasSelection ? first.fill : style.fill;
@@ -354,6 +362,20 @@ export default function PropertiesPanel() {
               </button>
             </div>
           )}
+          {(canMakeCompound || canReleaseCompound) && (
+            <div className="btn-row">
+              {canMakeCompound && (
+                <button className="ghost-btn" onClick={makeCompoundPathSelected}>
+                  Make compound path
+                </button>
+              )}
+              {canReleaseCompound && (
+                <button className="ghost-btn" onClick={releaseCompoundPathSelected}>
+                  Release compound path
+                </button>
+              )}
+            </div>
+          )}
           {closable.length > 0 && (
             <div className="btn-row">
               <button
@@ -510,5 +532,7 @@ function typeName(shape: Shape): string {
       return "Curve";
     case "polygon":
       return "Shape";
+    case "compoundPath":
+      return "Compound Path";
   }
 }

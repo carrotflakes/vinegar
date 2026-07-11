@@ -1,6 +1,6 @@
 import { subpathSegments } from "../model/bezier";
 import { shapeBounds } from "../model/bounds";
-import { isIdentity } from "../model/matrix";
+import { applyMatrix, isIdentity } from "../model/matrix";
 import { isGroup, isShape } from "../model/scene";
 import type { BezierShape, Document, Matrix, SceneNode, Shape } from "../model/types";
 import { contentBounds } from "./exportBounds";
@@ -75,6 +75,61 @@ function shapeToSvg(shape: Shape): string {
         .join(" ");
       return `<path d="${d}" fill-rule="evenodd" ${attrs} />`;
     }
+    case "compoundPath":
+      return `<path d="${shape.components
+        .map((component) => primitivePathData(component, component.transform))
+        .join(" ")}" fill-rule="evenodd" ${attrs} />`;
+  }
+}
+
+function primitivePathData(shape: Exclude<Shape, { type: "compoundPath" }>, matrix: Matrix): string {
+  const point = (p: { x: number; y: number }) => {
+    const out = applyMatrix(matrix, p);
+    return `${num(out.x)} ${num(out.y)}`;
+  };
+  const polygon = (points: { x: number; y: number }[], closed: boolean) =>
+    points.length
+      ? `M ${point(points[0])}${points.slice(1).map((p) => ` L ${point(p)}`).join("")}${closed ? " Z" : ""}`
+      : "";
+  switch (shape.type) {
+    case "rect": {
+      const b = shapeBounds(shape);
+      return polygon([
+        { x: b.x, y: b.y },
+        { x: b.x + b.width, y: b.y },
+        { x: b.x + b.width, y: b.y + b.height },
+        { x: b.x, y: b.y + b.height },
+      ], true);
+    }
+    case "ellipse": {
+      const b = shapeBounds(shape);
+      const cx = b.x + b.width / 2, cy = b.y + b.height / 2;
+      const rx = b.width / 2, ry = b.height / 2;
+      const k = 0.5522847498307936;
+      const a = { x: cx + rx, y: cy };
+      const curves = [
+        [{ x: cx + rx, y: cy + k * ry }, { x: cx + k * rx, y: cy + ry }, { x: cx, y: cy + ry }],
+        [{ x: cx - k * rx, y: cy + ry }, { x: cx - rx, y: cy + k * ry }, { x: cx - rx, y: cy }],
+        [{ x: cx - rx, y: cy - k * ry }, { x: cx - k * rx, y: cy - ry }, { x: cx, y: cy - ry }],
+        [{ x: cx + k * rx, y: cy - ry }, { x: cx + rx, y: cy - k * ry }, a],
+      ];
+      return `M ${point(a)} ${curves.map(([c1, c2, p]) => `C ${point(c1)} ${point(c2)} ${point(p)}`).join(" ")} Z`;
+    }
+    case "line":
+      return `M ${point({ x: shape.x1, y: shape.y1 })} L ${point({ x: shape.x2, y: shape.y2 })}`;
+    case "path":
+      return polygon(shape.points, shape.closed);
+    case "polygon":
+      return shape.polys.flat().map((ring) => polygon(ring, true)).join(" ");
+    case "bezier":
+      return shape.subpaths.map((sp) => {
+        if (!sp.anchors.length) return "";
+        let d = `M ${point(sp.anchors[0].p)}`;
+        for (const segment of subpathSegments(sp)) {
+          d += ` C ${point(segment.c1)} ${point(segment.c2)} ${point(segment.p1)}`;
+        }
+        return d + (sp.closed ? " Z" : "");
+      }).join(" ");
   }
 }
 

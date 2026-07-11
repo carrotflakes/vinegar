@@ -109,3 +109,4 @@ A running list of what's built and what's next. Check items off as they land.
   - [ ] 項目の拡充（Align / Boolean / パス操作などコンテキスト依存の項目）
   - [ ] タッチ長押しで表示（モバイル）
   - [ ] キーボードナビゲーション（↑↓Enter）
+- [ ] 再利用可能部品　UnityのPrefabのようなもの, イラレだとシンボル

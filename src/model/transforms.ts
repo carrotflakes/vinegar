@@ -1,4 +1,5 @@
 import { normalizeRect } from "./bounds";
+import { boundsTransform, multiply, translation } from "./matrix";
 import type { Bounds, Shape, Vec2 } from "./types";
 
 /**
@@ -53,10 +54,25 @@ export function transformShape(shape: Shape, fn: (p: Vec2) => Vec2): Shape {
         transformOrigin,
       };
     }
+    case "compoundPath":
+      return shape;
   }
 }
 
 export function translateShape(shape: Shape, dx: number, dy: number): Shape {
+  if (shape.type === "compoundPath") {
+    const delta = translation(dx, dy);
+    return {
+      ...shape,
+      components: shape.components.map((component) => ({
+        ...component,
+        transform: multiply(delta, component.transform),
+      })),
+      transformOrigin: shape.transformOrigin
+        ? { x: shape.transformOrigin.x + dx, y: shape.transformOrigin.y + dy }
+        : null,
+    };
+  }
   return transformShape(shape, (p) => ({ x: p.x + dx, y: p.y + dy }));
 }
 
@@ -69,6 +85,22 @@ export function resizeShapeToBounds(
   from: Bounds,
   to: Bounds
 ): Shape {
+  if (shape.type === "compoundPath") {
+    const delta = boundsTransform(from, to);
+    return {
+      ...shape,
+      components: shape.components.map((component) => ({
+        ...component,
+        transform: multiply(delta, component.transform),
+      })),
+      transformOrigin: shape.transformOrigin
+        ? {
+            x: to.x + (shape.transformOrigin.x - from.x) * (from.width ? to.width / from.width : 1),
+            y: to.y + (shape.transformOrigin.y - from.y) * (from.height ? to.height / from.height : 1),
+          }
+        : null,
+    };
+  }
   const sx = from.width === 0 ? 1 : to.width / from.width;
   const sy = from.height === 0 ? 1 : to.height / from.height;
   return transformShape(shape, (p) => ({

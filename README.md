@@ -46,6 +46,8 @@ pnpm test       # node --test (document serialization)
   from the canvas context menu)
 - **Boolean operations**: union, subtract, intersect, exclude (closed shapes →
   a single polygon with holes, via `polygon-clipping`)
+- **Compound paths**: retain closed source shapes behind one shared appearance,
+  cut even-odd holes, and release back to the original shape types (`Ctrl/⌘+8`)
 - **Outline stroke**: convert a shape's stroke into a filled path (`clipper-lib`)
 - Fill / stroke color (swatch popover with preset palette, recent colors, saved
   swatches, hex input, "none" and the **eyedropper**), stroke width, opacity,
