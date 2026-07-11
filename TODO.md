@@ -22,7 +22,7 @@ A running list of what's built and what's next. Check items off as they land.
 - [x] Rotation (handle, Shift = 15°) incl. rotated resize; rotation-aware cursors
 - [x] Group / ungroup (normalized Scene Tree)
 - [x] Copy / cut / paste / duplicate
-- [x] Boolean ops: union / subtract / intersect / exclude (polygon-clipping)
+- [x] Boolean ops: union / subtract / intersect / exclude (Paper.js; curve-preserving, result is a node-editable compound Bézier)
 - [x] Outline stroke: convert a shape's stroke to a filled path (clipper-lib)
 - [x] Script generator: one-shot drawing DSL run in a sandboxed Worker
 
@@ -64,7 +64,7 @@ A running list of what's built and what's next. Check items off as they land.
 - [ ] Color: alpha/opacity per color; swatches saved in the document
 - [ ] System clipboard integration (paste across tabs/apps)
 - [ ] Text tool
-- [x] Unified Scene Tree: shapes/groups share `nodes`; `rootIds`/`childIds` are the sole hierarchy and Z-order source. Current file format is v6; older formats are intentionally unsupported.
+- [x] Unified Scene Tree: shapes/groups share `nodes`; `rootIds`/`childIds` are the sole hierarchy and Z-order source. Current file format is v7 (multi-subpath Bézier); older formats are intentionally unsupported.
   - [x] True affine transform matrices on shapes and groups
   - [x] Movable, persisted rotation centers for shapes and groups; transient pivot for multi-selection
 - [ ] Distribution: match an existing gap (not just centering)
