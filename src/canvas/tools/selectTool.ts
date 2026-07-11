@@ -1,0 +1,385 @@
+import { unionNodeWorldBounds, worldShapeBounds } from "../../model/bounds";
+import {
+  exactlySelectedGroup,
+  expandToGroups,
+  isShapeHidden,
+  isShapeLocked,
+} from "../../model/groups";
+import { marqueeHitShape } from "../../model/hitTest";
+import {
+  applyMatrix,
+  applyWorldTransformToNode,
+  boundsTransform,
+  invertMatrix,
+  multiply,
+  nodeWorldMatrix,
+  rotationAbout as matrixRotationAbout,
+  shapeWorldMatrix,
+  translation as translationMatrix,
+} from "../../model/matrix";
+import { magnetAngle, snapAngle } from "../../model/rotate";
+import {
+  descendantShapeIds,
+  isGroup,
+  isShape,
+  sceneIndex,
+  selectionRoots,
+  shapesInPaintOrder,
+} from "../../model/scene";
+import { collectSnapTargets, computeSnap } from "../../model/snap";
+import type { SceneNode, Shape, Vec2 } from "../../model/types";
+import { worldToScreen } from "../../model/viewport";
+import { useEditor, type EditorState } from "../../store/editorStore";
+import { setReadout } from "../../store/pointerStore";
+import { handleCursorRotated, resizeBounds } from "../handles";
+import type { Interaction, ToolContext } from "../interaction";
+import { hitFrameHandle, pickShape, pointSnap, selectionFrame } from "../picking";
+import { boundsFromPoints, formatAngle, formatSize } from "../util";
+
+export type SelectInteraction = Extract<
+  Interaction,
+  { kind: "pivot" | "move" | "resize" | "rotate" | "marquee" }
+>;
+
+function snapshot(ids: string[]): Record<string, SceneNode> {
+  const { doc } = useEditor.getState();
+  const out: Record<string, SceneNode> = {};
+  for (const id of selectionRoots(doc, ids)) if (doc.nodes[id]) out[id] = doc.nodes[id];
+  return out;
+}
+
+export function onSelectDown(
+  ctx: ToolContext,
+  state: EditorState,
+  screen: Vec2,
+  world: Vec2,
+  shiftKey: boolean
+) {
+  // Rotation / resize handles take priority over picking shapes.
+  const hit = hitFrameHandle(ctx, screen);
+  if (hit?.type === "pivot") {
+    const group = exactlySelectedGroup(state.doc, state.selection);
+    const shape =
+      !group && state.selection.length === 1
+        ? state.doc.nodes[state.selection[0]]
+        : null;
+    const persistent = !!group || !!shape;
+    if (persistent) state.beginInteraction();
+    ctx.interaction.current = {
+      kind: "pivot",
+      groupId: group?.id,
+      shapeId: shape?.id,
+      persistent,
+    };
+    return;
+  }
+  if (hit?.type === "rotate") {
+    const frame = selectionFrame()!;
+    const group = exactlySelectedGroup(state.doc, state.selection);
+    const transient = !group && state.selection.length > 1;
+    if (transient && !state.selectionPivot) {
+      state.setSelectionPivot(frame.pivot);
+    }
+    state.beginInteraction();
+    ctx.interaction.current = {
+      kind: "rotate",
+      pivot: frame.pivot,
+      startAngle: Math.atan2(world.y - frame.pivot.y, world.x - frame.pivot.x),
+      startRotation: frame.rotation,
+      originals: snapshot(state.selection),
+      selectionPivot: transient
+        ? state.selectionPivot ?? frame.pivot
+        : undefined,
+      selectionTransform: transient ? frame.transform : undefined,
+    };
+    return;
+  }
+  if (hit?.type === "resize") {
+    const frame = selectionFrame()!;
+    const group = exactlySelectedGroup(state.doc, state.selection);
+    const transient = !group && state.selection.length > 1;
+    state.beginInteraction();
+    ctx.interaction.current = {
+      kind: "resize",
+      handle: hit.id,
+      from: frame.bounds,
+      frameTransform: frame.transform,
+      originals: snapshot(state.selection),
+      single: state.selection.length === 1,
+      selectionPivot: transient ? state.selectionPivot ?? undefined : undefined,
+      selectionTransform: transient ? frame.transform : undefined,
+    };
+    return;
+  }
+
+  const hitId = pickShape(ctx, world);
+  if (hitId) {
+    let selection: string[];
+    if (shiftKey) {
+      const group = expandToGroups(state.doc, [hitId]);
+      const has = group.every((id) => state.selection.includes(id));
+      selection = has
+        ? state.selection.filter((id) => !group.includes(id))
+        : [...new Set([...state.selection, ...group])];
+      state.setSelection(selection);
+    } else if (!expandToGroups(state.doc, [hitId]).some((id) => state.selection.includes(id))) {
+      selection = expandToGroups(state.doc, [hitId]);
+      state.setSelection(selection);
+    } else {
+      selection = state.selection;
+    }
+    const originals = snapshot(selection);
+    const selectedGroup = exactlySelectedGroup(state.doc, selection);
+    const transient = !selectedGroup && selection.length > 1;
+    const selectedLeafIds = new Set(selectionRoots(state.doc, selection).flatMap((id) => descendantShapeIds(state.doc, id)));
+    const others = shapesInPaintOrder(state.doc)
+      .filter(
+        (s): s is Shape =>
+          !selectedLeafIds.has(s.id) && !isShapeHidden(state.doc, s)
+      );
+    state.beginInteraction();
+    ctx.interaction.current = {
+      kind: "move",
+      start: world,
+      originals,
+      origUnion: unionNodeWorldBounds(state.doc, Object.keys(originals)) ?? {
+        x: world.x,
+        y: world.y,
+        width: 0,
+        height: 0,
+      },
+      targets: collectSnapTargets(state.doc, others),
+      boxes: others.map((shape) => worldShapeBounds(state.doc, shape)),
+      selectionPivot: transient ? state.selectionPivot ?? undefined : undefined,
+      selectionTransform: transient
+        ? state.selectionTransform ?? undefined
+        : undefined,
+    };
+    return;
+  }
+
+  if (!shiftKey) state.clearSelection();
+  ctx.interaction.current = {
+    kind: "marquee",
+    start: world,
+    additive: shiftKey,
+  };
+  ctx.marquee.current = { x: screen.x, y: screen.y, width: 0, height: 0 };
+}
+
+export function onSelectMove(
+  ctx: ToolContext,
+  state: EditorState,
+  inter: SelectInteraction,
+  screen: Vec2,
+  world: Vec2,
+  shiftKey: boolean
+) {
+  switch (inter.kind) {
+    case "pivot": {
+      if (inter.groupId) {
+        const group = state.doc.nodes[inter.groupId];
+        const inverse = isGroup(group)
+          ? invertMatrix(nodeWorldMatrix(state.doc, group.id))
+          : null;
+        if (isGroup(group) && inverse) {
+          state.setDoc({
+            ...state.doc,
+            nodes: {
+              ...state.doc.nodes,
+              [group.id]: {
+                ...group,
+                transformOrigin: applyMatrix(inverse, world),
+              },
+            },
+          });
+        }
+      } else if (inter.shapeId) {
+        const shape = state.doc.nodes[inter.shapeId];
+        const inverse = isShape(shape)
+          ? invertMatrix(shapeWorldMatrix(state.doc, shape))
+          : null;
+        if (isShape(shape) && inverse) {
+          state.applyShapes({
+            [shape.id]: {
+              ...shape,
+              transformOrigin: applyMatrix(inverse, world),
+            },
+          });
+        }
+      } else {
+        state.setSelectionPivot(world);
+      }
+      break;
+    }
+    case "move": {
+      const rawDx = world.x - inter.start.x;
+      const rawDy = world.y - inter.start.y;
+      let dx = rawDx;
+      let dy = rawDy;
+      const gridSize = state.gridSnap ? state.gridSize : null;
+      if (state.snapEnabled || gridSize) {
+        const movingBox = {
+          x: inter.origUnion.x + rawDx,
+          y: inter.origUnion.y + rawDy,
+          width: inter.origUnion.width,
+          height: inter.origUnion.height,
+        };
+        const snap = computeSnap(
+          movingBox,
+          {
+            targets: state.snapEnabled ? inter.targets : { x: [], y: [] },
+            boxes: state.snapEnabled ? inter.boxes : [],
+            gridSize,
+          },
+          6 / state.viewport.scale
+        );
+        dx += snap.dx;
+        dy += snap.dy;
+        ctx.guides.current = snap.guides;
+        ctx.spacings.current = snap.spacings;
+      } else {
+        ctx.guides.current = [];
+        ctx.spacings.current = [];
+      }
+      const delta = translationMatrix(dx, dy);
+      const next: Record<string, SceneNode> = {};
+      for (const [id, orig] of Object.entries(inter.originals)) {
+        next[id] = applyWorldTransformToNode(state.doc, orig, delta);
+      }
+      state.applyShapes(next);
+      if (inter.selectionPivot) {
+        state.setSelectionPivot(applyMatrix(delta, inter.selectionPivot));
+      }
+      if (inter.selectionTransform) {
+        state.setSelectionTransform(multiply(delta, inter.selectionTransform));
+      }
+      setReadout(`Δ ${Math.round(dx)}, ${Math.round(dy)}`);
+      break;
+    }
+    case "resize": {
+      const handlePt = pointSnap(ctx, world, new Set(Object.keys(inter.originals)));
+      const inverseFrame = invertMatrix(inter.frameTransform);
+      if (!inverseFrame) break;
+      const localPointer = applyMatrix(inverseFrame, handlePt);
+      const to = resizeBounds(inter.from, inter.handle, localPointer);
+      const localDelta = boundsTransform(inter.from, to);
+      const worldDelta = multiply(
+        inter.frameTransform,
+        multiply(localDelta, inverseFrame)
+      );
+      const next: Record<string, SceneNode> = {};
+      for (const [id, orig] of Object.entries(inter.originals)) {
+        next[id] = applyWorldTransformToNode(state.doc, orig, worldDelta);
+      }
+      state.applyShapes(next);
+      if (inter.selectionPivot) {
+        state.setSelectionPivot(applyMatrix(worldDelta, inter.selectionPivot));
+      }
+      if (inter.selectionTransform) {
+        state.setSelectionTransform(
+          multiply(worldDelta, inter.selectionTransform)
+        );
+      }
+      setReadout(formatSize(to.width, to.height));
+      break;
+    }
+    case "rotate": {
+      let delta =
+        Math.atan2(world.y - inter.pivot.y, world.x - inter.pivot.x) -
+        inter.startAngle;
+      if (shiftKey) {
+        delta = snapAngle(delta, 15);
+      } else {
+        // Ease the resulting angle onto 0/45/90… when close enough.
+        const eased = magnetAngle(inter.startRotation + delta, 45, 4);
+        if (eased !== null) delta = eased - inter.startRotation;
+      }
+      const rotationDelta = matrixRotationAbout(inter.pivot, delta);
+      const next: Record<string, SceneNode> = {};
+      for (const [id, orig] of Object.entries(inter.originals)) {
+        next[id] = applyWorldTransformToNode(state.doc, orig, rotationDelta);
+      }
+      state.applyShapes(next);
+      if (inter.selectionPivot) {
+        state.setSelectionPivot(applyMatrix(rotationDelta, inter.selectionPivot));
+      }
+      if (inter.selectionTransform) {
+        state.setSelectionTransform(
+          multiply(rotationDelta, inter.selectionTransform)
+        );
+      }
+      setReadout(formatAngle(inter.startRotation + delta));
+      break;
+    }
+    case "marquee": {
+      const start = worldToScreen(state.viewport, inter.start);
+      ctx.marquee.current = {
+        x: Math.min(start.x, screen.x),
+        y: Math.min(start.y, screen.y),
+        width: Math.abs(screen.x - start.x),
+        height: Math.abs(screen.y - start.y),
+      };
+      ctx.scheduleDraw();
+      break;
+    }
+  }
+}
+
+export function onMarqueeUp(
+  ctx: ToolContext,
+  state: EditorState,
+  inter: Extract<Interaction, { kind: "marquee" }>,
+  end: Vec2
+) {
+  const region = boundsFromPoints(inter.start, end);
+  const hits = sceneIndex(state.doc).shapeIds.filter((id) => {
+    const s = state.doc.nodes[id];
+    return (
+      isShape(s) &&
+      !isShapeHidden(state.doc, s) &&
+      !isShapeLocked(state.doc, s) &&
+      marqueeHitShape(state.doc, s, region)
+    );
+  });
+  const base = inter.additive ? state.selection : [];
+  state.setSelection(
+    expandToGroups(state.doc, [...new Set([...base, ...hits])])
+  );
+  ctx.marquee.current = null;
+  ctx.scheduleDraw();
+}
+
+/** Double-clicking the pivot handle resets it to the default. */
+export function onSelectDoubleClick(
+  ctx: ToolContext,
+  state: EditorState,
+  screen: Vec2
+): boolean {
+  if (hitFrameHandle(ctx, screen)?.type !== "pivot") return false;
+  const group = exactlySelectedGroup(state.doc, state.selection);
+  if (group) {
+    state.updateGroupStyle(group.id, { transformOrigin: null });
+  } else if (state.selection.length === 1) {
+    state.updateSelectedStyle({ transformOrigin: null });
+  } else {
+    state.setSelectionPivot(null);
+  }
+  ctx.scheduleDraw();
+  return true;
+}
+
+export function selectCursor(
+  ctx: ToolContext,
+  screen: Vec2,
+  world: Vec2
+): string {
+  const hit = hitFrameHandle(ctx, screen);
+  if (hit?.type === "pivot") return "crosshair";
+  if (hit?.type === "rotate") return "grab";
+  if (hit?.type === "resize") {
+    const frame = selectionFrame();
+    return handleCursorRotated(hit.id, frame?.rotation ?? 0);
+  }
+  return pickShape(ctx, world) ? "move" : "default";
+}

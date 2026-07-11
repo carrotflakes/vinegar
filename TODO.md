@@ -110,3 +110,4 @@ A running list of what's built and what's next. Check items off as they land.
   - [ ] タッチ長押しで表示（モバイル）
   - [ ] キーボードナビゲーション（↑↓Enter）
 - [ ] 再利用可能部品　UnityのPrefabのようなもの, イラレだとシンボル
+- [ ] MCPサーバー化
