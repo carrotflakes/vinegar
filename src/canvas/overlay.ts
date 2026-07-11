@@ -202,7 +202,7 @@ export function drawNodes(
   viewport: Viewport,
   shape: BezierShape,
   transform: Matrix,
-  activeIndex: number | null,
+  active: { sub: number; index: number } | null,
   anchorSize = ANCHOR_SIZE,
   dotSize = HANDLE_DOT
 ): void {
@@ -213,32 +213,39 @@ export function drawNodes(
   ctx.strokeStyle = "#9bbcf6";
   ctx.fillStyle = "#ffffff";
   ctx.lineWidth = 1;
-  for (const a of shape.anchors) {
-    const sp = toS(a.p);
-    for (const h of [a.hIn, a.hOut]) {
-      if (!h) continue;
-      const sh = toS(h);
-      ctx.beginPath();
-      ctx.moveTo(sp.x, sp.y);
-      ctx.lineTo(sh.x, sh.y);
-      ctx.stroke();
-      dot(ctx, sh, dotSize / 2);
-      ctx.fill();
-      ctx.strokeStyle = ACCENT;
-      ctx.stroke();
-      ctx.strokeStyle = "#9bbcf6";
+  for (const subpath of shape.subpaths) {
+    for (const a of subpath.anchors) {
+      const sp = toS(a.p);
+      for (const h of [a.hIn, a.hOut]) {
+        if (!h) continue;
+        const sh = toS(h);
+        ctx.beginPath();
+        ctx.moveTo(sp.x, sp.y);
+        ctx.lineTo(sh.x, sh.y);
+        ctx.stroke();
+        dot(ctx, sh, dotSize / 2);
+        ctx.fill();
+        ctx.strokeStyle = ACCENT;
+        ctx.stroke();
+        ctx.strokeStyle = "#9bbcf6";
+      }
     }
   }
 
   // Anchor squares.
   ctx.lineWidth = 1.5;
-  shape.anchors.forEach((a, i) => {
-    const sp = toS(a.p);
-    square(ctx, sp, anchorSize);
-    ctx.fillStyle = i === activeIndex ? ACCENT : "#ffffff";
-    ctx.fill();
-    ctx.strokeStyle = ACCENT;
-    ctx.stroke();
+  shape.subpaths.forEach((subpath, sub) => {
+    subpath.anchors.forEach((a, i) => {
+      const sp = toS(a.p);
+      square(ctx, sp, anchorSize);
+      ctx.fillStyle =
+        active && active.sub === sub && active.index === i
+          ? ACCENT
+          : "#ffffff";
+      ctx.fill();
+      ctx.strokeStyle = ACCENT;
+      ctx.stroke();
+    });
   });
 }
 
@@ -253,7 +260,8 @@ export function drawPenDraft(
 ): void {
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   const toS = (w: Vec2) => worldToScreen(viewport, applyMatrix(transform, w));
-  const anchors = shape.anchors;
+  // The pen always drafts a single subpath.
+  const anchors = shape.subpaths[0]?.anchors ?? [];
   if (anchors.length === 0) return;
 
   // Rubber band from the last anchor to the cursor, curving out via its handle.

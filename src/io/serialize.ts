@@ -1,6 +1,6 @@
 import { BLEND_MODES, type Document, type ShapeType } from "../model/types";
 
-export const CURRENT_FILE_VERSION = 6 as const;
+export const CURRENT_FILE_VERSION = 7 as const;
 
 export interface VinegarFile {
   app: "vinegar";
@@ -58,10 +58,12 @@ const isNode = (id: string, node: unknown): boolean => {
     case "path":
       return isPoints(node.points) && typeof node.closed === "boolean";
     case "bezier":
-      return Array.isArray(node.anchors) && typeof node.closed === "boolean" &&
-        node.anchors.every((anchor) => isObject(anchor) && isPoint(anchor.p) &&
+      return Array.isArray(node.subpaths) && node.subpaths.every((sp) =>
+        isObject(sp) && typeof sp.closed === "boolean" &&
+        Array.isArray(sp.anchors) &&
+        sp.anchors.every((anchor: unknown) => isObject(anchor) && isPoint(anchor.p) &&
           (anchor.hIn === null || isPoint(anchor.hIn)) &&
-          (anchor.hOut === null || isPoint(anchor.hOut)));
+          (anchor.hOut === null || isPoint(anchor.hOut))));
     case "polygon":
       return Array.isArray(node.polys) && node.polys.every((poly) =>
         Array.isArray(poly) && poly.every(isPoints));

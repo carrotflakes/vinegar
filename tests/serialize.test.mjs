@@ -12,6 +12,7 @@ let parentIdOf;
 let createDemoDocument;
 let useEditor;
 let nodeWorldMatrix;
+let booleanShapes;
 
 before(async () => {
   server = await createServer({ server: { middlewareMode: true } });
@@ -23,6 +24,7 @@ before(async () => {
   ({ createDemoDocument } = await server.ssrLoadModule("/src/demo/createDemoDocument.ts"));
   ({ useEditor } = await server.ssrLoadModule("/src/store/editorStore.ts"));
   ({ nodeWorldMatrix } = await server.ssrLoadModule("/src/model/matrix.ts"));
+  ({ booleanShapes } = await server.ssrLoadModule("/src/model/boolean.ts"));
 });
 
 after(async () => server.close());
@@ -91,4 +93,36 @@ test("a nested v6 scene tree survives save/load and remains usable", () => {
   assert.equal(parentIdOf(useEditor.getState().doc, "demo_cards"), null);
   useEditor.getState().undo();
   assert.equal(parentIdOf(useEditor.getState().doc, "demo_skew_rect"), "demo_card_shapes");
+});
+
+test("boolean ops keep curves and produce editable compound béziers", () => {
+  const style = {
+    name: "e", fill: "#ffffff", stroke: null, strokeWidth: 0, opacity: 1,
+    transform: [1, 0, 0, 1, 0, 0], transformOrigin: null,
+  };
+  const outer = { id: "a", type: "ellipse", x: 0, y: 0, width: 100, height: 100, ...style };
+  const inner = { id: "b", type: "ellipse", x: 30, y: 30, width: 40, height: 40, ...style };
+
+  // Subtracting a fully contained ellipse cuts a hole: two closed subpaths.
+  const ring = booleanShapes([outer, inner], "subtract");
+  assert.equal(ring.type, "bezier");
+  assert.equal(ring.subpaths.length, 2);
+  assert.ok(ring.subpaths.every((sp) => sp.closed));
+  // Curves survive as Bézier handles instead of being flattened to polylines.
+  for (const sp of ring.subpaths) {
+    assert.ok(sp.anchors.length <= 8, `expected few anchors, got ${sp.anchors.length}`);
+    assert.ok(sp.anchors.some((an) => an.hIn || an.hOut));
+  }
+
+  // The hole is hit-test transparent; the ring itself is solid.
+  const doc = createEmptyDocument();
+  doc.nodes[ring.id] = ring;
+  doc.rootIds = [ring.id];
+  assert.equal(hitTestShape(doc, ring, { x: 50, y: 50 }, 0), false);
+  assert.equal(hitTestShape(doc, ring, { x: 50, y: 15 }, 0), true);
+
+  const shifted = { ...inner, id: "c", x: 70, y: 30 };
+  const union = booleanShapes([outer, shifted], "union");
+  assert.equal(union.subpaths.length, 1);
+  assert.ok(union.subpaths[0].anchors.some((an) => an.hIn || an.hOut));
 });

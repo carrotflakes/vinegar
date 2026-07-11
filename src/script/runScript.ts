@@ -73,6 +73,20 @@ function validAnchors(v: unknown): AnchorLike[] | null {
   return anchors.length >= 2 ? anchors : null;
 }
 
+function validSubpaths(
+  v: unknown
+): { anchors: AnchorLike[]; closed: boolean }[] | null {
+  if (!Array.isArray(v)) return null;
+  const subpaths = v.flatMap((sp) => {
+    if (!sp || typeof sp !== "object") return [];
+    const anchors = validAnchors((sp as Record<string, unknown>).anchors);
+    return anchors
+      ? [{ anchors, closed: !!(sp as Record<string, unknown>).closed }]
+      : [];
+  });
+  return subpaths.length > 0 ? subpaths : null;
+}
+
 function validPolys(v: unknown): Vec2[][][] | null {
   if (!Array.isArray(v)) return null;
   const polys = v
@@ -172,9 +186,7 @@ function reconcile(existing: Shape, edited: Record<string, unknown>): Shape {
         typeof edited.closed === "boolean" ? edited.closed : existing.closed;
       break;
     case "bezier":
-      base.anchors = validAnchors(edited.anchors) ?? existing.anchors;
-      base.closed =
-        typeof edited.closed === "boolean" ? edited.closed : existing.closed;
+      base.subpaths = validSubpaths(edited.subpaths) ?? existing.subpaths;
       break;
     case "polygon":
       base.polys = validPolys(edited.polys) ?? existing.polys;

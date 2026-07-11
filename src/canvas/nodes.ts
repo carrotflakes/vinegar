@@ -1,3 +1,4 @@
+import { withSubpath } from "../model/bezier";
 import { applyMatrix } from "../model/matrix";
 import type { BezierShape, Matrix, Vec2 } from "../model/types";
 import { worldToScreen, type Viewport } from "../model/viewport";
@@ -6,6 +7,8 @@ export type NodePart = "anchor" | "in" | "out";
 
 export interface NodeHit {
   part: NodePart;
+  /** Index into `shape.subpaths`. */
+  sub: number;
   index: number;
 }
 
@@ -29,13 +32,19 @@ export function hitBezierNodes(
     return Math.abs(s.x - screen.x) <= tol && Math.abs(s.y - screen.y) <= tol;
   };
   // Handles first.
-  for (let i = 0; i < shape.anchors.length; i++) {
-    const a = shape.anchors[i];
-    if (a.hOut && near(a.hOut, grabPx)) return { part: "out", index: i };
-    if (a.hIn && near(a.hIn, grabPx)) return { part: "in", index: i };
+  for (let sub = 0; sub < shape.subpaths.length; sub++) {
+    const anchors = shape.subpaths[sub].anchors;
+    for (let i = 0; i < anchors.length; i++) {
+      const a = anchors[i];
+      if (a.hOut && near(a.hOut, grabPx)) return { part: "out", sub, index: i };
+      if (a.hIn && near(a.hIn, grabPx)) return { part: "in", sub, index: i };
+    }
   }
-  for (let i = 0; i < shape.anchors.length; i++) {
-    if (near(shape.anchors[i].p, grabPx + 1)) return { part: "anchor", index: i };
+  for (let sub = 0; sub < shape.subpaths.length; sub++) {
+    const anchors = shape.subpaths[sub].anchors;
+    for (let i = 0; i < anchors.length; i++) {
+      if (near(anchors[i].p, grabPx + 1)) return { part: "anchor", sub, index: i };
+    }
   }
   return null;
 }
@@ -43,21 +52,24 @@ export function hitBezierNodes(
 /** Move an anchor point to `world`, dragging its handles along with it. */
 export function moveAnchor(
   shape: BezierShape,
+  sub: number,
   index: number,
   world: Vec2
 ): BezierShape {
-  const a = shape.anchors[index];
+  const sp = shape.subpaths[sub];
+  const a = sp?.anchors[index];
+  if (!a) return shape;
   const dx = world.x - a.p.x;
   const dy = world.y - a.p.y;
   const shift = (v: Vec2 | null): Vec2 | null =>
     v ? { x: v.x + dx, y: v.y + dy } : null;
-  const anchors = shape.anchors.slice();
+  const anchors = sp.anchors.slice();
   anchors[index] = {
     p: world,
     hIn: shift(a.hIn),
     hOut: shift(a.hOut),
   };
-  return { ...shape, anchors };
+  return withSubpath(shape, sub, { ...sp, anchors });
 }
 
 /**
@@ -66,14 +78,17 @@ export function moveAnchor(
  */
 export function moveHandle(
   shape: BezierShape,
+  sub: number,
   index: number,
   part: "in" | "out",
   world: Vec2,
   symmetric: boolean
 ): BezierShape {
-  const a = shape.anchors[index];
+  const sp = shape.subpaths[sub];
+  const a = sp?.anchors[index];
+  if (!a) return shape;
   const mirror: Vec2 = { x: 2 * a.p.x - world.x, y: 2 * a.p.y - world.y };
-  const anchors = shape.anchors.slice();
+  const anchors = sp.anchors.slice();
   if (part === "out") {
     anchors[index] = {
       ...a,
@@ -87,5 +102,5 @@ export function moveHandle(
       hOut: symmetric && a.hOut ? mirror : a.hOut,
     };
   }
-  return { ...shape, anchors };
+  return withSubpath(shape, sub, { ...sp, anchors });
 }

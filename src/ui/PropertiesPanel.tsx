@@ -63,7 +63,11 @@ export default function PropertiesPanel() {
   const closable = selectedGroup ? [] : selected.filter(
     (s) => s.type === "path" || s.type === "bezier"
   );
-  const anyOpen = closable.some((s) => "closed" in s && !s.closed);
+  const anyOpen = closable.some((s) =>
+    s.type === "path"
+      ? !s.closed
+      : s.type === "bezier" && s.subpaths.some((sp) => !sp.closed)
+  );
   const canOutline = !selectedGroup && selected.some(
     (s) => s.stroke !== null && s.strokeWidth > 0
   );

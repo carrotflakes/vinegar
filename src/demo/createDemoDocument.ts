@@ -50,13 +50,15 @@ export function createDemoDocument() {
     demo_header_curve: {
       id: "demo_header_curve", type: "bezier", ...shapeBase("Open Bézier", null, "#e25555"),
       strokeWidth: 7,
-      anchors: [
-        { p: { x: 142, y: 71 }, hIn: null, hOut: { x: 220, y: 8 } },
-        { p: { x: 330, y: 55 }, hIn: { x: 262, y: 108 }, hOut: { x: 420, y: -4 } },
-        { p: { x: 570, y: 64 }, hIn: { x: 480, y: 118 }, hOut: { x: 660, y: 14 } },
-        { p: { x: 775, y: 46 }, hIn: { x: 705, y: 92 }, hOut: null },
-      ],
-      closed: false,
+      subpaths: [{
+        anchors: [
+          { p: { x: 142, y: 71 }, hIn: null, hOut: { x: 220, y: 8 } },
+          { p: { x: 330, y: 55 }, hIn: { x: 262, y: 108 }, hOut: { x: 420, y: -4 } },
+          { p: { x: 570, y: 64 }, hIn: { x: 480, y: 118 }, hOut: { x: 660, y: 14 } },
+          { p: { x: 775, y: 46 }, hIn: { x: 705, y: 92 }, hOut: null },
+        ],
+        closed: false,
+      }],
     },
 
     demo_cards: {
@@ -114,12 +116,14 @@ export function createDemoDocument() {
     },
     demo_blob: {
       id: "demo_blob", type: "bezier", ...shapeBase("Closed Bézier", "#ffd15c", "#28344f"),
-      anchors: [
-        { p: { x: 92, y: 70 }, hIn: { x: 63, y: 54 }, hOut: { x: 120, y: 42 } },
-        { p: { x: 180, y: 84 }, hIn: { x: 154, y: 48 }, hOut: { x: 196, y: 113 } },
-        { p: { x: 122, y: 142 }, hIn: { x: 166, y: 142 }, hOut: { x: 82, y: 140 } },
-      ],
-      closed: true,
+      subpaths: [{
+        anchors: [
+          { p: { x: 92, y: 70 }, hIn: { x: 63, y: 54 }, hOut: { x: 120, y: 42 } },
+          { p: { x: 180, y: 84 }, hIn: { x: 154, y: 48 }, hOut: { x: 196, y: 113 } },
+          { p: { x: 122, y: 142 }, hIn: { x: 166, y: 142 }, hOut: { x: 82, y: 140 } },
+        ],
+        closed: true,
+      }],
     },
 
     demo_card_boolean: {

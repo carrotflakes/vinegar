@@ -1,4 +1,4 @@
-import { bezierSegments } from "../model/bezier";
+import { subpathSegments } from "../model/bezier";
 import { shapeBounds } from "../model/bounds";
 import { isIdentity } from "../model/matrix";
 import { isGroup, isShape } from "../model/scene";
@@ -89,19 +89,21 @@ function tracePath(ctx: CanvasRenderingContext2D, shape: Shape): void {
       break;
     }
     case "bezier": {
-      const segs = bezierSegments(shape);
-      if (segs.length === 0) {
-        if (shape.anchors[0]) {
-          const p = shape.anchors[0].p;
-          ctx.moveTo(p.x, p.y);
+      for (const sp of shape.subpaths) {
+        const segs = subpathSegments(sp);
+        if (segs.length === 0) {
+          if (sp.anchors[0]) {
+            const p = sp.anchors[0].p;
+            ctx.moveTo(p.x, p.y);
+          }
+          continue;
         }
-        break;
+        ctx.moveTo(segs[0].p0.x, segs[0].p0.y);
+        for (const s of segs) {
+          ctx.bezierCurveTo(s.c1.x, s.c1.y, s.c2.x, s.c2.y, s.p1.x, s.p1.y);
+        }
+        if (sp.closed) ctx.closePath();
       }
-      ctx.moveTo(segs[0].p0.x, segs[0].p0.y);
-      for (const s of segs) {
-        ctx.bezierCurveTo(s.c1.x, s.c1.y, s.c2.x, s.c2.y, s.p1.x, s.p1.y);
-      }
-      if (shape.closed) ctx.closePath();
       break;
     }
     case "polygon": {
@@ -131,7 +133,7 @@ export function paintShape(ctx: CanvasRenderingContext2D, shape: Shape): void {
     shape.fill !== null &&
     shape.type !== "line" &&
     !(shape.type === "path" && !shape.closed) &&
-    !(shape.type === "bezier" && !shape.closed);
+    !(shape.type === "bezier" && !shape.subpaths.some((sp) => sp.closed));
   if (fillable) {
     ctx.fillStyle = shape.fill as string;
     ctx.fill(shape.type === "polygon" ? "evenodd" : "nonzero");

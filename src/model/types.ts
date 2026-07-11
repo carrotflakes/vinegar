@@ -111,11 +111,19 @@ export interface BezierAnchor {
   hOut: Vec2 | null;
 }
 
-/** Cubic Bézier path produced by the pen tool. */
-export interface BezierShape extends BaseShape {
-  type: "bezier";
+/** One contour of a Bézier shape. */
+export interface BezierSubpath {
   anchors: BezierAnchor[];
   closed: boolean;
+}
+
+/**
+ * Cubic Bézier path produced by the pen tool. Boolean operations produce
+ * multi-subpath (compound) shapes, where later subpaths can cut holes.
+ */
+export interface BezierShape extends BaseShape {
+  type: "bezier";
+  subpaths: BezierSubpath[];
 }
 
 /**

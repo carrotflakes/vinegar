@@ -35,10 +35,13 @@ export function transformShape(shape: Shape, fn: (p: Vec2) => Vec2): Shape {
     case "bezier": {
       return {
         ...shape,
-        anchors: shape.anchors.map((an) => ({
-          p: fn(an.p),
-          hIn: an.hIn ? fn(an.hIn) : null,
-          hOut: an.hOut ? fn(an.hOut) : null,
+        subpaths: shape.subpaths.map((sp) => ({
+          ...sp,
+          anchors: sp.anchors.map((an) => ({
+            p: fn(an.p),
+            hIn: an.hIn ? fn(an.hIn) : null,
+            hOut: an.hOut ? fn(an.hOut) : null,
+          })),
         })),
         transformOrigin,
       };

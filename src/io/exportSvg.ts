@@ -1,4 +1,4 @@
-import { bezierSegments } from "../model/bezier";
+import { subpathSegments } from "../model/bezier";
 import { shapeBounds } from "../model/bounds";
 import { isIdentity } from "../model/matrix";
 import { isGroup, isShape } from "../model/scene";
@@ -18,7 +18,8 @@ function commonAttrs(shape: Shape): string {
   const parts: string[] = [];
   const fillable = !(
     shape.type === "line" ||
-    (shape.type === "path" && !shape.closed)
+    (shape.type === "path" && !shape.closed) ||
+    (shape.type === "bezier" && !shape.subpaths.some((sp) => sp.closed))
   );
   parts.push(`fill="${fillable && shape.fill ? shape.fill : "none"}"`);
   if (shape.stroke && shape.strokeWidth > 0) {
@@ -78,17 +79,21 @@ function shapeToSvg(shape: Shape): string {
 }
 
 function bezierPathData(shape: BezierShape): string {
-  const segs = bezierSegments(shape);
-  if (shape.anchors.length === 0) return "";
-  const start = shape.anchors[0].p;
-  let d = `M ${num(start.x)} ${num(start.y)}`;
-  for (const s of segs) {
-    d += ` C ${num(s.c1.x)} ${num(s.c1.y)} ${num(s.c2.x)} ${num(
-      s.c2.y
-    )} ${num(s.p1.x)} ${num(s.p1.y)}`;
+  const parts: string[] = [];
+  for (const sp of shape.subpaths) {
+    const segs = subpathSegments(sp);
+    if (sp.anchors.length === 0) continue;
+    const start = sp.anchors[0].p;
+    let d = `M ${num(start.x)} ${num(start.y)}`;
+    for (const s of segs) {
+      d += ` C ${num(s.c1.x)} ${num(s.c1.y)} ${num(s.c2.x)} ${num(
+        s.c2.y
+      )} ${num(s.p1.x)} ${num(s.p1.y)}`;
+    }
+    if (sp.closed) d += " Z";
+    parts.push(d);
   }
-  if (shape.closed) d += " Z";
-  return d;
+  return parts.join(" ");
 }
 
 /**

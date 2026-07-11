@@ -1,5 +1,5 @@
 import ClipperLib, { type IntPoint, type PolyNode } from "clipper-lib";
-import { flattenBezier } from "./bezier";
+import { flattenSubpath } from "./bezier";
 import { shapeBounds } from "./bounds";
 import { applyMatrix } from "./matrix";
 import type { Shape, Vec2 } from "./types";
@@ -59,7 +59,10 @@ function centerlines(shape: Shape): Polyline[] {
     case "path":
       return [{ points: shape.points, closed: shape.closed }];
     case "bezier":
-      return [{ points: flattenBezier(shape), closed: shape.closed }];
+      return shape.subpaths.map((sp) => ({
+        points: flattenSubpath(sp),
+        closed: sp.closed,
+      }));
     case "polygon":
       return shape.polys.flat().map((ring) => ({ points: ring, closed: true }));
   }

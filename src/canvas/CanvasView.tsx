@@ -128,10 +128,17 @@ type Interaction =
   | { kind: "create"; start: Vec2 }
   | { kind: "pencil" }
   | { kind: "pen-anchor"; index: number }
-  | { kind: "node-anchor"; shapeId: string; index: number; orig: BezierShape }
+  | {
+      kind: "node-anchor";
+      shapeId: string;
+      sub: number;
+      index: number;
+      orig: BezierShape;
+    }
   | {
       kind: "node-handle";
       shapeId: string;
+      sub: number;
       index: number;
       part: "in" | "out";
       orig: BezierShape;
@@ -150,6 +157,11 @@ function selectedBezier(state: EditorState): BezierShape | null {
   if (state.selection.length !== 1) return null;
   const s = state.doc.nodes[state.selection[0]];
   return s && s.type === "bezier" ? s : null;
+}
+
+/** The single subpath a pen draft works on. */
+function draftSubpath(draft: BezierShape) {
+  return draft.subpaths[0];
 }
 
 function selectedShapes(doc: EditorState["doc"], selection: string[]): Shape[] {
@@ -171,9 +183,12 @@ export default function CanvasView() {
   /** When the pen picked up an existing open path, its pre-edit original. */
   const penExtendRef = useRef<BezierShape | null>(null);
   /** Last segment-click insertion, so a double-click doesn't also toggle it. */
-  const lastInsertRef = useRef<{ shapeId: string; index: number; time: number } | null>(
-    null
-  );
+  const lastInsertRef = useRef<{
+    shapeId: string;
+    sub: number;
+    index: number;
+    time: number;
+  } | null>(null);
   const hoverRef = useRef<Vec2 | null>(null);
   const guidesRef = useRef<Guide[]>([]);
   const spacingsRef = useRef<Spacing[]>([]);
@@ -233,7 +248,7 @@ export default function CanvasView() {
       if (sel) {
         const active =
           state.editNode && state.editNode.shapeId === sel.id
-            ? state.editNode.index
+            ? { sub: state.editNode.sub, index: state.editNode.index }
             : null;
         drawNodes(
           ctx,
@@ -278,7 +293,7 @@ export default function CanvasView() {
     previewRef.current = null;
     hoverRef.current = null;
     if (draft) {
-      const anchors = draft.anchors;
+      const anchors = draftSubpath(draft).anchors;
       // Drop a near-duplicate final anchor (left over from a double-click).
       if (anchors.length >= 2) {
         const a = anchors[anchors.length - 1].p;
@@ -312,8 +327,9 @@ export default function CanvasView() {
   const undoPenAnchor = useCallback(() => {
     const draft = penDraftRef.current;
     if (!draft) return;
-    draft.anchors.pop();
-    if (draft.anchors.length === 0) {
+    const anchors = draftSubpath(draft).anchors;
+    anchors.pop();
+    if (anchors.length === 0) {
       cancelPenDraft();
       return;
     }
@@ -649,14 +665,21 @@ export default function CanvasView() {
         NODE_GRAB * hitScale()
       );
       if (hit) {
-        state.setEditNode({ shapeId: sel.id, index: hit.index });
+        state.setEditNode({ shapeId: sel.id, sub: hit.sub, index: hit.index });
         state.beginInteraction();
         interactionRef.current =
           hit.part === "anchor"
-            ? { kind: "node-anchor", shapeId: sel.id, index: hit.index, orig: sel }
+            ? {
+                kind: "node-anchor",
+                shapeId: sel.id,
+                sub: hit.sub,
+                index: hit.index,
+                orig: sel,
+              }
             : {
                 kind: "node-handle",
                 shapeId: sel.id,
+                sub: hit.sub,
                 index: hit.index,
                 part: hit.part,
                 orig: sel,
@@ -670,16 +693,22 @@ export default function CanvasView() {
       const loc = closestPointOnBezier(sel, local);
       const localScale = matrixScale(shapeWorldMatrix(state.doc, sel));
       if (loc && loc.distance * localScale <= pickTolerance()) {
-        const next = insertAnchorOnSegment(sel, loc.segIndex, loc.t);
+        const next = insertAnchorOnSegment(sel, loc.sub, loc.segIndex, loc.t);
         if (next !== sel) {
           const index = loc.segIndex + 1;
           state.beginInteraction();
           state.applyShapes({ [sel.id]: next });
-          state.setEditNode({ shapeId: sel.id, index });
-          lastInsertRef.current = { shapeId: sel.id, index, time: Date.now() };
+          state.setEditNode({ shapeId: sel.id, sub: loc.sub, index });
+          lastInsertRef.current = {
+            shapeId: sel.id,
+            sub: loc.sub,
+            index,
+            time: Date.now(),
+          };
           interactionRef.current = {
             kind: "node-anchor",
             shapeId: sel.id,
+            sub: loc.sub,
             index,
             orig: next,
           };
@@ -717,16 +746,19 @@ export default function CanvasView() {
       if (
         !isShape(s) ||
         s.type !== "bezier" ||
-        s.closed ||
+        // Only single-subpath open curves can be picked up and continued.
+        s.subpaths.length !== 1 ||
+        s.subpaths[0].closed ||
         isShapeHidden(doc, s) ||
         isShapeLocked(doc, s) ||
-        s.anchors.length < 2
+        s.subpaths[0].anchors.length < 2
       )
         continue;
-      if (near(s, s.anchors[s.anchors.length - 1].p)) {
+      const anchors = s.subpaths[0].anchors;
+      if (near(s, anchors[anchors.length - 1].p)) {
         return { shape: s, end: "end" };
       }
-      if (near(s, s.anchors[0].p)) return { shape: s, end: "start" };
+      if (near(s, anchors[0].p)) return { shape: s, end: "start" };
     }
     return null;
   };
@@ -742,7 +774,8 @@ export default function CanvasView() {
       ? invertMatrix(shapeWorldMatrix(state.doc, draft))
       : null;
     const localWorld = draftInverse ? applyMatrix(draftInverse, world) : world;
-    const last = draft?.anchors[draft.anchors.length - 1];
+    const draftAnchors = draft ? draftSubpath(draft).anchors : null;
+    const last = draftAnchors?.[draftAnchors.length - 1];
     if (shift && last) {
       world = constrain45(last.p, localWorld);
       guidesRef.current = [];
@@ -763,7 +796,7 @@ export default function CanvasView() {
         previewRef.current = shape;
         interactionRef.current = {
           kind: "pen-anchor",
-          index: shape.anchors.length - 1,
+          index: draftSubpath(shape).anchors.length - 1,
         };
         scheduleDraw();
         return;
@@ -772,8 +805,9 @@ export default function CanvasView() {
         id: makeId("bezier"),
         name: "Curve",
         type: "bezier",
-        anchors: [{ p: world, hIn: null, hOut: null }],
-        closed: false,
+        subpaths: [
+          { anchors: [{ p: world, hIn: null, hOut: null }], closed: false },
+        ],
         ...styleFromDefaults(state.style),
       };
       penDraftRef.current = shape;
@@ -784,21 +818,22 @@ export default function CanvasView() {
     }
 
     // Click near the first anchor closes the path.
-    if (draft.anchors.length >= 2) {
+    const sp = draftSubpath(draft);
+    if (sp.anchors.length >= 2) {
       const first = worldToScreen(
         state.viewport,
-        applyMatrix(shapeWorldMatrix(state.doc, draft), draft.anchors[0].p)
+        applyMatrix(shapeWorldMatrix(state.doc, draft), sp.anchors[0].p)
       );
       if (Math.hypot(first.x - screen.x, first.y - screen.y) <= NODE_GRAB) {
-        draft.closed = true;
+        sp.closed = true;
         commitPenDraft();
         return;
       }
     }
 
-    draft.anchors.push({ p: world, hIn: null, hOut: null });
+    sp.anchors.push({ p: world, hIn: null, hOut: null });
     previewRef.current = draft;
-    interactionRef.current = { kind: "pen-anchor", index: draft.anchors.length - 1 };
+    interactionRef.current = { kind: "pen-anchor", index: sp.anchors.length - 1 };
     scheduleDraw();
   };
 
@@ -814,7 +849,8 @@ export default function CanvasView() {
         const draft = penDraftRef.current;
         const inverse = invertMatrix(shapeWorldMatrix(state.doc, draft));
         const localWorld = inverse ? applyMatrix(inverse, world) : world;
-        const last = draft.anchors[draft.anchors.length - 1];
+        const anchors = draftSubpath(draft).anchors;
+        const last = anchors[anchors.length - 1];
         hoverRef.current =
           e.shiftKey && last
             ? constrain45(last.p, localWorld)
@@ -1018,7 +1054,7 @@ export default function CanvasView() {
         if (draft) {
           const inverse = invertMatrix(shapeWorldMatrix(state.doc, draft));
           const localWorld = inverse ? applyMatrix(inverse, world) : world;
-          const a = draft.anchors[inter.index];
+          const a = draftSubpath(draft).anchors[inter.index];
           const target = e.shiftKey
             ? constrain45(a.p, localWorld)
             : localWorld;
@@ -1037,7 +1073,9 @@ export default function CanvasView() {
         let target: Vec2;
         if (e.shiftKey) {
           // Constrain to 45° rays from the anchor's original position.
-          const origP = inter.orig.anchors[inter.index]?.p ?? localWorld;
+          const origP =
+            inter.orig.subpaths[inter.sub]?.anchors[inter.index]?.p ??
+            localWorld;
           target = constrain45(origP, localWorld);
           guidesRef.current = [];
           spacingsRef.current = [];
@@ -1046,7 +1084,7 @@ export default function CanvasView() {
           target = inverse ? applyMatrix(inverse, snapped) : snapped;
         }
         state.applyShapes({
-          [inter.shapeId]: moveAnchor(inter.orig, inter.index, target),
+          [inter.shapeId]: moveAnchor(inter.orig, inter.sub, inter.index, target),
         });
         break;
       }
@@ -1059,6 +1097,7 @@ export default function CanvasView() {
         state.applyShapes({
           [inter.shapeId]: moveHandle(
             inter.orig,
+            inter.sub,
             inter.index,
             inter.part,
             localWorld,
@@ -1185,12 +1224,13 @@ export default function CanvasView() {
       if (
         ins &&
         ins.shapeId === sel.id &&
+        ins.sub === hit.sub &&
         ins.index === hit.index &&
         Date.now() - ins.time < 600
       )
         return;
-      state.toggleNodeSmooth(sel.id, hit.index);
-      state.setEditNode({ shapeId: sel.id, index: hit.index });
+      state.toggleNodeSmooth(sel.id, hit.sub, hit.index);
+      state.setEditNode({ shapeId: sel.id, sub: hit.sub, index: hit.index });
     }
   };
 
@@ -1471,8 +1511,7 @@ function freehandToBezier(rawPoints: Vec2[], state: EditorState): BezierShape {
     id: makeId("bezier"),
     name: "Pencil",
     type: "bezier",
-    anchors,
-    closed,
+    subpaths: [{ anchors, closed }],
     ...styleFromDefaults(state.style),
     fill: null,
   };

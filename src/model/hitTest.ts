@@ -1,4 +1,4 @@
-import { flattenBezier } from "./bezier";
+import { flattenSubpath } from "./bezier";
 import { shapeBounds, worldShapeBounds } from "./bounds";
 import { invertMatrix, matrixScale, shapeWorldMatrix } from "./matrix";
 import type { Bounds, Document, Shape, Vec2 } from "./types";
@@ -115,9 +115,20 @@ export function hitTestShape(doc: Document, shape: Shape, p: Vec2, tol: number):
       return distToPolyline(p, shape.points, shape.closed) <= pickTol;
     }
     case "bezier": {
-      const flat = flattenBezier(shape);
-      if (hasFill && shape.closed && pointInPolygon(p, flat)) return true;
-      return distToPolyline(p, flat, shape.closed) <= pickTol;
+      if (hasFill) {
+        // Even-odd across all closed subpaths, so holes are excluded.
+        const inside = shape.subpaths.reduce(
+          (acc, sp) =>
+            sp.closed
+              ? acc !== pointInPolygon(p, flattenSubpath(sp))
+              : acc,
+          false
+        );
+        if (inside) return true;
+      }
+      return shape.subpaths.some(
+        (sp) => distToPolyline(p, flattenSubpath(sp), sp.closed) <= pickTol
+      );
     }
     case "polygon": {
       const rings = shape.polys.flat();
@@ -183,7 +194,7 @@ export function marqueeHitShape(
     shape.fill !== null &&
     shape.type !== "line" &&
     !(shape.type === "path" && !shape.closed) &&
-    !(shape.type === "bezier" && !shape.closed);
+    !(shape.type === "bezier" && !shape.subpaths.some((sp) => sp.closed));
   if (!fillable) return false;
   const corners = [
     { x: region.x, y: region.y },
@@ -245,7 +256,10 @@ function localPolylines(shape: Shape): WorldPolyline[] {
     case "path":
       return [{ points: shape.points, closed: shape.closed }];
     case "bezier":
-      return [{ points: flattenBezier(shape), closed: shape.closed }];
+      return shape.subpaths.map((sp) => ({
+        points: flattenSubpath(sp),
+        closed: sp.closed,
+      }));
     case "polygon":
       return shape.polys.flat().map((points) => ({ points, closed: true }));
   }

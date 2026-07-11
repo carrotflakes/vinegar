@@ -39,7 +39,7 @@ import {
 } from "../model/scene";
 
 export type ToolId = "select" | "node" | "rect" | "ellipse" | "line" | "pen" | "pencil";
-export interface EditNode { shapeId: string; index: number }
+export interface EditNode { shapeId: string; sub: number; index: number }
 export type AlignType = "left" | "hcenter" | "right" | "top" | "vmiddle" | "bottom";
 export interface StyleDefaults { fill: string | null; stroke: string | null; strokeWidth: number }
 interface HistoryState { past: Document[]; future: Document[] }
@@ -100,7 +100,7 @@ export interface EditorState {
   addShape: (shape: Shape, select?: boolean) => void;
   addShapes: (shapes: Shape[], select?: boolean) => void;
   updateShape: (shape: Shape, select?: boolean) => void;
-  toggleNodeSmooth: (shapeId: string, index: number) => void;
+  toggleNodeSmooth: (shapeId: string, sub: number, index: number) => void;
   applyScriptChanges: (changes: { created: Shape[]; updated: Shape[]; deleted: string[] }) => void;
   deleteSelected: () => void;
   updateSelectedStyle: (patch: Partial<StyleStylableFields>) => void;
@@ -244,13 +244,18 @@ export const useEditor = create<EditorState>((set, get) => {
     addShape: (shape, select = true) => { const { doc } = get(); transact({ ...doc, nodes: { ...doc.nodes, [shape.id]: shape }, rootIds: [...doc.rootIds, shape.id] }); if (select) set({ selection: [shape.id], ...clearTransient }); },
     addShapes: (shapes, select = true) => { if (!shapes.length) return; const doc = get().doc; transact({ ...doc, nodes: { ...doc.nodes, ...Object.fromEntries(shapes.map((s) => [s.id, s])) }, rootIds: [...doc.rootIds, ...shapes.map((s) => s.id)] }); if (select) set({ selection: shapes.map((s) => s.id), ...clearTransient }); },
     updateShape: (shape, select = true) => { const doc = get().doc; if (!isShape(doc.nodes[shape.id])) return; transact({ ...doc, nodes: { ...doc.nodes, [shape.id]: shape } }); if (select) set({ selection: [shape.id], ...clearTransient }); },
-    toggleNodeSmooth: (id, index) => { const doc = get().doc; const shape = doc.nodes[id]; if (!isShape(shape) || shape.type !== "bezier") return; transact({ ...doc, nodes: { ...doc.nodes, [id]: toggleAnchorSmooth(shape, index) } }); },
+    toggleNodeSmooth: (id, sub, index) => { const doc = get().doc; const shape = doc.nodes[id]; if (!isShape(shape) || shape.type !== "bezier") return; transact({ ...doc, nodes: { ...doc.nodes, [id]: toggleAnchorSmooth(shape, sub, index) } }); },
     deleteEditNode: () => {
       const { doc, editNode } = get(); if (!editNode) return;
       const shape = doc.nodes[editNode.shapeId]; if (!isShape(shape) || shape.type !== "bezier") return;
-      const anchors = shape.anchors.filter((_, i) => i !== editNode.index);
-      if (anchors.length < 2) { transact(removeRoots(doc, [shape.id])); set({ selection: [], editNode: null, ...clearTransient }); }
-      else { transact({ ...doc, nodes: { ...doc.nodes, [shape.id]: { ...shape, anchors } } }); set({ editNode: null }); }
+      const sp = shape.subpaths[editNode.sub]; if (!sp) return;
+      const anchors = sp.anchors.filter((_, i) => i !== editNode.index);
+      // A subpath that can no longer form a segment disappears with its anchor.
+      const subpaths = anchors.length < 2
+        ? shape.subpaths.filter((_, i) => i !== editNode.sub)
+        : shape.subpaths.map((s, i) => (i === editNode.sub ? { ...s, anchors } : s));
+      if (subpaths.length === 0) { transact(removeRoots(doc, [shape.id])); set({ selection: [], editNode: null, ...clearTransient }); }
+      else { transact({ ...doc, nodes: { ...doc.nodes, [shape.id]: { ...shape, subpaths } } }); set({ editNode: null }); }
     },
     applyScriptChanges: ({ created, updated, deleted }) => {
       let doc = get().doc; const del = new Set(deleted);
@@ -347,7 +352,7 @@ export const useEditor = create<EditorState>((set, get) => {
       for (const item of sorted.slice(1, -1)) { const d = cursor - start(item.bounds); nodes[item.id] = applyWorldTransformToNode(doc, nodes[item.id], translationMatrix(horizontal ? d : 0, horizontal ? 0 : d)); cursor += size(item.bounds) + gap; }
       transact({ ...doc, nodes }); set(clearTransient);
     },
-    setClosedSelected: (closed) => { const doc = get().doc; const nodes = { ...doc.nodes }; let changed = false; for (const id of selectionRoots(doc, get().selection)) { const shape = nodes[id]; if (isShape(shape) && (shape.type === "path" || shape.type === "bezier") && shape.closed !== closed) { nodes[id] = { ...shape, closed }; changed = true; } } if (changed) transact({ ...doc, nodes }); },
+    setClosedSelected: (closed) => { const doc = get().doc; const nodes = { ...doc.nodes }; let changed = false; for (const id of selectionRoots(doc, get().selection)) { const shape = nodes[id]; if (!isShape(shape)) continue; if (shape.type === "path" && shape.closed !== closed) { nodes[id] = { ...shape, closed }; changed = true; } else if (shape.type === "bezier" && shape.subpaths.some((sp) => sp.closed !== closed)) { nodes[id] = { ...shape, subpaths: shape.subpaths.map((sp) => ({ ...sp, closed })) }; changed = true; } } if (changed) transact({ ...doc, nodes }); },
     outlineStrokeSelected: () => {
       let doc = get().doc; const selected: string[] = [];
       for (const id of selectionRoots(doc, get().selection)) {
