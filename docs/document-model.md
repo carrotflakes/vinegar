@@ -5,14 +5,14 @@ active tool, selection, viewport and undo history does not belong in the file.
 
 ## Invariants
 
-- Every key in `shapes` equals that shape's `id`.
-- `order` contains each persisted shape id exactly once and is back-to-front.
-- Shapes absent from `order` are not part of the document.
-- Every key in `groups` equals that group's `id`.
-- A shape's `groupId` references its immediate group or is null.
-- A group's `parentId` references its immediate parent or is null.
-- Group parent references form a forest: dangling references and cycles are invalid.
-- Members of a group occupy one contiguous block in `order`.
+- Every key in `nodes` equals that shape or group's `id`.
+- `rootIds` and each group's `childIds` are back-to-front and are the only
+  persisted sources of hierarchy and paint order.
+- Every node is owned exactly once by either `rootIds` or one `childIds` list.
+- Missing children, multiple ownership, duplicate ownership, cycles and
+  unreachable nodes are invalid. Empty groups are valid.
+- Parent ids, ancestors, depth, leaf shapes, inherited visibility/locking and
+  world matrices are derived by the Scene Index and are not persisted.
 - Asset-bearing nodes reference entries in `assets` by id; binary data does not
   belong directly in a node.
 - Extension data uses namespaced keys in `extensions` and must be JSON-safe.

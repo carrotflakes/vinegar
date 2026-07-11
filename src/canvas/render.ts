@@ -1,45 +1,9 @@
 import { bezierSegments } from "../model/bezier";
 import { shapeBounds } from "../model/bounds";
 import { isIdentity } from "../model/matrix";
-import type { Document, Group, Shape } from "../model/types";
+import { isGroup, isShape } from "../model/scene";
+import type { Document, Shape } from "../model/types";
 import { worldToScreen, type Viewport } from "../model/viewport";
-
-// ---- render tree -----------------------------------------------------------
-// Shapes stay in world coordinates, but groups need to composite as a unit
-// when they carry opacity or a blend mode. Since a group's members form a
-// contiguous block in `order`, the flat list folds into a tree.
-
-export type RenderNode =
-  | { kind: "shape"; shape: Shape }
-  | { kind: "group"; group: Group; children: RenderNode[] };
-
-export function buildRenderTree(doc: Document): RenderNode[] {
-  const roots: RenderNode[] = [];
-  const nodes = new Map<string, Extract<RenderNode, { kind: "group" }>>();
-  const nodeFor = (
-    gid: string,
-    visiting: Set<string>
-  ): Extract<RenderNode, { kind: "group" }> | null => {
-    const g = doc.groups[gid];
-    if (!g || visiting.has(gid)) return null;
-    let n = nodes.get(gid);
-    if (!n) {
-      n = { kind: "group", group: g, children: [] };
-      nodes.set(gid, n);
-      visiting.add(gid);
-      const parent = g.parentId ? nodeFor(g.parentId, visiting) : null;
-      (parent ? parent.children : roots).push(n);
-    }
-    return n;
-  };
-  for (const id of doc.order) {
-    const s = doc.shapes[id];
-    if (!s) continue;
-    const parent = s.groupId ? nodeFor(s.groupId, new Set()) : null;
-    (parent ? parent.children : roots).push({ kind: "shape", shape: s });
-  }
-  return roots;
-}
 
 /**
  * Paint a render node. Groups with opacity/blend are drawn into an offscreen
@@ -47,22 +11,26 @@ export function buildRenderTree(doc: Document): RenderNode[] {
  */
 export function paintNode(
   ctx: CanvasRenderingContext2D,
-  node: RenderNode,
+  doc: Document,
+  nodeId: string,
   preview?: Shape | null
 ): void {
-  if (node.kind === "shape") {
-    if (node.shape.hidden) return;
-    paintShape(ctx, preview?.id === node.shape.id ? preview : node.shape);
+  const node = doc.nodes[nodeId];
+  if (!node) return;
+  if (isShape(node)) {
+    if (node.hidden) return;
+    paintShape(ctx, preview?.id === node.id ? preview : node);
     return;
   }
-  const g = node.group;
+  if (!isGroup(node)) return;
+  const g = node;
   if (g.hidden) return;
   ctx.save();
   ctx.transform(...g.transform);
   const alpha = g.opacity ?? 1;
   const blend = g.blendMode && g.blendMode !== "normal" ? g.blendMode : null;
   if (alpha >= 1 && !blend) {
-    for (const c of node.children) paintNode(ctx, c, preview);
+    for (const childId of g.childIds) paintNode(ctx, doc, childId, preview);
     ctx.restore();
     return;
   }
@@ -75,7 +43,7 @@ export function paintNode(
     return;
   }
   lctx.setTransform(ctx.getTransform());
-  for (const c of node.children) paintNode(lctx, c, preview);
+  for (const childId of g.childIds) paintNode(lctx, doc, childId, preview);
   ctx.restore();
   ctx.save();
   ctx.setTransform(1, 0, 0, 1, 0, 0);
@@ -212,10 +180,10 @@ export function renderScene(
 
   // A preview that shares a document shape's id supersedes it (the pen
   // extending an existing path); skip the stale copy underneath.
-  for (const node of buildRenderTree(doc)) {
-    paintNode(ctx, node, opts.preview);
+  for (const nodeId of doc.rootIds) {
+    paintNode(ctx, doc, nodeId, opts.preview);
   }
-  if (opts.preview && !doc.shapes[opts.preview.id]) paintShape(ctx, opts.preview);
+  if (opts.preview && !doc.nodes[opts.preview.id]) paintShape(ctx, opts.preview);
 
   ctx.restore();
 }

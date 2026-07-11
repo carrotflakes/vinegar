@@ -1,7 +1,8 @@
 import { worldShapeBounds } from "../model/bounds";
 import { isShapeHidden } from "../model/groups";
 import { matrixScale, shapeWorldMatrix } from "../model/matrix";
-import type { Bounds, Document, Shape } from "../model/types";
+import { shapesInPaintOrder } from "../model/scene";
+import type { Bounds, Document } from "../model/types";
 
 /**
  * Tight content bounds of the document's visible shapes, expanded to include
@@ -11,9 +12,7 @@ export function contentBounds(
   doc: Document,
   margin = 8
 ): Bounds | null {
-  const shapes = (doc.order
-    .map((id) => doc.shapes[id])
-    .filter(Boolean) as Shape[]).filter((s) => !isShapeHidden(doc, s));
+  const shapes = shapesInPaintOrder(doc).filter((s) => !isShapeHidden(doc, s));
   if (shapes.length === 0) return null;
 
   // Expand each shape's box by half its stroke width, then add the margin.

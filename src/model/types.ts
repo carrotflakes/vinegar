@@ -41,29 +41,29 @@ export const BLEND_MODES = [
 
 export type BlendMode = (typeof BLEND_MODES)[number];
 
-/** Common visual + identity fields shared by every shape. */
-export interface BaseShape {
+/** Fields shared by every persisted scene node. */
+export interface BaseNode {
   id: string;
   name: string;
+  /** Maps the node's local space into its parent space. */
+  transform: Matrix;
+  /** Explicit rotation center in local space; null uses content center. */
+  transformOrigin: Vec2 | null;
+  /** 0..1 */
+  opacity: number;
+  /** How the node composites onto what's below. */
+  blendMode?: BlendMode;
+  hidden?: boolean;
+  locked?: boolean;
+}
+
+/** Common paint fields shared by every shape. */
+export interface BaseShape extends BaseNode {
   /** `null` fill means "no fill" (transparent). */
   fill: string | null;
   /** `null` stroke means "no stroke". */
   stroke: string | null;
   strokeWidth: number;
-  /** 0..1 */
-  opacity: number;
-  /** How the shape composites onto what's below. Absent = "normal". */
-  blendMode?: BlendMode;
-  /** Maps the shape's geometry from local space into its parent space. */
-  transform: Matrix;
-  /** Explicit rotation center in local space; null uses the geometry center. */
-  transformOrigin: Vec2 | null;
-  /** Immediate enclosing group (see `Group`); `null`/absent = ungrouped. */
-  groupId?: string | null;
-  /** Hidden shapes are not rendered and cannot be picked on the canvas. */
-  hidden?: boolean;
-  /** Locked shapes cannot be picked or edited on the canvas. */
-  locked?: boolean;
 }
 
 /** Axis-aligned rectangle, defined by its top-left corner and size. */
@@ -134,28 +134,13 @@ export function polygonRings(shape: PolygonShape): Vec2[][] {
 }
 
 /**
- * A group is a real document entity: it can nest (via `parentId`) and carries
- * its own visual properties. Opacity/blend on a group composite the whole
- * group as one layer. Membership lives on shapes (`shape.groupId` = immediate
- * group); a group's block is kept contiguous in `order`.
+ * A group is a real scene node. Its child list is both the hierarchy and the
+ * back-to-front paint order; parent information is derived by Scene Index.
  */
-export interface Group {
-  id: string;
-  name: string;
-  /** Enclosing group; `null`/absent = top level. */
-  parentId?: string | null;
-  /** Maps children from this group's local space into its parent space. */
-  transform: Matrix;
-  /** Explicit rotation center in group-local space; null uses content center. */
-  transformOrigin: Vec2 | null;
-  /** 0..1 group-layer opacity. Absent = 1. */
-  opacity?: number;
-  /** How the group layer composites onto what's below. Absent = "normal". */
-  blendMode?: BlendMode;
-  /** Hides every descendant. */
-  hidden?: boolean;
-  /** Locks every descendant. */
-  locked?: boolean;
+export interface Group extends BaseNode {
+  type: "group";
+  /** Child node ids, back-to-front. This is the canonical hierarchy/order. */
+  childIds: string[];
 }
 
 export type Shape =
@@ -165,6 +150,8 @@ export type Shape =
   | PathShape
   | BezierShape
   | PolygonShape;
+
+export type SceneNode = Shape | Group;
 
 /** Axis-aligned bounding box. */
 export interface Bounds {
@@ -203,11 +190,10 @@ export interface DocumentAsset {
   source: { type: "data"; data: string };
 }
 
-/** The whole drawing document. `order` lists shape ids back-to-front. */
+/** The whole drawing document. Root/child ids are always back-to-front. */
 export interface Document {
-  shapes: Record<string, Shape>;
-  order: string[];
-  groups: Record<string, Group>;
+  nodes: Record<string, SceneNode>;
+  rootIds: string[];
   settings: DocumentSettings;
   metadata: DocumentMetadata;
   assets: Record<string, DocumentAsset>;
@@ -218,9 +204,8 @@ export interface Document {
 export function createEmptyDocument(): Document {
   const now = new Date().toISOString();
   return {
-    shapes: {},
-    order: [],
-    groups: {},
+    nodes: {},
+    rootIds: [],
     settings: { unit: "px", dpi: 96, gridSize: 50 },
     metadata: { createdAt: now, modifiedAt: now },
     assets: {},

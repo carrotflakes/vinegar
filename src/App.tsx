@@ -9,6 +9,7 @@ import FileMenu from "./ui/FileMenu";
 import ScriptPanel from "./ui/ScriptPanel";
 import ContextMenuHost from "./ui/ContextMenu";
 import "./App.css";
+import { isShape, sceneIndex } from "./model/scene";
 
 const TOOL_KEYS: Record<string, ToolId> = {
   v: "select",
@@ -46,11 +47,11 @@ const TYPE_LABELS: Record<string, string> = {
 /** Selection summary: count, or type + name for a single selection. */
 function SelectionInfo() {
   const label = useEditor((s) => {
-    const total = s.doc.order.length;
+    const total = sceneIndex(s.doc).shapeIds.length;
     const n = s.selection.length;
     if (n === 1) {
-      const shape = s.doc.shapes[s.selection[0]];
-      if (shape) return `${TYPE_LABELS[shape.type] ?? shape.type} · ${shape.name}`;
+      const node = s.doc.nodes[s.selection[0]];
+      if (node) return `${isShape(node) ? TYPE_LABELS[node.type] ?? node.type : "Group"} · ${node.name}`;
     }
     if (n > 1) return `${n} of ${total} selected`;
     return `${total} shape${total === 1 ? "" : "s"}`;

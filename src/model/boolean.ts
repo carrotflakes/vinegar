@@ -141,6 +141,5 @@ export function booleanShapes(shapes: Shape[], op: BoolOp): PolygonShape | null 
     blendMode: base.blendMode,
     transform: [...IDENTITY],
     transformOrigin: null,
-    groupId: null,
   };
 }

@@ -20,7 +20,7 @@ A running list of what's built and what's next. Check items off as they land.
 - [x] Pen: click an endpoint of an existing open path to continue it (commit replaces the original)
 - [x] Shift = 45° constraint for pen anchors/handles and node-anchor drags
 - [x] Rotation (handle, Shift = 15°) incl. rotated resize; rotation-aware cursors
-- [x] Group / ungroup (groupId-based)
+- [x] Group / ungroup (normalized Scene Tree)
 - [x] Copy / cut / paste / duplicate
 - [x] Boolean ops: union / subtract / intersect / exclude (polygon-clipping)
 - [x] Outline stroke: convert a shape's stroke to a filled path (clipper-lib)
@@ -64,7 +64,7 @@ A running list of what's built and what's next. Check items off as they land.
 - [ ] Color: alpha/opacity per color; swatches saved in the document
 - [ ] System clipboard integration (paste across tabs/apps)
 - [ ] Text tool
-- [x] Nested groups: real group entities (name/opacity/blend/hide/lock, nesting) rendered as composited layers; layers-panel tree + group section in properties. Current file format is v5; older formats are intentionally unsupported.
+- [x] Unified Scene Tree: shapes/groups share `nodes`; `rootIds`/`childIds` are the sole hierarchy and Z-order source. Current file format is v6; older formats are intentionally unsupported.
   - [x] True affine transform matrices on shapes and groups
   - [x] Movable, persisted rotation centers for shapes and groups; transient pivot for multi-selection
 - [ ] Distribution: match an existing gap (not just centering)
@@ -81,6 +81,8 @@ A running list of what's built and what's next. Check items off as they land.
 - [ ] Decide whether dragging a resize handle across its opposite side should create a flipped/negative-scale transform
 - [ ] Make Outline Stroke exactly match Canvas strokes under non-uniform scale/skew
 - [ ] Boolean operations across different parent groups (currently limited to shapes sharing one immediate parent)
+- [x] Layers D&D: move nodes across parents while preserving world transforms; reject cyclic parenting
+- [ ] Script API: create and restructure groups (currently exposes a flat leaf-shape snapshot)
 - [ ] Update scripting examples/docs for matrix-based `shape.transform`; direct `shape.rotation` no longer exists
 
 ## User ideas / wishlist

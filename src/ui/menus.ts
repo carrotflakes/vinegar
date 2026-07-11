@@ -62,7 +62,7 @@ export function canvasMenu(at: Vec2): MenuEntry[] {
     {
       label: "Paste here",
       shortcut: `${MOD}+V`,
-      disabled: s.clipboard.length === 0,
+      disabled: !s.clipboard,
       onSelect: () => useEditor.getState().paste(at),
     },
     {

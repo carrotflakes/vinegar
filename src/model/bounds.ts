@@ -1,5 +1,6 @@
 import { flattenBezier } from "./bezier";
 import { shapeWorldMatrix, transformBounds } from "./matrix";
+import { descendantShapeIds, isShape } from "./scene";
 import type { Bounds, Document, Shape, Vec2 } from "./types";
 
 function pointsBounds(points: Vec2[]): Bounds {
@@ -97,6 +98,30 @@ export function unionWorldBounds(doc: Document, shapes: Shape[]): Bounds | null 
     maxY = Math.max(maxY, b.y + b.height);
   }
   return { x: minX, y: minY, width: maxX - minX, height: maxY - minY };
+}
+
+export function nodeWorldBounds(doc: Document, nodeId: string): Bounds | null {
+  const node = doc.nodes[nodeId];
+  if (isShape(node)) return worldShapeBounds(doc, node);
+  const shapes = descendantShapeIds(doc, nodeId)
+    .map((id) => doc.nodes[id])
+    .filter(isShape);
+  return unionWorldBounds(doc, shapes);
+}
+
+export function unionNodeWorldBounds(
+  doc: Document,
+  nodeIds: string[]
+): Bounds | null {
+  const bounds = nodeIds
+    .map((id) => nodeWorldBounds(doc, id))
+    .filter((b): b is Bounds => !!b);
+  if (bounds.length === 0) return null;
+  const x = Math.min(...bounds.map((b) => b.x));
+  const y = Math.min(...bounds.map((b) => b.y));
+  const right = Math.max(...bounds.map((b) => b.x + b.width));
+  const bottom = Math.max(...bounds.map((b) => b.y + b.height));
+  return { x, y, width: right - x, height: bottom - y };
 }
 
 export function expandBounds(b: Bounds, by: number): Bounds {

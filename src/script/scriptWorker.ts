@@ -80,7 +80,6 @@ function run(code: string, snap: DocSnapshot): Changeset {
       ...style,
       transform: [1, 0, 0, 1, 0, 0],
       transformOrigin: null,
-      groupId: null,
       ...s,
     });
   };

@@ -7,94 +7,73 @@ import {
   type Document,
   type Group,
   type Matrix,
+  type SceneNode,
   type Shape,
   type Vec2,
 } from "../model/types";
-import {
-  groupChain,
-  isShapeHidden,
-  isShapeLocked,
-  pruneGroups,
-  rootGroupId,
-  selectionUnits,
-  shapesInGroup,
-} from "../model/groups";
 import { toggleAnchorSmooth } from "../model/bezier";
 import { booleanShapes, isAreal, type BoolOp } from "../model/boolean";
-import { shapeBounds, unionWorldBounds, worldShapeBounds } from "../model/bounds";
+import { nodeWorldBounds, shapeBounds, unionNodeWorldBounds } from "../model/bounds";
 import { strokeOutline } from "../model/outlineStroke";
 import { resizeShapeToBounds, translateShape } from "../model/transforms";
 import { initialViewport, type Viewport } from "../model/viewport";
 import {
   IDENTITY,
-  applyWorldTransform,
+  applyWorldTransformToNode,
+  invertMatrix,
   multiply,
+  nodeWorldMatrix,
   translation as translationMatrix,
 } from "../model/matrix";
+import {
+  childIdsOf,
+  descendantNodeIds,
+  descendantShapeIds,
+  isGroup,
+  isNodeHidden,
+  isNodeLocked,
+  isShape,
+  parentIdOf,
+  selectionRoots,
+  withChildIds,
+} from "../model/scene";
 
-export type ToolId =
-  | "select"
-  | "node"
-  | "rect"
-  | "ellipse"
-  | "line"
-  | "pen"
-  | "pencil";
+export type ToolId = "select" | "node" | "rect" | "ellipse" | "line" | "pen" | "pencil";
+export interface EditNode { shapeId: string; index: number }
+export type AlignType = "left" | "hcenter" | "right" | "top" | "vmiddle" | "bottom";
+export interface StyleDefaults { fill: string | null; stroke: string | null; strokeWidth: number }
+interface HistoryState { past: Document[]; future: Document[] }
+interface ClipboardPayload { nodes: Record<string, SceneNode>; rootIds: string[] }
 
-/** A specific anchor of a Bézier shape currently targeted for node editing. */
-export interface EditNode {
-  shapeId: string;
-  index: number;
-}
-
-export type AlignType =
-  | "left"
-  | "hcenter"
-  | "right"
-  | "top"
-  | "vmiddle"
-  | "bottom";
-
-/** Default visual style applied to newly created shapes. */
-export interface StyleDefaults {
+export interface StyleStylableFields {
   fill: string | null;
   stroke: string | null;
   strokeWidth: number;
-}
-
-interface HistoryState {
-  past: Document[];
-  future: Document[];
+  opacity: number;
+  blendMode: BlendMode | undefined;
+  transform: Shape["transform"];
+  transformOrigin: Vec2 | null;
 }
 
 export interface EditorState {
   doc: Document;
   selection: string[];
-  /** Transient world-space pivot for an ad-hoc multi-selection. */
   selectionPivot: Vec2 | null;
-  /** Transient local-to-world frame for an ad-hoc multi-selection. */
   selectionTransform: Matrix | null;
   tool: ToolId;
   viewport: Viewport;
   style: StyleDefaults;
   history: HistoryState;
-  /** Anchor highlighted for node editing (pen vertex tool). */
   editNode: EditNode | null;
-  /** Whether move-drag snaps to other shapes' alignment lines. */
   snapEnabled: boolean;
-  /** Whether move-drag snaps to a fixed world-unit grid. */
   gridSnap: boolean;
   gridSize: number;
-  /** Recently used colors (most recent first), persisted across sessions. */
   recentColors: string[];
-  /** User-saved color swatches, persisted across sessions. */
   savedSwatches: string[];
-
-  // --- internal interaction bookkeeping (not for UI) ---
+  clipboard: ClipboardPayload | null;
   _pending: Document | null;
   _dirty: boolean;
 
-  // tool / viewport / selection -------------------------------------------
   setTool: (tool: ToolId) => void;
   setViewport: (vp: Viewport) => void;
   setSelection: (ids: string[]) => void;
@@ -102,7 +81,6 @@ export interface EditorState {
   setSelectionTransform: (transform: Matrix | null) => void;
   toggleSelection: (id: string) => void;
   clearSelection: () => void;
-  /** Select every shape that is neither hidden nor locked. */
   selectAll: () => void;
   setEditNode: (node: EditNode | null) => void;
   deleteEditNode: () => void;
@@ -112,41 +90,21 @@ export interface EditorState {
   addRecentColor: (hex: string) => void;
   addSwatch: (hex: string) => void;
   removeSwatch: (hex: string) => void;
-
-  // style ------------------------------------------------------------------
   setStyle: (patch: Partial<StyleDefaults>) => void;
-
-  // document lifecycle -----------------------------------------------------
   newDocument: () => void;
   loadDocument: (doc: Document) => void;
-
-  // clipboard --------------------------------------------------------------
-  clipboard: Shape[];
-  clipboardGroups: Group[];
   copySelected: () => void;
   cutSelected: () => void;
-  /** Paste the clipboard; when `at` is given, center the paste on it. */
   paste: (at?: Vec2) => void;
   duplicateSelected: () => void;
-
-  // history-wrapped mutations ---------------------------------------------
   addShape: (shape: Shape, select?: boolean) => void;
   addShapes: (shapes: Shape[], select?: boolean) => void;
-  /** Replace an existing shape wholesale (used by pen path extension). */
   updateShape: (shape: Shape, select?: boolean) => void;
-  /** Toggle a Bézier anchor between smooth and corner. */
   toggleNodeSmooth: (shapeId: string, index: number) => void;
-  applyScriptChanges: (changes: {
-    created: Shape[];
-    updated: Shape[];
-    deleted: string[];
-  }) => void;
+  applyScriptChanges: (changes: { created: Shape[]; updated: Shape[]; deleted: string[] }) => void;
   deleteSelected: () => void;
   updateSelectedStyle: (patch: Partial<StyleStylableFields>) => void;
-  setShapeGeometry: (
-    id: string,
-    patch: Partial<{ x: number; y: number; width: number; height: number }>
-  ) => void;
+  setShapeGeometry: (id: string, patch: Partial<{ x: number; y: number; width: number; height: number }>) => void;
   bringToFront: () => void;
   sendToBack: () => void;
   groupSelected: () => void;
@@ -159,43 +117,15 @@ export interface EditorState {
   toggleHidden: (id: string) => void;
   toggleLocked: (id: string) => void;
   renameShape: (id: string, name: string) => void;
-  renameGroup: (gid: string, name: string) => void;
-  /** Edit a group entity's visual props (opacity/blend/hidden/locked). */
-  updateGroupStyle: (
-    gid: string,
-    patch: Partial<
-      Pick<
-        Group,
-        | "opacity"
-        | "blendMode"
-        | "hidden"
-        | "locked"
-        | "transform"
-        | "transformOrigin"
-      >
-    >
-  ) => void;
-  setOrder: (order: string[]) => void;
-
-  // interaction transactions (for drags) ----------------------------------
+  renameGroup: (id: string, name: string) => void;
+  updateGroupStyle: (id: string, patch: Partial<Pick<Group, "opacity" | "blendMode" | "hidden" | "locked" | "transform" | "transformOrigin">>) => void;
+  moveNode: (id: string, parentId: string | null, index: number) => void;
   beginInteraction: () => void;
-  applyShapes: (next: Record<string, Shape>) => void;
+  applyShapes: (next: Record<string, SceneNode>) => void;
   setDoc: (doc: Document) => void;
   endInteraction: () => void;
-
   undo: () => void;
   redo: () => void;
-}
-
-/** Shape fields that can be edited from the properties panel. */
-export interface StyleStylableFields {
-  fill: string | null;
-  stroke: string | null;
-  strokeWidth: number;
-  opacity: number;
-  blendMode: BlendMode | undefined;
-  transform: Shape["transform"];
-  transformOrigin: Vec2 | null;
 }
 
 const HISTORY_LIMIT = 100;
@@ -207,976 +137,281 @@ const SAVED_SWATCHES_KEY = "vinegar.savedSwatches";
 function loadColorList(key: string, max = Infinity): string[] {
   try {
     const raw = JSON.parse(localStorage.getItem(key) || "[]");
-    return Array.isArray(raw)
-      ? raw.filter((c) => typeof c === "string").slice(0, max)
-      : [];
-  } catch {
-    return [];
-  }
+    return Array.isArray(raw) ? raw.filter((c) => typeof c === "string").slice(0, max) : [];
+  } catch { return []; }
 }
-
 function saveColorList(key: string, list: string[]): void {
-  try {
-    localStorage.setItem(key, JSON.stringify(list));
-  } catch {
-    // ignore storage errors (private mode, etc.)
+  try { localStorage.setItem(key, JSON.stringify(list)); } catch { /* storage is optional */ }
+}
+function clone(doc: Document): Document { return structuredClone(doc); }
+
+function replaceChildren(doc: Document, parentId: string | null, ids: string[]): Document {
+  return withChildIds(doc, parentId, ids);
+}
+
+function removeRoots(doc: Document, roots: string[]): Document {
+  const remove = new Set(roots.flatMap((id) => [id, ...descendantNodeIds(doc, id)]));
+  let next = doc;
+  const parents = new Set(roots.map((id) => parentIdOf(doc, id)));
+  for (const parent of parents) next = replaceChildren(next, parent, childIdsOf(next, parent).filter((id) => !remove.has(id)));
+  const nodes = { ...next.nodes };
+  for (const id of remove) delete nodes[id];
+  return { ...next, nodes };
+}
+
+function copyPayload(doc: Document, selection: string[]): ClipboardPayload | null {
+  const roots = selectionRoots(doc, selection);
+  if (!roots.length) return null;
+  const ids = new Set(roots.flatMap((id) => [id, ...descendantNodeIds(doc, id)]));
+  const nodes: Record<string, SceneNode> = {};
+  for (const id of ids) nodes[id] = structuredClone(doc.nodes[id]);
+  for (const id of roots) nodes[id] = { ...nodes[id], transform: nodeWorldMatrix(doc, id) };
+  return { nodes, rootIds: roots };
+}
+
+function remapPayload(payload: ClipboardPayload, offset = 0): ClipboardPayload {
+  const ids = new Map(Object.keys(payload.nodes).map((id) => [id, makeId(payload.nodes[id].type)]));
+  const roots = new Set(payload.rootIds);
+  const nodes: Record<string, SceneNode> = {};
+  for (const [oldId, node] of Object.entries(payload.nodes)) {
+    const id = ids.get(oldId)!;
+    let next: SceneNode = { ...structuredClone(node), id };
+    if (isGroup(next)) next = { ...next, childIds: next.childIds.map((child) => ids.get(child)!) };
+    if (offset && roots.has(oldId)) next = { ...next, transform: multiply(translationMatrix(offset, offset), next.transform) };
+    nodes[id] = next;
   }
+  return { nodes, rootIds: payload.rootIds.map((id) => ids.get(id)!) };
 }
 
-/** Align/distribute item: a single shape or a whole group, with its world AABB. */
-interface AlignItem {
-  ids: string[];
-  bounds: Bounds;
+function groupNode(id: string, childIds: string[]): Group {
+  return { id, name: "Group", type: "group", childIds, transform: [...IDENTITY], transformOrigin: null, opacity: 1 };
 }
 
-/** Group the selection into alignment items (root groups move as one unit). */
+interface AlignItem { id: string; bounds: Bounds }
 function selectionItems(doc: Document, selection: string[]): AlignItem[] {
-  const groups = new Map<string, string[]>();
-  const items: AlignItem[] = [];
-  for (const id of selection) {
-    const s = doc.shapes[id];
-    if (!s) continue;
-    const root = rootGroupId(doc, s.groupId);
-    if (root) {
-      const arr = groups.get(root) ?? [];
-      arr.push(id);
-      groups.set(root, arr);
-    } else {
-      items.push({ ids: [id], bounds: worldShapeBounds(doc, s) });
-    }
-  }
-  for (const ids of groups.values()) {
-    const b = unionWorldBounds(doc, ids.map((i) => doc.shapes[i]));
-    if (b) items.push({ ids, bounds: b });
-  }
-  return items;
-}
-
-/**
- * Snapshot a selection for copy/duplicate: cloned shapes in document order,
- * plus the groups fully covered by the selection so structure survives the
- * round-trip. Group references that point outside the set are cleared.
- */
-function collectClipboard(
-  doc: Document,
-  selection: string[]
-): { shapes: Shape[]; groups: Group[] } {
-  const sel = new Set(selection);
-  const shapes = doc.order
-    .filter((id) => sel.has(id))
-    .map((id) => structuredClone(doc.shapes[id]));
-  const chains = new Set(shapes.flatMap((s) => groupChain(doc, s.groupId)));
-  const keep = new Set(
-    [...chains].filter((gid) =>
-      shapesInGroup(doc, gid).every((id) => sel.has(id))
-    )
-  );
-  const groups = [...keep].map((gid) => {
-    const g = doc.groups[gid];
-    return {
-      ...g,
-      parentId: g.parentId && keep.has(g.parentId) ? g.parentId : null,
-    };
+  return selectionRoots(doc, selection).flatMap((id) => {
+    const bounds = nodeWorldBounds(doc, id);
+    return bounds ? [{ id, bounds }] : [];
   });
-  for (const s of shapes) {
-    if (s.groupId && !keep.has(s.groupId)) s.groupId = null;
-  }
-  return { shapes, groups };
-}
-
-/**
- * Deep-clone a clipboard payload for paste/duplicate: fresh shape and group
- * ids (remapped consistently) and an offset so the copy doesn't sit exactly
- * on the source.
- */
-function cloneForPaste(
-  shapes: Shape[],
-  groups: Group[],
-  offset: number
-): { shapes: Shape[]; groups: Group[] } {
-  const groupMap = new Map<string, string>();
-  for (const g of groups) groupMap.set(g.id, makeId("group"));
-  const newGroups = groups.map((g) => {
-    const parentId = g.parentId ? groupMap.get(g.parentId) ?? null : null;
-    return {
-      ...g,
-      id: groupMap.get(g.id)!,
-      parentId,
-      transform: parentId
-        ? [...g.transform] as Group["transform"]
-        : multiply(translationMatrix(offset, offset), g.transform),
-    };
-  });
-  const newShapes = shapes.map((s) => {
-    const copy = structuredClone(s);
-    copy.id = makeId(copy.type);
-    copy.groupId = s.groupId ? groupMap.get(s.groupId) ?? null : null;
-    if (!copy.groupId) {
-      copy.transform = multiply(
-        translationMatrix(offset, offset),
-        copy.transform
-      );
-    }
-    return copy;
-  });
-  return { shapes: newShapes, groups: newGroups };
-}
-
-function clone(doc: Document): Document {
-  return {
-    ...doc,
-    order: [...doc.order],
-    shapes: Object.fromEntries(
-      Object.entries(doc.shapes).map(([k, v]) => [
-        k,
-        { ...v, transform: [...v.transform] },
-      ])
-    ),
-    groups: Object.fromEntries(
-      Object.entries(doc.groups).map(([k, v]) => [
-        k,
-        { ...v, transform: [...v.transform] },
-      ])
-    ),
-    settings: { ...doc.settings },
-    metadata: { ...doc.metadata },
-    assets: Object.fromEntries(
-      Object.entries(doc.assets).map(([k, v]) => [k, structuredClone(v)])
-    ),
-    extensions: structuredClone(doc.extensions),
-  };
 }
 
 export const useEditor = create<EditorState>((set, get) => {
-  // History coalescing: consecutive transacts with the same key within a short
-  // window fold into a single undo step (e.g. dragging a color/opacity slider).
   let coalesceKey: string | null = null;
   let coalesceTime = 0;
-  const COALESCE_MS = 600;
-
-  function resetCoalesce() {
-    coalesceKey = null;
-  }
-
-  /**
-   * Push the current doc onto the undo stack, then apply `next`. When `key` is
-   * given and matches the previous transact within COALESCE_MS, the change is
-   * merged into the current undo step instead of starting a new one.
-   */
-  function transact(next: Document, key?: string) {
+  const resetCoalesce = () => { coalesceKey = null; };
+  const transact = (next: Document, key?: string) => {
     const now = Date.now();
-    if (key && key === coalesceKey && now - coalesceTime < COALESCE_MS) {
-      coalesceTime = now;
-      set({ doc: next });
-      return;
+    if (key && key === coalesceKey && now - coalesceTime < 600) {
+      coalesceTime = now; set({ doc: next }); return;
     }
-    coalesceKey = key ?? null;
-    coalesceTime = now;
+    coalesceKey = key ?? null; coalesceTime = now;
     const { doc, history } = get();
-    const past = [...history.past, clone(doc)];
-    if (past.length > HISTORY_LIMIT) past.shift();
+    const past = [...history.past, clone(doc)].slice(-HISTORY_LIMIT);
     set({ doc: next, history: { past, future: [] } });
-  }
+  };
+  const clearTransient = { selectionPivot: null, selectionTransform: null };
 
   return {
-    doc: createEmptyDocument(),
-    selection: [],
-    selectionPivot: null,
-    selectionTransform: null,
-    tool: "select",
-    viewport: initialViewport,
+    doc: createEmptyDocument(), selection: [], selectionPivot: null, selectionTransform: null,
+    tool: "select", viewport: initialViewport,
     style: { fill: "#4f8cff", stroke: "#1b1b1b", strokeWidth: 2 },
-    history: { past: [], future: [] },
-    editNode: null,
-    snapEnabled: true,
-    gridSnap: false,
-    gridSize: 50,
+    history: { past: [], future: [] }, editNode: null, snapEnabled: true,
+    gridSnap: false, gridSize: 50,
     recentColors: loadColorList(RECENT_COLORS_KEY, RECENT_COLORS_MAX),
-    savedSwatches: loadColorList(SAVED_SWATCHES_KEY),
-    clipboard: [],
-    clipboardGroups: [],
-    _pending: null,
-    _dirty: false,
+    savedSwatches: loadColorList(SAVED_SWATCHES_KEY), clipboard: null,
+    _pending: null, _dirty: false,
 
-    setTool: (tool) =>
-      set({
-        tool,
-        // Keep the selection for tools that operate on it; clear for drawing.
-        selection:
-          tool === "select" || tool === "node" ? get().selection : [],
-        selectionPivot:
-          tool === "select" || tool === "node" ? get().selectionPivot : null,
-        selectionTransform:
-          tool === "select" || tool === "node"
-            ? get().selectionTransform
-            : null,
-        editNode: null,
-      }),
+    setTool: (tool) => set({ tool, selection: tool === "select" || tool === "node" ? get().selection : [], ...(tool === "select" || tool === "node" ? {} : clearTransient), editNode: null }),
     setViewport: (viewport) => set({ viewport }),
-    setSelection: (ids) =>
-      set({
-        selection: ids,
-        selectionPivot: null,
-        selectionTransform: null,
-      }),
+    setSelection: (selection) => set({ selection: [...new Set(selection)].filter((id) => !!get().doc.nodes[id]), ...clearTransient }),
     setSelectionPivot: (selectionPivot) => set({ selectionPivot }),
     setSelectionTransform: (selectionTransform) => set({ selectionTransform }),
-    toggleSelection: (id) => {
-      const cur = get().selection;
-      set({
-        selection: cur.includes(id)
-          ? cur.filter((s) => s !== id)
-          : [...cur, id],
-        selectionPivot: null,
-        selectionTransform: null,
-      });
-    },
-    clearSelection: () =>
-      set({
-        selection: [],
-        selectionPivot: null,
-        selectionTransform: null,
-        editNode: null,
-      }),
-    selectAll: () => {
-      const { doc } = get();
-      set({
-        selection: doc.order.filter((id) => {
-          const s = doc.shapes[id];
-          return s && !isShapeHidden(doc, s) && !isShapeLocked(doc, s);
-        }),
-        selectionPivot: null,
-        selectionTransform: null,
-      });
-    },
-    setEditNode: (node) => set({ editNode: node }),
+    toggleSelection: (id) => set({ selection: get().selection.includes(id) ? get().selection.filter((x) => x !== id) : [...get().selection, id], ...clearTransient }),
+    clearSelection: () => set({ selection: [], editNode: null, ...clearTransient }),
+    selectAll: () => set({ selection: get().doc.rootIds.filter((id) => !isNodeHidden(get().doc, id) && !isNodeLocked(get().doc, id)), ...clearTransient }),
+    setEditNode: (editNode) => set({ editNode }),
     toggleSnap: () => set({ snapEnabled: !get().snapEnabled }),
     toggleGridSnap: () => set({ gridSnap: !get().gridSnap }),
-    setGridSize: (size) => {
-      const gridSize = Math.max(1, Math.round(size));
-      const doc = get().doc;
-      set({
-        gridSize,
-        doc: { ...doc, settings: { ...doc.settings, gridSize } },
-      });
-    },
-
-    addRecentColor: (hex) => {
-      const c = hex.toLowerCase();
-      const next = [c, ...get().recentColors.filter((x) => x !== c)].slice(
-        0,
-        RECENT_COLORS_MAX
-      );
-      saveColorList(RECENT_COLORS_KEY, next);
-      set({ recentColors: next });
-    },
-
-    addSwatch: (hex) => {
-      const c = hex.toLowerCase();
-      if (get().savedSwatches.includes(c)) return;
-      const next = [...get().savedSwatches, c];
-      saveColorList(SAVED_SWATCHES_KEY, next);
-      set({ savedSwatches: next });
-    },
-
-    removeSwatch: (hex) => {
-      const next = get().savedSwatches.filter((x) => x !== hex.toLowerCase());
-      saveColorList(SAVED_SWATCHES_KEY, next);
-      set({ savedSwatches: next });
-    },
-
-    deleteEditNode: () => {
-      const { doc, editNode } = get();
-      if (!editNode) return;
-      const shape = doc.shapes[editNode.shapeId];
-      if (!shape || shape.type !== "bezier") return;
-      const anchors = shape.anchors.filter((_, i) => i !== editNode.index);
-      if (anchors.length < 2) {
-        // Too few anchors left to form a curve — remove the whole shape.
-        const shapes = { ...doc.shapes };
-        delete shapes[editNode.shapeId];
-        transact(
-          pruneGroups({
-            ...doc,
-            shapes,
-            order: doc.order.filter((id) => id !== editNode.shapeId),
-          })
-        );
-        set({
-          selection: [],
-          selectionPivot: null,
-          selectionTransform: null,
-          editNode: null,
-        });
-        return;
-      }
-      transact({
-        ...doc,
-        shapes: { ...doc.shapes, [editNode.shapeId]: { ...shape, anchors } },
-      });
-      set({ editNode: null });
-    },
-
+    setGridSize: (size) => { const gridSize = Math.max(1, Math.round(size)); const doc = get().doc; set({ gridSize, doc: { ...doc, settings: { ...doc.settings, gridSize } } }); },
+    addRecentColor: (hex) => { const c = hex.toLowerCase(); const recentColors = [c, ...get().recentColors.filter((x) => x !== c)].slice(0, RECENT_COLORS_MAX); saveColorList(RECENT_COLORS_KEY, recentColors); set({ recentColors }); },
+    addSwatch: (hex) => { const c = hex.toLowerCase(); if (get().savedSwatches.includes(c)) return; const savedSwatches = [...get().savedSwatches, c]; saveColorList(SAVED_SWATCHES_KEY, savedSwatches); set({ savedSwatches }); },
+    removeSwatch: (hex) => { const savedSwatches = get().savedSwatches.filter((x) => x !== hex.toLowerCase()); saveColorList(SAVED_SWATCHES_KEY, savedSwatches); set({ savedSwatches }); },
     setStyle: (patch) => set({ style: { ...get().style, ...patch } }),
 
-    newDocument: () => {
-      const doc = createEmptyDocument();
-      set({
-        doc,
-        gridSize: doc.settings.gridSize,
-        selection: [],
-        selectionPivot: null,
-        selectionTransform: null,
-        history: { past: [], future: [] },
-        _pending: null,
-        _dirty: false,
-      });
+    newDocument: () => { const doc = createEmptyDocument(); set({ doc, gridSize: doc.settings.gridSize, selection: [], history: { past: [], future: [] }, _pending: null, _dirty: false, ...clearTransient }); },
+    loadDocument: (doc) => set({ doc, gridSize: doc.settings.gridSize, selection: [], history: { past: [], future: [] }, _pending: null, _dirty: false, ...clearTransient }),
+
+    addShape: (shape, select = true) => { const { doc } = get(); transact({ ...doc, nodes: { ...doc.nodes, [shape.id]: shape }, rootIds: [...doc.rootIds, shape.id] }); if (select) set({ selection: [shape.id], ...clearTransient }); },
+    addShapes: (shapes, select = true) => { if (!shapes.length) return; const doc = get().doc; transact({ ...doc, nodes: { ...doc.nodes, ...Object.fromEntries(shapes.map((s) => [s.id, s])) }, rootIds: [...doc.rootIds, ...shapes.map((s) => s.id)] }); if (select) set({ selection: shapes.map((s) => s.id), ...clearTransient }); },
+    updateShape: (shape, select = true) => { const doc = get().doc; if (!isShape(doc.nodes[shape.id])) return; transact({ ...doc, nodes: { ...doc.nodes, [shape.id]: shape } }); if (select) set({ selection: [shape.id], ...clearTransient }); },
+    toggleNodeSmooth: (id, index) => { const doc = get().doc; const shape = doc.nodes[id]; if (!isShape(shape) || shape.type !== "bezier") return; transact({ ...doc, nodes: { ...doc.nodes, [id]: toggleAnchorSmooth(shape, index) } }); },
+    deleteEditNode: () => {
+      const { doc, editNode } = get(); if (!editNode) return;
+      const shape = doc.nodes[editNode.shapeId]; if (!isShape(shape) || shape.type !== "bezier") return;
+      const anchors = shape.anchors.filter((_, i) => i !== editNode.index);
+      if (anchors.length < 2) { transact(removeRoots(doc, [shape.id])); set({ selection: [], editNode: null, ...clearTransient }); }
+      else { transact({ ...doc, nodes: { ...doc.nodes, [shape.id]: { ...shape, anchors } } }); set({ editNode: null }); }
     },
-
-    loadDocument: (doc) =>
-      set({
-        doc,
-        gridSize: doc.settings.gridSize,
-        selection: [],
-        selectionPivot: null,
-        selectionTransform: null,
-        history: { past: [], future: [] },
-        _pending: null,
-        _dirty: false,
-      }),
-
-    addShape: (shape, select = true) => {
-      const { doc } = get();
-      const next: Document = {
-        ...doc,
-        shapes: { ...doc.shapes, [shape.id]: shape },
-        order: [...doc.order, shape.id],
-      };
-      transact(next);
-      if (select) {
-        set({
-          selection: [shape.id],
-          selectionPivot: null,
-          selectionTransform: null,
-        });
-      }
-    },
-
-    addShapes: (newShapes, select = true) => {
-      if (newShapes.length === 0) return;
-      const { doc } = get();
-      const shapes = { ...doc.shapes };
-      const order = [...doc.order];
-      for (const s of newShapes) {
-        shapes[s.id] = s;
-        order.push(s.id);
-      }
-      transact({ ...doc, shapes, order });
-      if (select) {
-        set({
-          selection: newShapes.map((s) => s.id),
-          selectionPivot: null,
-          selectionTransform: null,
-        });
-      }
-    },
-
-    updateShape: (shape, select = true) => {
-      const { doc } = get();
-      if (!doc.shapes[shape.id]) return;
-      transact({ ...doc, shapes: { ...doc.shapes, [shape.id]: shape } });
-      if (select) {
-        set({
-          selection: [shape.id],
-          selectionPivot: null,
-          selectionTransform: null,
-        });
-      }
-    },
-
-    toggleNodeSmooth: (shapeId, index) => {
-      const { doc } = get();
-      const shape = doc.shapes[shapeId];
-      if (!shape || shape.type !== "bezier") return;
-      transact({
-        ...doc,
-        shapes: { ...doc.shapes, [shapeId]: toggleAnchorSmooth(shape, index) },
-      });
-    },
-
     applyScriptChanges: ({ created, updated, deleted }) => {
-      const { doc } = get();
-      const del = new Set(deleted);
-      const shapes = { ...doc.shapes };
-      for (const id of del) delete shapes[id];
-      for (const s of updated) if (!del.has(s.id)) shapes[s.id] = s;
-      for (const s of created) shapes[s.id] = s;
-      const order = [
-        ...doc.order.filter((id) => !del.has(id)),
-        ...created.map((s) => s.id),
-      ];
-      transact(pruneGroups({ ...doc, shapes, order }));
-      set({
-        selection: [
-          ...updated.filter((s) => !del.has(s.id)).map((s) => s.id),
-          ...created.map((s) => s.id),
-        ],
-        selectionPivot: null,
-        selectionTransform: null,
-      });
+      let doc = get().doc; const del = new Set(deleted);
+      for (const id of deleted) if (isShape(doc.nodes[id])) doc = removeRoots(doc, [id]);
+      const nodes = { ...doc.nodes };
+      for (const shape of updated) if (!del.has(shape.id) && isShape(nodes[shape.id])) nodes[shape.id] = shape;
+      for (const shape of created) nodes[shape.id] = shape;
+      doc = { ...doc, nodes, rootIds: [...doc.rootIds, ...created.map((s) => s.id)] };
+      transact(doc); set({ selection: [...updated.filter((s) => !del.has(s.id)).map((s) => s.id), ...created.map((s) => s.id)], ...clearTransient });
     },
 
-    deleteSelected: () => {
-      const { doc, selection } = get();
-      if (selection.length === 0) return;
-      const shapes = { ...doc.shapes };
-      for (const id of selection) delete shapes[id];
-      transact(
-        pruneGroups({
-          ...doc,
-          shapes,
-          order: doc.order.filter((id) => !selection.includes(id)),
-        })
-      );
-      set({
-        selection: [],
-        selectionPivot: null,
-        selectionTransform: null,
-      });
-    },
-
-    copySelected: () => {
-      const { doc, selection } = get();
-      const { shapes, groups } = collectClipboard(doc, selection);
-      set({ clipboard: shapes, clipboardGroups: groups });
-    },
-
-    cutSelected: () => {
-      get().copySelected();
-      get().deleteSelected();
-    },
-
+    deleteSelected: () => { const roots = selectionRoots(get().doc, get().selection); if (!roots.length) return; transact(removeRoots(get().doc, roots)); set({ selection: [], ...clearTransient }); },
+    copySelected: () => set({ clipboard: copyPayload(get().doc, get().selection) }),
+    cutSelected: () => { get().copySelected(); get().deleteSelected(); },
     paste: (at) => {
-      const { clipboard, clipboardGroups, doc } = get();
-      if (clipboard.length === 0) return;
-      const pasted = cloneForPaste(
-        clipboard,
-        clipboardGroups,
-        at ? 0 : PASTE_OFFSET
-      );
+      const { clipboard, doc } = get(); if (!clipboard) return;
+      const pasted = remapPayload(clipboard, at ? 0 : PASTE_OFFSET);
       if (at) {
-        const pasteDoc: Document = {
-          ...doc,
-          shapes: Object.fromEntries(pasted.shapes.map((s) => [s.id, s])),
-          order: pasted.shapes.map((s) => s.id),
-          groups: Object.fromEntries(pasted.groups.map((g) => [g.id, g])),
-        };
-        const b = unionWorldBounds(pasteDoc, pasted.shapes);
-        if (b) {
-          const dx = at.x - (b.x + b.width / 2);
-          const dy = at.y - (b.y + b.height / 2);
-          pasted.shapes = pasted.shapes.map((s) =>
-            applyWorldTransform(pasteDoc, s, translationMatrix(dx, dy))
-          );
-        }
+        const temp: Document = { ...doc, nodes: pasted.nodes, rootIds: pasted.rootIds };
+        const bounds = unionNodeWorldBounds(temp, pasted.rootIds);
+        if (bounds) { const dx = at.x - bounds.x - bounds.width / 2; const dy = at.y - bounds.y - bounds.height / 2; for (const id of pasted.rootIds) pasted.nodes[id] = { ...pasted.nodes[id], transform: multiply(translationMatrix(dx, dy), pasted.nodes[id].transform) }; }
       }
-      const shapes = { ...doc.shapes };
-      const order = [...doc.order];
-      const groups = { ...doc.groups };
-      for (const s of pasted.shapes) {
-        shapes[s.id] = s;
-        order.push(s.id);
-      }
-      for (const g of pasted.groups) groups[g.id] = g;
-      transact({ ...doc, shapes, order, groups });
-      set({
-        selection: pasted.shapes.map((s) => s.id),
-        selectionPivot: null,
-        selectionTransform: null,
-      });
+      transact({ ...doc, nodes: { ...doc.nodes, ...pasted.nodes }, rootIds: [...doc.rootIds, ...pasted.rootIds] });
+      set({ selection: pasted.rootIds, ...clearTransient });
     },
-
     duplicateSelected: () => {
-      const { doc, selection } = get();
-      if (selection.length === 0) return;
-      const src = collectClipboard(doc, selection);
-      const dup = cloneForPaste(src.shapes, src.groups, PASTE_OFFSET);
-      const shapes = { ...doc.shapes };
-      const order = [...doc.order];
-      const groups = { ...doc.groups };
-      for (const s of dup.shapes) {
-        shapes[s.id] = s;
-        order.push(s.id);
+      const { doc, selection } = get(); const roots = selectionRoots(doc, selection); if (!roots.length) return;
+      const selectedByParent = new Map<string | null, string[]>();
+      for (const id of roots) { const p = parentIdOf(doc, id); selectedByParent.set(p, [...(selectedByParent.get(p) ?? []), id]); }
+      let next = doc; const allNew: string[] = [];
+      for (const [parent, selected] of selectedByParent) {
+        const raw = copyPayload(doc, selected)!;
+        for (const id of raw.rootIds) raw.nodes[id] = { ...raw.nodes[id], transform: structuredClone(doc.nodes[id].transform) };
+        const dup = remapPayload(raw);
+        next = { ...next, nodes: { ...next.nodes, ...dup.nodes } };
+        const oldToNew = new Map(selected.map((id, i) => [id, dup.rootIds[i]]));
+        const siblings = childIdsOf(next, parent); const reordered: string[] = [];
+        for (const id of siblings) { reordered.push(id); const copy = oldToNew.get(id); if (copy) reordered.push(copy); }
+        next = replaceChildren(next, parent, reordered);
+        const moved = { ...next.nodes };
+        for (const id of dup.rootIds) moved[id] = applyWorldTransformToNode(next, moved[id], translationMatrix(PASTE_OFFSET, PASTE_OFFSET));
+        next = { ...next, nodes: moved }; allNew.push(...dup.rootIds);
       }
-      for (const g of dup.groups) groups[g.id] = g;
-      transact({ ...doc, shapes, order, groups });
-      set({
-        selection: dup.shapes.map((s) => s.id),
-        selectionPivot: null,
-        selectionTransform: null,
-      });
+      transact(next); set({ selection: allNew, ...clearTransient });
     },
 
     updateSelectedStyle: (patch) => {
-      const { doc, selection } = get();
-      if (selection.length === 0) return;
-      const shapes = { ...doc.shapes };
-      for (const id of selection) {
-        if (shapes[id]) shapes[id] = { ...shapes[id], ...patch } as Shape;
+      const doc = get().doc; const nodes = { ...doc.nodes }; let changed = false;
+      for (const root of selectionRoots(doc, get().selection)) {
+        const ids = isShape(nodes[root]) ? [root] : descendantShapeIds(doc, root);
+        for (const id of ids) { nodes[id] = { ...(nodes[id] as Shape), ...patch } as Shape; changed = true; }
       }
-      // Coalesce rapid edits of the same field (slider/color drag) into one undo.
-      transact({ ...doc, shapes }, "style:" + Object.keys(patch).sort().join(","));
+      if (changed) transact({ ...doc, nodes }, "style:" + Object.keys(patch).sort().join(","));
     },
-
-    setShapeGeometry: (id, patch) => {
-      const { doc } = get();
-      const s = doc.shapes[id];
-      if (!s) return;
-      const b = shapeBounds(s);
-      const width = Math.max(1, patch.width ?? b.width);
-      const height = Math.max(1, patch.height ?? b.height);
-      const x = patch.x ?? b.x;
-      const y = patch.y ?? b.y;
-      // Resize the (unrotated) local box anchored at its top-left, then move it.
-      let next = resizeShapeToBounds(s, b, {
-        x: b.x,
-        y: b.y,
-        width,
-        height,
-      });
-      next = translateShape(next, x - b.x, y - b.y);
-      transact({ ...doc, shapes: { ...doc.shapes, [id]: next } }, "geom:" + id);
-    },
-
-    bringToFront: () => {
-      const { doc, selection } = get();
-      if (selection.length === 0) return;
-      const rest = doc.order.filter((id) => !selection.includes(id));
-      const moved = doc.order.filter((id) => selection.includes(id));
-      transact({ ...doc, order: [...rest, ...moved] });
-    },
-
-    sendToBack: () => {
-      const { doc, selection } = get();
-      if (selection.length === 0) return;
-      const rest = doc.order.filter((id) => !selection.includes(id));
-      const moved = doc.order.filter((id) => selection.includes(id));
-      transact({ ...doc, order: [...moved, ...rest] });
-    },
-
+    setShapeGeometry: (id, patch) => { const doc = get().doc; const shape = doc.nodes[id]; if (!isShape(shape)) return; const b = shapeBounds(shape); let next = resizeShapeToBounds(shape, b, { x: b.x, y: b.y, width: Math.max(1, patch.width ?? b.width), height: Math.max(1, patch.height ?? b.height) }); next = translateShape(next, (patch.x ?? b.x) - b.x, (patch.y ?? b.y) - b.y); transact({ ...doc, nodes: { ...doc.nodes, [id]: next } }, "geom:" + id); },
+    bringToFront: () => { let doc = get().doc; const roots = selectionRoots(doc, get().selection); for (const parent of new Set(roots.map((id) => parentIdOf(doc, id)))) { const selected = new Set(roots.filter((id) => parentIdOf(doc, id) === parent)); const ids = childIdsOf(doc, parent); doc = replaceChildren(doc, parent, [...ids.filter((id) => !selected.has(id)), ...ids.filter((id) => selected.has(id))]); } transact(doc); },
+    sendToBack: () => { let doc = get().doc; const roots = selectionRoots(doc, get().selection); for (const parent of new Set(roots.map((id) => parentIdOf(doc, id)))) { const selected = new Set(roots.filter((id) => parentIdOf(doc, id) === parent)); const ids = childIdsOf(doc, parent); doc = replaceChildren(doc, parent, [...ids.filter((id) => selected.has(id)), ...ids.filter((id) => !selected.has(id))]); } transact(doc); },
     groupSelected: () => {
-      const { doc, selection } = get();
-      const units = selectionUnits(doc, selection);
-      if (units.groups.length + units.shapes.length < 2) return;
-      // All units must share one parent container so the new group nests
-      // cleanly (and blocks stay contiguous).
-      const parents = new Set<string | null>([
-        ...units.groups.map((g) => g.parentId ?? null),
-        ...units.shapes.map((s) => s.groupId ?? null),
-      ]);
-      if (parents.size !== 1) return;
-      const gid = makeId("group");
-      const groups: Record<string, Group> = {
-        ...doc.groups,
-        [gid]: {
-          id: gid,
-          name: "Group",
-          parentId: [...parents][0],
-          transform: [...IDENTITY],
-          transformOrigin: null,
+      const { doc } = get(); const roots = selectionRoots(doc, get().selection); if (roots.length < 2) return;
+      const parent = parentIdOf(doc, roots[0]); if (!roots.every((id) => parentIdOf(doc, id) === parent)) return;
+      const selected = new Set(roots); const siblings = childIdsOf(doc, parent); const members = siblings.filter((id) => selected.has(id)); const insert = siblings.indexOf(members[members.length - 1]); const rest = siblings.filter((id) => !selected.has(id)); const below = siblings.slice(0, insert).filter((id) => !selected.has(id)).length;
+      const id = makeId("group"); rest.splice(below, 0, id);
+      let next = { ...doc, nodes: { ...doc.nodes, [id]: groupNode(id, members) } }; next = replaceChildren(next, parent, rest); transact(next); set({ selection: [id], ...clearTransient });
+    },
+    ungroupSelected: () => {
+      let doc = get().doc; const selected: string[] = [];
+      for (const id of selectionRoots(doc, get().selection)) {
+        const group = doc.nodes[id]; if (!isGroup(group)) continue;
+        const parent = parentIdOf(doc, id); const siblings = childIdsOf(doc, parent); const at = siblings.indexOf(id);
+        const nodes = { ...doc.nodes };
+        for (const child of group.childIds) {
+          const node = nodes[child];
+          nodes[child] = {
+            ...node,
+            transform: multiply(group.transform, node.transform),
+            opacity: node.opacity * group.opacity,
+            blendMode: node.blendMode ?? group.blendMode,
+            hidden: node.hidden || group.hidden || undefined,
+            locked: node.locked || group.locked || undefined,
+          };
+        }
+        delete nodes[id];
+        doc = { ...doc, nodes }; const order = [...siblings]; order.splice(at, 1, ...group.childIds); doc = replaceChildren(doc, parent, order); selected.push(...group.childIds);
+      }
+      if (selected.length) { transact(doc); set({ selection: selected, ...clearTransient }); }
+    },
+    alignSelected: (type) => {
+      const doc = get().doc; const items = selectionItems(doc, get().selection); const union = unionNodeWorldBounds(doc, items.map((i) => i.id)); if (items.length < 2 || !union) return; const nodes = { ...doc.nodes };
+      for (const item of items) { const b = item.bounds; let dx = 0, dy = 0; if (type === "left") dx = union.x - b.x; if (type === "hcenter") dx = union.x + union.width / 2 - b.x - b.width / 2; if (type === "right") dx = union.x + union.width - b.x - b.width; if (type === "top") dy = union.y - b.y; if (type === "vmiddle") dy = union.y + union.height / 2 - b.y - b.height / 2; if (type === "bottom") dy = union.y + union.height - b.y - b.height; if (dx || dy) nodes[item.id] = applyWorldTransformToNode(doc, nodes[item.id], translationMatrix(dx, dy)); }
+      transact({ ...doc, nodes }); set(clearTransient);
+    },
+    distributeSelected: (axis) => {
+      const doc = get().doc; const items = selectionItems(doc, get().selection); if (items.length < 3) return; const horizontal = axis === "h"; const start = (b: Bounds) => horizontal ? b.x : b.y; const size = (b: Bounds) => horizontal ? b.width : b.height; const sorted = [...items].sort((a, b) => start(a.bounds) - start(b.bounds)); const last = sorted[sorted.length - 1]; const span = start(last.bounds) + size(last.bounds) - start(sorted[0].bounds); const gap = (span - sorted.reduce((n, x) => n + size(x.bounds), 0)) / (sorted.length - 1); const nodes = { ...doc.nodes }; let cursor = start(sorted[0].bounds) + size(sorted[0].bounds) + gap;
+      for (const item of sorted.slice(1, -1)) { const d = cursor - start(item.bounds); nodes[item.id] = applyWorldTransformToNode(doc, nodes[item.id], translationMatrix(horizontal ? d : 0, horizontal ? 0 : d)); cursor += size(item.bounds) + gap; }
+      transact({ ...doc, nodes }); set(clearTransient);
+    },
+    setClosedSelected: (closed) => { const doc = get().doc; const nodes = { ...doc.nodes }; let changed = false; for (const id of selectionRoots(doc, get().selection)) { const shape = nodes[id]; if (isShape(shape) && (shape.type === "path" || shape.type === "bezier") && shape.closed !== closed) { nodes[id] = { ...shape, closed }; changed = true; } } if (changed) transact({ ...doc, nodes }); },
+    outlineStrokeSelected: () => {
+      let doc = get().doc; const selected: string[] = [];
+      for (const id of selectionRoots(doc, get().selection)) {
+        const shape = doc.nodes[id]; if (!isShape(shape) || !shape.stroke || shape.strokeWidth <= 0) continue;
+        const polys = strokeOutline(shape); if (!polys?.length) continue;
+        const outline: Shape = { id: makeId("polygon"), name: "Outline", type: "polygon", polys, fill: shape.stroke, stroke: null, strokeWidth: 0, opacity: shape.opacity, blendMode: shape.blendMode, transform: [...IDENTITY], transformOrigin: null };
+        const parent = parentIdOf(doc, id); const siblings = childIdsOf(doc, parent); const at = siblings.indexOf(id); const nodes = { ...doc.nodes };
+        if (isAreal(shape) && shape.fill) { const gid = makeId("group"); nodes[id] = { ...shape, stroke: null }; nodes[outline.id] = outline; nodes[gid] = groupNode(gid, [id, outline.id]); const order = [...siblings]; order.splice(at, 1, gid); doc = replaceChildren({ ...doc, nodes }, parent, order); selected.push(gid); }
+        else { delete nodes[id]; nodes[outline.id] = outline; const order = [...siblings]; order.splice(at, 1, outline.id); doc = replaceChildren({ ...doc, nodes }, parent, order); selected.push(outline.id); }
+      }
+      if (selected.length) { transact(doc); set({ selection: selected, ...clearTransient }); }
+    },
+    booleanSelected: (op) => {
+      const doc = get().doc; const roots = selectionRoots(doc, get().selection); if (roots.length < 2 || !roots.every((id) => isShape(doc.nodes[id]))) return; const parent = parentIdOf(doc, roots[0]); if (!roots.every((id) => parentIdOf(doc, id) === parent)) return; const siblings = childIdsOf(doc, parent); const selected = new Set(roots); const ordered = siblings.filter((id) => selected.has(id)); const result = booleanShapes(ordered.map((id) => doc.nodes[id] as Shape), op); if (!result) return; const nodes = { ...doc.nodes }; for (const id of roots) delete nodes[id]; nodes[result.id] = result; const order = siblings.filter((id) => !selected.has(id)); order.splice(siblings.slice(0, siblings.indexOf(ordered[0])).filter((id) => !selected.has(id)).length, 0, result.id); let next = replaceChildren({ ...doc, nodes }, parent, order); transact(next); set({ selection: [result.id], ...clearTransient });
+    },
+    toggleHidden: (id) => { const doc = get().doc, node = doc.nodes[id]; if (!node) return; transact({ ...doc, nodes: { ...doc.nodes, [id]: { ...node, hidden: !node.hidden } } }); if (!node.hidden) { const affected = new Set([id, ...descendantNodeIds(doc, id)]); set({ selection: get().selection.filter((x) => !affected.has(x)), ...clearTransient }); } },
+    toggleLocked: (id) => { const doc = get().doc, node = doc.nodes[id]; if (!node) return; transact({ ...doc, nodes: { ...doc.nodes, [id]: { ...node, locked: !node.locked } } }); if (!node.locked) { const affected = new Set([id, ...descendantNodeIds(doc, id)]); set({ selection: get().selection.filter((x) => !affected.has(x)), ...clearTransient }); } },
+    renameShape: (id, name) => { const doc = get().doc, node = doc.nodes[id]; if (!isShape(node)) return; transact({ ...doc, nodes: { ...doc.nodes, [id]: { ...node, name } } }); },
+    renameGroup: (id, name) => { const doc = get().doc, node = doc.nodes[id]; if (!isGroup(node)) return; transact({ ...doc, nodes: { ...doc.nodes, [id]: { ...node, name } } }); },
+    updateGroupStyle: (id, patch) => { const doc = get().doc, node = doc.nodes[id]; if (!isGroup(node)) return; transact({ ...doc, nodes: { ...doc.nodes, [id]: { ...node, ...patch } } }, "gstyle:" + id + ":" + Object.keys(patch).sort().join(",")); if (patch.hidden || patch.locked) { const affected = new Set([id, ...descendantNodeIds(doc, id)]); set({ selection: get().selection.filter((x) => !affected.has(x)), ...clearTransient }); } },
+    moveNode: (id, parent, index) => {
+      const doc = get().doc;
+      const node = doc.nodes[id];
+      if (!node || (parent !== null && !isGroup(doc.nodes[parent]))) return;
+      if (parent === id || descendantNodeIds(doc, id).includes(parent ?? "")) return;
+
+      const oldParent = parentIdOf(doc, id);
+      const oldWorld = nodeWorldMatrix(doc, id);
+      const targetWorld = nodeWorldMatrix(doc, parent);
+      const inverseTarget = invertMatrix(targetWorld);
+      if (!inverseTarget) return;
+
+      let next = replaceChildren(
+        doc,
+        oldParent,
+        childIdsOf(doc, oldParent).filter((child) => child !== id)
+      );
+      const targetChildren = childIdsOf(next, parent).filter((child) => child !== id);
+      const at = Math.max(0, Math.min(Math.trunc(index), targetChildren.length));
+      targetChildren.splice(at, 0, id);
+      if (
+        oldParent === parent &&
+        targetChildren.every((child, i) => childIdsOf(doc, parent)[i] === child)
+      ) return;
+      next = replaceChildren(next, parent, targetChildren);
+      next = {
+        ...next,
+        nodes: {
+          ...next.nodes,
+          [id]: { ...node, transform: multiply(inverseTarget, oldWorld) },
         },
       };
-      const shapes = { ...doc.shapes };
-      for (const g of units.groups) groups[g.id] = { ...g, parentId: gid };
-      for (const s of units.shapes) shapes[s.id] = { ...s, groupId: gid };
-      // Make the members contiguous in z-order, keeping the front-most member's
-      // position, so the group reads as one block in the layers panel.
-      const sel = new Set(selection);
-      const members = doc.order.filter((id) => sel.has(id));
-      const frontIdx = doc.order.indexOf(members[members.length - 1]);
-      const rest = doc.order.filter((id) => !sel.has(id));
-      const below = doc.order
-        .slice(0, frontIdx)
-        .filter((id) => !sel.has(id)).length;
-      const order = [...rest.slice(0, below), ...members, ...rest.slice(below)];
-      transact({ ...doc, shapes, order, groups });
-      set({ selectionPivot: null, selectionTransform: null });
+
+      transact(next);
     },
-
-    ungroupSelected: () => {
-      const { doc, selection } = get();
-      // Dissolve one level: each fully-selected top group hands its children
-      // (shapes and subgroups) to its own parent.
-      const units = selectionUnits(doc, selection).groups;
-      if (units.length === 0) return;
-      const groups = { ...doc.groups };
-      const shapes = { ...doc.shapes };
-      for (const g of units) {
-        for (const [id, other] of Object.entries(groups)) {
-          if (other.parentId === g.id) {
-            groups[id] = {
-              ...other,
-              parentId: g.parentId ?? null,
-              transform: multiply(g.transform, other.transform),
-            };
-          }
-        }
-        for (const id of doc.order) {
-          const s = shapes[id];
-          if (s?.groupId === g.id) {
-            shapes[id] = {
-              ...s,
-              groupId: g.parentId ?? null,
-              transform: multiply(g.transform, s.transform),
-            };
-          }
-        }
-        delete groups[g.id];
-      }
-      transact({ ...doc, shapes, groups });
-      set({ selectionPivot: null, selectionTransform: null });
-    },
-
-    alignSelected: (type) => {
-      const { doc, selection } = get();
-      const items = selectionItems(doc, selection);
-      if (items.length < 2) return;
-      const union = unionWorldBounds(doc,
-        selection.map((id) => doc.shapes[id]).filter(Boolean) as Shape[]
-      );
-      if (!union) return;
-      const shapes = { ...doc.shapes };
-      for (const item of items) {
-        const b = item.bounds;
-        let dx = 0;
-        let dy = 0;
-        switch (type) {
-          case "left":
-            dx = union.x - b.x;
-            break;
-          case "hcenter":
-            dx = union.x + union.width / 2 - (b.x + b.width / 2);
-            break;
-          case "right":
-            dx = union.x + union.width - (b.x + b.width);
-            break;
-          case "top":
-            dy = union.y - b.y;
-            break;
-          case "vmiddle":
-            dy = union.y + union.height / 2 - (b.y + b.height / 2);
-            break;
-          case "bottom":
-            dy = union.y + union.height - (b.y + b.height);
-            break;
-        }
-        if (dx || dy) {
-          for (const id of item.ids)
-            shapes[id] = applyWorldTransform(
-              doc,
-              shapes[id],
-              translationMatrix(dx, dy)
-            );
-        }
-      }
-      transact({ ...doc, shapes });
-      set({ selectionPivot: null, selectionTransform: null });
-    },
-
-    distributeSelected: (axis) => {
-      const { doc, selection } = get();
-      const items = selectionItems(doc, selection);
-      if (items.length < 3) return;
-      const horiz = axis === "h";
-      const start = (b: Bounds) => (horiz ? b.x : b.y);
-      const size = (b: Bounds) => (horiz ? b.width : b.height);
-      const sorted = [...items].sort(
-        (a, b) => start(a.bounds) - start(b.bounds)
-      );
-      const first = sorted[0];
-      const last = sorted[sorted.length - 1];
-      const span =
-        start(last.bounds) + size(last.bounds) - start(first.bounds);
-      const totalSize = sorted.reduce((sum, it) => sum + size(it.bounds), 0);
-      const gap = (span - totalSize) / (sorted.length - 1);
-
-      const shapes = { ...doc.shapes };
-      let cursor = start(first.bounds) + size(first.bounds) + gap;
-      for (let i = 1; i < sorted.length - 1; i++) {
-        const it = sorted[i];
-        const delta = cursor - start(it.bounds);
-        if (delta) {
-          for (const id of it.ids)
-            shapes[id] = applyWorldTransform(
-              doc,
-              shapes[id],
-              translationMatrix(horiz ? delta : 0, horiz ? 0 : delta)
-            );
-        }
-        cursor += size(it.bounds) + gap;
-      }
-      transact({ ...doc, shapes });
-      set({ selectionPivot: null, selectionTransform: null });
-    },
-
-    setClosedSelected: (closed) => {
-      const { doc, selection } = get();
-      const shapes = { ...doc.shapes };
-      let changed = false;
-      for (const id of selection) {
-        const s = shapes[id];
-        if (
-          s &&
-          (s.type === "path" || s.type === "bezier") &&
-          s.closed !== closed
-        ) {
-          shapes[id] = { ...s, closed };
-          changed = true;
-        }
-      }
-      if (changed) transact({ ...doc, shapes });
-    },
-
-    outlineStrokeSelected: () => {
-      const { doc, selection } = get();
-      const shapes = { ...doc.shapes };
-      const groups = { ...doc.groups };
-      let order = [...doc.order];
-      const newSelection: string[] = [];
-      let changed = false;
-
-      for (const id of selection) {
-        const s = shapes[id];
-        if (!s || s.stroke === null || s.strokeWidth <= 0) {
-          if (s) newSelection.push(id);
-          continue;
-        }
-        const polys = strokeOutline(s);
-        if (!polys || polys.length === 0) {
-          newSelection.push(id);
-          continue;
-        }
-        const outline: Shape = {
-          id: makeId("polygon"),
-          name: "Outline",
-          type: "polygon",
-          polys,
-          fill: s.stroke,
-          stroke: null,
-          strokeWidth: 0,
-          opacity: s.opacity,
-          blendMode: s.blendMode,
-          transform: [...IDENTITY],
-          transformOrigin: null,
-          groupId: null,
-        };
-        const keepFill = isAreal(s) && s.fill !== null;
-        const idx = order.indexOf(id);
-        if (keepFill) {
-          // Keep the original as a fill-only object; group the outline above
-          // it, nested wherever the original lived.
-          const gid = makeId("group");
-          groups[gid] = {
-            id: gid,
-            name: "Group",
-            parentId: s.groupId ?? null,
-            transform: [...IDENTITY],
-            transformOrigin: null,
-          };
-          shapes[id] = { ...s, stroke: null, groupId: gid };
-          outline.groupId = gid;
-          shapes[outline.id] = outline;
-          order.splice(idx + 1, 0, outline.id);
-          newSelection.push(id, outline.id);
-        } else {
-          delete shapes[id];
-          outline.groupId = s.groupId ?? null;
-          shapes[outline.id] = outline;
-          order.splice(idx, 1, outline.id);
-          newSelection.push(outline.id);
-        }
-        changed = true;
-      }
-
-      if (changed) {
-        transact(pruneGroups({ ...doc, shapes, order, groups }));
-        set({
-          selection: newSelection,
-          selectionPivot: null,
-          selectionTransform: null,
-        });
-      }
-    },
-
-    booleanSelected: (op) => {
-      const { doc, selection } = get();
-      if (selection.length < 2) return;
-      const sel = new Set(selection);
-      const ordered = doc.order.filter((id) => sel.has(id));
-      const parents = new Set(
-        ordered.map((id) => doc.shapes[id]?.groupId ?? null)
-      );
-      // Boolean geometry is baked into the shared parent coordinate space.
-      if (parents.size !== 1) return;
-      const result = booleanShapes(
-        ordered.map((id) => doc.shapes[id]),
-        op
-      );
-      if (!result) return;
-      result.groupId = [...parents][0];
-
-      const minIdx = Math.min(...ordered.map((id) => doc.order.indexOf(id)));
-      const keptBefore = doc.order.filter(
-        (id, i) => !sel.has(id) && i < minIdx
-      ).length;
-      const order = doc.order.filter((id) => !sel.has(id));
-      order.splice(keptBefore, 0, result.id);
-
-      const shapes = { ...doc.shapes };
-      for (const id of selection) delete shapes[id];
-      shapes[result.id] = result;
-      transact(pruneGroups({ ...doc, shapes, order }));
-      set({
-        selection: [result.id],
-        selectionPivot: null,
-        selectionTransform: null,
-      });
-    },
-
-    toggleHidden: (id) => {
-      const { doc } = get();
-      const s = doc.shapes[id];
-      if (!s) return;
-      transact({
-        ...doc,
-        shapes: { ...doc.shapes, [id]: { ...s, hidden: !s.hidden } },
-      });
-      if (!s.hidden) {
-        set({
-          selection: get().selection.filter((x) => x !== id),
-          selectionPivot: null,
-          selectionTransform: null,
-        });
-      }
-    },
-
-    toggleLocked: (id) => {
-      const { doc } = get();
-      const s = doc.shapes[id];
-      if (!s) return;
-      transact({
-        ...doc,
-        shapes: { ...doc.shapes, [id]: { ...s, locked: !s.locked } },
-      });
-      if (!s.locked) {
-        set({
-          selection: get().selection.filter((x) => x !== id),
-          selectionPivot: null,
-          selectionTransform: null,
-        });
-      }
-    },
-
-    renameShape: (id, name) => {
-      const { doc } = get();
-      const s = doc.shapes[id];
-      if (!s) return;
-      transact({ ...doc, shapes: { ...doc.shapes, [id]: { ...s, name } } });
-    },
-
-    renameGroup: (gid, name) => {
-      const { doc } = get();
-      const g = doc.groups[gid];
-      if (!g) return;
-      transact({ ...doc, groups: { ...doc.groups, [gid]: { ...g, name } } });
-    },
-
-    updateGroupStyle: (gid, patch) => {
-      const { doc } = get();
-      const g = doc.groups[gid];
-      if (!g) return;
-      transact(
-        { ...doc, groups: { ...doc.groups, [gid]: { ...g, ...patch } } },
-        "gstyle:" + gid + ":" + Object.keys(patch).sort().join(",")
-      );
-      if (patch.hidden === true || patch.locked === true) {
-        const members = new Set(shapesInGroup(get().doc, gid));
-        set({
-          selection: get().selection.filter((id) => !members.has(id)),
-          selectionPivot: null,
-          selectionTransform: null,
-        });
-      }
-    },
-
-    setOrder: (order) => {
-      const { doc } = get();
-      transact({ ...doc, order });
-    },
-
     beginInteraction: () => set({ _pending: clone(get().doc), _dirty: false }),
-
-    applyShapes: (next) => {
-      const { doc } = get();
-      set({ doc: { ...doc, shapes: { ...doc.shapes, ...next } }, _dirty: true });
-    },
-
+    applyShapes: (next) => set({ doc: { ...get().doc, nodes: { ...get().doc.nodes, ...next } }, _dirty: true }),
     setDoc: (doc) => set({ doc, _dirty: true }),
-
-    endInteraction: () => {
-      resetCoalesce();
-      const { _pending, _dirty, history } = get();
-      if (_pending && _dirty) {
-        const past = [...history.past, _pending];
-        if (past.length > HISTORY_LIMIT) past.shift();
-        set({ history: { past, future: [] } });
-      }
-      set({ _pending: null, _dirty: false });
-    },
-
-    undo: () => {
-      resetCoalesce();
-      const { history, doc } = get();
-      if (history.past.length === 0) return;
-      const past = [...history.past];
-      const prev = past.pop()!;
-      set({
-        doc: prev,
-        history: { past, future: [clone(doc), ...history.future] },
-        selection: get().selection.filter((id) => prev.shapes[id]),
-        selectionPivot: null,
-        selectionTransform: null,
-      });
-    },
-
-    redo: () => {
-      resetCoalesce();
-      const { history, doc } = get();
-      if (history.future.length === 0) return;
-      const [next, ...future] = history.future;
-      set({
-        doc: next,
-        history: { past: [...history.past, clone(doc)], future },
-        selection: get().selection.filter((id) => next.shapes[id]),
-        selectionPivot: null,
-        selectionTransform: null,
-      });
-    },
+    endInteraction: () => { resetCoalesce(); const { _pending, _dirty, history } = get(); if (_pending && _dirty) set({ history: { past: [...history.past, _pending].slice(-HISTORY_LIMIT), future: [] } }); set({ _pending: null, _dirty: false }); },
+    undo: () => { resetCoalesce(); const { history, doc } = get(); if (!history.past.length) return; const past = [...history.past], prev = past.pop()!; set({ doc: prev, history: { past, future: [clone(doc), ...history.future] }, selection: get().selection.filter((id) => !!prev.nodes[id]), ...clearTransient }); },
+    redo: () => { resetCoalesce(); const { history, doc } = get(); if (!history.future.length) return; const [next, ...future] = history.future; set({ doc: next, history: { past: [...history.past, clone(doc)], future }, selection: get().selection.filter((id) => !!next.nodes[id]), ...clearTransient }); },
   };
 });
 
-/** Build a shape's common fields from the current style defaults. */
 export function styleFromDefaults(style: StyleDefaults) {
-  return {
-    fill: style.fill,
-    stroke: style.stroke,
-    strokeWidth: style.strokeWidth,
-    opacity: 1,
-    transform: [...IDENTITY] as Shape["transform"],
-    transformOrigin: null,
-    groupId: null,
-  };
+  return { fill: style.fill, stroke: style.stroke, strokeWidth: style.strokeWidth, opacity: 1, transform: [...IDENTITY] as Shape["transform"], transformOrigin: null };
 }
-
-export { makeId };
-export { expandToGroups } from "../model/groups";

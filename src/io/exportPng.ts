@@ -1,4 +1,4 @@
-import { buildRenderTree, paintNode } from "../canvas/render";
+import { paintNode } from "../canvas/render";
 import type { Document } from "../model/types";
 import { contentBounds } from "./exportBounds";
 
@@ -32,7 +32,7 @@ export async function exportPng(
 
   ctx.scale(scale, scale);
   ctx.translate(-bounds.x, -bounds.y);
-  for (const node of buildRenderTree(doc)) paintNode(ctx, node);
+  for (const nodeId of doc.rootIds) paintNode(ctx, doc, nodeId);
 
   return await new Promise<Blob>((resolve, reject) => {
     canvas.toBlob((blob) => {

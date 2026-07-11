@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { runScript } from "../script/runScript";
 import { useEditor } from "../store/editorStore";
+import { shapesInPaintOrder } from "../model/scene";
 
 const STORAGE_KEY = "vinegar.script";
 
@@ -53,9 +54,7 @@ export default function ScriptPanel({ open, onClose }: Props) {
     setStatus(null);
     const { doc, selection } = useEditor.getState();
     const snapshot = {
-      shapes: doc.order
-        .map((id) => doc.shapes[id])
-        .filter((s): s is NonNullable<typeof s> => !!s),
+      shapes: shapesInPaintOrder(doc),
       selectionIds: selection,
     };
     const result = await runScript(code, snapshot);

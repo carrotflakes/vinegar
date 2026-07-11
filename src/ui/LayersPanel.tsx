@@ -1,6 +1,6 @@
 import { Fragment, useState } from "react";
-import { buildRenderTree, type RenderNode } from "../canvas/render";
 import type { Group, Shape } from "../model/types";
+import { descendantNodeIds, isGroup, isShape } from "../model/scene";
 import { useEditor } from "../store/editorStore";
 import { openContextMenu } from "../store/menuStore";
 import { selectionMenu } from "./menus";
@@ -22,18 +22,14 @@ interface DNode {
   children?: DNode[];
 }
 
-function toDisplayTree(nodes: RenderNode[]): DNode[] {
-  return nodes
-    .map((n) =>
-      n.kind === "shape"
-        ? { key: n.shape.id, shape: n.shape }
-        : {
-            key: n.group.id,
-            group: n.group,
-            children: toDisplayTree(n.children),
-          }
-    )
-    .reverse();
+function toDisplayTree(doc: ReturnType<typeof useEditor.getState>["doc"], ids: string[]): DNode[] {
+  const result: DNode[] = [];
+  for (const id of ids) {
+    const node = doc.nodes[id];
+    if (isGroup(node)) result.push({ key: id, group: node, children: toDisplayTree(doc, node.childIds) });
+    else if (isShape(node)) result.push({ key: id, shape: node });
+  }
+  return result.reverse();
 }
 
 /** All descendant shape ids, in display order. */
@@ -64,6 +60,7 @@ interface Drag {
 interface Drop {
   parent: string | null;
   index: number;
+  inside?: string;
 }
 
 export default function LayersPanel() {
@@ -75,14 +72,14 @@ export default function LayersPanel() {
   const updateGroupStyle = useEditor((s) => s.updateGroupStyle);
   const renameShape = useEditor((s) => s.renameShape);
   const renameGroup = useEditor((s) => s.renameGroup);
-  const setOrder = useEditor((s) => s.setOrder);
+  const moveNode = useEditor((s) => s.moveNode);
 
   const [editing, setEditing] = useState<string | null>(null);
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
   const [drag, setDrag] = useState<Drag | null>(null);
   const [drop, setDrop] = useState<Drop | null>(null);
 
-  const roots = toDisplayTree(buildRenderTree(doc));
+  const roots = toDisplayTree(doc, doc.rootIds);
 
   const toggleCollapsed = (gid: string) => {
     setCollapsed((prev) => {
@@ -115,31 +112,42 @@ export default function LayersPanel() {
     const d = drag;
     const t = drop;
     clearDnd();
-    if (!d || !t || d.parent !== t.parent) return;
+    if (!d || !t) return;
     const siblings = childrenOf(roots, t.parent);
     if (!siblings) return;
-    const from = siblings.findIndex((n) => n.key === d.id);
-    if (from < 0) return;
+    const from = d.parent === t.parent
+      ? siblings.findIndex((n) => n.key === d.id)
+      : -1;
     let idx = t.index;
-    if (from < idx) idx -= 1;
-    const node = siblings[from];
-    siblings.splice(from, 1);
-    siblings.splice(idx, 0, node);
-    setOrder(shapeIds(roots).reverse());
+    if (from >= 0 && from < idx) idx -= 1;
+    const displayIds = siblings.map((n) => n.key).filter((id) => id !== d.id);
+    idx = Math.max(0, Math.min(idx, displayIds.length));
+    displayIds.splice(idx, 0, d.id);
+    const canonicalIndex = displayIds.length - 1 - idx;
+    moveNode(d.id, t.parent, canonicalIndex);
   };
 
-  /** Map a hover to a drop slot at the dragged node's level, if any. */
-  const onRowDragOver = (e: React.DragEvent, path: Path) => {
+  /** Map a row hover to before/after, or its middle third into a group. */
+  const onRowDragOver = (
+    e: React.DragEvent,
+    path: Path,
+    groupId?: string
+  ) => {
     if (!drag) return;
-    const at = path.find((p) => p.parent === drag.parent);
-    if (!at) {
-      setDrop(null);
+    e.preventDefault();
+    e.stopPropagation();
+    const r = e.currentTarget.getBoundingClientRect();
+    const ratio = (e.clientY - r.top) / r.height;
+    if (
+      groupId && ratio > 0.28 && ratio < 0.72 &&
+      groupId !== drag.id &&
+      !descendantNodeIds(doc, drag.id).includes(groupId)
+    ) {
+      setDrop({ parent: groupId, index: 0, inside: groupId });
       return;
     }
-    e.preventDefault();
-    const r = e.currentTarget.getBoundingClientRect();
-    const after = e.clientY > r.top + r.height / 2;
-    setDrop({ parent: drag.parent, index: after ? at.index + 1 : at.index });
+    const at = path[path.length - 1];
+    setDrop({ parent: at.parent, index: ratio >= 0.5 ? at.index + 1 : at.index });
   };
 
   const dropProps = {
@@ -182,7 +190,11 @@ export default function LayersPanel() {
         }
         style={{ paddingLeft: 6 + depth * 16 }}
         draggable={editing !== id}
-        onDragStart={() => setDrag({ id, parent: shape.groupId ?? null })}
+        onDragStart={(e) => {
+          e.dataTransfer.effectAllowed = "move";
+          e.dataTransfer.setData("text/plain", id);
+          setDrag({ id, parent: path[path.length - 1].parent });
+        }}
         onDragOver={(e) => onRowDragOver(e, path)}
         {...dropProps}
         onClick={(e) => selectIds([id], e.shiftKey)}
@@ -248,25 +260,30 @@ export default function LayersPanel() {
     const group = node.group!;
     const gid = group.id;
     const ids = shapeIds([node]);
-    const selected = ids.length > 0 && ids.every((id) => selection.includes(id));
+    const selected = selection.includes(gid);
     const isCollapsed = collapsed.has(gid);
     return (
       <div
         className={
           "layer-row group-header" +
           (selected ? " selected" : "") +
-          (group.hidden || dim ? " hidden" : "")
+          (group.hidden || dim ? " hidden" : "") +
+          (drop?.inside === gid ? " drop-inside" : "")
         }
         style={{ paddingLeft: 6 + depth * 16 }}
         draggable={editing !== gid}
-        onDragStart={() => setDrag({ id: gid, parent: group.parentId ?? null })}
-        onDragOver={(e) => onRowDragOver(e, path)}
+        onDragStart={(e) => {
+          e.dataTransfer.effectAllowed = "move";
+          e.dataTransfer.setData("text/plain", gid);
+          setDrag({ id: gid, parent: path[path.length - 1].parent });
+        }}
+        onDragOver={(e) => onRowDragOver(e, path, gid)}
         {...dropProps}
-        onClick={(e) => selectIds(ids, e.shiftKey)}
+        onClick={(e) => selectIds([gid], e.shiftKey)}
         onContextMenu={(e) => {
           e.preventDefault();
-          if (!ids.every((sid) => selection.includes(sid))) {
-            selectIds(ids, false);
+          if (!selection.includes(gid)) {
+            selectIds([gid], false);
           }
           openContextMenu(e.clientX, e.clientY, [
             { label: "Rename", onSelect: () => setEditing(gid) },
@@ -344,7 +361,10 @@ export default function LayersPanel() {
         return (
           <Fragment key={n.key}>
             {drop && drop.parent === parent && drop.index === i && (
-              <div className="drop-line-flow" />
+              <div
+                className="drop-line-flow"
+                style={{ marginLeft: 6 + depth * 16 }}
+              />
             )}
             {n.group ? (
               <>
@@ -365,7 +385,10 @@ export default function LayersPanel() {
         );
       })}
       {drop && drop.parent === parent && drop.index === nodes.length && (
-        <div className="drop-line-flow" />
+        <div
+          className="drop-line-flow"
+          style={{ marginLeft: 6 + depth * 16 }}
+        />
       )}
     </>
   );
@@ -373,7 +396,21 @@ export default function LayersPanel() {
   return (
     <div className="layers">
       <div className="panel-title layers-title">Layers</div>
-      <div className="layers-list" onDragLeave={() => setDrop(null)}>
+      <div
+        className="layers-list"
+        onDragOver={(e) => {
+          if (!drag || e.target !== e.currentTarget) return;
+          e.preventDefault();
+          setDrop({ parent: null, index: roots.length });
+        }}
+        onDrop={(e) => {
+          e.preventDefault();
+          commitDrop();
+        }}
+        onDragLeave={(e) => {
+          if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setDrop(null);
+        }}
+      >
         {roots.length === 0 && <div className="layers-empty">No shapes yet</div>}
         {renderList(roots, null, 0, [], false)}
       </div>

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef } from "react";
 import {
-  unionWorldBounds,
+  unionNodeWorldBounds,
   worldShapeBounds,
 } from "../model/bounds";
 import {
@@ -9,15 +9,14 @@ import {
   reverseBezier,
 } from "../model/bezier";
 import { pointsToAnchors, simplifyPath } from "../model/freehand";
-import { isShapeHidden, isShapeLocked } from "../model/groups";
+import { exactlySelectedGroup, expandToGroups, isShapeHidden, isShapeLocked } from "../model/groups";
 import { hitTestShape, marqueeHitShape } from "../model/hitTest";
 import { magnetAngle, snapAngle } from "../model/rotate";
 import {
   applyMatrix,
-  applyWorldTransform,
-  applyWorldTransformToGroup,
+  applyWorldTransformToNode,
   boundsTransform,
-  groupWorldMatrix,
+  nodeWorldMatrix,
   invertMatrix,
   matrixScale,
   multiply,
@@ -38,18 +37,17 @@ import {
   type BezierShape,
   type Bounds,
   type Matrix,
-  type Group,
+  type SceneNode,
   type Shape,
   type Vec2,
 } from "../model/types";
 import { screenToWorld, worldToScreen, zoomAt } from "../model/viewport";
 import {
-  expandToGroups,
   styleFromDefaults,
   useEditor,
   type EditorState,
 } from "../store/editorStore";
-import { exactlySelectedGroup } from "../model/groups";
+import { descendantShapeIds, isGroup, isShape, sceneIndex, selectionRoots, shapesInPaintOrder } from "../model/scene";
 import { openContextMenu } from "../store/menuStore";
 import { setPointer, setReadout } from "../store/pointerStore";
 import { canvasMenu, selectionMenu } from "../ui/menus";
@@ -100,11 +98,10 @@ type Interaction =
   | {
       kind: "move";
       start: Vec2;
-      originals: Record<string, Shape>;
+      originals: Record<string, SceneNode>;
       origUnion: Bounds;
       targets: SnapTargets;
       boxes: Bounds[];
-      group?: Group;
       selectionPivot?: Vec2;
       selectionTransform?: Matrix;
     }
@@ -113,9 +110,8 @@ type Interaction =
       handle: HandleId;
       from: Bounds;
       frameTransform: Matrix;
-      originals: Record<string, Shape>;
+      originals: Record<string, SceneNode>;
       single: boolean;
-      group?: Group;
       selectionPivot?: Vec2;
       selectionTransform?: Matrix;
     }
@@ -125,8 +121,7 @@ type Interaction =
       startAngle: number;
       /** Frame rotation at drag start; magnetic snapping targets the result. */
       startRotation: number;
-      originals: Record<string, Shape>;
-      group?: Group;
+      originals: Record<string, SceneNode>;
       selectionPivot?: Vec2;
       selectionTransform?: Matrix;
     }
@@ -153,8 +148,15 @@ const TOUCH_DRAW_SCALE = 1.6;
 
 function selectedBezier(state: EditorState): BezierShape | null {
   if (state.selection.length !== 1) return null;
-  const s = state.doc.shapes[state.selection[0]];
+  const s = state.doc.nodes[state.selection[0]];
   return s && s.type === "bezier" ? s : null;
+}
+
+function selectedShapes(doc: EditorState["doc"], selection: string[]): Shape[] {
+  return selectionRoots(doc, selection)
+    .flatMap((id) => isShape(doc.nodes[id]) ? [id] : descendantShapeIds(doc, id))
+    .map((id) => doc.nodes[id])
+    .filter(isShape);
 }
 
 export default function CanvasView() {
@@ -207,9 +209,7 @@ export default function CanvasView() {
     });
 
     const chrome = coarseRef.current ? TOUCH_DRAW_SCALE : 1;
-    const selectedShapes = selection
-      .map((id) => doc.shapes[id])
-      .filter(Boolean) as Shape[];
+    const selected = selectedShapes(doc, selection);
     drawOverlay(ctx, {
       dpr,
       viewport,
@@ -217,14 +217,14 @@ export default function CanvasView() {
         tool === "select"
           ? getSelectionFrame(
               doc,
-              selectedShapes,
+              selected,
               exactlySelectedGroup(doc, selection),
               state.selectionPivot,
               state.selectionTransform
             )
           : null,
       marquee: marqueeRef.current,
-      showHandles: tool === "select" && selectedShapes.length > 0,
+      showHandles: tool === "select" && selected.length > 0,
       handleSize: HANDLE_SIZE * chrome,
     });
 
@@ -287,7 +287,7 @@ export default function CanvasView() {
       }
       if (anchors.length >= 2) {
         const state = useEditor.getState();
-        if (extended && state.doc.shapes[draft.id]) {
+        if (extended && isShape(state.doc.nodes[draft.id])) {
           // Skip the no-op case (picked an endpoint up but changed nothing).
           if (JSON.stringify(draft) !== JSON.stringify(extended)) {
             state.updateShape(draft);
@@ -367,9 +367,7 @@ export default function CanvasView() {
   const selectionFrame = (): SelectionFrame | null => {
     const { doc, selection, selectionPivot, selectionTransform } =
       useEditor.getState();
-    const shapes = selection
-      .map((id) => doc.shapes[id])
-      .filter(Boolean) as Shape[];
+    const shapes = selectedShapes(doc, selection);
     return getSelectionFrame(
       doc,
       shapes,
@@ -412,15 +410,16 @@ export default function CanvasView() {
   const pickShape = (world: Vec2): string | null => {
     const { doc } = useEditor.getState();
     const tol = pickTolerance();
-    for (let i = doc.order.length - 1; i >= 0; i--) {
-      const shape = doc.shapes[doc.order[i]];
+    const ids = sceneIndex(doc).shapeIds;
+    for (let i = ids.length - 1; i >= 0; i--) {
+      const shape = doc.nodes[ids[i]];
       if (
-        shape &&
+        isShape(shape) &&
         !isShapeHidden(doc, shape) &&
         !isShapeLocked(doc, shape) &&
         hitTestShape(doc, shape, world, tol)
       )
-        return doc.order[i];
+        return ids[i];
     }
     return null;
   };
@@ -436,8 +435,7 @@ export default function CanvasView() {
       guidesRef.current = [];
       return world;
     }
-    const others = state.doc.order
-      .map((id) => state.doc.shapes[id])
+    const others = shapesInPaintOrder(state.doc)
       .filter(
         (s): s is Shape =>
           !!s && !isShapeHidden(state.doc, s) && !exclude.has(s.id)
@@ -515,10 +513,10 @@ export default function CanvasView() {
     scheduleDraw();
   };
 
-  const snapshot = (ids: string[]): Record<string, Shape> => {
+  const snapshot = (ids: string[]): Record<string, SceneNode> => {
     const { doc } = useEditor.getState();
-    const out: Record<string, Shape> = {};
-    for (const id of ids) if (doc.shapes[id]) out[id] = doc.shapes[id];
+    const out: Record<string, SceneNode> = {};
+    for (const id of selectionRoots(doc, ids)) if (doc.nodes[id]) out[id] = doc.nodes[id];
     return out;
   };
 
@@ -534,7 +532,7 @@ export default function CanvasView() {
       const group = exactlySelectedGroup(state.doc, state.selection);
       const shape =
         !group && state.selection.length === 1
-          ? state.doc.shapes[state.selection[0]]
+          ? state.doc.nodes[state.selection[0]]
           : null;
       const persistent = !!group || !!shape;
       if (persistent) state.beginInteraction();
@@ -560,7 +558,6 @@ export default function CanvasView() {
         startAngle: Math.atan2(world.y - frame.pivot.y, world.x - frame.pivot.x),
         startRotation: frame.rotation,
         originals: snapshot(state.selection),
-        group: group ?? undefined,
         selectionPivot: transient
           ? state.selectionPivot ?? frame.pivot
           : undefined,
@@ -580,7 +577,6 @@ export default function CanvasView() {
         frameTransform: frame.transform,
         originals: snapshot(state.selection),
         single: state.selection.length === 1,
-        group: group ?? undefined,
         selectionPivot: transient ? state.selectionPivot ?? undefined : undefined,
         selectionTransform: transient ? frame.transform : undefined,
       };
@@ -597,7 +593,7 @@ export default function CanvasView() {
           ? state.selection.filter((id) => !group.includes(id))
           : [...new Set([...state.selection, ...group])];
         state.setSelection(selection);
-      } else if (!state.selection.includes(hitId)) {
+      } else if (!expandToGroups(state.doc, [hitId]).some((id) => state.selection.includes(id))) {
         selection = expandToGroups(state.doc, [hitId]);
         state.setSelection(selection);
       } else {
@@ -606,19 +602,18 @@ export default function CanvasView() {
       const originals = snapshot(selection);
       const selectedGroup = exactlySelectedGroup(state.doc, selection);
       const transient = !selectedGroup && selection.length > 1;
-      const selSet = new Set(selection);
-      const others = state.doc.order
-        .map((id) => state.doc.shapes[id])
+      const selectedLeafIds = new Set(selectionRoots(state.doc, selection).flatMap((id) => descendantShapeIds(state.doc, id)));
+      const others = shapesInPaintOrder(state.doc)
         .filter(
           (s): s is Shape =>
-            !!s && !selSet.has(s.id) && !isShapeHidden(state.doc, s)
+            !selectedLeafIds.has(s.id) && !isShapeHidden(state.doc, s)
         );
       state.beginInteraction();
       interactionRef.current = {
         kind: "move",
         start: world,
         originals,
-        origUnion: unionWorldBounds(state.doc, Object.values(originals)) ?? {
+        origUnion: unionNodeWorldBounds(state.doc, Object.keys(originals)) ?? {
           x: world.x,
           y: world.y,
           width: 0,
@@ -626,7 +621,6 @@ export default function CanvasView() {
         },
         targets: collectSnapTargets(state.doc, others),
         boxes: others.map((shape) => worldShapeBounds(state.doc, shape)),
-        group: selectedGroup ?? undefined,
         selectionPivot: transient ? state.selectionPivot ?? undefined : undefined,
         selectionTransform: transient
           ? state.selectionTransform ?? undefined
@@ -695,7 +689,7 @@ export default function CanvasView() {
     }
     // Select another Bézier shape, or clear.
     const id = pickShape(world);
-    if (id && state.doc.shapes[id].type === "bezier") {
+    if (id && state.doc.nodes[id]?.type === "bezier") {
       state.setSelection([id]);
       state.setEditNode(null);
     } else {
@@ -717,10 +711,11 @@ export default function CanvasView() {
       );
       return Math.hypot(sp.x - screen.x, sp.y - screen.y) <= tol;
     };
-    for (let i = doc.order.length - 1; i >= 0; i--) {
-      const s = doc.shapes[doc.order[i]];
+    const ids = sceneIndex(doc).shapeIds;
+    for (let i = ids.length - 1; i >= 0; i--) {
+      const s = doc.nodes[ids[i]];
       if (
-        !s ||
+        !isShape(s) ||
         s.type !== "bezier" ||
         s.closed ||
         isShapeHidden(doc, s) ||
@@ -845,15 +840,15 @@ export default function CanvasView() {
         break;
       case "pivot": {
         if (inter.groupId) {
-          const group = state.doc.groups[inter.groupId];
-          const inverse = group
-            ? invertMatrix(groupWorldMatrix(state.doc, group.id))
+          const group = state.doc.nodes[inter.groupId];
+          const inverse = isGroup(group)
+            ? invertMatrix(nodeWorldMatrix(state.doc, group.id))
             : null;
-          if (group && inverse) {
+          if (isGroup(group) && inverse) {
             state.setDoc({
               ...state.doc,
-              groups: {
-                ...state.doc.groups,
+              nodes: {
+                ...state.doc.nodes,
                 [group.id]: {
                   ...group,
                   transformOrigin: applyMatrix(inverse, world),
@@ -862,11 +857,11 @@ export default function CanvasView() {
             });
           }
         } else if (inter.shapeId) {
-          const shape = state.doc.shapes[inter.shapeId];
-          const inverse = shape
+          const shape = state.doc.nodes[inter.shapeId];
+          const inverse = isShape(shape)
             ? invertMatrix(shapeWorldMatrix(state.doc, shape))
             : null;
-          if (shape && inverse) {
+          if (isShape(shape) && inverse) {
             state.applyShapes({
               [shape.id]: {
                 ...shape,
@@ -912,19 +907,11 @@ export default function CanvasView() {
           spacingsRef.current = [];
         }
         const delta = translationMatrix(dx, dy);
-        if (inter.group) {
-          const group = applyWorldTransformToGroup(state.doc, inter.group, delta);
-          state.setDoc({
-            ...state.doc,
-            groups: { ...state.doc.groups, [group.id]: group },
-          });
-        } else {
-          const next: Record<string, Shape> = {};
-          for (const [id, orig] of Object.entries(inter.originals)) {
-            next[id] = applyWorldTransform(state.doc, orig, delta);
-          }
-          state.applyShapes(next);
+        const next: Record<string, SceneNode> = {};
+        for (const [id, orig] of Object.entries(inter.originals)) {
+          next[id] = applyWorldTransformToNode(state.doc, orig, delta);
         }
+        state.applyShapes(next);
         if (inter.selectionPivot) {
           state.setSelectionPivot(applyMatrix(delta, inter.selectionPivot));
         }
@@ -947,23 +934,11 @@ export default function CanvasView() {
           inter.frameTransform,
           multiply(localDelta, inverseFrame)
         );
-        if (inter.group) {
-          const group = applyWorldTransformToGroup(
-            state.doc,
-            inter.group,
-            worldDelta
-          );
-          state.setDoc({
-            ...state.doc,
-            groups: { ...state.doc.groups, [group.id]: group },
-          });
-        } else {
-          const next: Record<string, Shape> = {};
-          for (const [id, orig] of Object.entries(inter.originals)) {
-            next[id] = applyWorldTransform(state.doc, orig, worldDelta);
-          }
-          state.applyShapes(next);
+        const next: Record<string, SceneNode> = {};
+        for (const [id, orig] of Object.entries(inter.originals)) {
+          next[id] = applyWorldTransformToNode(state.doc, orig, worldDelta);
         }
+        state.applyShapes(next);
         if (inter.selectionPivot) {
           state.setSelectionPivot(
             applyMatrix(worldDelta, inter.selectionPivot)
@@ -989,23 +964,11 @@ export default function CanvasView() {
           if (eased !== null) delta = eased - inter.startRotation;
         }
         const rotationDelta = matrixRotationAbout(inter.pivot, delta);
-        if (inter.group) {
-          const group = applyWorldTransformToGroup(
-            state.doc,
-            inter.group,
-            rotationDelta
-          );
-          state.setDoc({
-            ...state.doc,
-            groups: { ...state.doc.groups, [group.id]: group },
-          });
-        } else {
-          const next: Record<string, Shape> = {};
-          for (const [id, orig] of Object.entries(inter.originals)) {
-            next[id] = applyWorldTransform(state.doc, orig, rotationDelta);
-          }
-          state.applyShapes(next);
+        const next: Record<string, SceneNode> = {};
+        for (const [id, orig] of Object.entries(inter.originals)) {
+          next[id] = applyWorldTransformToNode(state.doc, orig, rotationDelta);
         }
+        state.applyShapes(next);
         if (inter.selectionPivot) {
           state.setSelectionPivot(
             applyMatrix(rotationDelta, inter.selectionPivot)
@@ -1066,8 +1029,8 @@ export default function CanvasView() {
         break;
       }
       case "node-anchor": {
-        const current = state.doc.shapes[inter.shapeId];
-        const inverse = current
+        const current = state.doc.nodes[inter.shapeId];
+        const inverse = isShape(current)
           ? invertMatrix(shapeWorldMatrix(state.doc, current))
           : null;
         const localWorld = inverse ? applyMatrix(inverse, world) : world;
@@ -1088,8 +1051,8 @@ export default function CanvasView() {
         break;
       }
       case "node-handle": {
-        const current = state.doc.shapes[inter.shapeId];
-        const inverse = current
+        const current = state.doc.nodes[inter.shapeId];
+        const inverse = isShape(current)
           ? invertMatrix(shapeWorldMatrix(state.doc, current))
           : null;
         const localWorld = inverse ? applyMatrix(inverse, world) : world;
@@ -1164,10 +1127,10 @@ export default function CanvasView() {
       case "marquee": {
         const end = screenToWorld(state.viewport, screenPoint(e));
         const region = boundsFromPoints(inter.start, end);
-        const hits = state.doc.order.filter((id) => {
-          const s = state.doc.shapes[id];
+        const hits = sceneIndex(state.doc).shapeIds.filter((id) => {
+          const s = state.doc.nodes[id];
           return (
-            s &&
+            isShape(s) &&
             !isShapeHidden(state.doc, s) &&
             !isShapeLocked(state.doc, s) &&
             marqueeHitShape(state.doc, s, region)

@@ -2,9 +2,11 @@ import { isAreal } from "../model/boolean";
 import { shapeBounds } from "../model/bounds";
 import {
   applyMatrix,
+  applyWorldTransformToNode,
   matrixAngle,
-  multiply,
+  nodeWorldMatrix,
   rotationAbout,
+  shapeWorldMatrix,
 } from "../model/matrix";
 import {
   canGroupSelection,
@@ -12,6 +14,7 @@ import {
   selectionUnits,
 } from "../model/groups";
 import { BLEND_MODES, type BlendMode, type Shape } from "../model/types";
+import { descendantShapeIds, isShape, selectionRoots } from "../model/scene";
 import { useEditor } from "../store/editorStore";
 import ColorField from "./ColorField";
 import { getSelectionFrame } from "../canvas/frame";
@@ -37,20 +40,21 @@ export default function PropertiesPanel() {
   const setClosedSelected = useEditor((s) => s.setClosedSelected);
   const outlineStrokeSelected = useEditor((s) => s.outlineStrokeSelected);
 
-  const selected = selection
-    .map((id) => doc.shapes[id])
-    .filter(Boolean) as Shape[];
+  const selectedIds = selectionRoots(doc, selection).flatMap((id) =>
+    isShape(doc.nodes[id]) ? [id] : descendantShapeIds(doc, id)
+  );
+  const selected = selectedIds.map((id) => doc.nodes[id]).filter(isShape) as Shape[];
   const hasSelection = selected.length > 0;
   const first = selected[0];
   const canGroup = canGroupSelection(doc, selection);
   const canUngroup = selectionUnits(doc, selection).groups.length > 0;
   const selectedGroup = exactlySelectedGroup(doc, selection);
-  const canBoolean = selected.filter(isAreal).length >= 2;
-  const closable = selected.filter(
+  const canBoolean = !selectedGroup && selected.filter(isAreal).length >= 2;
+  const closable = selectedGroup ? [] : selected.filter(
     (s) => s.type === "path" || s.type === "bezier"
   );
   const anyOpen = closable.some((s) => "closed" in s && !s.closed);
-  const canOutline = selected.some(
+  const canOutline = !selectedGroup && selected.some(
     (s) => s.stroke !== null && s.strokeWidth > 0
   );
 
@@ -69,7 +73,7 @@ export default function PropertiesPanel() {
       ? updateSelectedStyle({ strokeWidth: v })
       : setStyle({ strokeWidth: v });
   const rotationDeg = hasSelection
-    ? Math.round((matrixAngle(first.transform) * 180) / Math.PI)
+    ? Math.round((matrixAngle(shapeWorldMatrix(doc, first)) * 180) / Math.PI)
     : 0;
   const setRotation = (degrees: number) => {
     const bounds = shapeBounds(first);
@@ -77,15 +81,20 @@ export default function PropertiesPanel() {
       x: bounds.x + bounds.width / 2,
       y: bounds.y + bounds.height / 2,
     };
-    const pivot = applyMatrix(first.transform, localOrigin);
+    const world = shapeWorldMatrix(doc, first);
+    const pivot = applyMatrix(world, localOrigin);
     const target = (degrees * Math.PI) / 180;
-    const delta = target - matrixAngle(first.transform);
+    const delta = target - matrixAngle(world);
     updateSelectedStyle({
-      transform: multiply(rotationAbout(pivot, delta), first.transform),
+      transform: applyWorldTransformToNode(
+        doc,
+        first,
+        rotationAbout(pivot, delta)
+      ).transform,
     });
   };
   const groupRotationDeg = selectedGroup
-    ? Math.round((matrixAngle(selectedGroup.transform) * 180) / Math.PI)
+    ? Math.round((matrixAngle(nodeWorldMatrix(doc, selectedGroup.id)) * 180) / Math.PI)
     : 0;
   const setGroupRotation = (degrees: number) => {
     if (!selectedGroup) return;
@@ -95,14 +104,16 @@ export default function PropertiesPanel() {
       x: frame.bounds.x + frame.bounds.width / 2,
       y: frame.bounds.y + frame.bounds.height / 2,
     };
-    const pivot = applyMatrix(selectedGroup.transform, localCenter);
+    const world = nodeWorldMatrix(doc, selectedGroup.id);
+    const pivot = applyMatrix(world, localCenter);
     const target = (degrees * Math.PI) / 180;
-    const delta = target - matrixAngle(selectedGroup.transform);
+    const delta = target - matrixAngle(world);
     updateGroupStyle(selectedGroup.id, {
-      transform: multiply(
-        rotationAbout(pivot, delta),
-        selectedGroup.transform
-      ),
+      transform: applyWorldTransformToNode(
+        doc,
+        selectedGroup,
+        rotationAbout(pivot, delta)
+      ).transform,
     });
   };
 
@@ -300,7 +311,7 @@ export default function PropertiesPanel() {
         </div>
       )}
 
-      {hasSelection && (
+      {(hasSelection || selectedGroup) && (
         <div className="panel-section">
           <div className="panel-title">Arrange</div>
           <div className="btn-row">

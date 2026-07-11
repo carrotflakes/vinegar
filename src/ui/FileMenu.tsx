@@ -4,6 +4,7 @@ import { exportPng } from "../io/exportPng";
 import { exportSvg } from "../io/exportSvg";
 import { parseDocument, serializeDocument } from "../io/serialize";
 import { useEditor } from "../store/editorStore";
+import { createDemoDocument } from "../demo/createDemoDocument";
 
 interface MenuItem {
   label: string;
@@ -44,7 +45,7 @@ export default function FileMenu() {
       run: () => {
         const s = useEditor.getState();
         if (
-          s.doc.order.length > 0 &&
+          s.doc.rootIds.length > 0 &&
           !window.confirm("Discard the current drawing and start a new one?")
         ) {
           return;
@@ -96,6 +97,21 @@ export default function FileMenu() {
         } catch (err) {
           window.alert(err instanceof Error ? err.message : String(err));
         }
+      },
+    },
+    {
+      label: "Demo",
+      separatorBefore: true,
+      run: () => {
+        const editor = useEditor.getState();
+        if (
+          editor.doc.rootIds.length > 0 &&
+          !window.confirm("Discard the current drawing and open the demo?")
+        ) {
+          return;
+        }
+        editor.loadDocument(createDemoDocument());
+        editor.setViewport({ scale: 0.85, offset: { x: 12, y: 12 } });
       },
     },
   ];

@@ -99,7 +99,6 @@ function buildCreated(spec: Record<string, unknown>): Shape | null {
     blendMode: blendOr(spec.blendMode, undefined),
     transform: transformOr(spec.transform, [1, 0, 0, 1, 0, 0]),
     transformOrigin: pointOrNull(spec.transformOrigin, null),
-    groupId: null,
   };
   switch (type) {
     case "rect":

@@ -1,4 +1,5 @@
-import type { Bounds, Document, Group, Matrix, Shape, Vec2 } from "./types";
+import type { Bounds, Document, Group, Matrix, SceneNode, Shape, Vec2 } from "./types";
+import { parentIdOf, sceneIndex } from "./scene";
 
 export const IDENTITY: Matrix = [1, 0, 0, 1, 0, 0];
 
@@ -73,22 +74,17 @@ export function transformBounds(bounds: Bounds, matrix: Matrix): Bounds {
   return { x, y, width: Math.max(...xs) - x, height: Math.max(...ys) - y };
 }
 
-/** Matrix from a group's local space to world space. */
-export function groupWorldMatrix(doc: Document, groupId?: string | null): Matrix {
-  const chain: Matrix[] = [];
-  const seen = new Set<string>();
-  let id = groupId ?? null;
-  while (id && doc.groups[id] && !seen.has(id)) {
-    seen.add(id);
-    chain.push(doc.groups[id].transform);
-    id = doc.groups[id].parentId ?? null;
-  }
-  return chain.reverse().reduce(multiply, IDENTITY);
+/** Matrix from any node's local space to world space. */
+export function nodeWorldMatrix(doc: Document, nodeId?: string | null): Matrix {
+  if (!nodeId) return IDENTITY;
+  return sceneIndex(doc).world.get(nodeId) ?? IDENTITY;
 }
+
+export const groupWorldMatrix = nodeWorldMatrix;
 
 /** Matrix from a shape's local geometry to world space. */
 export function shapeWorldMatrix(doc: Document, shape: Shape): Matrix {
-  return multiply(groupWorldMatrix(doc, shape.groupId), shape.transform);
+  return nodeWorldMatrix(doc, shape.id);
 }
 
 /** Apply a world-space transform while keeping the shape parent unchanged. */
@@ -97,7 +93,7 @@ export function applyWorldTransform(
   shape: Shape,
   worldDelta: Matrix
 ): Shape {
-  const parent = groupWorldMatrix(doc, shape.groupId);
+  const parent = nodeWorldMatrix(doc, parentIdOf(doc, shape.id));
   const inverseParent = invertMatrix(parent);
   if (!inverseParent) return shape;
   return {
@@ -109,13 +105,30 @@ export function applyWorldTransform(
   };
 }
 
+export function applyWorldTransformToNode<T extends SceneNode>(
+  doc: Document,
+  node: T,
+  worldDelta: Matrix
+): T {
+  const parent = nodeWorldMatrix(doc, parentIdOf(doc, node.id));
+  const inverseParent = invertMatrix(parent);
+  if (!inverseParent) return node;
+  return {
+    ...node,
+    transform: multiply(
+      inverseParent,
+      multiply(worldDelta, multiply(parent, node.transform))
+    ),
+  } as T;
+}
+
 /** Apply a world-space transform while keeping the group parent unchanged. */
 export function applyWorldTransformToGroup(
   doc: Document,
   group: Group,
   worldDelta: Matrix
 ): Group {
-  const parent = groupWorldMatrix(doc, group.parentId);
+  const parent = nodeWorldMatrix(doc, parentIdOf(doc, group.id));
   const inverseParent = invertMatrix(parent);
   if (!inverseParent) return group;
   return {
