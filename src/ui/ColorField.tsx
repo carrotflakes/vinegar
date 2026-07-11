@@ -7,6 +7,7 @@ import {
 } from "@floating-ui/react-dom";
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import { LuPipette } from "react-icons/lu";
 import { useEditor } from "../store/editorStore";
 
 /** A curated default palette (grayscale + a hue wheel + tints). */
@@ -24,19 +25,6 @@ function normalizeHex(input: string): string | null {
     v = "#" + v.slice(1).split("").map((c) => c + c).join("");
   }
   return /^#[0-9a-f]{6}$/.test(v) ? v : null;
-}
-
-function Eyedropper() {
-  return (
-    <svg width="15" height="15" viewBox="0 0 16 16" fill="none" aria-hidden>
-      <path
-        d="M10.5 2.5a1.8 1.8 0 0 1 2.5 2.5l-1.2 1.2 1 1-1 1-1-1L6 13l-2.5.5L4 11l5.3-5.3-1-1 1-1 1 1 .2-1.2Z"
-        stroke="currentColor"
-        strokeWidth="1.1"
-        strokeLinejoin="round"
-      />
-    </svg>
-  );
 }
 
 interface Props {
@@ -146,7 +134,7 @@ export default function ColorField({ label, value, onChange }: Props) {
                 title="Pick color from screen"
                 onClick={pickFromScreen}
               >
-                <Eyedropper />
+                <LuPipette aria-hidden />
               </button>
             )}
             <input

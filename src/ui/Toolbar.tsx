@@ -1,20 +1,30 @@
+import type { ComponentType } from "react";
+import {
+  LuMousePointer2,
+  LuSpline,
+  LuSquare,
+  LuCircle,
+  LuSlash,
+  LuPenTool,
+  LuPencil,
+} from "react-icons/lu";
 import { useEditor, type ToolId } from "../store/editorStore";
 
 interface ToolDef {
   id: ToolId;
   label: string;
   hint: string;
-  icon: string;
+  icon: ComponentType;
 }
 
 const TOOLS: ToolDef[] = [
-  { id: "select", label: "Select", hint: "V", icon: "⬚" },
-  { id: "node", label: "Edit Nodes", hint: "N", icon: "⬩" },
-  { id: "rect", label: "Rectangle", hint: "R", icon: "▭" },
-  { id: "ellipse", label: "Ellipse", hint: "O", icon: "◯" },
-  { id: "line", label: "Line", hint: "L", icon: "╱" },
-  { id: "pen", label: "Pen", hint: "P", icon: "✒" },
-  { id: "pencil", label: "Pencil", hint: "B", icon: "✎" },
+  { id: "select", label: "Select", hint: "V", icon: LuMousePointer2 },
+  { id: "node", label: "Edit Nodes", hint: "N", icon: LuSpline },
+  { id: "rect", label: "Rectangle", hint: "R", icon: LuSquare },
+  { id: "ellipse", label: "Ellipse", hint: "O", icon: LuCircle },
+  { id: "line", label: "Line", hint: "L", icon: LuSlash },
+  { id: "pen", label: "Pen", hint: "P", icon: LuPenTool },
+  { id: "pencil", label: "Pencil", hint: "B", icon: LuPencil },
 ];
 
 export default function Toolbar() {
@@ -31,7 +41,7 @@ export default function Toolbar() {
           title={`${t.label} (${t.hint})`}
         >
           <span className="tool-icon" aria-hidden>
-            {t.icon}
+            <t.icon />
           </span>
           <span className="tool-label">{t.label}</span>
         </button>

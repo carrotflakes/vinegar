@@ -1,17 +1,31 @@
-import { Fragment, useState } from "react";
+import { Fragment, useState, type ComponentType } from "react";
+import {
+  LuSquare,
+  LuCircle,
+  LuSlash,
+  LuWaves,
+  LuPenTool,
+  LuHexagon,
+  LuEye,
+  LuEyeOff,
+  LuLock,
+  LuLockOpen,
+  LuChevronRight,
+  LuChevronDown,
+} from "react-icons/lu";
 import type { Group, Shape } from "../model/types";
 import { descendantNodeIds, isGroup, isShape } from "../model/scene";
 import { useEditor } from "../store/editorStore";
 import { openContextMenu } from "../store/menuStore";
 import { selectionMenu } from "./menus";
 
-const TYPE_ICON: Record<Shape["type"], string> = {
-  rect: "▭",
-  ellipse: "◯",
-  line: "╱",
-  path: "〜",
-  bezier: "✒",
-  polygon: "⬟",
+const TYPE_ICON: Record<Shape["type"], ComponentType> = {
+  rect: LuSquare,
+  ellipse: LuCircle,
+  line: LuSlash,
+  path: LuWaves,
+  bezier: LuPenTool,
+  polygon: LuHexagon,
 };
 
 /** Display node: the render tree with every level front-most first. */
@@ -224,7 +238,7 @@ export default function LayersPanel() {
             toggleHidden(id);
           }}
         >
-          {shape.hidden ? <EyeOff /> : <Eye />}
+          {shape.hidden ? <LuEyeOff /> : <LuEye />}
         </button>
         <button
           className="layer-icon-btn"
@@ -234,10 +248,13 @@ export default function LayersPanel() {
             toggleLocked(id);
           }}
         >
-          {shape.locked ? <Lock /> : <Unlock />}
+          {shape.locked ? <LuLock /> : <LuLockOpen />}
         </button>
         <span className="layer-type" aria-hidden>
-          {TYPE_ICON[shape.type]}
+          {(() => {
+            const Icon = TYPE_ICON[shape.type];
+            return <Icon />;
+          })()}
         </span>
         {editing === id ? (
           nameEditor(shape.name, (name) => renameShape(id, name))
@@ -308,7 +325,7 @@ export default function LayersPanel() {
             toggleCollapsed(gid);
           }}
         >
-          {isCollapsed ? "▸" : "▾"}
+          {isCollapsed ? <LuChevronRight /> : <LuChevronDown />}
         </button>
         <button
           className="layer-icon-btn"
@@ -318,7 +335,7 @@ export default function LayersPanel() {
             updateGroupStyle(gid, { hidden: !group.hidden });
           }}
         >
-          {group.hidden ? <EyeOff /> : <Eye />}
+          {group.hidden ? <LuEyeOff /> : <LuEye />}
         </button>
         <button
           className="layer-icon-btn"
@@ -328,7 +345,7 @@ export default function LayersPanel() {
             updateGroupStyle(gid, { locked: !group.locked });
           }}
         >
-          {group.locked ? <Lock /> : <Unlock />}
+          {group.locked ? <LuLock /> : <LuLockOpen />}
         </button>
         {editing === gid ? (
           nameEditor(group.name, (name) => renameGroup(gid, name))
@@ -415,56 +432,5 @@ export default function LayersPanel() {
         {renderList(roots, null, 0, [], false)}
       </div>
     </div>
-  );
-}
-
-// ---- tiny inline icons -----------------------------------------------------
-function Eye() {
-  return (
-    <svg width="15" height="15" viewBox="0 0 16 16" fill="none">
-      <path
-        d="M1 8s2.5-4.5 7-4.5S15 8 15 8s-2.5 4.5-7 4.5S1 8 1 8Z"
-        stroke="currentColor"
-        strokeWidth="1.2"
-      />
-      <circle cx="8" cy="8" r="1.8" fill="currentColor" />
-    </svg>
-  );
-}
-function EyeOff() {
-  return (
-    <svg width="15" height="15" viewBox="0 0 16 16" fill="none">
-      <path
-        d="M1 8s2.5-4.5 7-4.5S15 8 15 8s-2.5 4.5-7 4.5S1 8 1 8Z"
-        stroke="currentColor"
-        strokeWidth="1.2"
-        opacity="0.5"
-      />
-      <path d="M2 2l12 12" stroke="currentColor" strokeWidth="1.2" />
-    </svg>
-  );
-}
-function Lock() {
-  return (
-    <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
-      <rect x="3" y="7" width="10" height="7" rx="1.3" fill="currentColor" />
-      <path d="M5 7V5a3 3 0 0 1 6 0v2" stroke="currentColor" strokeWidth="1.2" />
-    </svg>
-  );
-}
-function Unlock() {
-  return (
-    <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
-      <rect
-        x="3"
-        y="7"
-        width="10"
-        height="7"
-        rx="1.3"
-        stroke="currentColor"
-        strokeWidth="1.2"
-      />
-      <path d="M5 7V5a3 3 0 0 1 5.8-1" stroke="currentColor" strokeWidth="1.2" />
-    </svg>
   );
 }

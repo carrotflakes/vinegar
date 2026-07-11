@@ -1,3 +1,13 @@
+import {
+  LuAlignStartVertical,
+  LuAlignCenterVertical,
+  LuAlignEndVertical,
+  LuAlignStartHorizontal,
+  LuAlignCenterHorizontal,
+  LuAlignEndHorizontal,
+  LuAlignHorizontalDistributeCenter,
+  LuAlignVerticalDistributeCenter,
+} from "react-icons/lu";
 import { isAreal } from "../model/boolean";
 import { shapeBounds } from "../model/bounds";
 import {
@@ -377,14 +387,14 @@ export default function PropertiesPanel() {
         <div className="panel-section">
           <div className="panel-title">Align</div>
           <div className="btn-row">
-            <button className="ghost-btn align-btn" title="Align left" onClick={() => alignSelected("left")}>⇤</button>
-            <button className="ghost-btn align-btn" title="Align horizontal centers" onClick={() => alignSelected("hcenter")}>⇔</button>
-            <button className="ghost-btn align-btn" title="Align right" onClick={() => alignSelected("right")}>⇥</button>
+            <button className="ghost-btn align-btn" title="Align left" onClick={() => alignSelected("left")}><LuAlignStartVertical aria-hidden /></button>
+            <button className="ghost-btn align-btn" title="Align horizontal centers" onClick={() => alignSelected("hcenter")}><LuAlignCenterVertical aria-hidden /></button>
+            <button className="ghost-btn align-btn" title="Align right" onClick={() => alignSelected("right")}><LuAlignEndVertical aria-hidden /></button>
           </div>
           <div className="btn-row">
-            <button className="ghost-btn align-btn" title="Align top" onClick={() => alignSelected("top")}>⤒</button>
-            <button className="ghost-btn align-btn" title="Align vertical centers" onClick={() => alignSelected("vmiddle")}>⇕</button>
-            <button className="ghost-btn align-btn" title="Align bottom" onClick={() => alignSelected("bottom")}>⤓</button>
+            <button className="ghost-btn align-btn" title="Align top" onClick={() => alignSelected("top")}><LuAlignStartHorizontal aria-hidden /></button>
+            <button className="ghost-btn align-btn" title="Align vertical centers" onClick={() => alignSelected("vmiddle")}><LuAlignCenterHorizontal aria-hidden /></button>
+            <button className="ghost-btn align-btn" title="Align bottom" onClick={() => alignSelected("bottom")}><LuAlignEndHorizontal aria-hidden /></button>
           </div>
           <div className="btn-row">
             <button
@@ -393,7 +403,8 @@ export default function PropertiesPanel() {
               title="Distribute horizontally"
               onClick={() => distributeSelected("h")}
             >
-              Dist H
+              <LuAlignHorizontalDistributeCenter aria-hidden />
+              <span>Dist H</span>
             </button>
             <button
               className="ghost-btn"
@@ -401,7 +412,8 @@ export default function PropertiesPanel() {
               title="Distribute vertically"
               onClick={() => distributeSelected("v")}
             >
-              Dist V
+              <LuAlignVerticalDistributeCenter aria-hidden />
+              <span>Dist V</span>
             </button>
           </div>
         </div>

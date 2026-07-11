@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { LuMinus, LuPlus, LuUndo2, LuRedo2, LuPanelRight } from "react-icons/lu";
 import CanvasView from "./canvas/CanvasView";
 import { initialViewport, zoomAt } from "./model/viewport";
 import { useEditor, type ToolId } from "./store/editorStore";
@@ -198,7 +199,8 @@ export default function App() {
             onClick={() => useEditor.getState().undo()}
             title="Undo (Ctrl+Z)"
           >
-            Undo
+            <LuUndo2 aria-hidden />
+            <span>Undo</span>
           </button>
           <button
             className="ghost-btn"
@@ -206,13 +208,18 @@ export default function App() {
             onClick={() => useEditor.getState().redo()}
             title="Redo (Ctrl+Shift+Z)"
           >
-            Redo
+            <LuRedo2 aria-hidden />
+            <span>Redo</span>
           </button>
         </div>
         <div className="appbar-spacer" />
         <div className="appbar-group">
-          <button className="ghost-btn" onClick={() => zoomBy(1 / 1.2)}>
-            −
+          <button
+            className="ghost-btn"
+            onClick={() => zoomBy(1 / 1.2)}
+            title="Zoom out"
+          >
+            <LuMinus aria-hidden />
           </button>
           <button
             className="ghost-btn zoom-readout"
@@ -221,8 +228,12 @@ export default function App() {
           >
             {Math.round(viewport.scale * 100)}%
           </button>
-          <button className="ghost-btn" onClick={() => zoomBy(1.2)}>
-            +
+          <button
+            className="ghost-btn"
+            onClick={() => zoomBy(1.2)}
+            title="Zoom in"
+          >
+            <LuPlus aria-hidden />
           </button>
         </div>
         <button
@@ -231,7 +242,7 @@ export default function App() {
           aria-pressed={showPanel}
           title="Toggle panel"
         >
-          Panel
+          <LuPanelRight aria-hidden />
         </button>
       </header>
 

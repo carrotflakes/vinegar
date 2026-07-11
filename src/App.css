@@ -93,7 +93,7 @@
 }
 
 /* Mobile-only controls; revealed by the narrow-screen media query. */
-.panel-toggle {
+.ghost-btn.panel-toggle {
   display: none;
   flex: none;
 }
@@ -212,9 +212,11 @@
 }
 
 .tool-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   width: 18px;
-  text-align: center;
-  font-size: 15px;
+  font-size: 16px;
 }
 
 /* ---- properties panel ------------------------------------------------- */
@@ -449,6 +451,10 @@
 
 .ghost-btn {
   flex: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
   padding: 7px 10px;
   border: 1px solid var(--border);
   border-radius: 7px;
@@ -469,6 +475,11 @@
 .align-btn {
   font-size: 15px;
   line-height: 1;
+}
+
+.menu-caret {
+  color: var(--muted);
+  font-size: 14px;
 }
 
 .ghost-btn.danger {
@@ -589,10 +600,12 @@
 }
 
 .layer-type {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   width: 16px;
-  text-align: center;
   color: var(--muted);
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .layer-name {
@@ -871,7 +884,7 @@
     display: none;
   }
 
-  .panel-toggle {
+  .ghost-btn.panel-toggle {
     display: inline-flex;
     align-items: center;
     justify-content: center;

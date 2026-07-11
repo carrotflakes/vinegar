@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { LuChevronDown } from "react-icons/lu";
 import { downloadBlob, downloadText, pickTextFile } from "../io/download";
 import { exportPng } from "../io/exportPng";
 import { exportSvg } from "../io/exportSvg";
@@ -124,7 +125,7 @@ export default function FileMenu() {
         aria-haspopup="menu"
         aria-expanded={open}
       >
-        File ▾
+        File <LuChevronDown className="menu-caret" aria-hidden />
       </button>
       {open && (
         <div className="menu-popover" role="menu">
