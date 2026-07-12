@@ -26,6 +26,7 @@ import { exportSvg } from "../io/exportSvg";
 import { parseDocument, serializeDocument } from "../io/serialize";
 import { useEditor } from "../store/editorStore";
 import type { EditorState } from "../store/state";
+import { toggleFullscreen } from "../ui/fullscreen";
 
 // --- Platform-aware modifier labels --------------------------------------
 
@@ -290,6 +291,12 @@ export const COMMANDS: Command[] = [
     label: "Toggle grid snapping",
     group: "View",
     run: (s) => s.toggleGridSnap(),
+  },
+  {
+    id: "view.fullscreen",
+    label: "Toggle fullscreen",
+    group: "View",
+    run: () => toggleFullscreen(),
   },
 
   // File --------------------------------------------------------------------

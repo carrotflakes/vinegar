@@ -13,6 +13,7 @@ import RightSidebar from "./ui/RightSidebar";
 import FileMenu from "./ui/FileMenu";
 import ScriptPanel from "./ui/ScriptPanel";
 import CommandPalette from "./ui/CommandPalette";
+import FullscreenButton from "./ui/FullscreenButton";
 import ContextMenuHost from "./ui/ContextMenu";
 import "./App.css";
 import { scopeLeafIds } from "./model/scene";
@@ -198,6 +199,7 @@ export default function App() {
           >
             <LuCommand aria-hidden />
           </button>
+          <FullscreenButton />
           <button
             className="bar-btn icon panel-toggle"
             onClick={() => setShowPanel((v) => !v)}
