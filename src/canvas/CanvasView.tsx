@@ -3,12 +3,14 @@ import { exactlySelectedGroup, expandToGroups } from "../model/groups";
 import { shapeWorldMatrix } from "../model/matrix";
 import { type Guide, type Spacing } from "../model/snap";
 import type { BezierShape, Bounds, Shape, Vec2 } from "../model/types";
-import { screenToWorld, zoomAt } from "../model/viewport";
+import { screenToWorld, zoomAt, type Viewport } from "../model/viewport";
 import { scopeRootGroupId } from "../model/scene";
 import { currentSymbolScope, useEditor } from "../store/editorStore";
 import { openContextMenu } from "../store/menuStore";
 import { setPointer, setReadout } from "../store/pointerStore";
+import { readModifiers, useInput } from "../store/inputStore";
 import { canvasMenu, selectionMenu } from "../ui/menus";
+import ModifierBar from "../ui/ModifierBar";
 import { getSelectionFrame } from "./frame";
 import { HANDLE_SIZE } from "./handles";
 import {
@@ -81,6 +83,14 @@ export default function CanvasView() {
   const spacingsRef = useRef<Spacing[]>([]);
   const rafRef = useRef<number | null>(null);
   const spaceRef = useRef(false);
+  // Active pointers (screen coords, canvas-relative) for multi-touch gestures.
+  const pointersRef = useRef<Map<number, Vec2>>(new Map());
+  // Two-finger pinch/pan gesture snapshot, or null when no gesture is active.
+  const gestureRef = useRef<{
+    startDist: number;
+    startCenter: Vec2;
+    startViewport: Viewport;
+  } | null>(null);
   const coarseRef = useRef(
     typeof matchMedia === "function" && matchMedia("(pointer: coarse)").matches
   );
@@ -228,6 +238,81 @@ export default function CanvasView() {
     return { x: e.clientX - rect.left, y: e.clientY - rect.top };
   };
 
+  // ---- multi-touch gestures (pinch-zoom / two-finger pan) ----------------
+
+  /** The centroid and spread of the first two active pointers. */
+  const twoPointerMetrics = (): { center: Vec2; dist: number } | null => {
+    const pts = [...pointersRef.current.values()];
+    if (pts.length < 2) return null;
+    const [a, b] = pts;
+    return {
+      center: { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 },
+      dist: Math.hypot(a.x - b.x, a.y - b.y),
+    };
+  };
+
+  /** Discard any in-progress single-pointer tool op, rolling back the doc. */
+  const cancelActiveInteraction = () => {
+    const inter = interactionRef.current;
+    interactionRef.current = { kind: "none" };
+    const state = useEditor.getState();
+    guidesRef.current = [];
+    spacingsRef.current = [];
+    setReadout(null);
+    switch (inter.kind) {
+      case "move":
+      case "resize":
+      case "rotate":
+      case "pivot":
+      case "node-anchor":
+      case "node-handle":
+        // These commit through begin/endInteraction; roll back the snapshot.
+        state.cancelInteraction();
+        break;
+      case "create":
+      case "pencil":
+        // Drag-time changes live only in the preview shape.
+        previewRef.current = null;
+        break;
+      case "marquee":
+        marqueeRef.current = null;
+        break;
+      // "pan" / "pen-anchor" / "none": nothing to undo.
+    }
+    scheduleDraw();
+  };
+
+  const beginGesture = () => {
+    const m = twoPointerMetrics();
+    if (!m) return;
+    cancelActiveInteraction();
+    gestureRef.current = {
+      startDist: m.dist,
+      startCenter: m.center,
+      startViewport: useEditor.getState().viewport,
+    };
+  };
+
+  const updateGesture = () => {
+    const g = gestureRef.current;
+    const m = twoPointerMetrics();
+    if (!g || !m) return;
+    const factor = m.dist > 0 && g.startDist > 0 ? m.dist / g.startDist : 1;
+    // Zoom around the moving centroid, and pan with it: keep the world point
+    // that was under the initial centroid pinned under the current centroid.
+    const zoomed = zoomAt(g.startViewport, g.startCenter, factor);
+    const scale = zoomed.scale;
+    const world = screenToWorld(g.startViewport, g.startCenter);
+    useEditor.getState().setViewport({
+      scale,
+      offset: {
+        x: m.center.x - world.x * scale,
+        y: m.center.y - world.y * scale,
+      },
+    });
+    scheduleDraw();
+  };
+
   // ---- pointer handling --------------------------------------------------
   const onPointerDown = (e: React.PointerEvent<HTMLCanvasElement>) => {
     // Right button is reserved for the context menu (see onContextMenu).
@@ -235,8 +320,17 @@ export default function CanvasView() {
     const canvas = canvasRef.current!;
     canvas.setPointerCapture(e.pointerId);
     const screen = screenPoint(e);
+    pointersRef.current.set(e.pointerId, screen);
+
+    // A second pointer promotes the interaction to a two-finger gesture.
+    if (pointersRef.current.size >= 2) {
+      beginGesture();
+      return;
+    }
+
     const state = useEditor.getState();
     const world = screenToWorld(state.viewport, screen);
+    const mod = readModifiers(e);
 
     if (e.button === 1 || spaceRef.current) {
       interactionRef.current = {
@@ -251,7 +345,7 @@ export default function CanvasView() {
     const tool = state.tool;
 
     if (tool === "select") {
-      onSelectDown(ctx, state, screen, world, e.shiftKey);
+      onSelectDown(ctx, state, screen, world, mod.shift);
       return;
     }
     if (tool === "node") {
@@ -259,7 +353,7 @@ export default function CanvasView() {
       return;
     }
     if (tool === "pen") {
-      onPenDown(ctx, state, screen, world, e.shiftKey);
+      onPenDown(ctx, state, screen, world, mod.shift);
       return;
     }
     if (tool === "pencil") {
@@ -272,15 +366,24 @@ export default function CanvasView() {
   };
 
   const onPointerMove = (e: React.PointerEvent<HTMLCanvasElement>) => {
+    const screen = screenPoint(e);
+    if (pointersRef.current.has(e.pointerId)) {
+      pointersRef.current.set(e.pointerId, screen);
+    }
+    if (gestureRef.current) {
+      updateGesture();
+      return;
+    }
+
     const inter = interactionRef.current;
     const state = useEditor.getState();
-    const screen = screenPoint(e);
     const world = screenToWorld(state.viewport, screen);
+    const mod = readModifiers(e);
     setPointer(world);
 
     if (inter.kind === "none") {
       if (state.tool === "pen" && penDraftRef.current) {
-        onPenHoverMove(ctx, state, world, e.shiftKey);
+        onPenHoverMove(ctx, state, world, mod.shift);
       }
       updateHoverCursor(screen, world);
       return;
@@ -301,20 +404,20 @@ export default function CanvasView() {
       case "resize":
       case "rotate":
       case "marquee":
-        onSelectMove(ctx, state, inter, screen, world, e.shiftKey);
+        onSelectMove(ctx, state, inter, screen, world, mod.shift);
         break;
       case "create":
-        onCreateMove(ctx, state, inter.start, world, e.shiftKey, e.altKey);
+        onCreateMove(ctx, state, inter.start, world, mod.shift, mod.alt);
         break;
       case "pencil":
         onPencilMove(ctx, world);
         break;
       case "pen-anchor":
-        onPenAnchorMove(ctx, state, inter.index, world, e.shiftKey);
+        onPenAnchorMove(ctx, state, inter.index, world, mod.shift);
         break;
       case "node-anchor":
       case "node-handle":
-        onNodeMove(ctx, state, inter, world, e.shiftKey, e.altKey);
+        onNodeMove(ctx, state, inter, world, mod.shift, mod.alt);
         break;
     }
   };
@@ -323,6 +426,15 @@ export default function CanvasView() {
     const canvas = canvasRef.current!;
     if (canvas.hasPointerCapture(e.pointerId))
       canvas.releasePointerCapture(e.pointerId);
+    pointersRef.current.delete(e.pointerId);
+
+    // Winding down a gesture: end it once fewer than two pointers remain. A
+    // lone leftover finger stays inert until lifted (no tool restart).
+    if (gestureRef.current) {
+      if (pointersRef.current.size < 2) gestureRef.current = null;
+      return;
+    }
+
     const inter = interactionRef.current;
     interactionRef.current = { kind: "none" };
     const state = useEditor.getState();
@@ -361,6 +473,18 @@ export default function CanvasView() {
         );
         break;
     }
+  };
+
+  const onPointerCancel = (e: React.PointerEvent<HTMLCanvasElement>) => {
+    const canvas = canvasRef.current!;
+    if (canvas.hasPointerCapture(e.pointerId))
+      canvas.releasePointerCapture(e.pointerId);
+    pointersRef.current.delete(e.pointerId);
+    if (gestureRef.current) {
+      if (pointersRef.current.size < 2) gestureRef.current = null;
+      return;
+    }
+    if (interactionRef.current.kind !== "none") cancelActiveInteraction();
   };
 
   const onDoubleClick = (e: React.MouseEvent<HTMLCanvasElement>) => {
@@ -461,6 +585,8 @@ export default function CanvasView() {
   // ---- keyboard: space-to-pan, pen finish/cancel ------------------------
   useEffect(() => {
     const down = (e: KeyboardEvent) => {
+      // Mirror physical modifiers so on-screen chips reflect held keys too.
+      useInput.getState().setPhysical({ shift: e.shiftKey, alt: e.altKey });
       if (isTypingTarget(e.target)) return;
       if (e.code === "Space") {
         spaceRef.current = true;
@@ -488,6 +614,7 @@ export default function CanvasView() {
       }
     };
     const up = (e: KeyboardEvent) => {
+      useInput.getState().setPhysical({ shift: e.shiftKey, alt: e.altKey });
       if (e.code === "Space") spaceRef.current = false;
     };
     window.addEventListener("keydown", down);
@@ -506,10 +633,12 @@ export default function CanvasView() {
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
         onPointerUp={onPointerUp}
+        onPointerCancel={onPointerCancel}
         onPointerLeave={() => setPointer(null)}
         onDoubleClick={onDoubleClick}
         onContextMenu={onContextMenu}
       />
+      <ModifierBar />
       {editingSymbolName !== null && (
         <div className="symbol-edit-bar">
           <span className="symbol-edit-label">

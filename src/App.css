@@ -691,6 +691,35 @@
   font-size: 12px;
 }
 
+/* On-screen modifier toggles (touch); overlaid bottom-left of the canvas. */
+.modifier-bar {
+  position: absolute;
+  left: 10px;
+  bottom: 10px;
+  display: flex;
+  gap: 6px;
+  z-index: 5;
+}
+
+.modifier-btn {
+  min-width: 52px;
+  padding: 9px 12px;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  background: #fff;
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 600;
+  box-shadow: 0 4px 14px rgba(20, 30, 50, 0.12);
+  touch-action: manipulation;
+}
+
+.modifier-btn.active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+
 .layers-scope {
   display: flex;
   align-items: center;

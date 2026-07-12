@@ -87,6 +87,8 @@ export interface HistoryActions {
   applyShapes: (next: Record<string, SceneNode>) => void;
   setDoc: (doc: Document) => void;
   endInteraction: () => void;
+  /** Discard an in-progress interaction, rolling back to its snapshot. */
+  cancelInteraction: () => void;
   undo: () => void;
   redo: () => void;
 }
