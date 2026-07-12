@@ -10,6 +10,23 @@ Ordered by agreed priority. These are the biggest gaps toward a "real" vector ed
    (`doc.artboards`, file v11). Artboard tool (create/move/resize), properties
    panel, per-board + all-board PNG/SVG export (clips to the board rect). Whole-doc
    export still uses the `io/exportBounds.ts` content bbox.
+   - Rough edges (fix soon):
+     - [ ] Delete key doesn't remove a selected artboard (`edit.delete` only covers
+       node selection / editNode; wire in `selectedArtboardId`)
+     - [ ] Boards are only selectable/movable in the Artboard tool — let the Select
+       tool hit/move them too (or clarify the split)
+     - [ ] No snapping or modifier keys on board create/move/resize (grid + shapes +
+       other boards; Shift = square, Alt = from center)
+     - [ ] "Export all artboards" fires N sequential downloads and duplicate board
+       names collide — dedupe filenames (and consider a zip)
+   - Follow-ups:
+     - [ ] Artboards list panel (list / rename / reorder = export order / select)
+     - [ ] Fit / zoom to artboard navigation
+     - [ ] Duplicate artboard (and copy/paste)
+     - [ ] Background: transparent checkerboard indicator on canvas; don't hide grid;
+       later gradient/image board backgrounds
+     - [ ] Export options dialog (scale / format / margin per board; PNG is 2x fixed)
+     - [ ] Deferred by design: rotated boards, on-canvas clip-to-artboard view toggle
 2. [ ] **Raster image placement** — an `image` node + `drawImage` pipeline over the
    existing `DocumentAsset` model (async decode cache). Enables reference/underlay images.
 3. [ ] **Masking / clipping mask** — clip one object's paint by another's shape.
@@ -140,3 +157,4 @@ Ordered by agreed priority. These are the biggest gaps toward a "real" vector ed
   - [ ] Export bounds: include stroke extents of instance content
 - [ ] MCPサーバー化
 - [ ] プロジェクトインスペクタ (デバッグ用)
+- [ ] グループ内のオブジェクトの移動　（グループ選択に吸われてしまう）
