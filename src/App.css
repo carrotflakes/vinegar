@@ -345,12 +345,12 @@
 }
 
 .blend-select {
-  padding: 4px 6px;
+  /* Background + chevron come from the global select rule (index.css);
+   * keep room on the right for the chevron. */
+  padding: 4px 24px 4px 8px;
   border: 1px solid var(--border);
   border-radius: 6px;
   font-size: 12px;
-  background: var(--panel-2);
-  color: var(--text);
 }
 
 .readout {

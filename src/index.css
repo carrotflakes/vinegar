@@ -24,6 +24,9 @@
   --ok: #4ec77a;
   --code-bg: #1d1f23;
   --shadow: rgba(0, 0, 0, 0.5);
+  --track: #3a3f47; /* slider rail */
+  --thumb: #d7dbe1; /* slider knob */
+  --thumb-border: #22252a;
 
   font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue",
     Arial, "Noto Sans JP", sans-serif;
@@ -50,6 +53,9 @@
   --ok: #1f9d55;
   --code-bg: #fbfcfe;
   --shadow: rgba(20, 26, 36, 0.18);
+  --track: #dfe3e8;
+  --thumb: #ffffff;
+  --thumb-border: #c2c8d0;
   color-scheme: light;
 }
 
@@ -75,12 +81,17 @@ button {
   cursor: pointer;
 }
 
-/* Text-bearing form controls follow the theme. Colour/range/checkbox keep their
- * native rendering (driven by accent-color / color-scheme). */
+/* ===========================================================================
+ * Form controls — fully custom so they render identically on every platform.
+ * Native range / checkbox / select / number / colour widgets look wildly
+ * different across OSes and browsers; we reset them and rebuild with tokens.
+ * ======================================================================== */
+
+/* --- text-bearing fields --- */
 input:not([type="range"]):not([type="checkbox"]):not([type="color"]),
 select,
 textarea {
-  background: var(--field);
+  background-color: var(--field);
   color: var(--text);
 }
 
@@ -93,8 +104,127 @@ select:focus-visible,
 textarea:focus-visible {
   outline: none;
   border-color: var(--accent);
+  box-shadow: 0 0 0 2px var(--accent-weak);
 }
 
+/* --- number: no spinner buttons anywhere --- */
+input[type="number"] {
+  appearance: textfield;
+  -moz-appearance: textfield;
+}
+input[type="number"]::-webkit-outer-spin-button,
+input[type="number"]::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+/* --- select: custom chevron, consistent padding --- */
+select {
+  appearance: none;
+  -webkit-appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12' fill='none' stroke='%23888c94' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M3 4.5 6 7.5 9 4.5'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 7px center;
+  background-size: 12px;
+  padding-right: 24px;
+}
+
+/* --- range: custom rail + knob (WebKit + Firefox) --- */
 input[type="range"] {
-  accent-color: var(--accent);
+  appearance: none;
+  -webkit-appearance: none;
+  width: 100%;
+  height: 18px;
+  margin: 0;
+  background: transparent;
+  cursor: pointer;
+}
+input[type="range"]::-webkit-slider-runnable-track {
+  height: 4px;
+  border-radius: 3px;
+  background: var(--track);
+}
+input[type="range"]::-moz-range-track {
+  height: 4px;
+  border-radius: 3px;
+  background: var(--track);
+}
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 14px;
+  height: 14px;
+  margin-top: -5px; /* centre the knob on the 4px rail */
+  border-radius: 50%;
+  background: var(--thumb);
+  border: 1px solid var(--thumb-border);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+  transition: background-color 0.1s ease, border-color 0.1s ease;
+}
+input[type="range"]::-moz-range-thumb {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--thumb);
+  border: 1px solid var(--thumb-border);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+}
+input[type="range"]:hover::-webkit-slider-thumb,
+input[type="range"]:active::-webkit-slider-thumb {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+input[type="range"]:hover::-moz-range-thumb,
+input[type="range"]:active::-moz-range-thumb {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+input[type="range"]:focus-visible {
+  outline: none;
+}
+input[type="range"]:focus-visible::-webkit-slider-thumb {
+  box-shadow: 0 0 0 3px var(--accent-weak);
+}
+input[type="range"]:focus-visible::-moz-range-thumb {
+  box-shadow: 0 0 0 3px var(--accent-weak);
+}
+
+/* --- checkbox: custom accent box with a drawn check --- */
+input[type="checkbox"] {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 15px;
+  height: 15px;
+  margin: 0;
+  border: 1px solid var(--border-strong);
+  border-radius: 4px;
+  background: var(--field) no-repeat center;
+  cursor: pointer;
+  transition: background-color 0.1s ease, border-color 0.1s ease;
+}
+input[type="checkbox"]:checked {
+  background-color: var(--accent);
+  border-color: var(--accent);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12' fill='none' stroke='%23fff' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M2.5 6.2 5 8.7l4.5-5.4'/%3E%3C/svg%3E");
+}
+input[type="checkbox"]:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--accent-weak);
+}
+
+/* --- colour: strip native chrome so the swatch fills the control --- */
+input[type="color"] {
+  -webkit-appearance: none;
+  appearance: none;
+  cursor: pointer;
+}
+input[type="color"]::-webkit-color-swatch-wrapper {
+  padding: 0;
+}
+input[type="color"]::-webkit-color-swatch {
+  border: none;
+  border-radius: 4px;
+}
+input[type="color"]::-moz-color-swatch {
+  border: none;
+  border-radius: 4px;
 }
