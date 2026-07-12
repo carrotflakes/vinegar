@@ -43,6 +43,7 @@ A running list of what's built and what's next. Check items off as they land.
 
 ### UI
 - [x] Draggable divider between Properties and Layers (persisted)
+- [x] Command registry: single source for actions (label/shortcut/enabled/run); drives keyboard shortcuts, context menus, File menu and the command palette (Ctrl/⌘+K)
 
 ## Next (candidates)
 - [x] Numeric X / Y / W / H editing in the properties panel

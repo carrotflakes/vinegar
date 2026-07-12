@@ -1,125 +1,66 @@
 // ===========================================================================
 // Shared context-menu builders. Surfaces (canvas, layers panel) compose these
-// with their own extra items. Builders read the store at call time, so build
-// entries right when the menu opens.
+// with their own extra items. Each entry is derived from a registered Command
+// (see commands/registry.ts), so labels, shortcut hints and enabled state stay
+// in sync with the keyboard bindings and command palette automatically.
 // ===========================================================================
 
-import { canGroupSelection, selectionUnits } from "../model/groups";
 import {
-  canMakeCompoundPathSelection,
-  canReleaseCompoundPathSelection,
-} from "../model/compoundPath";
-import { isInstance, parentIdOf, selectionRoots } from "../model/scene";
+  commandEnabled,
+  commandShortcut,
+  getCommand,
+  runCommand,
+} from "../commands/registry";
 import type { Vec2 } from "../model/types";
-import { useEditor } from "../store/editorStore";
-import type { MenuEntry } from "../store/menuStore";
+import type { MenuEntry, MenuItem } from "../store/menuStore";
 
-const isMac = /Mac|iPhone|iPad/.test(navigator.userAgent);
-export const MOD = isMac ? "⌘" : "Ctrl";
+/** Build a menu item from a command id, reading its live enabled state. */
+function item(id: string, at?: Vec2): MenuItem {
+  const cmd = getCommand(id);
+  if (!cmd) throw new Error(`Unknown command: ${id}`);
+  const shortcut = commandShortcut(cmd);
+  return {
+    label: cmd.label,
+    ...(shortcut ? { shortcut } : {}),
+    danger: cmd.danger,
+    disabled: !commandEnabled(cmd),
+    onSelect: () => runCommand(id, at ? { at } : undefined),
+  };
+}
+
+/** Whether the given command is currently enabled against live state. */
+function enabled(id: string): boolean {
+  const cmd = getCommand(id);
+  return cmd ? commandEnabled(cmd) : false;
+}
 
 /** Actions on the current selection (clipboard, grouping, z-order, delete). */
 export function selectionMenu(): MenuEntry[] {
-  const s = useEditor.getState();
-  const canGroup = canGroupSelection(s.doc, s.selection);
-  const canUngroup = selectionUnits(s.doc, s.selection).groups.length > 0;
-  const canMakeCompound = canMakeCompoundPathSelection(s.doc, s.selection);
-  const canReleaseCompound = canReleaseCompoundPathSelection(s.doc, s.selection);
-  const roots = selectionRoots(s.doc, s.selection);
-  const canMakeSymbol =
-    roots.length >= 1 &&
-    new Set(roots.map((id) => parentIdOf(s.doc, id))).size === 1;
-  const instanceRoots = roots.filter((id) => isInstance(s.doc.nodes[id]));
-  const singleInstance =
-    roots.length === 1 && isInstance(s.doc.nodes[roots[0]])
-      ? s.doc.nodes[roots[0]]
-      : null;
-  const act =
-    <K extends keyof typeof s>(key: K) =>
-    () =>
-      (useEditor.getState()[key] as () => void)();
-  return [
-    { label: "Cut", shortcut: `${MOD}+X`, onSelect: act("cutSelected") },
-    { label: "Copy", shortcut: `${MOD}+C`, onSelect: act("copySelected") },
-    {
-      label: "Duplicate",
-      shortcut: `${MOD}+D`,
-      onSelect: act("duplicateSelected"),
-    },
+  const entries: MenuEntry[] = [
+    item("edit.cut"),
+    item("edit.copy"),
+    item("edit.duplicate"),
     "separator",
-    {
-      label: "Group",
-      shortcut: `${MOD}+G`,
-      disabled: !canGroup,
-      onSelect: act("groupSelected"),
-    },
-    {
-      label: "Ungroup",
-      shortcut: `${MOD}+Shift+G`,
-      disabled: !canUngroup,
-      onSelect: act("ungroupSelected"),
-    },
-    {
-      label: "Make compound path",
-      shortcut: `${MOD}+8`,
-      disabled: !canMakeCompound,
-      onSelect: act("makeCompoundPathSelected"),
-    },
-    {
-      label: "Release compound path",
-      shortcut: `Alt+${MOD}+8`,
-      disabled: !canReleaseCompound,
-      onSelect: act("releaseCompoundPathSelected"),
-    },
+    item("structure.group"),
+    item("structure.ungroup"),
+    item("structure.makeCompound"),
+    item("structure.releaseCompound"),
     "separator",
-    {
-      label: "Create symbol",
-      disabled: !canMakeSymbol,
-      onSelect: act("createSymbolFromSelection"),
-    },
-    ...(singleInstance && isInstance(singleInstance)
-      ? [
-          {
-            label: "Edit symbol",
-            onSelect: () =>
-              useEditor.getState().enterSymbolEdit(singleInstance.symbolId),
-          } satisfies MenuEntry,
-        ]
-      : []),
-    ...(instanceRoots.length
-      ? [
-          {
-            label: "Detach instance",
-            onSelect: act("detachSelectedInstances"),
-          } satisfies MenuEntry,
-        ]
-      : []),
-    "separator",
-    { label: "Bring to front", onSelect: act("bringToFront") },
-    { label: "Send to back", onSelect: act("sendToBack") },
-    "separator",
-    {
-      label: "Delete",
-      shortcut: "Del",
-      danger: true,
-      onSelect: act("deleteSelected"),
-    },
+    item("symbol.create"),
   ];
+  if (enabled("symbol.editSelected")) entries.push(item("symbol.editSelected"));
+  if (enabled("symbol.detach")) entries.push(item("symbol.detach"));
+  entries.push(
+    "separator",
+    item("structure.bringToFront"),
+    item("structure.sendToBack"),
+    "separator",
+    item("edit.delete")
+  );
+  return entries;
 }
 
 /** Menu for empty canvas space. `at` is the click point in world coords. */
 export function canvasMenu(at: Vec2): MenuEntry[] {
-  const s = useEditor.getState();
-  return [
-    {
-      label: "Paste here",
-      shortcut: `${MOD}+V`,
-      disabled: !s.clipboard,
-      onSelect: () => useEditor.getState().paste(at),
-    },
-    {
-      label: "Select all",
-      shortcut: `${MOD}+A`,
-      onSelect: () => useEditor.getState().selectAll(),
-    },
-  ];
+  return [item("edit.paste", at), item("select.all")];
 }

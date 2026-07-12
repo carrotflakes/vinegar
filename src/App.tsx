@@ -1,26 +1,21 @@
 import { useEffect, useState } from "react";
-import { LuMinus, LuPlus, LuUndo2, LuRedo2, LuPanelRight } from "react-icons/lu";
+import { LuMinus, LuPlus, LuUndo2, LuRedo2, LuPanelRight, LuCommand } from "react-icons/lu";
 import CanvasView from "./canvas/CanvasView";
-import { initialViewport, zoomAt } from "./model/viewport";
+import {
+  commandEnabled,
+  matchKeydown,
+  runCommand,
+} from "./commands/registry";
 import { currentSymbolScope, useEditor, type ToolId } from "./store/editorStore";
 import { usePointer } from "./store/pointerStore";
 import Toolbar from "./ui/Toolbar";
 import RightSidebar from "./ui/RightSidebar";
 import FileMenu from "./ui/FileMenu";
 import ScriptPanel from "./ui/ScriptPanel";
+import CommandPalette from "./ui/CommandPalette";
 import ContextMenuHost from "./ui/ContextMenu";
 import "./App.css";
 import { scopeLeafIds } from "./model/scene";
-
-const TOOL_KEYS: Record<string, ToolId> = {
-  v: "select",
-  n: "node",
-  r: "rect",
-  o: "ellipse",
-  l: "line",
-  p: "pen",
-  b: "pencil",
-};
 
 /**
  * Live pointer position in world coordinates. While an interaction is in
@@ -80,16 +75,8 @@ function ToolHint() {
   return <span className="status-hint">{TOOL_HINTS[tool]}</span>;
 }
 
-function canvasCenter(): { x: number; y: number } {
-  const el = document.querySelector(".canvas-wrap");
-  if (!el) return { x: window.innerWidth / 2, y: window.innerHeight / 2 };
-  const r = el.getBoundingClientRect();
-  return { x: r.width / 2, y: r.height / 2 };
-}
-
 export default function App() {
   const viewport = useEditor((s) => s.viewport);
-  const setViewport = useEditor((s) => s.setViewport);
   const canUndo = useEditor((s) => s.history.past.length > 0);
   const canRedo = useEditor((s) => s.history.future.length > 0);
   const snapEnabled = useEditor((s) => s.snapEnabled);
@@ -100,8 +87,12 @@ export default function App() {
   const setGridSize = useEditor((s) => s.setGridSize);
   const [showScript, setShowScript] = useState(false);
   const [showPanel, setShowPanel] = useState(false);
+  const [showPalette, setShowPalette] = useState(false);
 
-  // Global keyboard shortcuts.
+  // Global keyboard shortcuts — dispatched through the command registry so the
+  // bindings stay in sync with the menus and palette. Escape stays bespoke: it
+  // is contextual (clear selection, then leave symbol edit) and coupled to the
+  // active tool's modes rather than a single command.
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       const target = e.target as HTMLElement | null;
@@ -116,82 +107,29 @@ export default function App() {
       const s = useEditor.getState();
       const mod = e.ctrlKey || e.metaKey;
 
-      if (mod && e.key.toLowerCase() === "z") {
+      if (mod && (e.key.toLowerCase() === "k" || e.key.toLowerCase() === "p")) {
         e.preventDefault();
-        if (e.shiftKey) s.redo();
-        else s.undo();
-        return;
-      }
-      if (mod && e.key.toLowerCase() === "y") {
-        e.preventDefault();
-        s.redo();
-        return;
-      }
-      if (mod && e.key.toLowerCase() === "g") {
-        e.preventDefault();
-        if (e.shiftKey) s.ungroupSelected();
-        else s.groupSelected();
-        return;
-      }
-      if (mod && e.key === "8") {
-        e.preventDefault();
-        if (e.altKey) s.releaseCompoundPathSelected();
-        else s.makeCompoundPathSelected();
-        return;
-      }
-      if (mod && e.key.toLowerCase() === "c") {
-        e.preventDefault();
-        s.copySelected();
-        return;
-      }
-      if (mod && e.key.toLowerCase() === "x") {
-        e.preventDefault();
-        s.cutSelected();
-        return;
-      }
-      if (mod && e.key.toLowerCase() === "v") {
-        e.preventDefault();
-        s.paste();
-        return;
-      }
-      if (mod && e.key.toLowerCase() === "d") {
-        e.preventDefault();
-        s.duplicateSelected();
-        return;
-      }
-      if (mod && e.key.toLowerCase() === "a") {
-        e.preventDefault();
-        s.selectAll();
-        return;
-      }
-      if (e.key === "Delete" || e.key === "Backspace") {
-        if (s.editNode) {
-          e.preventDefault();
-          s.deleteEditNode();
-        } else if (s.selection.length > 0) {
-          e.preventDefault();
-          s.deleteSelected();
-        }
+        setShowPalette(true);
         return;
       }
       if (e.key === "Escape") {
-        // First Esc clears the selection; the next one leaves the symbol
-        // local view.
         if (s.selection.length || s.editNode) s.clearSelection();
         else if (s.editingSymbols.length) s.exitSymbolEdit();
         return;
       }
-      if (!mod && TOOL_KEYS[e.key.toLowerCase()]) {
-        s.setTool(TOOL_KEYS[e.key.toLowerCase()]);
+
+      const match = matchKeydown(e);
+      if (match) {
+        // Swallow the browser default for any modifier chord (e.g. ⌘D bookmark)
+        // and for command keys we actually act on.
+        const enabled = commandEnabled(match.cmd, s);
+        if (match.stroke.mod || enabled) e.preventDefault();
+        if (enabled) runCommand(match.cmd.id);
       }
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
   }, []);
-
-  const zoomBy = (factor: number) =>
-    setViewport(zoomAt(viewport, canvasCenter(), factor));
-  const resetView = () => setViewport(initialViewport);
 
   return (
     <div className="app">
@@ -208,7 +146,7 @@ export default function App() {
           <button
             className="ghost-btn"
             disabled={!canUndo}
-            onClick={() => useEditor.getState().undo()}
+            onClick={() => runCommand("edit.undo")}
             title="Undo (Ctrl+Z)"
           >
             <LuUndo2 aria-hidden />
@@ -217,7 +155,7 @@ export default function App() {
           <button
             className="ghost-btn"
             disabled={!canRedo}
-            onClick={() => useEditor.getState().redo()}
+            onClick={() => runCommand("edit.redo")}
             title="Redo (Ctrl+Shift+Z)"
           >
             <LuRedo2 aria-hidden />
@@ -228,26 +166,33 @@ export default function App() {
         <div className="appbar-group">
           <button
             className="ghost-btn"
-            onClick={() => zoomBy(1 / 1.2)}
+            onClick={() => runCommand("view.zoomOut")}
             title="Zoom out"
           >
             <LuMinus aria-hidden />
           </button>
           <button
             className="ghost-btn zoom-readout"
-            onClick={resetView}
+            onClick={() => runCommand("view.reset")}
             title="Reset view"
           >
             {Math.round(viewport.scale * 100)}%
           </button>
           <button
             className="ghost-btn"
-            onClick={() => zoomBy(1.2)}
+            onClick={() => runCommand("view.zoomIn")}
             title="Zoom in"
           >
             <LuPlus aria-hidden />
           </button>
         </div>
+        <button
+          className="ghost-btn"
+          onClick={() => setShowPalette(true)}
+          title="Command palette (Ctrl+K)"
+        >
+          <LuCommand aria-hidden />
+        </button>
         <button
           className="ghost-btn panel-toggle"
           onClick={() => setShowPanel((v) => !v)}
@@ -275,6 +220,7 @@ export default function App() {
       </div>
 
       <ScriptPanel open={showScript} onClose={() => setShowScript(false)} />
+      <CommandPalette open={showPalette} onClose={() => setShowPalette(false)} />
       <ContextMenuHost />
 
       <footer className="statusbar">
