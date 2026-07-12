@@ -8,8 +8,8 @@ Ordered by agreed priority. These are the biggest gaps toward a "real" vector ed
 
 1. [x] **Artboards / frames** — shipped (`doc.artboards`, file v11). Remaining:
    - Rough edges (fix soon):
-     - [ ] Delete key doesn't remove a selected artboard (`edit.delete` only covers
-       node selection / editNode; wire in `selectedArtboardId`)
+     - [x] Delete key removes a selected artboard (`edit.delete` handles
+       `selectedArtboardId`)
      - [ ] Boards are only selectable/movable in the Artboard tool — let the Select
        tool hit/move them too (or clarify the split)
      - [ ] No snapping or modifier keys on board create/move/resize (grid + shapes +

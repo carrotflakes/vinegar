@@ -16,6 +16,7 @@ let booleanShapes;
 let exportSvg;
 let canMakeCompoundPathSelection;
 let paintShape;
+let commands;
 
 before(async () => {
   server = await createServer({ server: { middlewareMode: true } });
@@ -31,9 +32,29 @@ before(async () => {
   ({ exportSvg } = await server.ssrLoadModule("/src/io/exportSvg.ts"));
   ({ canMakeCompoundPathSelection } = await server.ssrLoadModule("/src/model/compoundPath.ts"));
   ({ paintShape } = await server.ssrLoadModule("/src/canvas/render.ts"));
+  ({ COMMANDS: commands } = await server.ssrLoadModule("/src/commands/registry.ts"));
 });
 
 after(async () => server.close());
+
+test("the shared Delete command removes a selected artboard", () => {
+  const editor = useEditor.getState();
+  editor.newDocument();
+  editor.addArtboard({ x: 100, y: 100 });
+
+  const selectedId = useEditor.getState().selectedArtboardId;
+  const deleteCommand = commands.find((command) => command.id === "edit.delete");
+  assert.ok(selectedId);
+  assert.ok(deleteCommand);
+  assert.equal(deleteCommand.enabled(useEditor.getState()), true);
+
+  deleteCommand.run(useEditor.getState());
+  assert.equal(useEditor.getState().doc.artboards.length, 0);
+  assert.equal(useEditor.getState().selectedArtboardId, null);
+
+  useEditor.getState().undo();
+  assert.equal(useEditor.getState().doc.artboards[0].id, selectedId);
+});
 
 test("a nested v8 scene tree survives save/load and remains usable", () => {
   const doc = createEmptyDocument();
