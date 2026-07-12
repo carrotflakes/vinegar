@@ -1,8 +1,8 @@
 import type { Guide, Spacing } from "../model/snap";
 import { applyMatrix } from "../model/matrix";
-import type { Bounds, BezierShape, Matrix, Vec2 } from "../model/types";
+import type { Artboard, Bounds, BezierShape, Matrix, Vec2 } from "../model/types";
 import { worldToScreen, type Viewport } from "../model/viewport";
-import { HANDLE_IDS, HANDLE_SIZE } from "./handles";
+import { HANDLE_IDS, HANDLE_SIZE, handlePoint } from "./handles";
 import {
   frameCorners,
   frameHandlePoint,
@@ -114,6 +114,58 @@ export function drawOverlay(
       marquee.width,
       marquee.height
     );
+  }
+}
+
+/**
+ * Draw artboard name labels (all boards) and the selection frame + resize
+ * handles for the selected board, in screen space.
+ */
+export function drawArtboardChrome(
+  ctx: CanvasRenderingContext2D,
+  dpr: number,
+  viewport: Viewport,
+  artboards: Artboard[],
+  selectedId: string | null,
+  handleSize = HANDLE_SIZE
+): void {
+  if (artboards.length === 0) return;
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  const toS = (w: Vec2) => worldToScreen(viewport, w);
+
+  ctx.font =
+    "11px system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif";
+  ctx.textBaseline = "bottom";
+  for (const ab of artboards) {
+    const p = toS({ x: ab.x, y: ab.y });
+    ctx.fillStyle = ab.id === selectedId ? ACCENT : "#8a9099";
+    ctx.fillText(ab.name, p.x, p.y - 4);
+  }
+
+  const selected = artboards.find((ab) => ab.id === selectedId);
+  if (!selected) return;
+
+  const b: Bounds = {
+    x: selected.x,
+    y: selected.y,
+    width: selected.width,
+    height: selected.height,
+  };
+  const nw = toS({ x: b.x, y: b.y });
+  const se = toS({ x: b.x + b.width, y: b.y + b.height });
+  ctx.strokeStyle = ACCENT;
+  ctx.lineWidth = 1;
+  ctx.strokeRect(nw.x + 0.5, nw.y + 0.5, se.x - nw.x, se.y - nw.y);
+
+  const half = handleSize / 2;
+  ctx.fillStyle = "#ffffff";
+  ctx.lineWidth = 1.5;
+  for (const id of HANDLE_IDS) {
+    const sp = toS(handlePoint(b, id));
+    ctx.beginPath();
+    ctx.rect(Math.round(sp.x - half), Math.round(sp.y - half), handleSize, handleSize);
+    ctx.fill();
+    ctx.stroke();
   }
 }
 

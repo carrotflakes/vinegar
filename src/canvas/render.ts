@@ -3,7 +3,7 @@ import { shapeBounds } from "../model/bounds";
 import { isIdentity } from "../model/matrix";
 import { resolvePaint } from "../model/paint";
 import { isGroup, isInstance, isShape } from "../model/scene";
-import type { Document, Shape } from "../model/types";
+import type { Artboard, Document, Shape } from "../model/types";
 import { worldToScreen, type Viewport } from "../model/viewport";
 
 /**
@@ -197,6 +197,8 @@ export interface RenderOptions {
   gridSize?: number;
   /** Paint these roots instead of `doc.rootIds` (symbol local view). */
   rootIds?: string[];
+  /** Artboard frames/backdrops to draw under the scene (omit in symbol view). */
+  artboards?: Artboard[];
 }
 
 /** Full scene render: background, grid, shapes, preview. */
@@ -217,6 +219,9 @@ export function renderScene(
   ctx.translate(viewport.offset.x, viewport.offset.y);
   ctx.scale(viewport.scale, viewport.scale);
 
+  // Artboard backdrops and frames sit under the scene content.
+  if (opts.artboards?.length) drawArtboards(ctx, opts.artboards, viewport.scale);
+
   // A preview that shares a document shape's id supersedes it (the pen
   // extending an existing path); skip the stale copy underneath.
   for (const nodeId of opts.rootIds ?? doc.rootIds) {
@@ -224,6 +229,25 @@ export function renderScene(
   }
   if (opts.preview && !doc.nodes[opts.preview.id]) paintShape(ctx, opts.preview);
 
+  ctx.restore();
+}
+
+/** Draw artboard backdrops (fill) and hairline frames, in world space. */
+function drawArtboards(
+  ctx: CanvasRenderingContext2D,
+  artboards: Artboard[],
+  scale: number
+): void {
+  ctx.save();
+  ctx.lineWidth = 1 / scale;
+  for (const ab of artboards) {
+    if (ab.background) {
+      ctx.fillStyle = ab.background;
+      ctx.fillRect(ab.x, ab.y, ab.width, ab.height);
+    }
+    ctx.strokeStyle = "#c8ccd2";
+    ctx.strokeRect(ab.x, ab.y, ab.width, ab.height);
+  }
   ctx.restore();
 }
 

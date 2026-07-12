@@ -3,8 +3,16 @@ import { shapeBounds } from "../model/bounds";
 import { applyMatrix, isIdentity } from "../model/matrix";
 import { gradientToSvg, paintToSvgAttrs, type Paint } from "../model/paint";
 import { isGroup, isShape } from "../model/scene";
-import type { BezierShape, Document, Matrix, SceneNode, Shape } from "../model/types";
+import type { BezierShape, Bounds, Document, Matrix, SceneNode, Shape } from "../model/types";
 import { contentBounds } from "./exportBounds";
+
+export interface SvgOptions {
+  margin?: number;
+  /** Explicit crop region (e.g. an artboard). Overrides content bounds. */
+  bounds?: Bounds;
+  /** Backdrop colour drawn behind the content; omit/null for transparent. */
+  background?: string | null;
+}
 
 /**
  * Collects gradient definitions referenced during serialization. Solids become
@@ -252,18 +260,41 @@ function usesBlend(
 }
 
 /** Serialize a document's shapes to a standalone SVG string. */
-export function exportSvg(doc: Document, margin = 8): string {
-  const bounds = contentBounds(doc, margin);
+export function exportSvg(doc: Document, opts: SvgOptions = {}): string {
+  const { margin = 8 } = opts;
+  const bounds = opts.bounds ?? contentBounds(doc, margin);
   if (!bounds) throw new Error("Nothing to export.");
 
   const defs = makeDefs();
   const roots = doc.rootIds.map((id) => doc.nodes[id]).filter(Boolean);
-  const body = roots.flatMap((n) => nodeToSvg(doc, n, "  ", defs)).join("\n");
+  const inner = roots.flatMap((n) => nodeToSvg(doc, n, "  ", defs)).join("\n");
   // Blend modes should composite against the drawing only, not the page the
   // SVG happens to be embedded in.
   const isolate = roots.some((node) => usesBlend(doc, node))
     ? ` style="isolation:isolate"`
     : "";
+
+  // An explicit crop clips content to the region; a background paints behind it.
+  const clip = opts.bounds
+    ? `clip${defs.items.length}`
+    : null;
+  if (clip) {
+    defs.items.push(
+      `<clipPath id="${clip}"><rect x="${num(bounds.x)}" y="${num(
+        bounds.y
+      )}" width="${num(bounds.width)}" height="${num(bounds.height)}"/></clipPath>`
+    );
+  }
+  const bg =
+    opts.background
+      ? `  <rect x="${num(bounds.x)}" y="${num(bounds.y)}" width="${num(
+          bounds.width
+        )}" height="${num(bounds.height)}" fill="${opts.background}"/>`
+      : null;
+  const body = clip
+    ? [`  <g clip-path="url(#${clip})">`, inner, `  </g>`].join("\n")
+    : inner;
+
   const defsBlock = defs.items.length
     ? [`  <defs>`, ...defs.items.map((d) => "    " + d), `  </defs>`]
     : [];
@@ -275,6 +306,7 @@ export function exportSvg(doc: Document, margin = 8): string {
       bounds.y
     )} ${num(bounds.width)} ${num(bounds.height)}"${isolate}>`,
     ...defsBlock,
+    ...(bg ? [bg] : []),
     body,
     `</svg>`,
     "",

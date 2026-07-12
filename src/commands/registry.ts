@@ -18,8 +18,8 @@ import {
 import { createDemoDocument } from "../demo/createDemoDocument";
 import { canGroupSelection, selectionUnits } from "../model/groups";
 import { isInstance, parentIdOf, selectionRoots } from "../model/scene";
-import type { Vec2 } from "../model/types";
-import { initialViewport, zoomAt } from "../model/viewport";
+import { artboardBounds, type Artboard, type Vec2 } from "../model/types";
+import { initialViewport, screenToWorld, zoomAt } from "../model/viewport";
 import { downloadBlob, downloadText, pickTextFile } from "../io/download";
 import { exportPng } from "../io/exportPng";
 import { exportSvg } from "../io/exportSvg";
@@ -89,6 +89,17 @@ function sel(s: EditorState) {
         ? singleInstanceNode
         : null,
   };
+}
+
+/** The currently selected artboard, or null. */
+function selectedArtboard(s: EditorState): Artboard | null {
+  return s.doc.artboards.find((ab) => ab.id === s.selectedArtboardId) ?? null;
+}
+
+/** Filesystem-friendly slug for an artboard name (fallback "artboard"). */
+function fileSlug(name: string): string {
+  const slug = name.trim().toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
+  return slug || "artboard";
 }
 
 /** Center of the canvas viewport in screen coords (for zoom-to-center). */
@@ -260,6 +271,28 @@ export const COMMANDS: Command[] = [
   { id: "tool.line", label: "Line tool", group: "Tools", keys: [{ key: "l" }], run: (s) => s.setTool("line") },
   { id: "tool.pen", label: "Pen tool", group: "Tools", keys: [{ key: "p" }], run: (s) => s.setTool("pen") },
   { id: "tool.pencil", label: "Pencil tool", group: "Tools", keys: [{ key: "b" }], run: (s) => s.setTool("pencil") },
+  { id: "tool.artboard", label: "Artboard tool", group: "Tools", keys: [{ key: "a" }], run: (s) => s.setTool("artboard") },
+
+  // Artboards ---------------------------------------------------------------
+  {
+    id: "artboard.add",
+    label: "Add artboard",
+    group: "Artboard",
+    run: (s) => {
+      s.setTool("artboard");
+      s.addArtboard(screenToWorld(s.viewport, canvasCenter()));
+    },
+  },
+  {
+    id: "artboard.delete",
+    label: "Delete artboard",
+    group: "Artboard",
+    danger: true,
+    enabled: (s) => s.selectedArtboardId != null,
+    run: (s) => {
+      if (s.selectedArtboardId) s.deleteArtboard(s.selectedArtboardId);
+    },
+  },
 
   // View --------------------------------------------------------------------
   {
@@ -361,6 +394,62 @@ export const COMMANDS: Command[] = [
       try {
         const svg = exportSvg(s.doc);
         downloadText(svg, "drawing.svg", "image/svg+xml");
+      } catch (err) {
+        window.alert(err instanceof Error ? err.message : String(err));
+      }
+    },
+  },
+  {
+    id: "file.exportArtboardPng",
+    label: "Export artboard PNG",
+    group: "File",
+    enabled: (s) => s.selectedArtboardId != null,
+    run: async (s) => {
+      const ab = selectedArtboard(s);
+      if (!ab) return;
+      try {
+        const blob = await exportPng(s.doc, {
+          scale: 2,
+          bounds: artboardBounds(ab),
+          background: ab.background ?? undefined,
+        });
+        downloadBlob(blob, `${fileSlug(ab.name)}.png`);
+      } catch (err) {
+        window.alert(err instanceof Error ? err.message : String(err));
+      }
+    },
+  },
+  {
+    id: "file.exportArtboardSvg",
+    label: "Export artboard SVG",
+    group: "File",
+    enabled: (s) => s.selectedArtboardId != null,
+    run: (s) => {
+      const ab = selectedArtboard(s);
+      if (!ab) return;
+      try {
+        const svg = exportSvg(s.doc, { bounds: artboardBounds(ab), background: ab.background });
+        downloadText(svg, `${fileSlug(ab.name)}.svg`, "image/svg+xml");
+      } catch (err) {
+        window.alert(err instanceof Error ? err.message : String(err));
+      }
+    },
+  },
+  {
+    id: "file.exportAllArtboardsPng",
+    label: "Export all artboards (PNG)",
+    group: "File",
+    enabled: (s) => s.doc.artboards.length > 0,
+    run: async (s) => {
+      try {
+        for (const ab of s.doc.artboards) {
+          const blob = await exportPng(s.doc, {
+            scale: 2,
+            bounds: artboardBounds(ab),
+            background: ab.background ?? undefined,
+          });
+          downloadBlob(blob, `${fileSlug(ab.name)}.png`);
+        }
       } catch (err) {
         window.alert(err instanceof Error ? err.message : String(err));
       }

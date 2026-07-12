@@ -7,6 +7,7 @@ import {
   LuSlash,
   LuPenTool,
   LuPencil,
+  LuFrame,
 } from "react-icons/lu";
 import { useEditor, type ToolId } from "../store/editorStore";
 
@@ -27,6 +28,7 @@ const TOOLS: ToolDef[] = [
   { id: "line", label: "Line", hint: "L", icon: LuSlash },
   { id: "pen", label: "Pen", hint: "P", icon: LuPenTool, groupBefore: true },
   { id: "pencil", label: "Pencil", hint: "B", icon: LuPencil },
+  { id: "artboard", label: "Artboard", hint: "A", icon: LuFrame, groupBefore: true },
 ];
 
 export default function Toolbar() {

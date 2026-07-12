@@ -1,13 +1,14 @@
 import { paintFromLegacy } from "../model/paint";
 import { BLEND_MODES, type Document, type ShapeType } from "../model/types";
 
-export const CURRENT_FILE_VERSION = 10 as const;
+export const CURRENT_FILE_VERSION = 11 as const;
 
 /**
  * v8 lacked `symbols` (added as an empty registry). v8 and v9 stored fill/
- * stroke as bare colour strings; v10 upgrades them to structured Paint.
+ * stroke as bare colour strings; v10 upgrades them to structured Paint. v11
+ * adds `artboards` (backfilled as an empty list for older files).
  */
-const MIGRATABLE_VERSIONS = new Set<unknown>([8, 9]);
+const MIGRATABLE_VERSIONS = new Set<unknown>([8, 9, 10]);
 
 export interface VinegarFile {
   app: "vinegar";
@@ -128,6 +129,13 @@ export function parseDocument(text: string): Document {
   if ((data.version === 8 || data.version === 9) && isObject(data.document)) {
     migrateLegacyPaints(data.document);
   }
+  if (
+    data.version !== CURRENT_FILE_VERSION &&
+    isObject(data.document) &&
+    data.document.artboards === undefined
+  ) {
+    data.document.artboards = [];
+  }
   if (!isCurrentDocument(data.document)) {
     throw new Error("Document data is missing or malformed.");
   }
@@ -160,6 +168,11 @@ function isCurrentDocument(value: unknown): value is Document {
     Object.entries(value.symbols).every(([id, def]) =>
       isObject(def) && def.id === id &&
       typeof def.name === "string" && typeof def.rootNodeId === "string") &&
+    Array.isArray(value.artboards) &&
+    value.artboards.every((ab) =>
+      isObject(ab) && typeof ab.id === "string" && typeof ab.name === "string" &&
+      isNumber(ab.x) && isNumber(ab.y) && isNumber(ab.width) && isNumber(ab.height) &&
+      (ab.background === null || typeof ab.background === "string")) &&
     isObject(value.settings) && typeof value.settings.unit === "string" &&
     isNumber(value.settings.dpi) && isNumber(value.settings.gridSize) &&
     isObject(value.metadata) && typeof value.metadata.createdAt === "string" &&

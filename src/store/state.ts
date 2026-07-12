@@ -7,6 +7,7 @@
 import type { BoolOp } from "../model/boolean";
 import type { Paint } from "../model/paint";
 import type {
+  Artboard,
   BlendMode,
   Document,
   Group,
@@ -18,7 +19,7 @@ import type {
 import type { Viewport } from "../model/viewport";
 import type { ClipboardPayload } from "./docOps";
 
-export type ToolId = "select" | "node" | "rect" | "ellipse" | "line" | "pen" | "pencil";
+export type ToolId = "select" | "node" | "rect" | "ellipse" | "line" | "pen" | "pencil" | "artboard";
 export interface EditNode { shapeId: string; sub: number; index: number }
 export type AlignType = "left" | "hcenter" | "right" | "top" | "vmiddle" | "bottom";
 export interface StyleDefaults { fill: Paint | null; stroke: Paint | null; strokeWidth: number }
@@ -42,6 +43,8 @@ export interface EditorData {
   selectionTransform: Matrix | null;
   /** Symbol edit-mode stack (local view); last entry is the one being edited. */
   editingSymbols: string[];
+  /** The selected artboard, or null. Mutually exclusive with node selection. */
+  selectedArtboardId: string | null;
   tool: ToolId;
   viewport: Viewport;
   style: StyleDefaults;
@@ -129,6 +132,14 @@ export interface StructureActions {
   moveNode: (id: string, parentId: string | null, index: number) => void;
 }
 
+/** Create, mutate, select and remove artboards (export/layout regions). */
+export interface ArtboardActions {
+  addArtboard: (at?: Vec2) => void;
+  updateArtboard: (id: string, patch: Partial<Omit<Artboard, "id">>) => void;
+  deleteArtboard: (id: string) => void;
+  selectArtboard: (id: string | null) => void;
+}
+
 export interface ClipboardActions {
   copySelected: () => void;
   cutSelected: () => void;
@@ -152,6 +163,7 @@ export type EditorState = EditorData &
   HistoryActions &
   ShapeActions &
   StructureActions &
+  ArtboardActions &
   ClipboardActions &
   SymbolActions;
 

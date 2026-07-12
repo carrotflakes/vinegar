@@ -1,4 +1,4 @@
-import { createEmptyDocument, type SceneNode } from "../model/types";
+import { createEmptyDocument, makeArtboard, type SceneNode } from "../model/types";
 import { solid } from "../model/paint";
 import { IDENTITY, multiply, rotation, translation } from "../model/matrix";
 
@@ -211,6 +211,7 @@ export function createDemoDocument() {
     "demo_empty_group",
     "demo_hidden",
   ];
+  doc.artboards = [makeArtboard(16, 12, 952, 682, "Poster")];
   doc.settings.gridSize = 40;
   doc.extensions["vinegar.demo"] = {
     purpose: "manual-debugging",

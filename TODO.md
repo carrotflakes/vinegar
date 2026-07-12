@@ -2,6 +2,22 @@
 
 A running list of what's built and what's next. Check items off as they land.
 
+## Priority: Illustrator / Figma parity
+
+Ordered by agreed priority. These are the biggest gaps toward a "real" vector editor.
+
+1. [x] **Artboards / frames** — non-owning, geometric boards on the plane
+   (`doc.artboards`, file v11). Artboard tool (create/move/resize), properties
+   panel, per-board + all-board PNG/SVG export (clips to the board rect). Whole-doc
+   export still uses the `io/exportBounds.ts` content bbox.
+2. [ ] **Raster image placement** — an `image` node + `drawImage` pipeline over the
+   existing `DocumentAsset` model (async decode cache). Enables reference/underlay images.
+3. [ ] **Masking / clipping mask** — clip one object's paint by another's shape.
+4. [ ] **Effects (drop shadow / blur)** — per-node shadow and blur; render + SVG + serialize.
+5. [ ] **Text tool** — a `text` shape type (typography, editing, on-path later).
+6. [ ] **Stroke detail options** — dash pattern, line cap/join (currently hard-coded
+   `round` in `canvas/render.ts`), and stroke alignment (inside / center / outside).
+
 ## Done
 
 ### Core

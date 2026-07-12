@@ -72,7 +72,10 @@ export type Interaction =
       part: "in" | "out";
       orig: BezierShape;
     }
-  | { kind: "marquee"; start: Vec2; additive: boolean };
+  | { kind: "marquee"; start: Vec2; additive: boolean }
+  | { kind: "artboard-create"; id: string; start: Vec2 }
+  | { kind: "artboard-move"; id: string; grab: Vec2; orig: Bounds }
+  | { kind: "artboard-resize"; id: string; handle: HandleId; orig: Bounds };
 
 /** Distance below which a created shape is considered an accidental click. */
 export const CLICK_SLOP = 3;

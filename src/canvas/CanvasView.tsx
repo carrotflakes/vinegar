@@ -22,12 +22,19 @@ import {
 } from "./interaction";
 import { ANCHOR_SIZE, HANDLE_DOT } from "./nodes";
 import {
+  drawArtboardChrome,
   drawGuides,
   drawNodes,
   drawOverlay,
   drawPenDraft,
   drawSpacings,
 } from "./overlay";
+import {
+  artboardCursor,
+  finishArtboard,
+  onArtboardDown,
+  onArtboardMove,
+} from "./tools/artboardTool";
 import { pickShape, selectedBezier, selectedShapes } from "./picking";
 import { renderScene } from "./render";
 import {
@@ -119,6 +126,7 @@ export default function CanvasView() {
       showGrid: true,
       gridSize: state.gridSize,
       rootIds: scopeRoot !== null ? [scopeRoot] : undefined,
+      artboards: scope ? undefined : doc.artboards,
     });
 
     const chrome = coarseRef.current ? TOUCH_DRAW_SCALE : 1;
@@ -140,6 +148,17 @@ export default function CanvasView() {
       showHandles: tool === "select" && selected.length > 0,
       handleSize: HANDLE_SIZE * chrome,
     });
+
+    if (tool === "artboard" && scope === null) {
+      drawArtboardChrome(
+        ctx,
+        dpr,
+        viewport,
+        doc.artboards,
+        state.selectedArtboardId,
+        HANDLE_SIZE * chrome
+      );
+    }
 
     if (tool === "node") {
       const sel = selectedBezier(state);
@@ -266,8 +285,14 @@ export default function CanvasView() {
       case "pivot":
       case "node-anchor":
       case "node-handle":
+      case "artboard-move":
+      case "artboard-resize":
         // These commit through begin/endInteraction; roll back the snapshot.
         state.cancelInteraction();
+        break;
+      case "artboard-create":
+        state.cancelInteraction();
+        state.selectArtboard(null);
         break;
       case "create":
       case "pencil":
@@ -360,6 +385,10 @@ export default function CanvasView() {
       startPencil(ctx, state, world);
       return;
     }
+    if (tool === "artboard") {
+      onArtboardDown(ctx, state, screen, world);
+      return;
+    }
 
     // rect / ellipse / line
     startShape(ctx, state, world);
@@ -419,6 +448,11 @@ export default function CanvasView() {
       case "node-handle":
         onNodeMove(ctx, state, inter, world, mod.shift, mod.alt);
         break;
+      case "artboard-create":
+      case "artboard-move":
+      case "artboard-resize":
+        onArtboardMove(ctx, state, inter, world);
+        break;
     }
   };
 
@@ -471,6 +505,11 @@ export default function CanvasView() {
           inter,
           screenToWorld(state.viewport, screenPoint(e))
         );
+        break;
+      case "artboard-create":
+      case "artboard-move":
+      case "artboard-resize":
+        finishArtboard(ctx, state, inter);
         break;
     }
   };
@@ -540,6 +579,10 @@ export default function CanvasView() {
     }
     if (state.tool === "node") {
       canvas.style.cursor = nodeCursor(ctx, screen, world);
+      return;
+    }
+    if (state.tool === "artboard") {
+      canvas.style.cursor = artboardCursor(ctx, state, screen, world);
       return;
     }
     canvas.style.cursor = selectCursor(ctx, screen, world);

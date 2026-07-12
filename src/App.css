@@ -353,6 +353,20 @@
   font-size: 12px;
 }
 
+.artboard-name {
+  flex: 1;
+  padding: 4px 6px;
+  font-size: 12px;
+}
+
+.checkbox-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--muted);
+}
+
 .blend-select {
   /* Background + chevron come from the global select rule (index.css);
    * keep room on the right for the chevron. */

@@ -28,7 +28,7 @@ import {
   selectionUnits,
 } from "../model/groups";
 import type { Paint } from "../model/paint";
-import { BLEND_MODES, type BlendMode, type Shape, type SymbolInstance } from "../model/types";
+import { BLEND_MODES, type Artboard, type BlendMode, type Shape, type SymbolInstance } from "../model/types";
 import { descendantShapeIds, isInstance, isShape, selectionRoots } from "../model/scene";
 import { useEditor } from "../store/editorStore";
 import ColorField from "./ColorField";
@@ -58,6 +58,22 @@ export default function PropertiesPanel() {
   const releaseCompoundPathSelected = useEditor((s) => s.releaseCompoundPathSelected);
   const enterSymbolEdit = useEditor((s) => s.enterSymbolEdit);
   const detachSelectedInstances = useEditor((s) => s.detachSelectedInstances);
+  const selectedArtboardId = useEditor((s) => s.selectedArtboardId);
+  const updateArtboard = useEditor((s) => s.updateArtboard);
+  const deleteArtboard = useEditor((s) => s.deleteArtboard);
+
+  const artboard = selectedArtboardId
+    ? doc.artboards.find((ab) => ab.id === selectedArtboardId) ?? null
+    : null;
+  if (artboard) {
+    return (
+      <ArtboardPanel
+        artboard={artboard}
+        update={updateArtboard}
+        remove={deleteArtboard}
+      />
+    );
+  }
 
   const selectionRootIds = selectionRoots(doc, selection);
   const selectedInstance =
@@ -504,6 +520,117 @@ export default function PropertiesPanel() {
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+/** Preset artboard sizes (label → width×height). */
+const ARTBOARD_PRESETS: { label: string; w: number; h: number }[] = [
+  { label: "Square", w: 1080, h: 1080 },
+  { label: "16:9", w: 1920, h: 1080 },
+  { label: "A4", w: 794, h: 1123 },
+];
+
+function ArtboardPanel({
+  artboard,
+  update,
+  remove,
+}: {
+  artboard: Artboard;
+  update: (id: string, patch: Partial<Omit<Artboard, "id">>) => void;
+  remove: (id: string) => void;
+}) {
+  const transparent = artboard.background === null;
+
+  const field = (key: "x" | "y" | "width" | "height", label: string) => {
+    const v = Math.round(artboard[key]);
+    return (
+      <label className="geo-field">
+        <span>{label}</span>
+        <input
+          type="number"
+          key={`${key}:${v}`}
+          defaultValue={v}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") e.currentTarget.blur();
+          }}
+          onBlur={(e) => {
+            const n = Number(e.target.value);
+            if (e.target.value !== "" && !Number.isNaN(n)) {
+              update(artboard.id, { [key]: n });
+            }
+          }}
+        />
+      </label>
+    );
+  };
+
+  return (
+    <div className="panel">
+      <div className="panel-section">
+        <div className="panel-title">Artboard</div>
+        <div className="field">
+          <label>Name</label>
+          <div className="field-row">
+            <input
+              type="text"
+              className="artboard-name"
+              value={artboard.name}
+              onChange={(e) => update(artboard.id, { name: e.target.value })}
+            />
+          </div>
+        </div>
+        <div className="geometry-grid">
+          {field("x", "X")}
+          {field("y", "Y")}
+          {field("width", "W")}
+          {field("height", "H")}
+        </div>
+        <div className="btn-row">
+          {ARTBOARD_PRESETS.map((p) => (
+            <button
+              key={p.label}
+              className="ghost-btn"
+              onClick={() => update(artboard.id, { width: p.w, height: p.h })}
+            >
+              {p.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div className="panel-section">
+        <div className="panel-title">Background</div>
+        <div className="field">
+          <div className="field-row">
+            <input
+              type="color"
+              value={transparent ? "#ffffff" : artboard.background ?? "#ffffff"}
+              onChange={(e) => update(artboard.id, { background: e.target.value })}
+            />
+            <label className="checkbox-row">
+              <input
+                type="checkbox"
+                checked={transparent}
+                onChange={(e) =>
+                  update(artboard.id, {
+                    background: e.target.checked ? null : "#ffffff",
+                  })
+                }
+              />
+              Transparent
+            </label>
+          </div>
+        </div>
+      </div>
+
+      <div className="panel-section">
+        <div className="btn-row">
+          <button className="ghost-btn danger" onClick={() => remove(artboard.id)}>
+            Delete artboard
+          </button>
+        </div>
+      </div>
     </div>
   );
 }

@@ -1,5 +1,5 @@
 import { paintNode } from "../canvas/render";
-import type { Document } from "../model/types";
+import type { Bounds, Document } from "../model/types";
 import { contentBounds } from "./exportBounds";
 
 export interface PngOptions {
@@ -8,15 +8,17 @@ export interface PngOptions {
   /** Background color; omit for a transparent PNG. */
   background?: string;
   margin?: number;
+  /** Explicit crop region (e.g. an artboard). Overrides content bounds. */
+  bounds?: Bounds;
 }
 
-/** Render a document's shapes to a PNG Blob, cropped to content bounds. */
+/** Render a document's shapes to a PNG Blob, cropped to content or explicit bounds. */
 export async function exportPng(
   doc: Document,
   opts: PngOptions = {}
 ): Promise<Blob> {
   const { scale = 2, background, margin = 8 } = opts;
-  const bounds = contentBounds(doc, margin);
+  const bounds = opts.bounds ?? contentBounds(doc, margin);
   if (!bounds) throw new Error("Nothing to export.");
 
   const canvas = document.createElement("canvas");
@@ -32,6 +34,12 @@ export async function exportPng(
 
   ctx.scale(scale, scale);
   ctx.translate(-bounds.x, -bounds.y);
+  // With an explicit crop region, clip so shapes spanning the edge are cropped.
+  if (opts.bounds) {
+    ctx.beginPath();
+    ctx.rect(bounds.x, bounds.y, bounds.width, bounds.height);
+    ctx.clip();
+  }
   for (const nodeId of doc.rootIds) paintNode(ctx, doc, nodeId);
 
   return await new Promise<Blob>((resolve, reject) => {

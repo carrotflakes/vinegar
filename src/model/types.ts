@@ -224,6 +224,37 @@ export interface DocumentMetadata {
 }
 
 /**
+ * A rectangular export/layout region on the infinite plane. Artboards do not
+ * own scene content: which shapes belong to a board is decided geometrically
+ * (by clipping) at export time. `background` is a plain colour string drawn as
+ * the board's backdrop, or `null` for a transparent board.
+ */
+export interface Artboard {
+  id: string;
+  name: string;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  background: string | null;
+}
+
+/** The world-space bounds of an artboard. */
+export function artboardBounds(ab: Artboard): Bounds {
+  return { x: ab.x, y: ab.y, width: ab.width, height: ab.height };
+}
+
+export function makeArtboard(
+  x: number,
+  y: number,
+  width: number,
+  height: number,
+  name = "Artboard"
+): Artboard {
+  return { id: makeId("artboard"), name, x, y, width, height, background: "#ffffff" };
+}
+
+/**
  * Binary resources are referenced by id instead of being embedded in shapes.
  * `source` is intentionally a discriminated union so packaged/external asset
  * locations can be added without changing every image-like node.
@@ -242,6 +273,8 @@ export interface Document {
   rootIds: string[];
   /** Symbol definitions; their content lives in `nodes` outside `rootIds`. */
   symbols: Record<string, SymbolDef>;
+  /** Export/layout regions on the plane, in export order. */
+  artboards: Artboard[];
   settings: DocumentSettings;
   metadata: DocumentMetadata;
   assets: Record<string, DocumentAsset>;
@@ -255,6 +288,7 @@ export function createEmptyDocument(): Document {
     nodes: {},
     rootIds: [],
     symbols: {},
+    artboards: [],
     settings: { unit: "px", dpi: 96, gridSize: 50 },
     metadata: { createdAt: now, modifiedAt: now },
     assets: {},

@@ -41,15 +41,15 @@ export function createHistory(set: StoreSet, get: StoreGet): HistorySlice {
   };
 
   const actions: HistoryActions = {
-    newDocument: () => { const doc = createEmptyDocument(); set({ doc, gridSize: doc.settings.gridSize, selection: [], editingSymbols: [], history: { past: [], future: [] }, _pending: null, _dirty: false, ...clearTransient }); },
-    loadDocument: (doc) => set({ doc, gridSize: doc.settings.gridSize, selection: [], editingSymbols: [], history: { past: [], future: [] }, _pending: null, _dirty: false, ...clearTransient }),
+    newDocument: () => { const doc = createEmptyDocument(); set({ doc, gridSize: doc.settings.gridSize, selection: [], editingSymbols: [], selectedArtboardId: null, history: { past: [], future: [] }, _pending: null, _dirty: false, ...clearTransient }); },
+    loadDocument: (doc) => set({ doc, gridSize: doc.settings.gridSize, selection: [], editingSymbols: [], selectedArtboardId: null, history: { past: [], future: [] }, _pending: null, _dirty: false, ...clearTransient }),
     beginInteraction: () => set({ _pending: clone(get().doc), _dirty: false }),
     applyShapes: (next) => set({ doc: { ...get().doc, nodes: { ...get().doc.nodes, ...next } }, _dirty: true }),
     setDoc: (doc) => set({ doc, _dirty: true }),
     endInteraction: () => { resetCoalesce(); const { _pending, _dirty, history } = get(); if (_pending && _dirty) set({ history: { past: [...history.past, _pending].slice(-HISTORY_LIMIT), future: [] } }); set({ _pending: null, _dirty: false }); },
     cancelInteraction: () => { resetCoalesce(); const { _pending, _dirty } = get(); if (_pending && _dirty) set({ doc: _pending, ...clearTransient }); set({ _pending: null, _dirty: false }); },
-    undo: () => { resetCoalesce(); const { history, doc } = get(); if (!history.past.length) return; const past = [...history.past], prev = past.pop()!; set({ doc: prev, history: { past, future: [clone(doc), ...history.future] }, selection: get().selection.filter((id) => !!prev.nodes[id]), editingSymbols: get().editingSymbols.filter((id) => !!prev.symbols[id]), ...clearTransient }); },
-    redo: () => { resetCoalesce(); const { history, doc } = get(); if (!history.future.length) return; const [next, ...future] = history.future; set({ doc: next, history: { past: [...history.past, clone(doc)], future }, selection: get().selection.filter((id) => !!next.nodes[id]), editingSymbols: get().editingSymbols.filter((id) => !!next.symbols[id]), ...clearTransient }); },
+    undo: () => { resetCoalesce(); const { history, doc } = get(); if (!history.past.length) return; const past = [...history.past], prev = past.pop()!; set({ doc: prev, history: { past, future: [clone(doc), ...history.future] }, selection: get().selection.filter((id) => !!prev.nodes[id]), editingSymbols: get().editingSymbols.filter((id) => !!prev.symbols[id]), selectedArtboardId: prev.artboards.some((ab) => ab.id === get().selectedArtboardId) ? get().selectedArtboardId : null, ...clearTransient }); },
+    redo: () => { resetCoalesce(); const { history, doc } = get(); if (!history.future.length) return; const [next, ...future] = history.future; set({ doc: next, history: { past: [...history.past, clone(doc)], future }, selection: get().selection.filter((id) => !!next.nodes[id]), editingSymbols: get().editingSymbols.filter((id) => !!next.symbols[id]), selectedArtboardId: next.artboards.some((ab) => ab.id === get().selectedArtboardId) ? get().selectedArtboardId : null, ...clearTransient }); },
   };
 
   return { transact, resetCoalesce, actions };

@@ -8,6 +8,7 @@
 import { create } from "zustand";
 import { IDENTITY } from "../model/matrix";
 import { createEmptyDocument, type Shape } from "../model/types";
+import { createArtboardActions } from "./artboardSlice";
 import { createClipboardActions } from "./clipboardSlice";
 import { createHistory } from "./historySlice";
 import { createPrefsActions, initialPrefs } from "./prefsSlice";
@@ -46,6 +47,7 @@ export const useEditor = create<EditorState>((set, get) => {
     selectionPivot: null,
     selectionTransform: null,
     editingSymbols: [],
+    selectedArtboardId: null,
     history: { past: [], future: [] },
     editNode: null,
     clipboard: null,
@@ -58,6 +60,7 @@ export const useEditor = create<EditorState>((set, get) => {
     ...createSelectionActions(ctx),
     ...createShapeActions(ctx),
     ...createStructureActions(ctx),
+    ...createArtboardActions(ctx),
     ...createClipboardActions(ctx),
     ...createSymbolActions(ctx),
   };
