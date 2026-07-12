@@ -8,6 +8,7 @@ import {
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { LuPipette } from "react-icons/lu";
+import { paintToCss, solid, type Paint } from "../model/paint";
 import { useEditor } from "../store/editorStore";
 
 /** A curated default palette (grayscale + a hue wheel + tints). */
@@ -29,8 +30,8 @@ function normalizeHex(input: string): string | null {
 
 interface Props {
   label: string;
-  value: string | null;
-  onChange: (v: string | null) => void;
+  value: Paint | null;
+  onChange: (v: Paint | null) => void;
 }
 
 export default function ColorField({ label, value, onChange }: Props) {
@@ -42,6 +43,12 @@ export default function ColorField({ label, value, onChange }: Props) {
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
   const enabled = value !== null;
+  // Colour and alpha are edited independently; a paint keeps its alpha when the
+  // colour changes (and vice-versa). Swatches/recents/palette store colours.
+  const color = value && value.type === "solid" ? value.color : "#888888";
+  const alpha = value && value.type === "solid" ? value.alpha : 1;
+  const setColor = (hex: string) => onChange(solid(hex, alpha));
+  const setAlpha = (a: number) => onChange(solid(color, a));
   const hasEyeDropper = typeof window !== "undefined" && !!window.EyeDropper;
 
   // The popover portals to <body> so the sidebar's overflow can't clip it;
@@ -56,7 +63,7 @@ export default function ColorField({ label, value, onChange }: Props) {
     if (!window.EyeDropper) return;
     try {
       const { sRGBHex } = await new window.EyeDropper().open();
-      onChange(sRGBHex.toLowerCase());
+      setColor(sRGBHex.toLowerCase());
     } catch {
       // user cancelled
     }
@@ -64,7 +71,7 @@ export default function ColorField({ label, value, onChange }: Props) {
 
   const close = () => {
     setOpen(false);
-    if (value) addRecentColor(value);
+    if (enabled) addRecentColor(color);
   };
 
   // Dismiss on outside press or Escape. Uses pointerdown (not mousedown):
@@ -101,11 +108,23 @@ export default function ColorField({ label, value, onChange }: Props) {
         <button
           ref={refs.setReference}
           className={"color-swatch" + (enabled ? "" : " is-none")}
-          style={enabled ? { background: value } : undefined}
           onClick={() => setOpen((o) => !o)}
           title="Edit color"
-        />
-        <span className="swatch-text">{enabled ? value : "none"}</span>
+        >
+          {value && (
+            <span
+              className="swatch-fill"
+              style={{ background: paintToCss(value) }}
+            />
+          )}
+        </button>
+        <span className="swatch-text">
+          {enabled
+            ? alpha < 1
+              ? `${color} · ${Math.round(alpha * 100)}%`
+              : color
+            : "none"}
+        </span>
       </div>
 
       {open &&
@@ -125,8 +144,8 @@ export default function ColorField({ label, value, onChange }: Props) {
             <input
               type="color"
               className="color-spectrum"
-              value={enabled ? value : "#888888"}
-              onChange={(e) => onChange(e.target.value)}
+              value={color}
+              onChange={(e) => setColor(e.target.value)}
             />
             {hasEyeDropper && (
               <button
@@ -138,9 +157,9 @@ export default function ColorField({ label, value, onChange }: Props) {
               </button>
             )}
             <input
-              key={value ?? "none"}
+              key={enabled ? color : "none"}
               className="hex-input"
-              defaultValue={enabled ? value.replace("#", "") : ""}
+              defaultValue={enabled ? color.replace("#", "") : ""}
               placeholder="rrggbb"
               spellCheck={false}
               onKeyDown={(e) => {
@@ -148,10 +167,24 @@ export default function ColorField({ label, value, onChange }: Props) {
               }}
               onBlur={(e) => {
                 const n = normalizeHex(e.target.value);
-                if (n) onChange(n);
+                if (n) setColor(n);
               }}
             />
           </div>
+
+          {enabled && (
+            <div className="color-pop-alpha">
+              <span className="alpha-label">Alpha</span>
+              <input
+                type="range"
+                min={0}
+                max={100}
+                value={Math.round(alpha * 100)}
+                onChange={(e) => setAlpha(Number(e.target.value) / 100)}
+              />
+              <span className="alpha-value">{Math.round(alpha * 100)}%</span>
+            </div>
+          )}
 
           <div className="color-pop-label">
             Saved
@@ -159,7 +192,7 @@ export default function ColorField({ label, value, onChange }: Props) {
               className="swatch-add"
               title="Save current color"
               disabled={!enabled}
-              onClick={() => enabled && addSwatch(value)}
+              onClick={() => enabled && addSwatch(color)}
             >
               +
             </button>
@@ -174,9 +207,7 @@ export default function ColorField({ label, value, onChange }: Props) {
                 className="mini-swatch"
                 style={{ background: c }}
                 title={`${c} — Alt-click to remove`}
-                onClick={(e) =>
-                  e.altKey ? removeSwatch(c) : onChange(c)
-                }
+                onClick={(e) => (e.altKey ? removeSwatch(c) : setColor(c))}
               />
             ))}
           </div>
@@ -191,7 +222,7 @@ export default function ColorField({ label, value, onChange }: Props) {
                     className="mini-swatch"
                     style={{ background: c }}
                     title={c}
-                    onClick={() => onChange(c)}
+                    onClick={() => setColor(c)}
                   />
                 ))}
               </div>
@@ -206,7 +237,7 @@ export default function ColorField({ label, value, onChange }: Props) {
                 className="mini-swatch"
                 style={{ background: c }}
                 title={c}
-                onClick={() => onChange(c)}
+                onClick={() => setColor(c)}
               />
             ))}
           </div>

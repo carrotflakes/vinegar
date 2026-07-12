@@ -1,4 +1,5 @@
 import { createEmptyDocument, type SceneNode } from "../model/types";
+import { solid } from "../model/paint";
 import { IDENTITY, multiply, rotation, translation } from "../model/matrix";
 
 const shapeBase = (
@@ -7,8 +8,8 @@ const shapeBase = (
   stroke: string | null = "#172033"
 ) => ({
   name,
-  fill,
-  stroke,
+  fill: fill ? solid(fill) : null,
+  stroke: stroke ? solid(stroke) : null,
   strokeWidth: stroke ? 2 : 0,
   opacity: 1,
   transform: [...IDENTITY] as typeof IDENTITY,

@@ -1,6 +1,7 @@
 import { subpathSegments } from "../model/bezier";
 import { shapeBounds } from "../model/bounds";
 import { isIdentity } from "../model/matrix";
+import { resolvePaint } from "../model/paint";
 import { isGroup, isInstance, isShape } from "../model/scene";
 import type { Document, Shape } from "../model/types";
 import { worldToScreen, type Viewport } from "../model/viewport";
@@ -164,8 +165,8 @@ export function paintShape(ctx: CanvasRenderingContext2D, shape: Shape): void {
     shape.type !== "line" &&
     !(shape.type === "path" && !shape.closed) &&
     !(shape.type === "bezier" && !shape.subpaths.some((sp) => sp.closed));
-  if (fillable) {
-    ctx.fillStyle = shape.fill as string;
+  if (fillable && shape.fill) {
+    ctx.fillStyle = resolvePaint(ctx, shape.fill, shapeBounds(shape));
     ctx.fill(
       shape.type === "polygon" || shape.type === "compoundPath"
         ? "evenodd"
@@ -173,7 +174,7 @@ export function paintShape(ctx: CanvasRenderingContext2D, shape: Shape): void {
     );
   }
   if (shape.stroke !== null && shape.strokeWidth > 0) {
-    ctx.strokeStyle = shape.stroke;
+    ctx.strokeStyle = resolvePaint(ctx, shape.stroke, shapeBounds(shape));
     ctx.lineWidth = shape.strokeWidth;
     ctx.lineJoin = "round";
     ctx.lineCap = "round";

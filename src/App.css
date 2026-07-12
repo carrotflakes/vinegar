@@ -301,12 +301,26 @@
 
 /* ---- color field / popover ------------------------------------------- */
 .color-swatch {
+  position: relative;
   width: 28px;
   height: 24px;
   padding: 0;
+  overflow: hidden;
   border: 1px solid var(--border);
   border-radius: 6px;
-  background: #ffffff;
+  /* Checkerboard shows through translucent paints (colour is layered on top). */
+  background-color: #ffffff;
+  background-image:
+    linear-gradient(45deg, #d7dbe2 25%, transparent 25%, transparent 75%, #d7dbe2 75%),
+    linear-gradient(45deg, #d7dbe2 25%, transparent 25%, transparent 75%, #d7dbe2 75%);
+  background-size: 10px 10px;
+  background-position: 0 0, 5px 5px;
+}
+
+/* Translucent paint overlay layered over the swatch's checkerboard. */
+.swatch-fill {
+  position: absolute;
+  inset: 0;
 }
 
 .color-swatch.is-none {
@@ -333,6 +347,25 @@
   display: flex;
   align-items: center;
   gap: 6px;
+}
+
+.color-pop-alpha {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.color-pop-alpha input[type="range"] {
+  flex: 1;
+  min-width: 0;
+}
+
+.color-pop-alpha .alpha-value {
+  min-width: 34px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
 }
 
 .color-spectrum {

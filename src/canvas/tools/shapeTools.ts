@@ -8,6 +8,7 @@ import {
 import {
   styleFromDefaults,
   type EditorState,
+  type StyleDefaults,
 } from "../../store/editorStore";
 import { setReadout } from "../../store/pointerStore";
 import { CLICK_SLOP, type ToolContext } from "../interaction";
@@ -100,7 +101,7 @@ function makeCreatedShape(
   tool: string,
   a: Vec2,
   bRaw: Vec2,
-  style: { fill: string | null; stroke: string | null; strokeWidth: number },
+  style: StyleDefaults,
   shift = false,
   alt = false
 ): Shape {

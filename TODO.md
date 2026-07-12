@@ -63,7 +63,11 @@ A running list of what's built and what's next. Check items off as they land.
 - [ ] On-screen alternatives for the remaining keyboard-only actions (delete, copy/paste, group, pen finish/cancel)
 
 ## Backlog / ideas
-- [ ] Color: alpha/opacity per color; swatches saved in the document
+- [x] Paint model: `fill`/`stroke` are a `Paint` union (`model/paint.ts`), extensible to gradient/pattern without re-touching render/SVG/serialize/UI. File format v10 (v8/v9 auto-migrate string→solid)
+  - [x] Per-color alpha (ColorField alpha slider; checkerboard swatch; SVG fill/stroke-opacity)
+  - [ ] Gradient paint (linear/radial): add to the `Paint` union + resolvePaint (canvas) + paintToSvgAttrs/defs (SVG) + ColorField editor
+  - [ ] Pattern/texture paint (raster fill)
+  - [ ] Swatches saved in the document (currently localStorage, color-only)
 - [ ] System clipboard integration (paste across tabs/apps)
 - [ ] Text tool
 - [x] Unified Scene Tree: shapes/groups share `nodes`; `rootIds`/`childIds` are the sole hierarchy and Z-order source. Current file format is v7 (multi-subpath Bézier); older formats are intentionally unsupported.

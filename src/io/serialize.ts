@@ -1,9 +1,13 @@
+import { paintFromLegacy } from "../model/paint";
 import { BLEND_MODES, type Document, type ShapeType } from "../model/types";
 
-export const CURRENT_FILE_VERSION = 9 as const;
+export const CURRENT_FILE_VERSION = 10 as const;
 
-/** v8 lacked `symbols`; it upgrades by adding an empty registry. */
-const MIGRATABLE_VERSIONS = new Set<unknown>([8]);
+/**
+ * v8 lacked `symbols` (added as an empty registry). v8 and v9 stored fill/
+ * stroke as bare colour strings; v10 upgrades them to structured Paint.
+ */
+const MIGRATABLE_VERSIONS = new Set<unknown>([8, 9]);
 
 export interface VinegarFile {
   app: "vinegar";
@@ -37,6 +41,11 @@ const isPointOrNull = (value: unknown): boolean =>
 const isPoint = (value: unknown): boolean => value !== null && isPointOrNull(value);
 const isNumber = (value: unknown): value is number =>
   typeof value === "number" && Number.isFinite(value);
+const isPaint = (value: unknown): boolean =>
+  isObject(value) && value.type === "solid" &&
+  typeof value.color === "string" &&
+  isNumber(value.alpha) && value.alpha >= 0 && value.alpha <= 1;
+const isPaintOrNull = (value: unknown): boolean => value === null || isPaint(value);
 const isPoints = (value: unknown): boolean =>
   Array.isArray(value) && value.every(isPoint);
 const isNode = (id: string, node: unknown): boolean => {
@@ -53,8 +62,7 @@ const isNode = (id: string, node: unknown): boolean => {
   if (node.type === "instance") {
     return typeof node.symbolId === "string";
   }
-  if (!((node.fill === null || typeof node.fill === "string") &&
-      (node.stroke === null || typeof node.stroke === "string") &&
+  if (!(isPaintOrNull(node.fill) && isPaintOrNull(node.stroke) &&
       isNumber(node.strokeWidth) && node.strokeWidth >= 0)) return false;
   switch (node.type) {
     case "rect": case "ellipse":
@@ -105,11 +113,29 @@ export function parseDocument(text: string): Document {
   if (data.version === 8 && isObject(data.document) && data.document.symbols === undefined) {
     data.document.symbols = {};
   }
+  if ((data.version === 8 || data.version === 9) && isObject(data.document)) {
+    migrateLegacyPaints(data.document);
+  }
   if (!isCurrentDocument(data.document)) {
     throw new Error("Document data is missing or malformed.");
   }
   validateTree(data.document);
   return structuredClone(data.document);
+}
+
+/** Convert pre-v10 string fill/stroke to structured Paint, in place. */
+function migrateLegacyPaints(doc: Record<string, unknown>): void {
+  const nodes = doc.nodes;
+  if (!isObject(nodes)) return;
+  const migrate = (node: unknown) => {
+    if (!isObject(node)) return;
+    if ("fill" in node) node.fill = paintFromLegacy(node.fill);
+    if ("stroke" in node) node.stroke = paintFromLegacy(node.stroke);
+    if (node.type === "compoundPath" && Array.isArray(node.components)) {
+      node.components.forEach(migrate);
+    }
+  };
+  Object.values(nodes).forEach(migrate);
 }
 
 function isCurrentDocument(value: unknown): value is Document {

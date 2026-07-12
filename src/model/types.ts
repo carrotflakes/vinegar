@@ -3,6 +3,8 @@
 // transform into its parent coordinate space.
 // ===========================================================================
 
+import type { Paint } from "./paint";
+
 export type Vec2 = { x: number; y: number };
 
 /** Canvas/SVG-compatible 2D affine matrix [a, b, c, d, e, f]. */
@@ -61,9 +63,9 @@ export interface BaseNode {
 /** Common paint fields shared by every shape. */
 export interface BaseShape extends BaseNode {
   /** `null` fill means "no fill" (transparent). */
-  fill: string | null;
+  fill: Paint | null;
   /** `null` stroke means "no stroke". */
-  stroke: string | null;
+  stroke: Paint | null;
   strokeWidth: number;
 }
 

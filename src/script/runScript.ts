@@ -1,3 +1,4 @@
+import { solid, type Paint } from "../model/paint";
 import {
   BLEND_MODES,
   makeId,
@@ -26,8 +27,17 @@ const num = (v: unknown, fallback = 0) => {
   const n = Number(v);
   return Number.isFinite(n) ? n : fallback;
 };
-const colorOr = (v: unknown, fallback: string | null) =>
-  v === null ? null : typeof v === "string" ? v : fallback;
+/**
+ * The script DSL speaks colour strings; shapes store Paint. Convert an edited
+ * value back to Paint, preserving the prior alpha when only the colour changed.
+ */
+const scriptPaint = (v: unknown, fallback: Paint | null): Paint | null => {
+  if (v === null) return null;
+  if (typeof v === "string") {
+    return solid(v, fallback && fallback.type === "solid" ? fallback.alpha : 1);
+  }
+  return fallback;
+};
 const blendOr = (v: unknown, fallback: BlendMode | undefined) => {
   if (v === undefined) return fallback;
   return v !== "normal" && BLEND_MODES.includes(v as BlendMode)
@@ -106,8 +116,8 @@ function buildCreated(spec: Record<string, unknown>): Shape | null {
   const base = {
     id: makeId(type),
     name: typeof spec.name === "string" ? spec.name : type,
-    fill: colorOr(spec.fill, null),
-    stroke: colorOr(spec.stroke, null),
+    fill: scriptPaint(spec.fill, null),
+    stroke: scriptPaint(spec.stroke, null),
     strokeWidth: Math.max(0, num(spec.strokeWidth, 1)),
     opacity: clamp01(num(spec.opacity, 1)),
     blendMode: blendOr(spec.blendMode, undefined),
@@ -150,8 +160,8 @@ function reconcile(existing: Shape, edited: Record<string, unknown>): Shape {
   const base = {
     ...existing,
     name: typeof edited.name === "string" ? edited.name : existing.name,
-    fill: colorOr(edited.fill, existing.fill),
-    stroke: colorOr(edited.stroke, existing.stroke),
+    fill: scriptPaint(edited.fill, existing.fill),
+    stroke: scriptPaint(edited.stroke, existing.stroke),
     strokeWidth: Math.max(0, num(edited.strokeWidth, existing.strokeWidth)),
     opacity: clamp01(num(edited.opacity, existing.opacity)),
     blendMode: blendOr(edited.blendMode, existing.blendMode),
@@ -250,6 +260,26 @@ export function runScript(
       resolve({ error: e.message || "Script error" });
     };
 
-    worker.postMessage({ code, doc: snap });
+    // The DSL reads/writes fill & stroke as colour strings, so present the
+    // snapshot with Paint flattened to its colour. reconcile() re-wraps edits
+    // as Paint (preserving alpha) against the originals kept in `byId`.
+    worker.postMessage({ code, doc: flattenSnapshotForScript(snap) });
   });
+}
+
+/** A snapshot copy whose shape fill/stroke are colour strings (or null). */
+function flattenSnapshotForScript(snap: ScriptSnapshot): ScriptSnapshot {
+  const flattenPaint = (node: Record<string, unknown>) => {
+    if ("fill" in node) node.fill = (node.fill as Paint | null)?.color ?? null;
+    if ("stroke" in node) node.stroke = (node.stroke as Paint | null)?.color ?? null;
+    if (node.type === "compoundPath" && Array.isArray(node.components)) {
+      node.components.forEach((c) => flattenPaint(c as Record<string, unknown>));
+    }
+  };
+  const shapes = snap.shapes.map((s) => {
+    const copy = structuredClone(s) as unknown as Record<string, unknown>;
+    flattenPaint(copy);
+    return copy as unknown as Shape;
+  });
+  return { shapes, selectionIds: snap.selectionIds };
 }

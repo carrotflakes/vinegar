@@ -1,5 +1,6 @@
 // Tool, viewport and persisted user preferences (colors, swatches, snapping).
 
+import { solid } from "../model/paint";
 import { initialViewport } from "../model/viewport";
 import {
   clearTransient,
@@ -33,7 +34,7 @@ export function initialPrefs(): PrefsData {
   return {
     tool: "select",
     viewport: initialViewport,
-    style: { fill: "#4f8cff", stroke: "#1b1b1b", strokeWidth: 2 },
+    style: { fill: solid("#4f8cff"), stroke: solid("#1b1b1b"), strokeWidth: 2 },
     snapEnabled: true,
     gridSnap: false,
     gridSize: 50,

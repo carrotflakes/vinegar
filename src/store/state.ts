@@ -5,6 +5,7 @@
 // ===========================================================================
 
 import type { BoolOp } from "../model/boolean";
+import type { Paint } from "../model/paint";
 import type {
   BlendMode,
   Document,
@@ -20,12 +21,12 @@ import type { ClipboardPayload } from "./docOps";
 export type ToolId = "select" | "node" | "rect" | "ellipse" | "line" | "pen" | "pencil";
 export interface EditNode { shapeId: string; sub: number; index: number }
 export type AlignType = "left" | "hcenter" | "right" | "top" | "vmiddle" | "bottom";
-export interface StyleDefaults { fill: string | null; stroke: string | null; strokeWidth: number }
+export interface StyleDefaults { fill: Paint | null; stroke: Paint | null; strokeWidth: number }
 export interface HistoryState { past: Document[]; future: Document[] }
 
 export interface StyleStylableFields {
-  fill: string | null;
-  stroke: string | null;
+  fill: Paint | null;
+  stroke: Paint | null;
   strokeWidth: number;
   opacity: number;
   blendMode: BlendMode | undefined;

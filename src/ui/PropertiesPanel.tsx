@@ -27,6 +27,7 @@ import {
   exactlySelectedGroup,
   selectionUnits,
 } from "../model/groups";
+import type { Paint } from "../model/paint";
 import { BLEND_MODES, type BlendMode, type Shape, type SymbolInstance } from "../model/types";
 import { descendantShapeIds, isInstance, isShape, selectionRoots } from "../model/scene";
 import { useEditor } from "../store/editorStore";
@@ -93,9 +94,9 @@ export default function PropertiesPanel() {
   const strokeWidth = hasSelection ? first.strokeWidth : style.strokeWidth;
   const opacity = hasSelection ? first.opacity : 1;
 
-  const setFill = (v: string | null) =>
+  const setFill = (v: Paint | null) =>
     hasSelection ? updateSelectedStyle({ fill: v }) : setStyle({ fill: v });
-  const setStroke = (v: string | null) =>
+  const setStroke = (v: Paint | null) =>
     hasSelection ? updateSelectedStyle({ stroke: v }) : setStyle({ stroke: v });
   const setStrokeWidth = (v: number) =>
     hasSelection

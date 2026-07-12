@@ -1,6 +1,7 @@
 import { subpathSegments } from "../model/bezier";
 import { shapeBounds } from "../model/bounds";
 import { applyMatrix, isIdentity } from "../model/matrix";
+import { paintToSvgAttrs } from "../model/paint";
 import { isGroup, isShape } from "../model/scene";
 import type { BezierShape, Document, Matrix, SceneNode, Shape } from "../model/types";
 import { contentBounds } from "./exportBounds";
@@ -21,9 +22,10 @@ function commonAttrs(shape: Shape): string {
     (shape.type === "path" && !shape.closed) ||
     (shape.type === "bezier" && !shape.subpaths.some((sp) => sp.closed))
   );
-  parts.push(`fill="${fillable && shape.fill ? shape.fill : "none"}"`);
+  if (fillable && shape.fill) parts.push(...paintToSvgAttrs(shape.fill, "fill"));
+  else parts.push(`fill="none"`);
   if (shape.stroke && shape.strokeWidth > 0) {
-    parts.push(`stroke="${shape.stroke}"`);
+    parts.push(...paintToSvgAttrs(shape.stroke, "stroke"));
     parts.push(`stroke-width="${num(shape.strokeWidth)}"`);
     parts.push(`stroke-linejoin="round" stroke-linecap="round"`);
   }
