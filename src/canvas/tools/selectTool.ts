@@ -1,8 +1,10 @@
 import { unionNodeWorldBounds, worldShapeBounds } from "../../model/bounds";
 import {
+  drillScopeRoot,
   exactlySelectedGroup,
   expandToGroups,
   isShapeHidden,
+  isWithinGroup,
 } from "../../model/groups";
 import { marqueeHitNode } from "../../model/hitTest";
 import {
@@ -121,9 +123,19 @@ export function onSelectDown(
     return;
   }
 
-  const scopeRoot = scopeRootGroupId(state.doc, currentSymbolScope(state));
+  const symbolRoot = scopeRootGroupId(state.doc, currentSymbolScope(state));
+  const activeGroup =
+    state.activeGroupId && isGroup(state.doc.nodes[state.activeGroupId])
+      ? state.activeGroupId
+      : null;
   const hitId = pickShape(ctx, world);
   if (hitId) {
+    // While drilled into a group, hits inside it resolve to its direct
+    // children; a hit outside steps back out to the top level.
+    const insideActive =
+      activeGroup != null && isWithinGroup(state.doc, hitId, activeGroup);
+    if (activeGroup && !insideActive) state.setActiveGroup(null);
+    const scopeRoot = insideActive ? activeGroup : symbolRoot;
     let selection: string[];
     if (shiftKey) {
       const group = expandToGroups(state.doc, [hitId], scopeRoot);
@@ -168,7 +180,10 @@ export function onSelectDown(
     return;
   }
 
-  if (!shiftKey) state.clearSelection();
+  if (!shiftKey) {
+    state.clearSelection();
+    if (activeGroup) state.setActiveGroup(null);
+  }
   ctx.interaction.current = {
     kind: "marquee",
     start: world,
@@ -371,6 +386,11 @@ export function onMarqueeUp(
 ) {
   const region = boundsFromPoints(inter.start, end);
   const scope = currentSymbolScope(state);
+  const drillRoot = drillScopeRoot(
+    state.doc,
+    state.activeGroupId,
+    scopeRootGroupId(state.doc, scope)
+  );
   const hits = scopeLeafIds(state.doc, scope).filter((id) => {
     const s = state.doc.nodes[id];
     return (
@@ -382,11 +402,7 @@ export function onMarqueeUp(
   });
   const base = inter.additive ? state.selection : [];
   state.setSelection(
-    expandToGroups(
-      state.doc,
-      [...new Set([...base, ...hits])],
-      scopeRootGroupId(state.doc, scope)
-    )
+    expandToGroups(state.doc, [...new Set([...base, ...hits])], drillRoot)
   );
   ctx.marquee.current = null;
   ctx.scheduleDraw();

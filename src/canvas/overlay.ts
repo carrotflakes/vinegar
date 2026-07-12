@@ -24,6 +24,8 @@ export interface OverlayOptions {
   showHandles: boolean;
   /** Screen-space size of resize handles (enlarged for touch). */
   handleSize?: number;
+  /** World bounds of the drilled-into group, outlined to show isolation. */
+  activeGroupBounds?: Bounds | null;
 }
 
 /** Draw selection chrome on top of the rendered scene, in screen space. */
@@ -34,6 +36,17 @@ export function drawOverlay(
   const { dpr, viewport, frame, marquee } = opts;
   const handleSize = opts.handleSize ?? HANDLE_SIZE;
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+  if (opts.activeGroupBounds) {
+    const b = opts.activeGroupBounds;
+    const nw = worldToScreen(viewport, { x: b.x, y: b.y });
+    const se = worldToScreen(viewport, { x: b.x + b.width, y: b.y + b.height });
+    ctx.strokeStyle = "rgba(150,160,175,0.85)";
+    ctx.lineWidth = 1;
+    ctx.setLineDash([2, 3]);
+    ctx.strokeRect(nw.x + 0.5, nw.y + 0.5, se.x - nw.x, se.y - nw.y);
+    ctx.setLineDash([]);
+  }
 
   if (frame) {
     const toS = (w: Vec2) => worldToScreen(viewport, w);

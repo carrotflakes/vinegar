@@ -53,6 +53,30 @@ export function expandToGroups(
   ];
 }
 
+/**
+ * The group that canvas selection should resolve *below*: the drilled-into
+ * active group when it's still a valid group, otherwise the symbol scope's
+ * own root group. See {@link expandToGroups}.
+ */
+export function drillScopeRoot(
+  doc: Document,
+  activeGroupId: string | null,
+  symbolScopeRoot: string | null
+): string | null {
+  return activeGroupId && isGroup(doc.nodes[activeGroupId])
+    ? activeGroupId
+    : symbolScopeRoot;
+}
+
+/** Whether `id` is the active group or nested inside it. */
+export function isWithinGroup(
+  doc: Document,
+  id: string,
+  groupId: string
+): boolean {
+  return id === groupId || ancestorIds(doc, id).includes(groupId);
+}
+
 export function selectionUnits(
   doc: Document,
   selection: string[]

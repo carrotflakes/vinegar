@@ -43,6 +43,12 @@ export interface EditorData {
   selectionTransform: Matrix | null;
   /** Symbol edit-mode stack (local view); last entry is the one being edited. */
   editingSymbols: string[];
+  /**
+   * The group the user has drilled into (double-click). Canvas clicks resolve
+   * to this group's direct children instead of the outermost group; null means
+   * top level. Reset when the symbol scope changes.
+   */
+  activeGroupId: string | null;
   /** The selected artboard, or null. Mutually exclusive with node selection. */
   selectedArtboardId: string | null;
   tool: ToolId;
@@ -81,6 +87,10 @@ export interface SelectionActions {
   clearSelection: () => void;
   selectAll: () => void;
   setEditNode: (node: EditNode | null) => void;
+  /** Drill into a group (double-click); null returns to top level. */
+  setActiveGroup: (id: string | null) => void;
+  /** Step out of the active group to its parent group (or top level). */
+  exitGroup: () => void;
 }
 
 /** Document lifecycle, undo history and drag-interaction batching. */

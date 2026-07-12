@@ -118,6 +118,7 @@ export default function App() {
       }
       if (e.key === "Escape") {
         if (s.selection.length || s.editNode) s.clearSelection();
+        else if (s.activeGroupId) s.exitGroup();
         else if (s.editingSymbols.length) s.exitSymbolEdit();
         return;
       }

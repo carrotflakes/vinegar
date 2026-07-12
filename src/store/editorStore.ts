@@ -47,6 +47,7 @@ export const useEditor = create<EditorState>((set, get) => {
     selectionPivot: null,
     selectionTransform: null,
     editingSymbols: [],
+    activeGroupId: null,
     selectedArtboardId: null,
     history: { past: [], future: [] },
     editNode: null,

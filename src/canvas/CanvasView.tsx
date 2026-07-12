@@ -1,10 +1,15 @@
 import { useCallback, useEffect, useMemo, useRef } from "react";
-import { exactlySelectedGroup, expandToGroups } from "../model/groups";
+import { unionNodeWorldBounds } from "../model/bounds";
+import {
+  drillScopeRoot,
+  exactlySelectedGroup,
+  expandToGroups,
+} from "../model/groups";
 import { shapeWorldMatrix } from "../model/matrix";
 import { type Guide, type Spacing } from "../model/snap";
 import type { BezierShape, Bounds, Shape, Vec2 } from "../model/types";
 import { screenToWorld, zoomAt, type Viewport } from "../model/viewport";
-import { scopeRootGroupId } from "../model/scene";
+import { isGroup, scopeRootGroupId } from "../model/scene";
 import { currentSymbolScope, useEditor } from "../store/editorStore";
 import { openContextMenu } from "../store/menuStore";
 import { setPointer, setReadout } from "../store/pointerStore";
@@ -148,6 +153,10 @@ export default function CanvasView() {
       marquee: marqueeRef.current,
       showHandles: tool === "select" && selected.length > 0,
       handleSize: HANDLE_SIZE * chrome,
+      activeGroupBounds:
+        tool === "select" && state.activeGroupId && doc.nodes[state.activeGroupId]
+          ? unionNodeWorldBounds(doc, [state.activeGroupId])
+          : null,
     });
 
     if (tool === "artboard" && scope === null) {
@@ -535,10 +544,22 @@ export default function CanvasView() {
     const screen = screenPoint(e);
     if (state.tool === "select") {
       if (onSelectDoubleClick(ctx, state, screen)) return;
-      // Double-clicking an instance dives into its symbol's local view.
       const world = screenToWorld(state.viewport, screen);
       const hitId = pickShape(ctx, world);
-      const hit = hitId ? state.doc.nodes[hitId] : null;
+      if (!hitId) return;
+      // Drill one level into the group under the cursor, selecting the child
+      // that was hit; a second double-click descends further.
+      const symbolRoot = scopeRootGroupId(state.doc, currentSymbolScope(state));
+      const scopeRoot = drillScopeRoot(state.doc, state.activeGroupId, symbolRoot);
+      const resolved = expandToGroups(state.doc, [hitId], scopeRoot)[0];
+      if (resolved && isGroup(state.doc.nodes[resolved])) {
+        state.setActiveGroup(resolved);
+        state.setSelection(expandToGroups(state.doc, [hitId], resolved));
+        ctx.scheduleDraw();
+        return;
+      }
+      // Double-clicking an instance dives into its symbol's local view.
+      const hit = state.doc.nodes[hitId];
       if (hit && hit.type === "instance") state.enterSymbolEdit(hit.symbolId);
       return;
     }

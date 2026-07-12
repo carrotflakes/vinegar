@@ -41,8 +41,8 @@ export function createHistory(set: StoreSet, get: StoreGet): HistorySlice {
   };
 
   const actions: HistoryActions = {
-    newDocument: () => { const doc = createEmptyDocument(); set({ doc, gridSize: doc.settings.gridSize, selection: [], editingSymbols: [], selectedArtboardId: null, history: { past: [], future: [] }, _pending: null, _dirty: false, ...clearTransient }); },
-    loadDocument: (doc) => set({ doc, gridSize: doc.settings.gridSize, selection: [], editingSymbols: [], selectedArtboardId: null, history: { past: [], future: [] }, _pending: null, _dirty: false, ...clearTransient }),
+    newDocument: () => { const doc = createEmptyDocument(); set({ doc, gridSize: doc.settings.gridSize, selection: [], editingSymbols: [], activeGroupId: null, selectedArtboardId: null, history: { past: [], future: [] }, _pending: null, _dirty: false, ...clearTransient }); },
+    loadDocument: (doc) => set({ doc, gridSize: doc.settings.gridSize, selection: [], editingSymbols: [], activeGroupId: null, selectedArtboardId: null, history: { past: [], future: [] }, _pending: null, _dirty: false, ...clearTransient }),
     beginInteraction: () => set({ _pending: clone(get().doc), _dirty: false }),
     applyShapes: (next) => set({ doc: { ...get().doc, nodes: { ...get().doc.nodes, ...next } }, _dirty: true }),
     setDoc: (doc) => set({ doc, _dirty: true }),
