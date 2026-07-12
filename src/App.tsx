@@ -12,6 +12,7 @@ import Toolbar from "./ui/Toolbar";
 import RightSidebar from "./ui/RightSidebar";
 import FileMenu from "./ui/FileMenu";
 import ScriptPanel from "./ui/ScriptPanel";
+import Inspector from "./ui/Inspector";
 import CommandPalette from "./ui/CommandPalette";
 import FullscreenButton from "./ui/FullscreenButton";
 import ContextMenuHost from "./ui/ContextMenu";
@@ -88,6 +89,7 @@ export default function App() {
   const gridSize = useEditor((s) => s.gridSize);
   const setGridSize = useEditor((s) => s.setGridSize);
   const [showScript, setShowScript] = useState(false);
+  const [showInspector, setShowInspector] = useState(false);
   const [showPanel, setShowPanel] = useState(false);
   const [showPalette, setShowPalette] = useState(false);
 
@@ -146,6 +148,9 @@ export default function App() {
           <FileMenu />
           <button className="bar-btn" onClick={() => setShowScript(true)}>
             Script
+          </button>
+          <button className="bar-btn" onClick={() => setShowInspector(true)}>
+            Inspect
           </button>
         </div>
 
@@ -229,6 +234,7 @@ export default function App() {
       </div>
 
       <ScriptPanel open={showScript} onClose={() => setShowScript(false)} />
+      <Inspector open={showInspector} onClose={() => setShowInspector(false)} />
       <CommandPalette open={showPalette} onClose={() => setShowPalette(false)} />
       <ContextMenuHost />
 

@@ -156,5 +156,5 @@ Ordered by agreed priority. These are the biggest gaps toward a "real" vector ed
   - [ ] Script API: expose instances (currently scene shapes only)
   - [ ] Export bounds: include stroke extents of instance content
 - [ ] MCPサーバー化
-- [ ] プロジェクトインスペクタ (デバッグ用)
+- [x] プロジェクトインスペクタ (デバッグ用) — appbar "Inspect"、ストア全体を汎用 JSON ツリー表示（`ui/Inspector.tsx`、反射的で追加機能に自動追従）
 - [ ] グループ内のオブジェクトの移動　（グループ選択に吸われてしまう）
