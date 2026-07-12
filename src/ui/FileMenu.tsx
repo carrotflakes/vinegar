@@ -40,7 +40,7 @@ export default function FileMenu() {
   return (
     <div className="menu-root" ref={rootRef}>
       <button
-        className={"ghost-btn" + (open ? " active" : "")}
+        className={"bar-btn" + (open ? " active" : "")}
         onClick={() => setOpen((v) => !v)}
         aria-haspopup="menu"
         aria-expanded={open}

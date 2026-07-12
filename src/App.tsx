@@ -134,73 +134,79 @@ export default function App() {
   return (
     <div className="app">
       <header className="appbar">
-        <div className="brand">
-          <span className="brand-mark">▰</span>
-          <span className="brand-word">Vinegar</span>
+        {/* Left zone — identity + menus. */}
+        <div className="appbar-zone">
+          <div className="brand">
+            <span className="brand-mark">▰</span>
+            <span className="brand-word">Vinegar</span>
+          </div>
+          <span className="appbar-sep" />
+          <FileMenu />
+          <button className="bar-btn" onClick={() => setShowScript(true)}>
+            Script
+          </button>
         </div>
-        <FileMenu />
-        <button className="ghost-btn" onClick={() => setShowScript(true)}>
-          Script
-        </button>
-        <div className="appbar-group">
+
+        {/* Center zone — reserved for contextual controls / document name. */}
+        <div className="appbar-spacer" />
+
+        {/* Right zone — history · view · global. */}
+        <div className="appbar-zone">
           <button
-            className="ghost-btn"
+            className="bar-btn icon"
             disabled={!canUndo}
             onClick={() => runCommand("edit.undo")}
             title="Undo (Ctrl+Z)"
           >
             <LuUndo2 aria-hidden />
-            <span>Undo</span>
           </button>
           <button
-            className="ghost-btn"
+            className="bar-btn icon"
             disabled={!canRedo}
             onClick={() => runCommand("edit.redo")}
             title="Redo (Ctrl+Shift+Z)"
           >
             <LuRedo2 aria-hidden />
-            <span>Redo</span>
           </button>
-        </div>
-        <div className="appbar-spacer" />
-        <div className="appbar-group">
+          <span className="appbar-sep" />
           <button
-            className="ghost-btn"
+            className="bar-btn icon"
             onClick={() => runCommand("view.zoomOut")}
             title="Zoom out"
           >
             <LuMinus aria-hidden />
           </button>
           <button
-            className="ghost-btn zoom-readout"
+            className="bar-btn zoom-readout"
             onClick={() => runCommand("view.reset")}
             title="Reset view"
           >
             {Math.round(viewport.scale * 100)}%
           </button>
           <button
-            className="ghost-btn"
+            className="bar-btn icon"
             onClick={() => runCommand("view.zoomIn")}
             title="Zoom in"
           >
             <LuPlus aria-hidden />
           </button>
+          <span className="appbar-sep" />
+          <button
+            className="bar-btn icon"
+            onClick={() => setShowPalette(true)}
+            title="Command palette (Ctrl+K)"
+          >
+            <LuCommand aria-hidden />
+          </button>
+          <button
+            className="bar-btn icon panel-toggle"
+            onClick={() => setShowPanel((v) => !v)}
+            aria-pressed={showPanel}
+            title="Toggle panel"
+          >
+            <LuPanelRight aria-hidden />
+          </button>
         </div>
-        <button
-          className="ghost-btn"
-          onClick={() => setShowPalette(true)}
-          title="Command palette (Ctrl+K)"
-        >
-          <LuCommand aria-hidden />
-        </button>
-        <button
-          className="ghost-btn panel-toggle"
-          onClick={() => setShowPanel((v) => !v)}
-          aria-pressed={showPanel}
-          title="Toggle panel"
-        >
-          <LuPanelRight aria-hidden />
-        </button>
       </header>
 
       <div className="body">
