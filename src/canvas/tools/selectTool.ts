@@ -3,9 +3,8 @@ import {
   exactlySelectedGroup,
   expandToGroups,
   isShapeHidden,
-  isShapeLocked,
 } from "../../model/groups";
-import { marqueeHitShape } from "../../model/hitTest";
+import { marqueeHitNode } from "../../model/hitTest";
 import {
   applyMatrix,
   applyWorldTransformToNode,
@@ -21,15 +20,19 @@ import { magnetAngle, snapAngle } from "../../model/rotate";
 import {
   descendantShapeIds,
   isGroup,
+  isInstance,
+  isNodeHidden,
+  isNodeLocked,
   isShape,
-  sceneIndex,
+  scopeLeafIds,
+  scopeRootGroupId,
   selectionRoots,
   shapesInPaintOrder,
 } from "../../model/scene";
 import { collectSnapTargets, computeSnap } from "../../model/snap";
 import type { SceneNode, Shape, Vec2 } from "../../model/types";
 import { worldToScreen } from "../../model/viewport";
-import { useEditor, type EditorState } from "../../store/editorStore";
+import { currentSymbolScope, useEditor, type EditorState } from "../../store/editorStore";
 import { setReadout } from "../../store/pointerStore";
 import { handleCursorRotated, resizeBounds } from "../handles";
 import type { Interaction, ToolContext } from "../interaction";
@@ -112,18 +115,19 @@ export function onSelectDown(
     return;
   }
 
+  const scopeRoot = scopeRootGroupId(state.doc, currentSymbolScope(state));
   const hitId = pickShape(ctx, world);
   if (hitId) {
     let selection: string[];
     if (shiftKey) {
-      const group = expandToGroups(state.doc, [hitId]);
+      const group = expandToGroups(state.doc, [hitId], scopeRoot);
       const has = group.every((id) => state.selection.includes(id));
       selection = has
         ? state.selection.filter((id) => !group.includes(id))
         : [...new Set([...state.selection, ...group])];
       state.setSelection(selection);
-    } else if (!expandToGroups(state.doc, [hitId]).some((id) => state.selection.includes(id))) {
-      selection = expandToGroups(state.doc, [hitId]);
+    } else if (!expandToGroups(state.doc, [hitId], scopeRoot).some((id) => state.selection.includes(id))) {
+      selection = expandToGroups(state.doc, [hitId], scopeRoot);
       state.setSelection(selection);
     } else {
       selection = state.selection;
@@ -132,7 +136,7 @@ export function onSelectDown(
     const selectedGroup = exactlySelectedGroup(state.doc, selection);
     const transient = !selectedGroup && selection.length > 1;
     const selectedLeafIds = new Set(selectionRoots(state.doc, selection).flatMap((id) => descendantShapeIds(state.doc, id)));
-    const others = shapesInPaintOrder(state.doc)
+    const others = shapesInPaintOrder(state.doc, currentSymbolScope(state))
       .filter(
         (s): s is Shape =>
           !selectedLeafIds.has(s.id) && !isShapeHidden(state.doc, s)
@@ -333,18 +337,23 @@ export function onMarqueeUp(
   end: Vec2
 ) {
   const region = boundsFromPoints(inter.start, end);
-  const hits = sceneIndex(state.doc).shapeIds.filter((id) => {
+  const scope = currentSymbolScope(state);
+  const hits = scopeLeafIds(state.doc, scope).filter((id) => {
     const s = state.doc.nodes[id];
     return (
-      isShape(s) &&
-      !isShapeHidden(state.doc, s) &&
-      !isShapeLocked(state.doc, s) &&
-      marqueeHitShape(state.doc, s, region)
+      (isShape(s) || isInstance(s)) &&
+      !isNodeHidden(state.doc, id) &&
+      !isNodeLocked(state.doc, id) &&
+      marqueeHitNode(state.doc, s, region)
     );
   });
   const base = inter.additive ? state.selection : [];
   state.setSelection(
-    expandToGroups(state.doc, [...new Set([...base, ...hits])])
+    expandToGroups(
+      state.doc,
+      [...new Set([...base, ...hits])],
+      scopeRootGroupId(state.doc, scope)
+    )
   );
   ctx.marquee.current = null;
   ctx.scheduleDraw();

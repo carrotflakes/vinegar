@@ -109,5 +109,12 @@ A running list of what's built and what's next. Check items off as they land.
   - [ ] 項目の拡充（Align / Boolean / パス操作などコンテキスト依存の項目）
   - [ ] タッチ長押しで表示（モバイル）
   - [ ] キーボードナビゲーション（↑↓Enter）
-- [ ] 再利用可能部品　UnityのPrefabのようなもの, イラレだとシンボル
+- [x] 再利用可能部品　UnityのPrefabのようなもの, イラレだとシンボル
+  - [x] v1: instances are atomic (no per-instance overrides beyond transform/opacity/blend); Create symbol / place / detach / rename / delete
+  - [x] Symbol edit mode: isolated local view (double-click an instance or use the Symbols panel; Esc/Done to exit); file format v9 (v8 auto-migrates)
+  - [ ] In-place symbol editing (dimmed scene context via an instance's world transform)
+  - [ ] Snapping targets inside/against instances; exact marquee for rotated instances
+  - [ ] Script API: expose instances (currently scene shapes only)
+  - [ ] Export bounds: include stroke extents of instance content
 - [ ] MCPサーバー化
+- [ ] プロジェクトインスペクタ

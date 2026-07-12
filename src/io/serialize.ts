@@ -1,6 +1,9 @@
 import { BLEND_MODES, type Document, type ShapeType } from "../model/types";
 
-export const CURRENT_FILE_VERSION = 8 as const;
+export const CURRENT_FILE_VERSION = 9 as const;
+
+/** v8 lacked `symbols`; it upgrades by adding an empty registry. */
+const MIGRATABLE_VERSIONS = new Set<unknown>([8]);
 
 export interface VinegarFile {
   app: "vinegar";
@@ -20,8 +23,8 @@ export function serializeDocument(doc: Document): string {
   return JSON.stringify(file, null, 2);
 }
 
-const NODE_TYPES = new Set<ShapeType | "group">([
-  "group", "rect", "ellipse", "line", "path", "bezier", "polygon", "compoundPath",
+const NODE_TYPES = new Set<ShapeType | "group" | "instance">([
+  "group", "rect", "ellipse", "line", "path", "bezier", "polygon", "compoundPath", "instance",
 ]);
 const isObject = (value: unknown): value is Record<string, unknown> =>
   !!value && typeof value === "object" && !Array.isArray(value);
@@ -38,7 +41,7 @@ const isPoints = (value: unknown): boolean =>
   Array.isArray(value) && value.every(isPoint);
 const isNode = (id: string, node: unknown): boolean => {
   if (!isObject(node) || node.id !== id || typeof node.name !== "string" ||
-      !NODE_TYPES.has(node.type as ShapeType | "group") ||
+      !NODE_TYPES.has(node.type as ShapeType | "group" | "instance") ||
       !isMatrix(node.transform) || !isPointOrNull(node.transformOrigin) ||
       !isNumber(node.opacity) || node.opacity < 0 || node.opacity > 1 ||
       (node.blendMode !== undefined && !BLEND_MODES.includes(node.blendMode as never)) ||
@@ -46,6 +49,9 @@ const isNode = (id: string, node: unknown): boolean => {
       (node.locked !== undefined && typeof node.locked !== "boolean")) return false;
   if (node.type === "group") {
     return Array.isArray(node.childIds) && node.childIds.every((child) => typeof child === "string");
+  }
+  if (node.type === "instance") {
+    return typeof node.symbolId === "string";
   }
   if (!((node.fill === null || typeof node.fill === "string") &&
       (node.stroke === null || typeof node.stroke === "string") &&
@@ -93,8 +99,11 @@ export function parseDocument(text: string): Document {
   if (!isObject(data) || data.app !== "vinegar") {
     throw new Error("Not a Vinegar file.");
   }
-  if (data.version !== CURRENT_FILE_VERSION) {
+  if (data.version !== CURRENT_FILE_VERSION && !MIGRATABLE_VERSIONS.has(data.version)) {
     throw new Error(`Unsupported Vinegar file version: ${String(data.version)}.`);
+  }
+  if (data.version === 8 && isObject(data.document) && data.document.symbols === undefined) {
+    data.document.symbols = {};
   }
   if (!isCurrentDocument(data.document)) {
     throw new Error("Document data is missing or malformed.");
@@ -109,6 +118,10 @@ function isCurrentDocument(value: unknown): value is Document {
     Array.isArray(value.rootIds) &&
     value.rootIds.every((id) => typeof id === "string") &&
     Object.entries(value.nodes).every(([id, node]) => isNode(id, node)) &&
+    isObject(value.symbols) &&
+    Object.entries(value.symbols).every(([id, def]) =>
+      isObject(def) && def.id === id &&
+      typeof def.name === "string" && typeof def.rootNodeId === "string") &&
     isObject(value.settings) && typeof value.settings.unit === "string" &&
     isNumber(value.settings.dpi) && isNumber(value.settings.gridSize) &&
     isObject(value.metadata) && typeof value.metadata.createdAt === "string" &&
@@ -126,13 +139,45 @@ function validateTree(doc: Document): void {
     if (visiting.has(id)) throw new Error("Scene tree contains a cycle.");
     if (owned.has(id)) throw new Error(`Scene node has multiple parents: ${id}.`);
     owned.add(id);
+    if (node.type === "instance") {
+      if (!doc.symbols[node.symbolId]) {
+        throw new Error(`Instance references missing symbol: ${node.symbolId}.`);
+      }
+      return;
+    }
     if (node.type !== "group") return;
     visiting.add(id);
     for (const childId of node.childIds) visit(childId);
     visiting.delete(id);
   };
   for (const id of doc.rootIds) visit(id);
+  for (const def of Object.values(doc.symbols)) {
+    const root = doc.nodes[def.rootNodeId];
+    if (!root || root.type !== "group") {
+      throw new Error(`Symbol has no root group: ${def.id}.`);
+    }
+    visit(def.rootNodeId);
+  }
   if (owned.size !== Object.keys(doc.nodes).length) {
     throw new Error("Scene contains unreachable nodes.");
   }
+  // The symbol reference graph must be acyclic.
+  const done = new Set<string>();
+  const stack = new Set<string>();
+  const visitSymbol = (id: string) => {
+    if (stack.has(id)) throw new Error("Symbols reference each other cyclically.");
+    if (done.has(id)) return;
+    stack.add(id);
+    const walk = (nodeId: string) => {
+      const node = doc.nodes[nodeId];
+      if (!node) return;
+      if (node.type === "instance") visitSymbol(node.symbolId);
+      else if (node.type === "group") node.childIds.forEach(walk);
+    };
+    const def = doc.symbols[id];
+    if (def) walk(def.rootNodeId);
+    stack.delete(id);
+    done.add(id);
+  };
+  for (const def of Object.values(doc.symbols)) visitSymbol(def.id);
 }

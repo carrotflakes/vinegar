@@ -27,8 +27,8 @@ import {
   exactlySelectedGroup,
   selectionUnits,
 } from "../model/groups";
-import { BLEND_MODES, type BlendMode, type Shape } from "../model/types";
-import { descendantShapeIds, isShape, selectionRoots } from "../model/scene";
+import { BLEND_MODES, type BlendMode, type Shape, type SymbolInstance } from "../model/types";
+import { descendantShapeIds, isInstance, isShape, selectionRoots } from "../model/scene";
 import { useEditor } from "../store/editorStore";
 import ColorField from "./ColorField";
 import { getSelectionFrame } from "../canvas/frame";
@@ -55,7 +55,14 @@ export default function PropertiesPanel() {
   const outlineStrokeSelected = useEditor((s) => s.outlineStrokeSelected);
   const makeCompoundPathSelected = useEditor((s) => s.makeCompoundPathSelected);
   const releaseCompoundPathSelected = useEditor((s) => s.releaseCompoundPathSelected);
+  const enterSymbolEdit = useEditor((s) => s.enterSymbolEdit);
+  const detachSelectedInstances = useEditor((s) => s.detachSelectedInstances);
 
+  const selectionRootIds = selectionRoots(doc, selection);
+  const selectedInstance =
+    selectionRootIds.length === 1 && isInstance(doc.nodes[selectionRootIds[0]])
+      ? (doc.nodes[selectionRootIds[0]] as SymbolInstance)
+      : null;
   const selectedIds = selectionRoots(doc, selection).flatMap((id) =>
     isShape(doc.nodes[id]) ? [id] : descendantShapeIds(doc, id)
   );
@@ -141,6 +148,30 @@ export default function PropertiesPanel() {
 
   return (
     <div className="panel">
+      {selectedInstance && (
+        <div className="panel-section">
+          <div className="panel-title">Symbol instance</div>
+          <div className="field">
+            <label>Symbol</label>
+            <div className="field-row">
+              <span className="readout instance-symbol-name">
+                {doc.symbols[selectedInstance.symbolId]?.name ?? "Missing symbol"}
+              </span>
+            </div>
+          </div>
+          <div className="btn-row">
+            <button
+              className="ghost-btn"
+              onClick={() => enterSymbolEdit(selectedInstance.symbolId)}
+            >
+              Edit symbol
+            </button>
+            <button className="ghost-btn" onClick={detachSelectedInstances}>
+              Detach
+            </button>
+          </div>
+        </div>
+      )}
       <div className="panel-section">
         <div className="panel-title">
           {hasSelection

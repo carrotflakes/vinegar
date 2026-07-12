@@ -154,39 +154,74 @@ function bezierPathData(shape: BezierShape): string {
 /**
  * Serialize a render node. Groups become `<g>`; ones that composite as a
  * layer (opacity/blend) get `isolation:isolate` so their children blend
- * within the group, matching the canvas.
+ * within the group, matching the canvas. Symbol instances expand inline as
+ * `<g>` wrapping their definition's content.
  */
-function nodeToSvg(doc: Document, node: SceneNode, indent: string): string[] {
+function nodeToSvg(
+  doc: Document,
+  node: SceneNode,
+  indent: string,
+  activeSymbols: Set<string> = new Set()
+): string[] {
   if (isShape(node)) {
     return node.hidden ? [] : [indent + shapeToSvg(node)];
   }
-  const g = node;
-  if (g.hidden) return [];
+  if (node.hidden) return [];
+  let childIds: string[];
+  let symbolId: string | null = null;
+  if (isGroup(node)) {
+    childIds = node.childIds;
+  } else if (node.type === "instance") {
+    if (activeSymbols.has(node.symbolId)) return [];
+    const def = doc.symbols[node.symbolId];
+    if (!def) return [];
+    childIds = [def.rootNodeId];
+    symbolId = node.symbolId;
+  } else {
+    return [];
+  }
   const attrs: string[] = [];
-  if (!isIdentity(g.transform)) attrs.push(`transform="${matrixAttr(g.transform)}"`);
-  const alpha = g.opacity ?? 1;
+  if (!isIdentity(node.transform)) attrs.push(`transform="${matrixAttr(node.transform)}"`);
+  const alpha = node.opacity ?? 1;
   if (alpha < 1) attrs.push(`opacity="${num(alpha)}"`);
-  if (g.blendMode && g.blendMode !== "normal") {
-    attrs.push(`style="mix-blend-mode:${g.blendMode};isolation:isolate"`);
+  if (node.blendMode && node.blendMode !== "normal") {
+    attrs.push(`style="mix-blend-mode:${node.blendMode};isolation:isolate"`);
   } else if (alpha < 1) {
     attrs.push(`style="isolation:isolate"`);
   }
+  if (symbolId) activeSymbols.add(symbolId);
+  const body = childIds.flatMap((id) => {
+    const child = doc.nodes[id];
+    return child ? nodeToSvg(doc, child, indent + "  ", activeSymbols) : [];
+  });
+  if (symbolId) activeSymbols.delete(symbolId);
   return [
     indent + `<g${attrs.length ? " " + attrs.join(" ") : ""}>`,
-    ...g.childIds.flatMap((id) => {
-      const child = doc.nodes[id];
-      return child ? nodeToSvg(doc, child, indent + "  ") : [];
-    }),
+    ...body,
     indent + `</g>`,
   ];
 }
 
 /** Whether any visible shape or group in the tree uses a blend mode. */
-function usesBlend(doc: Document, node: SceneNode): boolean {
+function usesBlend(
+  doc: Document,
+  node: SceneNode,
+  activeSymbols: Set<string> = new Set()
+): boolean {
   if (node.blendMode && node.blendMode !== "normal") return true;
+  if (node.type === "instance") {
+    if (activeSymbols.has(node.symbolId)) return false;
+    const def = doc.symbols[node.symbolId];
+    const root = def ? doc.nodes[def.rootNodeId] : null;
+    if (!def || !root) return false;
+    activeSymbols.add(node.symbolId);
+    const result = usesBlend(doc, root, activeSymbols);
+    activeSymbols.delete(node.symbolId);
+    return result;
+  }
   return isGroup(node) && node.childIds.some((id) => {
     const child = doc.nodes[id];
-    return !!child && usesBlend(doc, child);
+    return !!child && usesBlend(doc, child, activeSymbols);
   });
 }
 

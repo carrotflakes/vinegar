@@ -1,19 +1,21 @@
 import { subpathSegments } from "../model/bezier";
 import { shapeBounds } from "../model/bounds";
 import { isIdentity } from "../model/matrix";
-import { isGroup, isShape } from "../model/scene";
+import { isGroup, isInstance, isShape } from "../model/scene";
 import type { Document, Shape } from "../model/types";
 import { worldToScreen, type Viewport } from "../model/viewport";
 
 /**
- * Paint a render node. Groups with opacity/blend are drawn into an offscreen
- * layer matching the target canvas, then composited in one draw.
+ * Paint a render node. Groups and instances with opacity/blend are drawn into
+ * an offscreen layer matching the target canvas, then composited in one draw.
+ * `activeSymbols` tracks the symbol expansion stack to break (invalid) cycles.
  */
 export function paintNode(
   ctx: CanvasRenderingContext2D,
   doc: Document,
   nodeId: string,
-  preview?: Shape | null
+  preview?: Shape | null,
+  activeSymbols: Set<string> = new Set()
 ): void {
   const node = doc.nodes[nodeId];
   if (!node) return;
@@ -22,16 +24,29 @@ export function paintNode(
     paintShape(ctx, preview?.id === node.id ? preview : node);
     return;
   }
-  if (!isGroup(node)) return;
-  const g = node;
-  if (g.hidden) return;
+  let childIds: string[];
+  let symbolId: string | null = null;
+  if (isGroup(node)) {
+    childIds = node.childIds;
+  } else if (isInstance(node)) {
+    if (activeSymbols.has(node.symbolId)) return;
+    const def = doc.symbols[node.symbolId];
+    if (!def) return;
+    childIds = [def.rootNodeId];
+    symbolId = node.symbolId;
+  } else {
+    return;
+  }
+  if (node.hidden) return;
+  if (symbolId) activeSymbols.add(symbolId);
   ctx.save();
-  ctx.transform(...g.transform);
-  const alpha = g.opacity ?? 1;
-  const blend = g.blendMode && g.blendMode !== "normal" ? g.blendMode : null;
+  ctx.transform(...node.transform);
+  const alpha = node.opacity ?? 1;
+  const blend = node.blendMode && node.blendMode !== "normal" ? node.blendMode : null;
   if (alpha >= 1 && !blend) {
-    for (const childId of g.childIds) paintNode(ctx, doc, childId, preview);
+    for (const childId of childIds) paintNode(ctx, doc, childId, preview, activeSymbols);
     ctx.restore();
+    if (symbolId) activeSymbols.delete(symbolId);
     return;
   }
   const layer = document.createElement("canvas");
@@ -40,10 +55,11 @@ export function paintNode(
   const lctx = layer.getContext("2d");
   if (!lctx) {
     ctx.restore();
+    if (symbolId) activeSymbols.delete(symbolId);
     return;
   }
   lctx.setTransform(ctx.getTransform());
-  for (const childId of g.childIds) paintNode(lctx, doc, childId, preview);
+  for (const childId of childIds) paintNode(lctx, doc, childId, preview, activeSymbols);
   ctx.restore();
   ctx.save();
   ctx.setTransform(1, 0, 0, 1, 0, 0);
@@ -51,6 +67,7 @@ export function paintNode(
   if (blend) ctx.globalCompositeOperation = blend;
   ctx.drawImage(layer, 0, 0);
   ctx.restore();
+  if (symbolId) activeSymbols.delete(symbolId);
 }
 
 /** Build the geometry of a shape onto the current canvas path. */
@@ -177,6 +194,8 @@ export interface RenderOptions {
   showGrid?: boolean;
   /** World units between grid lines (defaults to 50). */
   gridSize?: number;
+  /** Paint these roots instead of `doc.rootIds` (symbol local view). */
+  rootIds?: string[];
 }
 
 /** Full scene render: background, grid, shapes, preview. */
@@ -199,7 +218,7 @@ export function renderScene(
 
   // A preview that shares a document shape's id supersedes it (the pen
   // extending an existing path); skip the stale copy underneath.
-  for (const nodeId of doc.rootIds) {
+  for (const nodeId of opts.rootIds ?? doc.rootIds) {
     paintNode(ctx, doc, nodeId, opts.preview);
   }
   if (opts.preview && !doc.nodes[opts.preview.id]) paintShape(ctx, opts.preview);

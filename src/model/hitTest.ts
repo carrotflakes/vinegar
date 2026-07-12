@@ -1,7 +1,8 @@
 import { flattenSubpath } from "./bezier";
-import { shapeBounds, worldShapeBounds } from "./bounds";
-import { invertMatrix, matrixScale, shapeWorldMatrix } from "./matrix";
-import type { Bounds, Document, Shape, Vec2 } from "./types";
+import { instanceWorldBounds, shapeBounds, worldShapeBounds } from "./bounds";
+import { invertMatrix, matrixScale, nodeWorldMatrix, shapeWorldMatrix, transformBounds } from "./matrix";
+import { isInstance, isNodeHidden, isShape, scopeLeafIds } from "./scene";
+import type { Bounds, Document, Shape, SymbolInstance, Vec2 } from "./types";
 import { applyMatrix } from "./matrix";
 
 /** Even-odd point-in-polygon test. */
@@ -207,6 +208,73 @@ export function hitTestShape(doc: Document, shape: Shape, p: Vec2, tol: number):
         );
     }
   }
+}
+
+/**
+ * Whether world-point `p` hits a paintable leaf (shape or symbol instance).
+ * Instances hit when any leaf of their symbol's content does, tested in
+ * symbol-local space.
+ */
+export function hitTestNode(
+  doc: Document,
+  node: Shape | SymbolInstance,
+  p: Vec2,
+  tol: number,
+  seen: Set<string> = new Set()
+): boolean {
+  if (isShape(node)) return hitTestShape(doc, node, p, tol);
+  if (seen.has(node.symbolId)) return false;
+  const world = nodeWorldMatrix(doc, node.id);
+  const inverse = invertMatrix(world);
+  if (!inverse) return false;
+  const local = applyMatrix(inverse, p);
+  const localTol = tol / matrixScale(world);
+  seen.add(node.symbolId);
+  const leaves = scopeLeafIds(doc, node.symbolId);
+  let hit = false;
+  for (let i = leaves.length - 1; i >= 0; i--) {
+    const leaf = doc.nodes[leaves[i]];
+    if (!isShape(leaf) && !isInstance(leaf)) continue;
+    if (isNodeHidden(doc, leaf.id)) continue;
+    // Leaf world matrices inside a definition are symbol-local, matching
+    // the transformed point.
+    if (hitTestNode(doc, leaf, local, localTol, seen)) {
+      hit = true;
+      break;
+    }
+  }
+  seen.delete(node.symbolId);
+  return hit;
+}
+
+/**
+ * Whether a world marquee rectangle intersects a paintable leaf. For
+ * instances the region is mapped into symbol space as the AABB of the
+ * transformed quad, so rotated instances can over-select slightly.
+ */
+export function marqueeHitNode(
+  doc: Document,
+  node: Shape | SymbolInstance,
+  region: Bounds,
+  seen: Set<string> = new Set()
+): boolean {
+  if (isShape(node)) return marqueeHitShape(doc, node, region);
+  if (seen.has(node.symbolId)) return false;
+  const bounds = instanceWorldBounds(doc, node);
+  if (!bounds || !rectsIntersect(bounds, region)) return false;
+  const world = nodeWorldMatrix(doc, node.id);
+  const inverse = invertMatrix(world);
+  if (!inverse) return false;
+  const localRegion = transformBounds(region, inverse);
+  seen.add(node.symbolId);
+  const hit = scopeLeafIds(doc, node.symbolId).some((id) => {
+    const leaf = doc.nodes[id];
+    if (!isShape(leaf) && !isInstance(leaf)) return false;
+    if (isNodeHidden(doc, leaf.id)) return false;
+    return marqueeHitNode(doc, leaf, localRegion, seen);
+  });
+  seen.delete(node.symbolId);
+  return hit;
 }
 
 interface WorldPolyline {

@@ -9,6 +9,7 @@ import {
   isShape,
   parentIdOf,
   rootAncestorId,
+  rootAncestorIdWithin,
   selectionRoots,
 } from "./scene";
 import type { Document, Group, Shape } from "./types";
@@ -38,9 +39,18 @@ export function isShapeLocked(doc: Document, shape: Shape): boolean {
   return isNodeLocked(doc, shape.id);
 }
 
-/** Canvas selection resolves leaf hits to their outermost group. */
-export function expandToGroups(doc: Document, ids: string[]): string[] {
-  return [...new Set(ids.map((id) => rootAncestorId(doc, id)))];
+/**
+ * Canvas selection resolves leaf hits to their outermost group. Inside a
+ * symbol's local view, "outermost" stops below the definition root group.
+ */
+export function expandToGroups(
+  doc: Document,
+  ids: string[],
+  scopeRootGroup: string | null = null
+): string[] {
+  return [
+    ...new Set(ids.map((id) => rootAncestorIdWithin(doc, id, scopeRootGroup))),
+  ];
 }
 
 export function selectionUnits(

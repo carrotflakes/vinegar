@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { LuMinus, LuPlus, LuUndo2, LuRedo2, LuPanelRight } from "react-icons/lu";
 import CanvasView from "./canvas/CanvasView";
 import { initialViewport, zoomAt } from "./model/viewport";
-import { useEditor, type ToolId } from "./store/editorStore";
+import { currentSymbolScope, useEditor, type ToolId } from "./store/editorStore";
 import { usePointer } from "./store/pointerStore";
 import Toolbar from "./ui/Toolbar";
 import RightSidebar from "./ui/RightSidebar";
@@ -10,7 +10,7 @@ import FileMenu from "./ui/FileMenu";
 import ScriptPanel from "./ui/ScriptPanel";
 import ContextMenuHost from "./ui/ContextMenu";
 import "./App.css";
-import { isShape, sceneIndex } from "./model/scene";
+import { scopeLeafIds } from "./model/scene";
 
 const TOOL_KEYS: Record<string, ToolId> = {
   v: "select",
@@ -44,16 +44,18 @@ const TYPE_LABELS: Record<string, string> = {
   bezier: "Curve",
   polygon: "Polygon",
   compoundPath: "Compound Path",
+  instance: "Instance",
+  group: "Group",
 };
 
 /** Selection summary: count, or type + name for a single selection. */
 function SelectionInfo() {
   const label = useEditor((s) => {
-    const total = sceneIndex(s.doc).shapeIds.length;
+    const total = scopeLeafIds(s.doc, currentSymbolScope(s)).length;
     const n = s.selection.length;
     if (n === 1) {
       const node = s.doc.nodes[s.selection[0]];
-      if (node) return `${isShape(node) ? TYPE_LABELS[node.type] ?? node.type : "Group"} · ${node.name}`;
+      if (node) return `${TYPE_LABELS[node.type] ?? node.type} · ${node.name}`;
     }
     if (n > 1) return `${n} of ${total} selected`;
     return `${total} shape${total === 1 ? "" : "s"}`;
@@ -173,7 +175,10 @@ export default function App() {
         return;
       }
       if (e.key === "Escape") {
-        s.clearSelection();
+        // First Esc clears the selection; the next one leaves the symbol
+        // local view.
+        if (s.selection.length || s.editNode) s.clearSelection();
+        else if (s.editingSymbols.length) s.exitSymbolEdit();
         return;
       }
       if (!mod && TOOL_KEYS[e.key.toLowerCase()]) {

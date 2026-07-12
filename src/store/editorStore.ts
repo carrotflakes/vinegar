@@ -35,14 +35,22 @@ import {
   childIdsOf,
   descendantNodeIds,
   descendantShapeIds,
+  instanceIdsOf,
   isGroup,
+  isInstance,
   isNodeHidden,
   isNodeLocked,
   isShape,
   parentIdOf,
+  referencedSymbolIds,
+  scopeRootGroupId,
+  scopeRootIds,
   selectionRoots,
   withChildIds,
+  wouldCreateSymbolCycle,
 } from "../model/scene";
+import { symbolContentBounds } from "../model/bounds";
+import type { SymbolInstance } from "../model/types";
 
 export type ToolId = "select" | "node" | "rect" | "ellipse" | "line" | "pen" | "pencil";
 export interface EditNode { shapeId: string; sub: number; index: number }
@@ -66,6 +74,8 @@ export interface EditorState {
   selection: string[];
   selectionPivot: Vec2 | null;
   selectionTransform: Matrix | null;
+  /** Symbol edit-mode stack (local view); last entry is the one being edited. */
+  editingSymbols: string[];
   tool: ToolId;
   viewport: Viewport;
   style: StyleDefaults;
@@ -128,6 +138,14 @@ export interface EditorState {
   renameGroup: (id: string, name: string) => void;
   updateGroupStyle: (id: string, patch: Partial<Pick<Group, "opacity" | "blendMode" | "hidden" | "locked" | "transform" | "transformOrigin">>) => void;
   moveNode: (id: string, parentId: string | null, index: number) => void;
+  renameNode: (id: string, name: string) => void;
+  createSymbolFromSelection: () => void;
+  placeSymbolInstance: (symbolId: string, at?: Vec2) => void;
+  detachSelectedInstances: () => void;
+  enterSymbolEdit: (symbolId: string) => void;
+  exitSymbolEdit: () => void;
+  renameSymbol: (symbolId: string, name: string) => void;
+  deleteSymbol: (symbolId: string) => void;
   beginInteraction: () => void;
   applyShapes: (next: Record<string, SceneNode>) => void;
   setDoc: (doc: Document) => void;
@@ -195,6 +213,31 @@ function groupNode(id: string, childIds: string[]): Group {
   return { id, name: "Group", type: "group", childIds, transform: [...IDENTITY], transformOrigin: null, opacity: 1 };
 }
 
+/** The symbol whose definition is being edited, or null for the scene. */
+export function currentSymbolScope(
+  s: Pick<EditorState, "editingSymbols">
+): string | null {
+  return s.editingSymbols[s.editingSymbols.length - 1] ?? null;
+}
+
+/** Append nodes as new top-most children of the current editing scope. */
+function appendToScope(doc: Document, scope: string | null, ids: string[]): Document {
+  const parent = scopeRootGroupId(doc, scope);
+  return withChildIds(doc, parent, [...childIdsOf(doc, parent), ...ids]);
+}
+
+function instanceNode(id: string, symbolId: string, transform: Matrix): SymbolInstance {
+  return {
+    id,
+    name: "Instance",
+    type: "instance",
+    symbolId,
+    transform,
+    transformOrigin: null,
+    opacity: 1,
+  };
+}
+
 interface AlignItem { id: string; bounds: Bounds }
 function selectionItems(doc: Document, selection: string[]): AlignItem[] {
   return selectionRoots(doc, selection).flatMap((id) => {
@@ -221,6 +264,7 @@ export const useEditor = create<EditorState>((set, get) => {
 
   return {
     doc: createEmptyDocument(), selection: [], selectionPivot: null, selectionTransform: null,
+    editingSymbols: [],
     tool: "select", viewport: initialViewport,
     style: { fill: "#4f8cff", stroke: "#1b1b1b", strokeWidth: 2 },
     history: { past: [], future: [] }, editNode: null, snapEnabled: true,
@@ -236,7 +280,7 @@ export const useEditor = create<EditorState>((set, get) => {
     setSelectionTransform: (selectionTransform) => set({ selectionTransform }),
     toggleSelection: (id) => set({ selection: get().selection.includes(id) ? get().selection.filter((x) => x !== id) : [...get().selection, id], ...clearTransient }),
     clearSelection: () => set({ selection: [], editNode: null, ...clearTransient }),
-    selectAll: () => set({ selection: get().doc.rootIds.filter((id) => !isNodeHidden(get().doc, id) && !isNodeLocked(get().doc, id)), ...clearTransient }),
+    selectAll: () => { const s = get(); const roots = scopeRootIds(s.doc, currentSymbolScope(s)); set({ selection: roots.filter((id) => !isNodeHidden(s.doc, id) && !isNodeLocked(s.doc, id)), ...clearTransient }); },
     setEditNode: (editNode) => set({ editNode }),
     toggleSnap: () => set({ snapEnabled: !get().snapEnabled }),
     toggleGridSnap: () => set({ gridSnap: !get().gridSnap }),
@@ -246,11 +290,11 @@ export const useEditor = create<EditorState>((set, get) => {
     removeSwatch: (hex) => { const savedSwatches = get().savedSwatches.filter((x) => x !== hex.toLowerCase()); saveColorList(SAVED_SWATCHES_KEY, savedSwatches); set({ savedSwatches }); },
     setStyle: (patch) => set({ style: { ...get().style, ...patch } }),
 
-    newDocument: () => { const doc = createEmptyDocument(); set({ doc, gridSize: doc.settings.gridSize, selection: [], history: { past: [], future: [] }, _pending: null, _dirty: false, ...clearTransient }); },
-    loadDocument: (doc) => set({ doc, gridSize: doc.settings.gridSize, selection: [], history: { past: [], future: [] }, _pending: null, _dirty: false, ...clearTransient }),
+    newDocument: () => { const doc = createEmptyDocument(); set({ doc, gridSize: doc.settings.gridSize, selection: [], editingSymbols: [], history: { past: [], future: [] }, _pending: null, _dirty: false, ...clearTransient }); },
+    loadDocument: (doc) => set({ doc, gridSize: doc.settings.gridSize, selection: [], editingSymbols: [], history: { past: [], future: [] }, _pending: null, _dirty: false, ...clearTransient }),
 
-    addShape: (shape, select = true) => { const { doc } = get(); transact({ ...doc, nodes: { ...doc.nodes, [shape.id]: shape }, rootIds: [...doc.rootIds, shape.id] }); if (select) set({ selection: [shape.id], ...clearTransient }); },
-    addShapes: (shapes, select = true) => { if (!shapes.length) return; const doc = get().doc; transact({ ...doc, nodes: { ...doc.nodes, ...Object.fromEntries(shapes.map((s) => [s.id, s])) }, rootIds: [...doc.rootIds, ...shapes.map((s) => s.id)] }); if (select) set({ selection: shapes.map((s) => s.id), ...clearTransient }); },
+    addShape: (shape, select = true) => { const s = get(); const doc = { ...s.doc, nodes: { ...s.doc.nodes, [shape.id]: shape } }; transact(appendToScope(doc, currentSymbolScope(s), [shape.id])); if (select) set({ selection: [shape.id], ...clearTransient }); },
+    addShapes: (shapes, select = true) => { if (!shapes.length) return; const s = get(); const doc = { ...s.doc, nodes: { ...s.doc.nodes, ...Object.fromEntries(shapes.map((sh) => [sh.id, sh])) } }; transact(appendToScope(doc, currentSymbolScope(s), shapes.map((sh) => sh.id))); if (select) set({ selection: shapes.map((sh) => sh.id), ...clearTransient }); },
     updateShape: (shape, select = true) => { const doc = get().doc; if (!isShape(doc.nodes[shape.id])) return; transact({ ...doc, nodes: { ...doc.nodes, [shape.id]: shape } }); if (select) set({ selection: [shape.id], ...clearTransient }); },
     toggleNodeSmooth: (id, sub, index) => { const doc = get().doc; const shape = doc.nodes[id]; if (!isShape(shape) || shape.type !== "bezier") return; transact({ ...doc, nodes: { ...doc.nodes, [id]: toggleAnchorSmooth(shape, sub, index) } }); },
     deleteEditNode: () => {
@@ -279,14 +323,19 @@ export const useEditor = create<EditorState>((set, get) => {
     copySelected: () => set({ clipboard: copyPayload(get().doc, get().selection) }),
     cutSelected: () => { get().copySelected(); get().deleteSelected(); },
     paste: (at) => {
-      const { clipboard, doc } = get(); if (!clipboard) return;
+      const state = get(); const { clipboard, doc } = state; if (!clipboard) return;
+      // Instances only paste while their symbol exists and no cycle results.
+      const symbolIds = referencedSymbolIds(Object.values(clipboard.nodes));
+      for (const symbolId of symbolIds) if (!doc.symbols[symbolId]) return;
+      const scope = currentSymbolScope(state);
+      if (wouldCreateSymbolCycle(doc, scope, symbolIds)) return;
       const pasted = remapPayload(clipboard, at ? 0 : PASTE_OFFSET);
       if (at) {
-        const temp: Document = { ...doc, nodes: pasted.nodes, rootIds: pasted.rootIds };
+        const temp: Document = { ...doc, nodes: { ...doc.nodes, ...pasted.nodes }, rootIds: pasted.rootIds };
         const bounds = unionNodeWorldBounds(temp, pasted.rootIds);
         if (bounds) { const dx = at.x - bounds.x - bounds.width / 2; const dy = at.y - bounds.y - bounds.height / 2; for (const id of pasted.rootIds) pasted.nodes[id] = { ...pasted.nodes[id], transform: multiply(translationMatrix(dx, dy), pasted.nodes[id].transform) }; }
       }
-      transact({ ...doc, nodes: { ...doc.nodes, ...pasted.nodes }, rootIds: [...doc.rootIds, ...pasted.rootIds] });
+      transact(appendToScope({ ...doc, nodes: { ...doc.nodes, ...pasted.nodes } }, scope, pasted.rootIds));
       set({ selection: pasted.rootIds, ...clearTransient });
     },
     duplicateSelected: () => {
@@ -461,12 +510,100 @@ export const useEditor = create<EditorState>((set, get) => {
 
       transact(next);
     },
+    renameNode: (id, name) => { const doc = get().doc, node = doc.nodes[id]; if (!node) return; transact({ ...doc, nodes: { ...doc.nodes, [id]: { ...node, name } } }); },
+    createSymbolFromSelection: () => {
+      const s = get(); const doc = s.doc;
+      const roots = selectionRoots(doc, s.selection); if (!roots.length) return;
+      const parent = parentIdOf(doc, roots[0]);
+      if (!roots.every((id) => parentIdOf(doc, id) === parent)) return;
+      const selected = new Set(roots);
+      const siblings = childIdsOf(doc, parent);
+      const members = siblings.filter((id) => selected.has(id));
+      const insert = siblings.indexOf(members[members.length - 1]);
+      const below = siblings.slice(0, insert).filter((id) => !selected.has(id)).length;
+      const rest = siblings.filter((id) => !selected.has(id));
+      const symbolId = makeId("symbol");
+      const rootId = makeId("group");
+      const instId = makeId("instance");
+      const name = `Symbol ${Object.keys(doc.symbols).length + 1}`;
+      rest.splice(below, 0, instId);
+      // Members keep their local transforms; the definition root and the
+      // instance are both identity, so the drawing is visually unchanged.
+      let next: Document = {
+        ...doc,
+        nodes: {
+          ...doc.nodes,
+          [rootId]: { ...groupNode(rootId, members), name },
+          [instId]: instanceNode(instId, symbolId, [...IDENTITY]),
+        },
+        symbols: { ...doc.symbols, [symbolId]: { id: symbolId, name, rootNodeId: rootId } },
+      };
+      next = replaceChildren(next, parent, rest);
+      transact(next); set({ selection: [instId], ...clearTransient });
+    },
+    placeSymbolInstance: (symbolId, at) => {
+      const s = get(); const doc = s.doc;
+      if (!doc.symbols[symbolId]) return;
+      const scope = currentSymbolScope(s);
+      if (wouldCreateSymbolCycle(doc, scope, [symbolId])) return;
+      let transform: Matrix = [...IDENTITY];
+      if (at) {
+        const content = symbolContentBounds(doc, symbolId);
+        if (content) transform = translationMatrix(at.x - content.x - content.width / 2, at.y - content.y - content.height / 2);
+      }
+      const id = makeId("instance");
+      const next = appendToScope({ ...doc, nodes: { ...doc.nodes, [id]: instanceNode(id, symbolId, transform) } }, scope, [id]);
+      transact(next); set({ selection: [id], ...clearTransient });
+    },
+    detachSelectedInstances: () => {
+      let doc = get().doc; const selected: string[] = [];
+      for (const id of selectionRoots(doc, get().selection)) {
+        const inst = doc.nodes[id];
+        if (!isInstance(inst)) continue;
+        const def = doc.symbols[inst.symbolId]; if (!def) continue;
+        const contentIds = childIdsOf(doc, def.rootNodeId);
+        const all = contentIds.flatMap((cid) => [cid, ...descendantNodeIds(doc, cid)]);
+        const payloadNodes: Record<string, SceneNode> = {};
+        for (const nid of all) payloadNodes[nid] = structuredClone(doc.nodes[nid]);
+        const dup = remapPayload({ nodes: payloadNodes, rootIds: contentIds });
+        const gid = makeId("group");
+        const group: Group = {
+          id: gid, name: def.name, type: "group", childIds: dup.rootIds,
+          transform: [...inst.transform], transformOrigin: inst.transformOrigin ? { ...inst.transformOrigin } : null,
+          opacity: inst.opacity, blendMode: inst.blendMode, hidden: inst.hidden, locked: inst.locked,
+        };
+        const parent = parentIdOf(doc, id);
+        const siblings = childIdsOf(doc, parent);
+        const at = siblings.indexOf(id);
+        const nodes = { ...doc.nodes, ...dup.nodes, [gid]: group };
+        delete nodes[id];
+        const order = [...siblings]; order.splice(at, 1, gid);
+        doc = replaceChildren({ ...doc, nodes }, parent, order);
+        selected.push(gid);
+      }
+      if (selected.length) { transact(doc); set({ selection: selected, ...clearTransient }); }
+    },
+    enterSymbolEdit: (symbolId) => { const s = get(); if (!s.doc.symbols[symbolId] || s.editingSymbols.includes(symbolId)) return; set({ editingSymbols: [...s.editingSymbols, symbolId], selection: [], editNode: null, ...clearTransient }); },
+    exitSymbolEdit: () => { const s = get(); if (!s.editingSymbols.length) return; set({ editingSymbols: s.editingSymbols.slice(0, -1), selection: [], editNode: null, ...clearTransient }); },
+    renameSymbol: (symbolId, name) => { const doc = get().doc; const def = doc.symbols[symbolId]; if (!def) return; transact({ ...doc, symbols: { ...doc.symbols, [symbolId]: { ...def, name } } }); },
+    deleteSymbol: (symbolId) => {
+      const s = get(); const doc = s.doc; const def = doc.symbols[symbolId]; if (!def) return;
+      if (s.editingSymbols.includes(symbolId)) return;
+      if (instanceIdsOf(doc, symbolId).length) return;
+      const remove = new Set([def.rootNodeId, ...descendantNodeIds(doc, def.rootNodeId)]);
+      const nodes = { ...doc.nodes };
+      for (const id of remove) delete nodes[id];
+      const symbols = { ...doc.symbols };
+      delete symbols[symbolId];
+      transact({ ...doc, nodes, symbols });
+      set({ selection: get().selection.filter((id) => !remove.has(id)), ...clearTransient });
+    },
     beginInteraction: () => set({ _pending: clone(get().doc), _dirty: false }),
     applyShapes: (next) => set({ doc: { ...get().doc, nodes: { ...get().doc.nodes, ...next } }, _dirty: true }),
     setDoc: (doc) => set({ doc, _dirty: true }),
     endInteraction: () => { resetCoalesce(); const { _pending, _dirty, history } = get(); if (_pending && _dirty) set({ history: { past: [...history.past, _pending].slice(-HISTORY_LIMIT), future: [] } }); set({ _pending: null, _dirty: false }); },
-    undo: () => { resetCoalesce(); const { history, doc } = get(); if (!history.past.length) return; const past = [...history.past], prev = past.pop()!; set({ doc: prev, history: { past, future: [clone(doc), ...history.future] }, selection: get().selection.filter((id) => !!prev.nodes[id]), ...clearTransient }); },
-    redo: () => { resetCoalesce(); const { history, doc } = get(); if (!history.future.length) return; const [next, ...future] = history.future; set({ doc: next, history: { past: [...history.past, clone(doc)], future }, selection: get().selection.filter((id) => !!next.nodes[id]), ...clearTransient }); },
+    undo: () => { resetCoalesce(); const { history, doc } = get(); if (!history.past.length) return; const past = [...history.past], prev = past.pop()!; set({ doc: prev, history: { past, future: [clone(doc), ...history.future] }, selection: get().selection.filter((id) => !!prev.nodes[id]), editingSymbols: get().editingSymbols.filter((id) => !!prev.symbols[id]), ...clearTransient }); },
+    redo: () => { resetCoalesce(); const { history, doc } = get(); if (!history.future.length) return; const [next, ...future] = history.future; set({ doc: next, history: { past: [...history.past, clone(doc)], future }, selection: get().selection.filter((id) => !!next.nodes[id]), editingSymbols: get().editingSymbols.filter((id) => !!next.symbols[id]), ...clearTransient }); },
   };
 });
 

@@ -4,7 +4,8 @@ import { shapeWorldMatrix } from "../model/matrix";
 import { type Guide, type Spacing } from "../model/snap";
 import type { BezierShape, Bounds, Shape, Vec2 } from "../model/types";
 import { screenToWorld, zoomAt } from "../model/viewport";
-import { useEditor } from "../store/editorStore";
+import { scopeRootGroupId } from "../model/scene";
+import { currentSymbolScope, useEditor } from "../store/editorStore";
 import { openContextMenu } from "../store/menuStore";
 import { setPointer, setReadout } from "../store/pointerStore";
 import { canvasMenu, selectionMenu } from "../ui/menus";
@@ -62,6 +63,11 @@ import { isTypingTarget } from "./util";
 export default function CanvasView() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const wrapRef = useRef<HTMLDivElement>(null);
+  const editingSymbolName = useEditor((s) => {
+    const id = currentSymbolScope(s);
+    return id ? s.doc.symbols[id]?.name ?? "Symbol" : null;
+  });
+  const exitSymbolEdit = useEditor((s) => s.exitSymbolEdit);
 
   const sizeRef = useRef({ width: 0, height: 0, dpr: 1 });
   const interactionRef = useRef<Interaction>({ kind: "none" });
@@ -89,6 +95,9 @@ export default function CanvasView() {
     const state = useEditor.getState();
     const { doc, viewport, selection, tool } = state;
 
+    // Symbol local view: paint only the edited definition on a tinted page.
+    const scope = currentSymbolScope(state);
+    const scopeRoot = scopeRootGroupId(doc, scope);
     renderScene(ctx, {
       width,
       height,
@@ -96,9 +105,10 @@ export default function CanvasView() {
       viewport,
       doc,
       preview: previewRef.current,
-      background: "#ffffff",
+      background: scope ? "#f5f3fb" : "#ffffff",
       showGrid: true,
       gridSize: state.gridSize,
+      rootIds: scopeRoot !== null ? [scopeRoot] : undefined,
     });
 
     const chrome = coarseRef.current ? TOUCH_DRAW_SCALE : 1;
@@ -357,7 +367,12 @@ export default function CanvasView() {
     const state = useEditor.getState();
     const screen = screenPoint(e);
     if (state.tool === "select") {
-      onSelectDoubleClick(ctx, state, screen);
+      if (onSelectDoubleClick(ctx, state, screen)) return;
+      // Double-clicking an instance dives into its symbol's local view.
+      const world = screenToWorld(state.viewport, screen);
+      const hitId = pickShape(ctx, world);
+      const hit = hitId ? state.doc.nodes[hitId] : null;
+      if (hit && hit.type === "instance") state.enterSymbolEdit(hit.symbolId);
       return;
     }
     if (state.tool === "pen" && penDraftRef.current) {
@@ -376,8 +391,10 @@ export default function CanvasView() {
     if (state.tool === "select" || state.tool === "node") {
       const hitId = pickShape(ctx, world);
       if (hitId) {
-        if (!state.selection.includes(hitId)) {
-          state.setSelection(expandToGroups(state.doc, [hitId]));
+        const scopeRoot = scopeRootGroupId(state.doc, currentSymbolScope(state));
+        const expanded = expandToGroups(state.doc, [hitId], scopeRoot);
+        if (!expanded.some((id) => state.selection.includes(id))) {
+          state.setSelection(expanded);
         }
         openContextMenu(e.clientX, e.clientY, selectionMenu());
         return;
@@ -493,6 +510,16 @@ export default function CanvasView() {
         onDoubleClick={onDoubleClick}
         onContextMenu={onContextMenu}
       />
+      {editingSymbolName !== null && (
+        <div className="symbol-edit-bar">
+          <span className="symbol-edit-label">
+            Editing symbol · {editingSymbolName}
+          </span>
+          <button className="symbol-edit-done" onClick={exitSymbolEdit}>
+            Done
+          </button>
+        </div>
+      )}
     </div>
   );
 }

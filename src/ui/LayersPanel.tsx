@@ -12,11 +12,25 @@ import {
   LuLockOpen,
   LuChevronRight,
   LuChevronDown,
+  LuChevronLeft,
   LuCombine,
+  LuComponent,
+  LuPencil,
+  LuPlus,
+  LuTrash2,
 } from "react-icons/lu";
-import type { Group, Shape } from "../model/types";
-import { descendantNodeIds, isGroup, isShape } from "../model/scene";
-import { useEditor } from "../store/editorStore";
+import type { Group, Shape, SymbolInstance } from "../model/types";
+import {
+  descendantNodeIds,
+  instanceIdsOf,
+  isGroup,
+  isInstance,
+  isShape,
+  scopeRootGroupId,
+  scopeRootIds,
+} from "../model/scene";
+import { screenToWorld } from "../model/viewport";
+import { currentSymbolScope, useEditor } from "../store/editorStore";
 import { openContextMenu } from "../store/menuStore";
 import { selectionMenu } from "./menus";
 
@@ -35,6 +49,7 @@ interface DNode {
   key: string;
   shape?: Shape;
   group?: Group;
+  instance?: SymbolInstance;
   children?: DNode[];
 }
 
@@ -43,9 +58,21 @@ function toDisplayTree(doc: ReturnType<typeof useEditor.getState>["doc"], ids: s
   for (const id of ids) {
     const node = doc.nodes[id];
     if (isGroup(node)) result.push({ key: id, group: node, children: toDisplayTree(doc, node.childIds) });
+    else if (isInstance(node)) result.push({ key: id, instance: node });
     else if (isShape(node)) result.push({ key: id, shape: node });
   }
   return result.reverse();
+}
+
+/** World point at the center of the canvas, for placing new instances. */
+function canvasCenterWorld() {
+  const state = useEditor.getState();
+  const el = document.querySelector(".canvas-wrap");
+  const r = el?.getBoundingClientRect();
+  const screen = r
+    ? { x: r.width / 2, y: r.height / 2 }
+    : { x: window.innerWidth / 2, y: window.innerHeight / 2 };
+  return screenToWorld(state.viewport, screen);
 }
 
 /** All descendant shape ids, in display order. */
@@ -88,14 +115,26 @@ export default function LayersPanel() {
   const updateGroupStyle = useEditor((s) => s.updateGroupStyle);
   const renameShape = useEditor((s) => s.renameShape);
   const renameGroup = useEditor((s) => s.renameGroup);
+  const renameNode = useEditor((s) => s.renameNode);
   const moveNode = useEditor((s) => s.moveNode);
+  const scope = useEditor((s) => currentSymbolScope(s));
+  const exitSymbolEdit = useEditor((s) => s.exitSymbolEdit);
+  const enterSymbolEdit = useEditor((s) => s.enterSymbolEdit);
+  const placeSymbolInstance = useEditor((s) => s.placeSymbolInstance);
+  const renameSymbol = useEditor((s) => s.renameSymbol);
+  const deleteSymbol = useEditor((s) => s.deleteSymbol);
+  const detachSelectedInstances = useEditor((s) => s.detachSelectedInstances);
 
   const [editing, setEditing] = useState<string | null>(null);
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
   const [drag, setDrag] = useState<Drag | null>(null);
   const [drop, setDrop] = useState<Drop | null>(null);
 
-  const roots = toDisplayTree(doc, doc.rootIds);
+  // In a symbol's local view the panel shows that definition's tree; a drop
+  // at the panel root then targets the definition root group, not the scene.
+  const scopeParent = scopeRootGroupId(doc, scope);
+  const roots = toDisplayTree(doc, scopeRootIds(doc, scope));
+  const symbols = Object.values(doc.symbols);
 
   const toggleCollapsed = (gid: string) => {
     setCollapsed((prev) => {
@@ -140,7 +179,7 @@ export default function LayersPanel() {
     idx = Math.max(0, Math.min(idx, displayIds.length));
     displayIds.splice(idx, 0, d.id);
     const canonicalIndex = displayIds.length - 1 - idx;
-    moveNode(d.id, t.parent, canonicalIndex);
+    moveNode(d.id, t.parent ?? scopeParent, canonicalIndex);
   };
 
   /** Map a row hover to before/after, or its middle third into a group. */
@@ -275,6 +314,88 @@ export default function LayersPanel() {
     );
   };
 
+  const instanceRow = (node: DNode, depth: number, path: Path, dim: boolean) => {
+    const instance = node.instance!;
+    const id = instance.id;
+    const symbolName = doc.symbols[instance.symbolId]?.name ?? "Missing symbol";
+    return (
+      <div
+        className={
+          "layer-row" +
+          (selection.includes(id) ? " selected" : "") +
+          (instance.hidden || dim ? " hidden" : "")
+        }
+        style={{ paddingLeft: 6 + depth * 16 }}
+        draggable={editing !== id}
+        onDragStart={(e) => {
+          e.dataTransfer.effectAllowed = "move";
+          e.dataTransfer.setData("text/plain", id);
+          setDrag({ id, parent: path[path.length - 1].parent });
+        }}
+        onDragOver={(e) => onRowDragOver(e, path)}
+        {...dropProps}
+        onClick={(e) => selectIds([id], e.shiftKey)}
+        onDoubleClick={() => enterSymbolEdit(instance.symbolId)}
+        onContextMenu={(e) => {
+          e.preventDefault();
+          if (!selection.includes(id)) selectIds([id], false);
+          openContextMenu(e.clientX, e.clientY, [
+            { label: "Rename", onSelect: () => setEditing(id) },
+            { label: "Edit symbol", onSelect: () => enterSymbolEdit(instance.symbolId) },
+            { label: "Detach instance", onSelect: detachSelectedInstances },
+            {
+              label: instance.hidden ? "Show" : "Hide",
+              onSelect: () => toggleHidden(id),
+            },
+            {
+              label: instance.locked ? "Unlock" : "Lock",
+              onSelect: () => toggleLocked(id),
+            },
+            "separator",
+            ...selectionMenu(),
+          ]);
+        }}
+      >
+        <button
+          className="layer-icon-btn"
+          title={instance.hidden ? "Show" : "Hide"}
+          onClick={(e) => {
+            e.stopPropagation();
+            toggleHidden(id);
+          }}
+        >
+          {instance.hidden ? <LuEyeOff /> : <LuEye />}
+        </button>
+        <button
+          className="layer-icon-btn"
+          title={instance.locked ? "Unlock" : "Lock"}
+          onClick={(e) => {
+            e.stopPropagation();
+            toggleLocked(id);
+          }}
+        >
+          {instance.locked ? <LuLock /> : <LuLockOpen />}
+        </button>
+        <span className="layer-type" aria-hidden>
+          <LuComponent />
+        </span>
+        {editing === id ? (
+          nameEditor(instance.name, (name) => renameNode(id, name))
+        ) : (
+          <span
+            className="layer-name"
+            onDoubleClick={(e) => {
+              e.stopPropagation();
+              setEditing(id);
+            }}
+          >
+            {instance.name} <span className="layer-symbol-ref">({symbolName})</span>
+          </span>
+        )}
+      </div>
+    );
+  };
+
   const groupRow = (node: DNode, depth: number, path: Path, dim: boolean) => {
     const group = node.group!;
     const gid = group.id;
@@ -397,6 +518,8 @@ export default function LayersPanel() {
                     dim || !!n.group.hidden
                   )}
               </>
+            ) : n.instance ? (
+              instanceRow(n, depth, path, dim)
             ) : (
               shapeRow(n, depth, path, dim)
             )}
@@ -412,9 +535,17 @@ export default function LayersPanel() {
     </>
   );
 
+  const scopeName = scope ? doc.symbols[scope]?.name ?? "Symbol" : null;
+
   return (
     <div className="layers">
       <div className="panel-title layers-title">Layers</div>
+      {scopeName !== null && (
+        <button className="layers-scope" onClick={exitSymbolEdit}>
+          <LuChevronLeft aria-hidden />
+          <span>{scopeName}</span>
+        </button>
+      )}
       <div
         className="layers-list"
         onDragOver={(e) => {
@@ -433,6 +564,59 @@ export default function LayersPanel() {
         {roots.length === 0 && <div className="layers-empty">No shapes yet</div>}
         {renderList(roots, null, 0, [], false)}
       </div>
+      {symbols.length > 0 && (
+        <div className="symbols">
+          <div className="panel-title">Symbols</div>
+          <div className="symbols-list">
+            {symbols.map((def) => {
+              const count = instanceIdsOf(doc, def.id).length;
+              return (
+                <div
+                  key={def.id}
+                  className={"symbol-row" + (scope === def.id ? " selected" : "")}
+                >
+                  <span className="layer-type" aria-hidden>
+                    <LuComponent />
+                  </span>
+                  {editing === def.id ? (
+                    nameEditor(def.name, (name) => renameSymbol(def.id, name))
+                  ) : (
+                    <span
+                      className="layer-name"
+                      onDoubleClick={() => setEditing(def.id)}
+                    >
+                      {def.name}
+                    </span>
+                  )}
+                  <span className="layer-count">{count}</span>
+                  <button
+                    className="layer-icon-btn"
+                    title="Place instance"
+                    onClick={() => placeSymbolInstance(def.id, canvasCenterWorld())}
+                  >
+                    <LuPlus />
+                  </button>
+                  <button
+                    className="layer-icon-btn"
+                    title="Edit symbol"
+                    onClick={() => enterSymbolEdit(def.id)}
+                  >
+                    <LuPencil />
+                  </button>
+                  <button
+                    className="layer-icon-btn"
+                    title={count > 0 ? "Delete (remove instances first)" : "Delete symbol"}
+                    disabled={count > 0 || scope === def.id}
+                    onClick={() => deleteSymbol(def.id)}
+                  >
+                    <LuTrash2 />
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

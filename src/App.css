@@ -660,6 +660,102 @@
   background: var(--accent);
 }
 
+/* ---- symbols ----------------------------------------------------------- */
+.symbol-edit-bar {
+  position: absolute;
+  top: 10px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 8px 6px 14px;
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  box-shadow: 0 4px 18px rgba(20, 30, 50, 0.12);
+  font-size: 12.5px;
+}
+
+.symbol-edit-label {
+  color: var(--text);
+  white-space: nowrap;
+}
+
+.symbol-edit-done {
+  padding: 4px 12px;
+  border: none;
+  border-radius: 7px;
+  background: var(--accent);
+  color: #fff;
+  font-size: 12px;
+}
+
+.layers-scope {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin: 0 6px 2px;
+  padding: 5px 8px;
+  border: none;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--accent);
+  font-size: 12.5px;
+  text-align: left;
+}
+
+.layers-scope:hover {
+  background: var(--bg);
+}
+
+.layer-symbol-ref {
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.symbols {
+  flex: 0 0 auto;
+  max-height: 40%;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border-top: 1px solid var(--border);
+}
+
+.symbols .panel-title {
+  padding: 10px 14px 6px;
+}
+
+.symbols-list {
+  overflow-y: auto;
+  padding: 0 6px 8px;
+}
+
+.symbol-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 6px;
+  border-radius: 7px;
+}
+
+.symbol-row:hover {
+  background: var(--bg);
+}
+
+.symbol-row.selected {
+  background: var(--accent-soft, #e8effc);
+}
+
+.symbol-row .layer-name {
+  flex: 1;
+}
+
+.instance-symbol-name {
+  font-size: 12.5px;
+}
+
 /* ---- context menu ------------------------------------------------------ */
 .context-menu {
   position: fixed;

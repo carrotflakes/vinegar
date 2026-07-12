@@ -9,6 +9,7 @@ import {
   canMakeCompoundPathSelection,
   canReleaseCompoundPathSelection,
 } from "../model/compoundPath";
+import { isInstance, parentIdOf, selectionRoots } from "../model/scene";
 import type { Vec2 } from "../model/types";
 import { useEditor } from "../store/editorStore";
 import type { MenuEntry } from "../store/menuStore";
@@ -23,6 +24,15 @@ export function selectionMenu(): MenuEntry[] {
   const canUngroup = selectionUnits(s.doc, s.selection).groups.length > 0;
   const canMakeCompound = canMakeCompoundPathSelection(s.doc, s.selection);
   const canReleaseCompound = canReleaseCompoundPathSelection(s.doc, s.selection);
+  const roots = selectionRoots(s.doc, s.selection);
+  const canMakeSymbol =
+    roots.length >= 1 &&
+    new Set(roots.map((id) => parentIdOf(s.doc, id))).size === 1;
+  const instanceRoots = roots.filter((id) => isInstance(s.doc.nodes[id]));
+  const singleInstance =
+    roots.length === 1 && isInstance(s.doc.nodes[roots[0]])
+      ? s.doc.nodes[roots[0]]
+      : null;
   const act =
     <K extends keyof typeof s>(key: K) =>
     () =>
@@ -60,6 +70,29 @@ export function selectionMenu(): MenuEntry[] {
       disabled: !canReleaseCompound,
       onSelect: act("releaseCompoundPathSelected"),
     },
+    "separator",
+    {
+      label: "Create symbol",
+      disabled: !canMakeSymbol,
+      onSelect: act("createSymbolFromSelection"),
+    },
+    ...(singleInstance && isInstance(singleInstance)
+      ? [
+          {
+            label: "Edit symbol",
+            onSelect: () =>
+              useEditor.getState().enterSymbolEdit(singleInstance.symbolId),
+          } satisfies MenuEntry,
+        ]
+      : []),
+    ...(instanceRoots.length
+      ? [
+          {
+            label: "Detach instance",
+            onSelect: act("detachSelectedInstances"),
+          } satisfies MenuEntry,
+        ]
+      : []),
     "separator",
     { label: "Bring to front", onSelect: act("bringToFront") },
     { label: "Send to back", onSelect: act("sendToBack") },

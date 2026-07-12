@@ -5,10 +5,11 @@ import {
   invertMatrix,
   shapeWorldMatrix,
 } from "../../model/matrix";
-import { isShape, sceneIndex } from "../../model/scene";
+import { isShape, scopeLeafIds } from "../../model/scene";
 import { makeId, type BezierShape, type Shape, type Vec2 } from "../../model/types";
 import { worldToScreen } from "../../model/viewport";
 import {
+  currentSymbolScope,
   styleFromDefaults,
   useEditor,
   type EditorState,
@@ -94,7 +95,7 @@ export function pickOpenEndpoint(
     );
     return Math.hypot(sp.x - screen.x, sp.y - screen.y) <= tol;
   };
-  const ids = sceneIndex(doc).shapeIds;
+  const ids = scopeLeafIds(doc, currentSymbolScope(state));
   for (let i = ids.length - 1; i >= 0; i--) {
     const s = doc.nodes[ids[i]];
     if (

@@ -1,25 +1,25 @@
+import { exactlySelectedGroup } from "../model/groups";
+import { hitTestNode } from "../model/hitTest";
 import {
-  exactlySelectedGroup,
-  isShapeHidden,
-  isShapeLocked,
-} from "../model/groups";
-import { hitTestShape } from "../model/hitTest";
-import {
-  descendantShapeIds,
+  descendantNodeIds,
+  isInstance,
+  isNodeHidden,
+  isNodeLocked,
   isShape,
-  sceneIndex,
+  scopeLeafIds,
   selectionRoots,
   shapesInPaintOrder,
 } from "../model/scene";
 import { collectSnapTargets, snapPoint } from "../model/snap";
 import type { BezierShape, Shape, Vec2 } from "../model/types";
 import { worldToScreen } from "../model/viewport";
-import { useEditor, type EditorState } from "../store/editorStore";
+import { currentSymbolScope, useEditor, type EditorState } from "../store/editorStore";
 import {
   frameHandlePoint,
   frameRotationPoint,
   getSelectionFrame,
   type SelectionFrame,
+  type SelectionLeaf,
 } from "./frame";
 import { HANDLE_IDS, HANDLE_SIZE } from "./handles";
 import type { FrameHit, ToolContext } from "./interaction";
@@ -30,14 +30,18 @@ export function selectedBezier(state: EditorState): BezierShape | null {
   return s && s.type === "bezier" ? s : null;
 }
 
+const isLeaf = (node: EditorState["doc"]["nodes"][string] | undefined): node is SelectionLeaf =>
+  isShape(node) || isInstance(node);
+
+/** Paintable leaves (shapes and instances) covered by the selection. */
 export function selectedShapes(
   doc: EditorState["doc"],
   selection: string[]
-): Shape[] {
+): SelectionLeaf[] {
   return selectionRoots(doc, selection)
-    .flatMap((id) => (isShape(doc.nodes[id]) ? [id] : descendantShapeIds(doc, id)))
+    .flatMap((id) => (isLeaf(doc.nodes[id]) ? [id] : descendantNodeIds(doc, id)))
     .map((id) => doc.nodes[id])
-    .filter(isShape);
+    .filter(isLeaf);
 }
 
 export const EMPTY_EXCLUDE = new Set<string>();
@@ -89,16 +93,17 @@ export function hitFrameHandle(ctx: ToolContext, screen: Vec2): FrameHit {
 }
 
 export function pickShape(ctx: ToolContext, world: Vec2): string | null {
-  const { doc } = useEditor.getState();
+  const state = useEditor.getState();
+  const { doc } = state;
   const tol = pickTolerance(ctx);
-  const ids = sceneIndex(doc).shapeIds;
+  const ids = scopeLeafIds(doc, currentSymbolScope(state));
   for (let i = ids.length - 1; i >= 0; i--) {
-    const shape = doc.nodes[ids[i]];
+    const node = doc.nodes[ids[i]];
     if (
-      isShape(shape) &&
-      !isShapeHidden(doc, shape) &&
-      !isShapeLocked(doc, shape) &&
-      hitTestShape(doc, shape, world, tol)
+      isLeaf(node) &&
+      !isNodeHidden(doc, node.id) &&
+      !isNodeLocked(doc, node.id) &&
+      hitTestNode(doc, node, world, tol)
     )
       return ids[i];
   }
@@ -120,10 +125,10 @@ export function pointSnap(
     ctx.guides.current = [];
     return world;
   }
-  const others = shapesInPaintOrder(state.doc)
+  const others = shapesInPaintOrder(state.doc, currentSymbolScope(state))
     .filter(
       (s): s is Shape =>
-        !!s && !isShapeHidden(state.doc, s) && !exclude.has(s.id)
+        !!s && !isNodeHidden(state.doc, s.id) && !exclude.has(s.id)
     );
   const res = snapPoint(
     world,

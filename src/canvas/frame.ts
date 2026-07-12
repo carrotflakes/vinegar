@@ -1,15 +1,18 @@
-import { shapeBounds, unionWorldBounds } from "../model/bounds";
+import { leafLocalBounds, unionNodeWorldBounds } from "../model/bounds";
 import {
   applyMatrix,
   groupWorldMatrix,
   invertMatrix,
   matrixAngle,
   multiply,
-  shapeWorldMatrix,
+  nodeWorldMatrix,
   transformBounds,
 } from "../model/matrix";
-import type { Bounds, Document, Group, Matrix, Shape, Vec2 } from "../model/types";
+import type { Bounds, Document, Group, Matrix, Shape, SymbolInstance, Vec2 } from "../model/types";
 import { handlePoint, type HandleId } from "./handles";
+
+/** A selectable paintable leaf: a shape or a symbol instance. */
+export type SelectionLeaf = Shape | SymbolInstance;
 
 /**
  * An oriented frame around the current selection.
@@ -32,7 +35,7 @@ export const ROTATE_OFFSET = 22;
 
 export function getSelectionFrame(
   doc: Document,
-  shapes: Shape[],
+  shapes: SelectionLeaf[],
   group?: Group | null,
   selectionPivot?: Vec2 | null,
   selectionTransform?: Matrix | null
@@ -44,8 +47,8 @@ export function getSelectionFrame(
     if (inverse) {
       const localBounds = shapes.map((shape) =>
         transformBounds(
-          shapeBounds(shape),
-          multiply(inverse, shapeWorldMatrix(doc, shape))
+          leafLocalBounds(doc, shape),
+          multiply(inverse, nodeWorldMatrix(doc, shape.id))
         )
       );
       const x = Math.min(...localBounds.map((b) => b.x));
@@ -73,8 +76,8 @@ export function getSelectionFrame(
   }
   if (shapes.length === 1) {
     const s = shapes[0];
-    const bounds = shapeBounds(s);
-    const transform = shapeWorldMatrix(doc, s);
+    const bounds = leafLocalBounds(doc, s);
+    const transform = nodeWorldMatrix(doc, s.id);
     const center = applyMatrix(transform, {
         x: bounds.x + bounds.width / 2,
         y: bounds.y + bounds.height / 2,
@@ -94,8 +97,8 @@ export function getSelectionFrame(
     if (inverse) {
       const localBounds = shapes.map((shape) =>
         transformBounds(
-          shapeBounds(shape),
-          multiply(inverse, shapeWorldMatrix(doc, shape))
+          leafLocalBounds(doc, shape),
+          multiply(inverse, nodeWorldMatrix(doc, shape.id))
         )
       );
       const x = Math.min(...localBounds.map((b) => b.x));
@@ -116,7 +119,9 @@ export function getSelectionFrame(
       };
     }
   }
-  const b = unionWorldBounds(doc, shapes)!;
+  // Can be null when the selection is only instances of empty symbols.
+  const b = unionNodeWorldBounds(doc, shapes.map((s) => s.id));
+  if (!b) return null;
   return {
     center: { x: b.x + b.width / 2, y: b.y + b.height / 2 },
     pivot: selectionPivot ?? {

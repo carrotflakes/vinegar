@@ -154,6 +154,28 @@ export function polygonRings(shape: PolygonShape): Vec2[][] {
 }
 
 /**
+ * A reusable symbol definition. Its content is a Group stored in `doc.nodes`
+ * but never listed in `rootIds`; the definition root keeps an identity
+ * transform, so symbol-local space is the root group's child space.
+ */
+export interface SymbolDef {
+  id: string;
+  name: string;
+  /** Id of the definition's root Group in `doc.nodes`. */
+  rootNodeId: string;
+}
+
+/**
+ * A placed occurrence of a symbol. Instances are atomic in the scene (like
+ * compound paths): selectable and transformable as one unit, with no
+ * per-instance overrides beyond the BaseNode fields.
+ */
+export interface SymbolInstance extends BaseNode {
+  type: "instance";
+  symbolId: string;
+}
+
+/**
  * A group is a real scene node. Its child list is both the hierarchy and the
  * back-to-front paint order; parent information is derived by Scene Index.
  */
@@ -173,7 +195,7 @@ export type PrimitiveShape =
 
 export type Shape = PrimitiveShape | CompoundPathShape;
 
-export type SceneNode = Shape | Group;
+export type SceneNode = Shape | Group | SymbolInstance;
 
 /** Axis-aligned bounding box. */
 export interface Bounds {
@@ -216,6 +238,8 @@ export interface DocumentAsset {
 export interface Document {
   nodes: Record<string, SceneNode>;
   rootIds: string[];
+  /** Symbol definitions; their content lives in `nodes` outside `rootIds`. */
+  symbols: Record<string, SymbolDef>;
   settings: DocumentSettings;
   metadata: DocumentMetadata;
   assets: Record<string, DocumentAsset>;
@@ -228,6 +252,7 @@ export function createEmptyDocument(): Document {
   return {
     nodes: {},
     rootIds: [],
+    symbols: {},
     settings: { unit: "px", dpi: 96, gridSize: 50 },
     metadata: { createdAt: now, modifiedAt: now },
     assets: {},

@@ -1,7 +1,7 @@
 import { flattenBezier } from "./bezier";
-import { shapeWorldMatrix, transformBounds } from "./matrix";
-import { descendantShapeIds, isShape } from "./scene";
-import type { Bounds, Document, Shape, Vec2 } from "./types";
+import { nodeWorldMatrix, shapeWorldMatrix, transformBounds } from "./matrix";
+import { isGroup, isInstance, isShape, scopeRootIds } from "./scene";
+import type { Bounds, Document, Shape, SymbolInstance, Vec2 } from "./types";
 
 function pointsBounds(points: Vec2[]): Bounds {
   if (points.length === 0) return { x: 0, y: 0, width: 0, height: 0 };
@@ -111,28 +111,81 @@ export function unionWorldBounds(doc: Document, shapes: Shape[]): Bounds | null 
   return { x: minX, y: minY, width: maxX - minX, height: maxY - minY };
 }
 
-export function nodeWorldBounds(doc: Document, nodeId: string): Bounds | null {
+function unionOf(bounds: (Bounds | null)[]): Bounds | null {
+  const list = bounds.filter((b): b is Bounds => !!b);
+  if (list.length === 0) return null;
+  const x = Math.min(...list.map((b) => b.x));
+  const y = Math.min(...list.map((b) => b.y));
+  const right = Math.max(...list.map((b) => b.x + b.width));
+  const bottom = Math.max(...list.map((b) => b.y + b.height));
+  return { x, y, width: right - x, height: bottom - y };
+}
+
+/**
+ * Bounds of a symbol's content in symbol-local space. `seen` guards against
+ * (invalid) cyclic symbol references.
+ */
+export function symbolContentBounds(
+  doc: Document,
+  symbolId: string,
+  seen: Set<string> = new Set()
+): Bounds | null {
+  if (seen.has(symbolId)) return null;
+  seen.add(symbolId);
+  const bounds = unionOf(
+    scopeRootIds(doc, symbolId).map((id) => nodeWorldBounds(doc, id, seen))
+  );
+  seen.delete(symbolId);
+  return bounds;
+}
+
+/** World AABB of an instance: its symbol's content under the instance matrix. */
+export function instanceWorldBounds(
+  doc: Document,
+  instance: SymbolInstance,
+  seen: Set<string> = new Set()
+): Bounds | null {
+  const content = symbolContentBounds(doc, instance.symbolId, seen);
+  return content
+    ? transformBounds(content, nodeWorldMatrix(doc, instance.id))
+    : null;
+}
+
+/**
+ * Local-space bounds of a paintable leaf: a shape's geometry box, or a
+ * symbol's content box for an instance (definition roots hold an identity
+ * transform, so symbol-local space is the instance's local space).
+ */
+export function leafLocalBounds(
+  doc: Document,
+  leaf: Shape | SymbolInstance
+): Bounds {
+  if (isInstance(leaf)) {
+    return symbolContentBounds(doc, leaf.symbolId) ?? { x: 0, y: 0, width: 0, height: 0 };
+  }
+  return shapeBounds(leaf);
+}
+
+export function nodeWorldBounds(
+  doc: Document,
+  nodeId: string,
+  seen: Set<string> = new Set()
+): Bounds | null {
   const node = doc.nodes[nodeId];
+  if (!node) return null;
   if (isShape(node)) return worldShapeBounds(doc, node);
-  const shapes = descendantShapeIds(doc, nodeId)
-    .map((id) => doc.nodes[id])
-    .filter(isShape);
-  return unionWorldBounds(doc, shapes);
+  if (isInstance(node)) return instanceWorldBounds(doc, node, seen);
+  if (isGroup(node)) {
+    return unionOf(node.childIds.map((id) => nodeWorldBounds(doc, id, seen)));
+  }
+  return null;
 }
 
 export function unionNodeWorldBounds(
   doc: Document,
   nodeIds: string[]
 ): Bounds | null {
-  const bounds = nodeIds
-    .map((id) => nodeWorldBounds(doc, id))
-    .filter((b): b is Bounds => !!b);
-  if (bounds.length === 0) return null;
-  const x = Math.min(...bounds.map((b) => b.x));
-  const y = Math.min(...bounds.map((b) => b.y));
-  const right = Math.max(...bounds.map((b) => b.x + b.width));
-  const bottom = Math.max(...bounds.map((b) => b.y + b.height));
-  return { x, y, width: right - x, height: bottom - y };
+  return unionOf(nodeIds.map((id) => nodeWorldBounds(doc, id)));
 }
 
 export function expandBounds(b: Bounds, by: number): Bounds {
