@@ -41,10 +41,22 @@ const isPointOrNull = (value: unknown): boolean =>
 const isPoint = (value: unknown): boolean => value !== null && isPointOrNull(value);
 const isNumber = (value: unknown): value is number =>
   typeof value === "number" && Number.isFinite(value);
-const isPaint = (value: unknown): boolean =>
-  isObject(value) && value.type === "solid" &&
+const isStop = (value: unknown): boolean =>
+  isObject(value) && isNumber(value.offset) && value.offset >= 0 && value.offset <= 1 &&
   typeof value.color === "string" &&
   isNumber(value.alpha) && value.alpha >= 0 && value.alpha <= 1;
+const isStops = (value: unknown): boolean =>
+  Array.isArray(value) && value.length >= 2 && value.every(isStop);
+const isPaint = (value: unknown): boolean => {
+  if (!isObject(value)) return false;
+  if (value.type === "solid") {
+    return typeof value.color === "string" &&
+      isNumber(value.alpha) && value.alpha >= 0 && value.alpha <= 1;
+  }
+  if (value.type === "linear") return isStops(value.stops) && isNumber(value.angle);
+  if (value.type === "radial") return isStops(value.stops);
+  return false;
+};
 const isPaintOrNull = (value: unknown): boolean => value === null || isPaint(value);
 const isPoints = (value: unknown): boolean =>
   Array.isArray(value) && value.every(isPoint);

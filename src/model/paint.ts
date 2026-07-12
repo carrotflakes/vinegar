@@ -16,8 +16,31 @@ export interface SolidPaint {
   alpha: number;
 }
 
-// Future: | LinearGradientPaint | RadialGradientPaint | PatternPaint
-export type Paint = SolidPaint;
+/** One colour stop of a gradient. `offset` is 0..1 along the gradient. */
+export interface GradientStop {
+  offset: number;
+  color: string;
+  alpha: number;
+}
+
+/** Linear gradient across the shape's bounding box at `angle` (radians). */
+export interface LinearGradientPaint {
+  type: "linear";
+  stops: GradientStop[];
+  /** 0 = left→right; increases clockwise (canvas convention, y-down). */
+  angle: number;
+}
+
+/** Radial gradient from the centre of the shape's bounding box outward. */
+export interface RadialGradientPaint {
+  type: "radial";
+  stops: GradientStop[];
+}
+
+export type GradientPaint = LinearGradientPaint | RadialGradientPaint;
+
+// Future: | PatternPaint (raster fill via doc.assets)
+export type Paint = SolidPaint | GradientPaint;
 
 const clamp01 = (n: number) => Math.max(0, Math.min(1, n));
 
@@ -25,8 +48,25 @@ export function solid(color: string, alpha = 1): SolidPaint {
   return { type: "solid", color, alpha: clamp01(alpha) };
 }
 
+export function linearGradient(stops: GradientStop[], angle = 0): LinearGradientPaint {
+  return { type: "linear", stops, angle };
+}
+
+export function radialGradient(stops: GradientStop[]): RadialGradientPaint {
+  return { type: "radial", stops };
+}
+
 export function isSolid(paint: Paint): paint is SolidPaint {
   return paint.type === "solid";
+}
+
+export function isGradient(paint: Paint): paint is GradientPaint {
+  return paint.type === "linear" || paint.type === "radial";
+}
+
+/** Stops in ascending offset order (rendering requires monotonic offsets). */
+export function sortedStops(stops: GradientStop[]): GradientStop[] {
+  return [...stops].sort((a, b) => a.offset - b.offset);
 }
 
 /** Parse `#rgb`/`#rrggbb` to 0-255 channels (black on malformed input). */
@@ -38,31 +78,99 @@ export function hexToRgb(hex: string): { r: number; g: number; b: number } {
   return { r: (n >> 16) & 255, g: (n >> 8) & 255, b: n & 255 };
 }
 
-/** CSS colour string for a paint (used for canvas styles and previews). */
+/** rgba() string for a colour + alpha. */
+function rgba(color: string, alpha: number): string {
+  const { r, g, b } = hexToRgb(color);
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+}
+
+/** CSS value for a paint (canvas solid styles, and popover/swatch previews). */
 export function paintToCss(paint: Paint): string {
-  const { r, g, b } = hexToRgb(paint.color);
-  return `rgba(${r}, ${g}, ${b}, ${paint.alpha})`;
+  if (paint.type === "solid") return rgba(paint.color, paint.alpha);
+  const stops = sortedStops(paint.stops)
+    .map((s) => `${rgba(s.color, s.alpha)} ${round(s.offset * 100)}%`)
+    .join(", ");
+  if (paint.type === "linear") {
+    // Canvas angle 0 points right; CSS 0deg points up. Offset by 90°.
+    return `linear-gradient(${round((paint.angle * 180) / Math.PI + 90)}deg, ${stops})`;
+  }
+  return `radial-gradient(circle, ${stops})`;
+}
+
+/** A left→right CSS gradient of the stops, for a fixed preview bar. */
+export function stopsToCssBar(stops: GradientStop[]): string {
+  const s = sortedStops(stops)
+    .map((st) => `${rgba(st.color, st.alpha)} ${round(st.offset * 100)}%`)
+    .join(", ");
+  return `linear-gradient(to right, ${s})`;
 }
 
 /**
  * Resolve a paint to a Canvas 2D fill/stroke style. `bounds` (shape-local) is
- * unused for solids but reserved so gradients can build a CanvasGradient.
+ * unused for solids; gradients are laid out across it.
  */
 export function resolvePaint(
-  _ctx: CanvasRenderingContext2D,
+  ctx: CanvasRenderingContext2D,
   paint: Paint,
-  _bounds?: Bounds
+  bounds?: Bounds
 ): string | CanvasGradient {
-  return paintToCss(paint);
+  if (paint.type === "solid") return rgba(paint.color, paint.alpha);
+  const b = bounds ?? { x: 0, y: 0, width: 0, height: 0 };
+  const cx = b.x + b.width / 2;
+  const cy = b.y + b.height / 2;
+  let grad: CanvasGradient;
+  if (paint.type === "linear") {
+    const dx = Math.cos(paint.angle);
+    const dy = Math.sin(paint.angle);
+    // Span the bounding box along the gradient direction.
+    const half = (Math.abs(b.width * dx) + Math.abs(b.height * dy)) / 2;
+    grad = ctx.createLinearGradient(
+      cx - dx * half, cy - dy * half,
+      cx + dx * half, cy + dy * half
+    );
+  } else {
+    const r = Math.hypot(b.width, b.height) / 2;
+    grad = ctx.createRadialGradient(cx, cy, 0, cx, cy, r);
+  }
+  for (const s of sortedStops(paint.stops)) {
+    grad.addColorStop(clamp01(s.offset), rgba(s.color, s.alpha));
+  }
+  return grad;
 }
 
 const round = (n: number) => parseFloat(n.toFixed(3)).toString();
 
-/** SVG attributes for a paint applied as `fill` or `stroke`. */
-export function paintToSvgAttrs(paint: Paint, kind: "fill" | "stroke"): string[] {
+/** SVG attributes for a solid paint applied as `fill` or `stroke`. */
+export function paintToSvgAttrs(paint: SolidPaint, kind: "fill" | "stroke"): string[] {
   const attrs = [`${kind}="${paint.color}"`];
   if (paint.alpha < 1) attrs.push(`${kind}-opacity="${round(paint.alpha)}"`);
   return attrs;
+}
+
+/**
+ * SVG `<linearGradient>`/`<radialGradient>` def element. Uses the default
+ * objectBoundingBox units so 0..1 coordinates map to the referencing shape.
+ */
+export function gradientToSvg(paint: GradientPaint, id: string): string {
+  const stops = sortedStops(paint.stops)
+    .map(
+      (s) =>
+        `<stop offset="${round(s.offset)}" stop-color="${s.color}"` +
+        (s.alpha < 1 ? ` stop-opacity="${round(s.alpha)}"` : "") +
+        `/>`
+    )
+    .join("");
+  if (paint.type === "linear") {
+    const dx = Math.cos(paint.angle);
+    const dy = Math.sin(paint.angle);
+    return (
+      `<linearGradient id="${id}" x1="${round(0.5 - dx * 0.5)}" y1="${round(
+        0.5 - dy * 0.5
+      )}" x2="${round(0.5 + dx * 0.5)}" y2="${round(0.5 + dy * 0.5)}">` +
+      `${stops}</linearGradient>`
+    );
+  }
+  return `<radialGradient id="${id}">${stops}</radialGradient>`;
 }
 
 /**

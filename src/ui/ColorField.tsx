@@ -8,7 +8,16 @@ import {
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { LuPipette } from "react-icons/lu";
-import { paintToCss, solid, type Paint } from "../model/paint";
+import {
+  isGradient,
+  linearGradient,
+  paintToCss,
+  radialGradient,
+  solid,
+  stopsToCssBar,
+  type GradientStop,
+  type Paint,
+} from "../model/paint";
 import { useEditor } from "../store/editorStore";
 
 /** A curated default palette (grayscale + a hue wheel + tints). */
@@ -43,13 +52,44 @@ export default function ColorField({ label, value, onChange }: Props) {
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
   const enabled = value !== null;
+  const kind = value === null ? "none" : value.type; // none|solid|linear|radial
   // Colour and alpha are edited independently; a paint keeps its alpha when the
   // colour changes (and vice-versa). Swatches/recents/palette store colours.
-  const color = value && value.type === "solid" ? value.color : "#888888";
+  const gradient = value && isGradient(value) ? value : null;
+  const color =
+    value && value.type === "solid"
+      ? value.color
+      : gradient
+        ? gradient.stops[0]?.color ?? "#888888"
+        : "#888888";
   const alpha = value && value.type === "solid" ? value.alpha : 1;
   const setColor = (hex: string) => onChange(solid(hex, alpha));
   const setAlpha = (a: number) => onChange(solid(color, a));
   const hasEyeDropper = typeof window !== "undefined" && !!window.EyeDropper;
+
+  // ---- gradient editing --------------------------------------------------
+  const stops: GradientStop[] = gradient
+    ? gradient.stops
+    : [
+        { offset: 0, color, alpha: 1 },
+        { offset: 1, color: "#ffffff", alpha: 1 },
+      ];
+  const angle = value && value.type === "linear" ? value.angle : 0;
+  const setStops = (next: GradientStop[]) =>
+    onChange(kind === "radial" ? radialGradient(next) : linearGradient(next, angle));
+  const updateStop = (i: number, patch: Partial<GradientStop>) =>
+    setStops(stops.map((s, j) => (j === i ? { ...s, ...patch } : s)));
+  const addStop = () =>
+    setStops([...stops, { offset: 0.5, color: "#888888", alpha: 1 }]);
+  const removeStop = (i: number) =>
+    stops.length > 2 && setStops(stops.filter((_, j) => j !== i));
+
+  const setKind = (next: "none" | "solid" | "linear" | "radial") => {
+    if (next === "none") return onChange(null);
+    if (next === "solid") return onChange(solid(color, alpha));
+    if (next === "linear") return onChange(linearGradient(stops, angle));
+    return onChange(radialGradient(stops));
+  };
 
   // The popover portals to <body> so the sidebar's overflow can't clip it;
   // Floating UI keeps it anchored to the swatch (and inside the viewport).
@@ -119,11 +159,15 @@ export default function ColorField({ label, value, onChange }: Props) {
           )}
         </button>
         <span className="swatch-text">
-          {enabled
-            ? alpha < 1
-              ? `${color} · ${Math.round(alpha * 100)}%`
-              : color
-            : "none"}
+          {kind === "none"
+            ? "none"
+            : kind === "solid"
+              ? alpha < 1
+                ? `${color} · ${Math.round(alpha * 100)}%`
+                : color
+              : kind === "linear"
+                ? "Linear"
+                : "Radial"}
         </span>
       </div>
 
@@ -134,89 +178,115 @@ export default function ColorField({ label, value, onChange }: Props) {
             ref={refs.setFloating}
             style={floatingStyles}
           >
-          <div className="color-pop-row">
-            <button
-              className={"none-btn" + (enabled ? "" : " active")}
-              onClick={() => onChange(null)}
-            >
-              None
-            </button>
-            <input
-              type="color"
-              className="color-spectrum"
-              value={color}
-              onChange={(e) => setColor(e.target.value)}
-            />
-            {hasEyeDropper && (
+          <div className="paint-type-row">
+            {(["none", "solid", "linear", "radial"] as const).map((t) => (
               <button
-                className="icon-btn"
-                title="Pick color from screen"
-                onClick={pickFromScreen}
+                key={t}
+                className={"paint-type-btn" + (kind === t ? " active" : "")}
+                onClick={() => setKind(t)}
               >
-                <LuPipette aria-hidden />
+                {t === "none"
+                  ? "None"
+                  : t === "solid"
+                    ? "Solid"
+                    : t === "linear"
+                      ? "Linear"
+                      : "Radial"}
               </button>
-            )}
-            <input
-              key={enabled ? color : "none"}
-              className="hex-input"
-              defaultValue={enabled ? color.replace("#", "") : ""}
-              placeholder="rrggbb"
-              spellCheck={false}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") e.currentTarget.blur();
-              }}
-              onBlur={(e) => {
-                const n = normalizeHex(e.target.value);
-                if (n) setColor(n);
-              }}
-            />
-          </div>
-
-          {enabled && (
-            <div className="color-pop-alpha">
-              <span className="alpha-label">Alpha</span>
-              <input
-                type="range"
-                min={0}
-                max={100}
-                value={Math.round(alpha * 100)}
-                onChange={(e) => setAlpha(Number(e.target.value) / 100)}
-              />
-              <span className="alpha-value">{Math.round(alpha * 100)}%</span>
-            </div>
-          )}
-
-          <div className="color-pop-label">
-            Saved
-            <button
-              className="swatch-add"
-              title="Save current color"
-              disabled={!enabled}
-              onClick={() => enabled && addSwatch(color)}
-            >
-              +
-            </button>
-          </div>
-          <div className="swatch-grid">
-            {savedSwatches.length === 0 && (
-              <span className="swatch-hint">Save colors with +</span>
-            )}
-            {savedSwatches.map((c) => (
-              <button
-                key={c}
-                className="mini-swatch"
-                style={{ background: c }}
-                title={`${c} — Alt-click to remove`}
-                onClick={(e) => (e.altKey ? removeSwatch(c) : setColor(c))}
-              />
             ))}
           </div>
 
-          {recentColors.length > 0 && (
+          {kind === "solid" && (
             <>
-              <div className="color-pop-label">Recent</div>
+              <div className="color-pop-row">
+                <input
+                  type="color"
+                  className="color-spectrum"
+                  value={color}
+                  onChange={(e) => setColor(e.target.value)}
+                />
+                {hasEyeDropper && (
+                  <button
+                    className="icon-btn"
+                    title="Pick color from screen"
+                    onClick={pickFromScreen}
+                  >
+                    <LuPipette aria-hidden />
+                  </button>
+                )}
+                <input
+                  key={color}
+                  className="hex-input"
+                  defaultValue={color.replace("#", "")}
+                  placeholder="rrggbb"
+                  spellCheck={false}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") e.currentTarget.blur();
+                  }}
+                  onBlur={(e) => {
+                    const n = normalizeHex(e.target.value);
+                    if (n) setColor(n);
+                  }}
+                />
+              </div>
+
+              <div className="color-pop-alpha">
+                <span className="alpha-label">Alpha</span>
+                <input
+                  type="range"
+                  min={0}
+                  max={100}
+                  value={Math.round(alpha * 100)}
+                  onChange={(e) => setAlpha(Number(e.target.value) / 100)}
+                />
+                <span className="alpha-value">{Math.round(alpha * 100)}%</span>
+              </div>
+
+              <div className="color-pop-label">
+                Saved
+                <button
+                  className="swatch-add"
+                  title="Save current color"
+                  onClick={() => addSwatch(color)}
+                >
+                  +
+                </button>
+              </div>
               <div className="swatch-grid">
-                {recentColors.map((c) => (
+                {savedSwatches.length === 0 && (
+                  <span className="swatch-hint">Save colors with +</span>
+                )}
+                {savedSwatches.map((c) => (
+                  <button
+                    key={c}
+                    className="mini-swatch"
+                    style={{ background: c }}
+                    title={`${c} — Alt-click to remove`}
+                    onClick={(e) => (e.altKey ? removeSwatch(c) : setColor(c))}
+                  />
+                ))}
+              </div>
+
+              {recentColors.length > 0 && (
+                <>
+                  <div className="color-pop-label">Recent</div>
+                  <div className="swatch-grid">
+                    {recentColors.map((c) => (
+                      <button
+                        key={c}
+                        className="mini-swatch"
+                        style={{ background: c }}
+                        title={c}
+                        onClick={() => setColor(c)}
+                      />
+                    ))}
+                  </div>
+                </>
+              )}
+
+              <div className="color-pop-label">Palette</div>
+              <div className="swatch-grid">
+                {PALETTE.map((c) => (
                   <button
                     key={c}
                     className="mini-swatch"
@@ -229,18 +299,86 @@ export default function ColorField({ label, value, onChange }: Props) {
             </>
           )}
 
-          <div className="color-pop-label">Palette</div>
-          <div className="swatch-grid">
-            {PALETTE.map((c) => (
-              <button
-                key={c}
-                className="mini-swatch"
-                style={{ background: c }}
-                title={c}
-                onClick={() => setColor(c)}
+          {gradient && (
+            <>
+              <div
+                className="gradient-bar"
+                style={{ background: stopsToCssBar(stops) }}
               />
-            ))}
-          </div>
+              {kind === "linear" && (
+                <div className="color-pop-alpha">
+                  <span className="alpha-label">Angle</span>
+                  <input
+                    type="range"
+                    min={0}
+                    max={360}
+                    value={Math.round((angle * 180) / Math.PI)}
+                    onChange={(e) =>
+                      onChange(
+                        linearGradient(
+                          stops,
+                          (Number(e.target.value) * Math.PI) / 180
+                        )
+                      )
+                    }
+                  />
+                  <span className="alpha-value">
+                    {Math.round((angle * 180) / Math.PI)}°
+                  </span>
+                </div>
+              )}
+              <div className="color-pop-label">
+                Stops
+                <button
+                  className="swatch-add"
+                  title="Add a stop"
+                  onClick={addStop}
+                >
+                  +
+                </button>
+              </div>
+              {stops.map((s, i) => (
+                <div className="gradient-stop" key={i}>
+                  <input
+                    type="color"
+                    className="stop-color"
+                    value={s.color}
+                    onChange={(e) => updateStop(i, { color: e.target.value })}
+                  />
+                  <input
+                    type="range"
+                    className="stop-offset"
+                    min={0}
+                    max={100}
+                    value={Math.round(s.offset * 100)}
+                    onChange={(e) =>
+                      updateStop(i, { offset: Number(e.target.value) / 100 })
+                    }
+                    title="Position"
+                  />
+                  <input
+                    type="range"
+                    className="stop-alpha"
+                    min={0}
+                    max={100}
+                    value={Math.round(s.alpha * 100)}
+                    onChange={(e) =>
+                      updateStop(i, { alpha: Number(e.target.value) / 100 })
+                    }
+                    title="Alpha"
+                  />
+                  <button
+                    className="stop-remove"
+                    title="Remove stop"
+                    disabled={stops.length <= 2}
+                    onClick={() => removeStop(i)}
+                  >
+                    ×
+                  </button>
+                </div>
+              ))}
+            </>
+          )}
           </div>,
           document.body
         )}

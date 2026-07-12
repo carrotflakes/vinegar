@@ -349,6 +349,69 @@
   gap: 6px;
 }
 
+.paint-type-row {
+  display: flex;
+  gap: 4px;
+}
+
+.paint-type-btn {
+  flex: 1;
+  padding: 5px 4px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--panel);
+  color: var(--muted);
+  font-size: 11.5px;
+}
+
+.paint-type-btn.active {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: var(--accent-weak);
+}
+
+.gradient-bar {
+  height: 18px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+
+.gradient-stop {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.gradient-stop .stop-color {
+  width: 26px;
+  height: 22px;
+  flex: none;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  background: none;
+}
+
+.gradient-stop input[type="range"] {
+  flex: 1;
+  min-width: 0;
+}
+
+.gradient-stop .stop-remove {
+  flex: none;
+  width: 22px;
+  height: 22px;
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  background: var(--panel);
+  color: var(--muted);
+  line-height: 1;
+}
+
+.gradient-stop .stop-remove:disabled {
+  opacity: 0.4;
+}
+
 .color-pop-alpha {
   display: flex;
   align-items: center;

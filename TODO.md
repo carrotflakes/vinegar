@@ -65,8 +65,8 @@ A running list of what's built and what's next. Check items off as they land.
 ## Backlog / ideas
 - [x] Paint model: `fill`/`stroke` are a `Paint` union (`model/paint.ts`), extensible to gradient/pattern without re-touching render/SVG/serialize/UI. File format v10 (v8/v9 auto-migrate string→solid)
   - [x] Per-color alpha (ColorField alpha slider; checkerboard swatch; SVG fill/stroke-opacity)
-  - [ ] Gradient paint (linear/radial): add to the `Paint` union + resolvePaint (canvas) + paintToSvgAttrs/defs (SVG) + ColorField editor
-  - [ ] Pattern/texture paint (raster fill)
+  - [x] Gradient paint (linear + radial): resolvePaint builds a CanvasGradient over shape bounds; SVG emits `<defs>` gradients; ColorField gains a type selector + stop editor (add/remove, offset/alpha per stop) + angle for linear
+  - [ ] Pattern/texture paint (raster fill) — needs the raster-image asset pipeline first (async decode cache)
   - [ ] Swatches saved in the document (currently localStorage, color-only)
 - [ ] System clipboard integration (paste across tabs/apps)
 - [ ] Text tool
@@ -94,7 +94,7 @@ A running list of what's built and what's next. Check items off as they land.
 ## User ideas / wishlist
 - [ ] Rectangleの角丸
 - [ ] 塗り機能
-- [ ] グラデーション
+- [x] グラデーション（linear / radial。Paint モデル上に実装）
 - [ ] テクスチャ
 - [ ] ラスタ画像
 - [x] スクリプティング（one-shot 生成）

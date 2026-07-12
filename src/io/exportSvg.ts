@@ -1,10 +1,33 @@
 import { subpathSegments } from "../model/bezier";
 import { shapeBounds } from "../model/bounds";
 import { applyMatrix, isIdentity } from "../model/matrix";
-import { paintToSvgAttrs } from "../model/paint";
+import { gradientToSvg, paintToSvgAttrs, type Paint } from "../model/paint";
 import { isGroup, isShape } from "../model/scene";
 import type { BezierShape, Document, Matrix, SceneNode, Shape } from "../model/types";
 import { contentBounds } from "./exportBounds";
+
+/**
+ * Collects gradient definitions referenced during serialization. Solids become
+ * plain attributes; gradients register a `<*Gradient>` def and are referenced
+ * by `url(#id)`.
+ */
+interface Defs {
+  items: string[];
+  paintAttrs(paint: Paint, kind: "fill" | "stroke"): string[];
+}
+
+function makeDefs(): Defs {
+  const items: string[] = [];
+  return {
+    items,
+    paintAttrs(paint, kind) {
+      if (paint.type === "solid") return paintToSvgAttrs(paint, kind);
+      const id = `grad${items.length}`;
+      items.push(gradientToSvg(paint, id));
+      return [`${kind}="url(#${id})"`];
+    },
+  };
+}
 
 function num(n: number): string {
   // Trim to a sane precision and drop trailing zeros.
@@ -15,17 +38,17 @@ function matrixAttr(matrix: Matrix): string {
   return `matrix(${matrix.map(num).join(" ")})`;
 }
 
-function commonAttrs(shape: Shape): string {
+function commonAttrs(shape: Shape, defs: Defs): string {
   const parts: string[] = [];
   const fillable = !(
     shape.type === "line" ||
     (shape.type === "path" && !shape.closed) ||
     (shape.type === "bezier" && !shape.subpaths.some((sp) => sp.closed))
   );
-  if (fillable && shape.fill) parts.push(...paintToSvgAttrs(shape.fill, "fill"));
+  if (fillable && shape.fill) parts.push(...defs.paintAttrs(shape.fill, "fill"));
   else parts.push(`fill="none"`);
   if (shape.stroke && shape.strokeWidth > 0) {
-    parts.push(...paintToSvgAttrs(shape.stroke, "stroke"));
+    parts.push(...defs.paintAttrs(shape.stroke, "stroke"));
     parts.push(`stroke-width="${num(shape.strokeWidth)}"`);
     parts.push(`stroke-linejoin="round" stroke-linecap="round"`);
   }
@@ -39,8 +62,8 @@ function commonAttrs(shape: Shape): string {
   return parts.join(" ");
 }
 
-function shapeToSvg(shape: Shape): string {
-  const attrs = commonAttrs(shape);
+function shapeToSvg(shape: Shape, defs: Defs): string {
+  const attrs = commonAttrs(shape, defs);
   switch (shape.type) {
     case "rect": {
       const b = shapeBounds(shape);
@@ -163,10 +186,11 @@ function nodeToSvg(
   doc: Document,
   node: SceneNode,
   indent: string,
+  defs: Defs,
   activeSymbols: Set<string> = new Set()
 ): string[] {
   if (isShape(node)) {
-    return node.hidden ? [] : [indent + shapeToSvg(node)];
+    return node.hidden ? [] : [indent + shapeToSvg(node, defs)];
   }
   if (node.hidden) return [];
   let childIds: string[];
@@ -194,7 +218,7 @@ function nodeToSvg(
   if (symbolId) activeSymbols.add(symbolId);
   const body = childIds.flatMap((id) => {
     const child = doc.nodes[id];
-    return child ? nodeToSvg(doc, child, indent + "  ", activeSymbols) : [];
+    return child ? nodeToSvg(doc, child, indent + "  ", defs, activeSymbols) : [];
   });
   if (symbolId) activeSymbols.delete(symbolId);
   return [
@@ -232,13 +256,17 @@ export function exportSvg(doc: Document, margin = 8): string {
   const bounds = contentBounds(doc, margin);
   if (!bounds) throw new Error("Nothing to export.");
 
+  const defs = makeDefs();
   const roots = doc.rootIds.map((id) => doc.nodes[id]).filter(Boolean);
-  const body = roots.flatMap((n) => nodeToSvg(doc, n, "  ")).join("\n");
+  const body = roots.flatMap((n) => nodeToSvg(doc, n, "  ", defs)).join("\n");
   // Blend modes should composite against the drawing only, not the page the
   // SVG happens to be embedded in.
   const isolate = roots.some((node) => usesBlend(doc, node))
     ? ` style="isolation:isolate"`
     : "";
+  const defsBlock = defs.items.length
+    ? [`  <defs>`, ...defs.items.map((d) => "    " + d), `  </defs>`]
+    : [];
 
   return [
     `<svg xmlns="http://www.w3.org/2000/svg" width="${num(
@@ -246,6 +274,7 @@ export function exportSvg(doc: Document, margin = 8): string {
     )}" height="${num(bounds.height)}" viewBox="${num(bounds.x)} ${num(
       bounds.y
     )} ${num(bounds.width)} ${num(bounds.height)}"${isolate}>`,
+    ...defsBlock,
     body,
     `</svg>`,
     "",

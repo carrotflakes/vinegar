@@ -267,11 +267,19 @@ export function runScript(
   });
 }
 
-/** A snapshot copy whose shape fill/stroke are colour strings (or null). */
+/**
+ * A snapshot copy where solid fill/stroke are flattened to colour strings for
+ * the DSL. Gradients stay as objects (scripts can't author them, but must not
+ * lose them): scriptPaint() leaves an untouched object as the existing paint.
+ */
 function flattenSnapshotForScript(snap: ScriptSnapshot): ScriptSnapshot {
+  const flat = (v: unknown) => {
+    const p = v as Paint | null;
+    return p && p.type === "solid" ? p.color : p;
+  };
   const flattenPaint = (node: Record<string, unknown>) => {
-    if ("fill" in node) node.fill = (node.fill as Paint | null)?.color ?? null;
-    if ("stroke" in node) node.stroke = (node.stroke as Paint | null)?.color ?? null;
+    if ("fill" in node) node.fill = flat(node.fill);
+    if ("stroke" in node) node.stroke = flat(node.stroke);
     if (node.type === "compoundPath" && Array.isArray(node.components)) {
       node.components.forEach((c) => flattenPaint(c as Record<string, unknown>));
     }
