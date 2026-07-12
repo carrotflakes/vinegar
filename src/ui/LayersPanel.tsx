@@ -6,6 +6,7 @@ import {
   LuWaves,
   LuPenTool,
   LuHexagon,
+  LuImage,
   LuEye,
   LuEyeOff,
   LuLock,
@@ -42,6 +43,7 @@ const TYPE_ICON: Record<Shape["type"], ComponentType> = {
   bezier: LuPenTool,
   polygon: LuHexagon,
   compoundPath: LuCombine,
+  image: LuImage,
 };
 
 /** Display node: the render tree with every level front-most first. */

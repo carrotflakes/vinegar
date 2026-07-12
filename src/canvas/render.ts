@@ -3,8 +3,9 @@ import { shapeBounds } from "../model/bounds";
 import { isIdentity } from "../model/matrix";
 import { resolvePaint } from "../model/paint";
 import { isGroup, isInstance, isShape } from "../model/scene";
-import type { Artboard, Document, Shape } from "../model/types";
+import type { Artboard, Document, DocumentAsset, ImageShape, Shape } from "../model/types";
 import { worldToScreen, type Viewport } from "../model/viewport";
+import { getAssetImage } from "./imageCache";
 
 /**
  * Paint a render node. Groups and instances with opacity/blend are drawn into
@@ -22,7 +23,7 @@ export function paintNode(
   if (!node) return;
   if (isShape(node)) {
     if (node.hidden) return;
-    paintShape(ctx, preview?.id === node.id ? preview : node);
+    paintShape(ctx, preview?.id === node.id ? preview : node, doc.assets);
     return;
   }
   let childIds: string[];
@@ -150,13 +151,22 @@ function tracePath(ctx: CanvasRenderingContext2D, shape: Shape, begin = true): v
 }
 
 /** Paint one shape (fill then stroke) in world coordinates. */
-export function paintShape(ctx: CanvasRenderingContext2D, shape: Shape): void {
+export function paintShape(
+  ctx: CanvasRenderingContext2D,
+  shape: Shape,
+  assets: Record<string, DocumentAsset> = {}
+): void {
   ctx.save();
   ctx.globalAlpha = shape.opacity;
   if (shape.blendMode && shape.blendMode !== "normal") {
     ctx.globalCompositeOperation = shape.blendMode;
   }
   if (!isIdentity(shape.transform)) ctx.transform(...shape.transform);
+  if (shape.type === "image") {
+    paintImage(ctx, shape, assets[shape.assetId]);
+    ctx.restore();
+    return;
+  }
   tracePath(ctx, shape);
 
   // Lines and open paths/curves are never filled.
@@ -181,6 +191,30 @@ export function paintShape(ctx: CanvasRenderingContext2D, shape: Shape): void {
     ctx.stroke();
   }
   ctx.restore();
+}
+
+/**
+ * Draw a placed image, or a placeholder box while its pixels are still
+ * decoding (the cache repaints the canvas once they arrive) or when the
+ * asset is missing/broken.
+ */
+function paintImage(
+  ctx: CanvasRenderingContext2D,
+  shape: ImageShape,
+  asset: DocumentAsset | undefined
+): void {
+  const b = shapeBounds(shape);
+  if (b.width <= 0 || b.height <= 0) return;
+  const img = asset ? getAssetImage(asset) : null;
+  if (img) {
+    ctx.drawImage(img, b.x, b.y, b.width, b.height);
+    return;
+  }
+  ctx.fillStyle = "rgba(128, 134, 142, 0.15)";
+  ctx.fillRect(b.x, b.y, b.width, b.height);
+  ctx.strokeStyle = "rgba(128, 134, 142, 0.6)";
+  ctx.lineWidth = 1;
+  ctx.strokeRect(b.x, b.y, b.width, b.height);
 }
 
 export interface RenderOptions {
@@ -227,7 +261,9 @@ export function renderScene(
   for (const nodeId of opts.rootIds ?? doc.rootIds) {
     paintNode(ctx, doc, nodeId, opts.preview);
   }
-  if (opts.preview && !doc.nodes[opts.preview.id]) paintShape(ctx, opts.preview);
+  if (opts.preview && !doc.nodes[opts.preview.id]) {
+    paintShape(ctx, opts.preview, doc.assets);
+  }
 
   ctx.restore();
 }

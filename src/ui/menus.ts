@@ -62,5 +62,5 @@ export function selectionMenu(): MenuEntry[] {
 
 /** Menu for empty canvas space. `at` is the click point in world coords. */
 export function canvasMenu(at: Vec2): MenuEntry[] {
-  return [item("edit.paste", at), item("select.all")];
+  return [item("edit.paste", at), item("file.placeImage", at), item("select.all")];
 }

@@ -101,6 +101,12 @@ export interface HistoryActions {
 export interface ShapeActions {
   addShape: (shape: Shape, select?: boolean) => void;
   addShapes: (shapes: Shape[], select?: boolean) => void;
+  /** Import image files as assets and place them centered on `at`. */
+  placeImageFiles: (
+    files: File[],
+    at: Vec2,
+    fitWithin?: { width: number; height: number }
+  ) => Promise<void>;
   updateShape: (shape: Shape, select?: boolean) => void;
   toggleNodeSmooth: (shapeId: string, sub: number, index: number) => void;
   deleteEditNode: () => void;

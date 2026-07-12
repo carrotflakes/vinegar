@@ -123,6 +123,7 @@ function shapeToGeom(shape: Shape): paper.PathItem | null {
       if (item) item.fillRule = "evenodd";
       break;
     case "line":
+    case "image":
       return null;
   }
   if (!item) return null;
@@ -143,6 +144,7 @@ export function isAreal(shape: Shape): boolean {
     case "bezier":
       return shape.subpaths.some((sp) => sp.closed && sp.anchors.length >= 2);
     case "line":
+    case "image":
       return false;
   }
 }

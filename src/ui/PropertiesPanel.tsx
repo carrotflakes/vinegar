@@ -104,6 +104,9 @@ export default function PropertiesPanel() {
   const canMakeCompound = canMakeCompoundPathSelection(doc, selection);
   const canReleaseCompound = canReleaseCompoundPathSelection(doc, selection);
 
+  // Images carry no paint; hide the fill/stroke controls for image-only picks.
+  const paintless = hasSelection && selected.every((s) => s.type === "image");
+
   // Effective values: selected shape's values, else the new-shape defaults.
   const fill = hasSelection ? first.fill : style.fill;
   const stroke = hasSelection ? first.stroke : style.stroke;
@@ -198,30 +201,34 @@ export default function PropertiesPanel() {
             : "New shape defaults"}
         </div>
 
-        <ColorField label="Fill" value={fill} onChange={setFill} />
-        <ColorField label="Stroke" value={stroke} onChange={setStroke} />
+        {!paintless && (
+          <>
+            <ColorField label="Fill" value={fill} onChange={setFill} />
+            <ColorField label="Stroke" value={stroke} onChange={setStroke} />
 
-        <div className="field">
-          <label>Stroke width</label>
-          <div className="field-row">
-            <input
-              type="range"
-              min={0}
-              max={40}
-              step={0.5}
-              value={strokeWidth}
-              onChange={(e) => setStrokeWidth(Number(e.target.value))}
-            />
-            <input
-              type="number"
-              className="num"
-              min={0}
-              step={0.5}
-              value={strokeWidth}
-              onChange={(e) => setStrokeWidth(Number(e.target.value))}
-            />
-          </div>
-        </div>
+            <div className="field">
+              <label>Stroke width</label>
+              <div className="field-row">
+                <input
+                  type="range"
+                  min={0}
+                  max={40}
+                  step={0.5}
+                  value={strokeWidth}
+                  onChange={(e) => setStrokeWidth(Number(e.target.value))}
+                />
+                <input
+                  type="number"
+                  className="num"
+                  min={0}
+                  step={0.5}
+                  value={strokeWidth}
+                  onChange={(e) => setStrokeWidth(Number(e.target.value))}
+                />
+              </div>
+            </div>
+          </>
+        )}
 
         {hasSelection && (
           <div className="field">
@@ -693,5 +700,7 @@ function typeName(shape: Shape): string {
       return "Shape";
     case "compoundPath":
       return "Compound Path";
+    case "image":
+      return "Image";
   }
 }

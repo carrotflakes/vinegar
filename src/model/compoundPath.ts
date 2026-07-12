@@ -34,11 +34,15 @@ export function canReleaseCompoundPathSelection(doc: Document, selection: string
 }
 
 function retainedComponents(shape: Shape): PrimitiveShape[] {
-  if (shape.type !== "compoundPath") return [structuredClone(shape)];
-  return shape.components.map((component) => ({
-    ...structuredClone(component),
-    transform: multiply(shape.transform, component.transform),
-  }));
+  if (shape.type === "compoundPath") {
+    return shape.components.map((component) => ({
+      ...structuredClone(component),
+      transform: multiply(shape.transform, component.transform),
+    }));
+  }
+  // Images never pass canCompoundShape; this branch is unreachable for them.
+  if (shape.type === "image") return [];
+  return [structuredClone(shape)];
 }
 
 /** Create one non-node-editable compound path in the inputs' parent space. */

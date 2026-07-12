@@ -35,6 +35,7 @@ import {
   onArtboardDown,
   onArtboardMove,
 } from "./tools/artboardTool";
+import { subscribeImageCache } from "./imageCache";
 import { pickShape, selectedBezier, selectedShapes } from "./picking";
 import { renderScene } from "./render";
 import {
@@ -228,6 +229,9 @@ export default function CanvasView() {
       }),
     [ctx, scheduleDraw]
   );
+
+  // Repaint when an image asset finishes decoding.
+  useEffect(() => subscribeImageCache(scheduleDraw), [scheduleDraw]);
 
   // ---- sizing ------------------------------------------------------------
   useEffect(() => {
@@ -547,6 +551,20 @@ export default function CanvasView() {
     }
   };
 
+  // Dropping image files onto the canvas places them at the drop point.
+  const onDrop = (e: React.DragEvent<HTMLCanvasElement>) => {
+    e.preventDefault();
+    const files = [...(e.dataTransfer?.files ?? [])];
+    if (!files.length) return;
+    const state = useEditor.getState();
+    const world = screenToWorld(state.viewport, screenPoint(e));
+    const { width, height } = sizeRef.current;
+    void state.placeImageFiles(files, world, {
+      width: (width / state.viewport.scale) * 0.8,
+      height: (height / state.viewport.scale) * 0.8,
+    });
+  };
+
   const onContextMenu = (e: React.MouseEvent<HTMLCanvasElement>) => {
     e.preventDefault();
     const state = useEditor.getState();
@@ -680,6 +698,8 @@ export default function CanvasView() {
         onPointerLeave={() => setPointer(null)}
         onDoubleClick={onDoubleClick}
         onContextMenu={onContextMenu}
+        onDragOver={(e) => e.preventDefault()}
+        onDrop={onDrop}
       />
       <ModifierBar />
       {editingSymbolName !== null && (

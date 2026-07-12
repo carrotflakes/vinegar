@@ -3,7 +3,7 @@ import { shapeBounds } from "../model/bounds";
 import { applyMatrix, isIdentity } from "../model/matrix";
 import { gradientToSvg, paintToSvgAttrs, type Paint } from "../model/paint";
 import { isGroup, isShape } from "../model/scene";
-import type { BezierShape, Bounds, Document, Matrix, SceneNode, Shape } from "../model/types";
+import type { BezierShape, Bounds, Document, Matrix, PrimitiveShape, SceneNode, Shape } from "../model/types";
 import { contentBounds } from "./exportBounds";
 
 export interface SvgOptions {
@@ -46,6 +46,19 @@ function matrixAttr(matrix: Matrix): string {
   return `matrix(${matrix.map(num).join(" ")})`;
 }
 
+/** Opacity / blend / transform attributes shared by every node kind. */
+function baseAttrs(shape: Shape): string[] {
+  const parts: string[] = [];
+  if (shape.opacity < 1) parts.push(`opacity="${num(shape.opacity)}"`);
+  if (shape.blendMode && shape.blendMode !== "normal") {
+    parts.push(`style="mix-blend-mode:${shape.blendMode}"`);
+  }
+  if (!isIdentity(shape.transform)) {
+    parts.push(`transform="${matrixAttr(shape.transform)}"`);
+  }
+  return parts;
+}
+
 function commonAttrs(shape: Shape, defs: Defs): string {
   const parts: string[] = [];
   const fillable = !(
@@ -60,17 +73,22 @@ function commonAttrs(shape: Shape, defs: Defs): string {
     parts.push(`stroke-width="${num(shape.strokeWidth)}"`);
     parts.push(`stroke-linejoin="round" stroke-linecap="round"`);
   }
-  if (shape.opacity < 1) parts.push(`opacity="${num(shape.opacity)}"`);
-  if (shape.blendMode && shape.blendMode !== "normal") {
-    parts.push(`style="mix-blend-mode:${shape.blendMode}"`);
-  }
-  if (!isIdentity(shape.transform)) {
-    parts.push(`transform="${matrixAttr(shape.transform)}"`);
-  }
+  parts.push(...baseAttrs(shape));
   return parts.join(" ");
 }
 
-function shapeToSvg(shape: Shape, defs: Defs): string {
+function shapeToSvg(doc: Document, shape: Shape, defs: Defs): string {
+  if (shape.type === "image") {
+    const asset = doc.assets[shape.assetId];
+    if (!asset) return "";
+    const b = shapeBounds(shape);
+    const attrs = baseAttrs(shape).join(" ");
+    return `<image x="${num(b.x)}" y="${num(b.y)}" width="${num(
+      b.width
+    )}" height="${num(b.height)}" preserveAspectRatio="none" href="${
+      asset.source.data
+    }"${attrs ? " " + attrs : ""} />`;
+  }
   const attrs = commonAttrs(shape, defs);
   switch (shape.type) {
     case "rect": {
@@ -115,7 +133,7 @@ function shapeToSvg(shape: Shape, defs: Defs): string {
   }
 }
 
-function primitivePathData(shape: Exclude<Shape, { type: "compoundPath" }>, matrix: Matrix): string {
+function primitivePathData(shape: PrimitiveShape, matrix: Matrix): string {
   const point = (p: { x: number; y: number }) => {
     const out = applyMatrix(matrix, p);
     return `${num(out.x)} ${num(out.y)}`;
@@ -198,7 +216,7 @@ function nodeToSvg(
   activeSymbols: Set<string> = new Set()
 ): string[] {
   if (isShape(node)) {
-    return node.hidden ? [] : [indent + shapeToSvg(node, defs)];
+    return node.hidden ? [] : [indent + shapeToSvg(doc, node, defs)];
   }
   if (node.hidden) return [];
   let childIds: string[];

@@ -72,6 +72,9 @@ function centerlines(shape: Shape): Polyline[] {
           points: line.points.map((point) => applyMatrix(component.transform, point)),
         }))
       );
+    case "image":
+      // Images never stroke.
+      return [];
   }
 }
 

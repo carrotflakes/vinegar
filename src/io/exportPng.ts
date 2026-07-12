@@ -1,3 +1,4 @@
+import { ensureDocImagesLoaded } from "../canvas/imageCache";
 import { paintNode } from "../canvas/render";
 import type { Bounds, Document } from "../model/types";
 import { contentBounds } from "./exportBounds";
@@ -20,6 +21,9 @@ export async function exportPng(
   const { scale = 2, background, margin = 8 } = opts;
   const bounds = opts.bounds ?? contentBounds(doc, margin);
   if (!bounds) throw new Error("Nothing to export.");
+
+  // Painting is synchronous; make sure every placed image has pixels first.
+  await ensureDocImagesLoaded(doc);
 
   const canvas = document.createElement("canvas");
   canvas.width = Math.max(1, Math.ceil(bounds.width * scale));

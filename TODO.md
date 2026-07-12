@@ -27,8 +27,19 @@ Ordered by agreed priority. These are the biggest gaps toward a "real" vector ed
        later gradient/image board backgrounds
      - [ ] Export options dialog (scale / format / margin per board; PNG is 2x fixed)
      - [ ] Deferred by design: rotated boards, on-canvas clip-to-artboard view toggle
-2. [ ] **Raster image placement** — an `image` node + `drawImage` pipeline over the
-   existing `DocumentAsset` model (async decode cache). Enables reference/underlay images.
+2. [x] **Raster image placement** — an `image` node over the `DocumentAsset`
+   store (data-URL assets, file v12) with an async decode cache
+   (`canvas/imageCache.ts`). Import via File ▸ Place image…, the canvas context
+   menu, or drag & drop (lands at the pointer, auto-fit to ~80% of the view).
+   Images select/move/resize/rotate and take opacity/blend like any shape;
+   PNG export awaits decodes, SVG embeds a data-URL `<image>`, and unused
+   assets are garbage-collected on save.
+   - Follow-ups:
+     - [ ] Paste an image from the system clipboard
+     - [ ] Image-specific properties (reset to natural size, aspect-ratio lock)
+     - [ ] Mirroring: dragging a resize handle across the opposite side
+       normalizes instead of flipping (same as rect)
+     - [ ] Script API: expose image nodes
 3. [ ] **Masking / clipping mask** — clip one object's paint by another's shape.
 4. [ ] **Effects (drop shadow / blur)** — per-node shadow and blur; render + SVG + serialize.
 5. [ ] **Text tool** — a `text` shape type (typography, editing, on-path later).
@@ -99,7 +110,7 @@ Ordered by agreed priority. These are the biggest gaps toward a "real" vector ed
 - [x] Paint model: `fill`/`stroke` are a `Paint` union (`model/paint.ts`), extensible to gradient/pattern without re-touching render/SVG/serialize/UI. File format v10 (v8/v9 auto-migrate string→solid)
   - [x] Per-color alpha (ColorField alpha slider; checkerboard swatch; SVG fill/stroke-opacity)
   - [x] Gradient paint (linear + radial): resolvePaint builds a CanvasGradient over shape bounds; SVG emits `<defs>` gradients; ColorField gains a type selector + stop editor (add/remove, offset/alpha per stop) + angle for linear
-  - [ ] Pattern/texture paint (raster fill) — needs the raster-image asset pipeline first (async decode cache)
+  - [ ] Pattern/texture paint (raster fill) — the asset pipeline now exists (`canvas/imageCache.ts`)
   - [ ] Swatches saved in the document (currently localStorage, color-only)
 - [ ] System clipboard integration (paste across tabs/apps)
 - [ ] Text tool
@@ -129,7 +140,7 @@ Ordered by agreed priority. These are the biggest gaps toward a "real" vector ed
 - [ ] 塗り機能
 - [x] グラデーション（linear / radial。Paint モデル上に実装）
 - [ ] テクスチャ
-- [ ] ラスタ画像
+- [x] ラスタ画像
 - [x] スクリプティング（one-shot 生成）
   - [x] 既存図形を参照、編集（shapes/selection/bounds/move/remove・直接編集→diff）
   - [ ] 実行後に生成物へビューを自動フィット

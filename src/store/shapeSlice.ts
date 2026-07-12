@@ -4,7 +4,8 @@ import { toggleAnchorSmooth } from "../model/bezier";
 import { shapeBounds } from "../model/bounds";
 import { descendantShapeIds, isShape, selectionRoots } from "../model/scene";
 import { resizeShapeToBounds, translateShape } from "../model/transforms";
-import type { Shape } from "../model/types";
+import { makeId, type ImageShape, type Shape } from "../model/types";
+import { importImageFile, isImageFile } from "../io/importImage";
 import { appendToScope, removeRoots } from "./docOps";
 import {
   clearTransient,
@@ -30,6 +31,46 @@ export function createShapeActions({ set, get, transact }: StoreCtx): ShapeActio
         : shape.subpaths.map((s, i) => (i === editNode.sub ? { ...s, anchors } : s));
       if (subpaths.length === 0) { transact(removeRoots(doc, [shape.id])); set({ selection: [], editNode: null, ...clearTransient }); }
       else { transact({ ...doc, nodes: { ...doc.nodes, [shape.id]: { ...shape, subpaths } } }); set({ editNode: null }); }
+    },
+    placeImageFiles: async (files, at, fitWithin) => {
+      const images = (
+        await Promise.all(files.filter(isImageFile).map(importImageFile))
+      ).filter((img) => img !== null);
+      if (!images.length) return;
+      const s = get();
+      const nodes = { ...s.doc.nodes };
+      const assets = { ...s.doc.assets };
+      const ids: string[] = [];
+      // Multiple files land as a small cascade so none hides the others.
+      images.forEach((img, i) => {
+        const scale = fitWithin
+          ? Math.min(1, fitWithin.width / img.naturalWidth, fitWithin.height / img.naturalHeight)
+          : 1;
+        const width = img.naturalWidth * scale;
+        const height = img.naturalHeight * scale;
+        const shape: ImageShape = {
+          id: makeId("image"),
+          name: img.asset.name?.replace(/\.[^.]+$/, "") || "Image",
+          type: "image",
+          assetId: img.asset.id,
+          x: at.x - width / 2 + i * 24,
+          y: at.y - height / 2 + i * 24,
+          width,
+          height,
+          transform: [1, 0, 0, 1, 0, 0],
+          transformOrigin: null,
+          opacity: 1,
+          fill: null,
+          stroke: null,
+          strokeWidth: 0,
+        };
+        assets[img.asset.id] = img.asset;
+        nodes[shape.id] = shape;
+        ids.push(shape.id);
+      });
+      const doc = { ...s.doc, nodes, assets };
+      transact(appendToScope(doc, currentSymbolScope(s), ids));
+      set({ selection: ids, ...clearTransient });
     },
     // Scripts operate on the scene scope; created shapes join the scene roots.
     applyScriptChanges: ({ created, updated, deleted }) => {

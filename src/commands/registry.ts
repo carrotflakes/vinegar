@@ -21,6 +21,7 @@ import { isInstance, parentIdOf, selectionRoots } from "../model/scene";
 import { artboardBounds, type Artboard, type Vec2 } from "../model/types";
 import { initialViewport, screenToWorld, zoomAt } from "../model/viewport";
 import { downloadBlob, downloadText, pickTextFile } from "../io/download";
+import { pickImageFiles } from "../io/importImage";
 import { exportPng } from "../io/exportPng";
 import { exportSvg } from "../io/exportSvg";
 import { parseDocument, serializeDocument } from "../io/serialize";
@@ -362,6 +363,23 @@ export const COMMANDS: Command[] = [
             (err instanceof Error ? err.message : String(err))
         );
       }
+    },
+  },
+  {
+    id: "file.placeImage",
+    label: "Place image…",
+    group: "File",
+    run: async (s, ctx) => {
+      const files = await pickImageFiles();
+      if (!files.length) return;
+      const center = canvasCenter();
+      const at = ctx?.at ?? screenToWorld(s.viewport, center);
+      // Fit oversized images into ~80% of the visible plane.
+      const fitWithin = {
+        width: ((center.x * 2) / s.viewport.scale) * 0.8,
+        height: ((center.y * 2) / s.viewport.scale) * 0.8,
+      };
+      await s.placeImageFiles(files, at, fitWithin);
     },
   },
   {

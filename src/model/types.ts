@@ -17,7 +17,8 @@ export type ShapeType =
   | "path"
   | "bezier"
   | "polygon"
-  | "compoundPath";
+  | "compoundPath"
+  | "image";
 
 /**
  * Blend modes shared verbatim by Canvas 2D (`globalCompositeOperation`) and
@@ -156,6 +157,21 @@ export function polygonRings(shape: PolygonShape): Vec2[][] {
 }
 
 /**
+ * A placed raster image. The pixels live in a `DocumentAsset` referenced by
+ * id; the shape only carries its placement rectangle in local space. Images
+ * keep the BaseShape paint fields for uniformity but never use them
+ * (fill/stroke stay null).
+ */
+export interface ImageShape extends BaseShape {
+  type: "image";
+  assetId: string;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+/**
  * A reusable symbol definition. Its content is a Group stored in `doc.nodes`
  * but never listed in `rootIds`; the definition root keeps an identity
  * transform, so symbol-local space is the root group's child space.
@@ -195,7 +211,7 @@ export type PrimitiveShape =
   | BezierShape
   | PolygonShape;
 
-export type Shape = PrimitiveShape | CompoundPathShape;
+export type Shape = PrimitiveShape | CompoundPathShape | ImageShape;
 
 export type SceneNode = Shape | Group | SymbolInstance;
 

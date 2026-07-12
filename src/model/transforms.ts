@@ -12,7 +12,8 @@ export function transformShape(shape: Shape, fn: (p: Vec2) => Vec2): Shape {
     : null;
   switch (shape.type) {
     case "rect":
-    case "ellipse": {
+    case "ellipse":
+    case "image": {
       const a = fn({ x: shape.x, y: shape.y });
       const b = fn({ x: shape.x + shape.width, y: shape.y + shape.height });
       const r = normalizeRect(a.x, a.y, b.x - a.x, b.y - a.y);

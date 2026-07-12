@@ -1,14 +1,15 @@
 import { paintFromLegacy } from "../model/paint";
 import { BLEND_MODES, type Document, type ShapeType } from "../model/types";
 
-export const CURRENT_FILE_VERSION = 11 as const;
+export const CURRENT_FILE_VERSION = 12 as const;
 
 /**
  * v8 lacked `symbols` (added as an empty registry). v8 and v9 stored fill/
  * stroke as bare colour strings; v10 upgrades them to structured Paint. v11
- * adds `artboards` (backfilled as an empty list for older files).
+ * adds `artboards` (backfilled as an empty list for older files). v12 adds
+ * `image` nodes over the existing asset store (no structural change).
  */
-const MIGRATABLE_VERSIONS = new Set<unknown>([8, 9, 10]);
+const MIGRATABLE_VERSIONS = new Set<unknown>([8, 9, 10, 11]);
 
 export interface VinegarFile {
   app: "vinegar";
@@ -22,14 +23,26 @@ export function serializeDocument(doc: Document): string {
     version: CURRENT_FILE_VERSION,
     document: {
       ...doc,
+      assets: usedAssets(doc),
       metadata: { ...doc.metadata, modifiedAt: new Date().toISOString() },
     },
   };
   return JSON.stringify(file, null, 2);
 }
 
+/** Assets still referenced by an image node (drops orphans on save). */
+function usedAssets(doc: Document): Document["assets"] {
+  const used = new Set<string>();
+  for (const node of Object.values(doc.nodes)) {
+    if (node.type === "image") used.add(node.assetId);
+  }
+  return Object.fromEntries(
+    Object.entries(doc.assets).filter(([id]) => used.has(id))
+  );
+}
+
 const NODE_TYPES = new Set<ShapeType | "group" | "instance">([
-  "group", "rect", "ellipse", "line", "path", "bezier", "polygon", "compoundPath", "instance",
+  "group", "rect", "ellipse", "line", "path", "bezier", "polygon", "compoundPath", "instance", "image",
 ]);
 const isObject = (value: unknown): value is Record<string, unknown> =>
   !!value && typeof value === "object" && !Array.isArray(value);
@@ -80,6 +93,9 @@ const isNode = (id: string, node: unknown): boolean => {
   switch (node.type) {
     case "rect": case "ellipse":
       return isNumber(node.x) && isNumber(node.y) && isNumber(node.width) && isNumber(node.height);
+    case "image":
+      return typeof node.assetId === "string" &&
+        isNumber(node.x) && isNumber(node.y) && isNumber(node.width) && isNumber(node.height);
     case "line":
       return isNumber(node.x1) && isNumber(node.y1) && isNumber(node.x2) && isNumber(node.y2);
     case "path":
@@ -99,7 +115,8 @@ const isNode = (id: string, node: unknown): boolean => {
         Array.isArray(node.components) && node.components.length > 0 &&
         node.components.every((component: unknown) =>
           isObject(component) && component.type !== "compoundPath" &&
-          component.type !== "line" && typeof component.id === "string" &&
+          component.type !== "line" && component.type !== "image" &&
+          typeof component.id === "string" &&
           isNode(component.id, component) &&
           (component.type !== "path" || component.closed === true) &&
           (component.type !== "bezier" ||
@@ -177,7 +194,14 @@ function isCurrentDocument(value: unknown): value is Document {
     isNumber(value.settings.dpi) && isNumber(value.settings.gridSize) &&
     isObject(value.metadata) && typeof value.metadata.createdAt === "string" &&
     typeof value.metadata.modifiedAt === "string" &&
-    isObject(value.assets) && isObject(value.extensions)
+    isObject(value.assets) &&
+    Object.entries(value.assets).every(([id, asset]) =>
+      isObject(asset) && asset.id === id && asset.kind === "image" &&
+      typeof asset.mimeType === "string" &&
+      (asset.name === undefined || typeof asset.name === "string") &&
+      isObject(asset.source) && asset.source.type === "data" &&
+      typeof asset.source.data === "string") &&
+    isObject(value.extensions)
   );
 }
 
@@ -195,6 +219,9 @@ function validateTree(doc: Document): void {
         throw new Error(`Instance references missing symbol: ${node.symbolId}.`);
       }
       return;
+    }
+    if (node.type === "image" && !doc.assets[node.assetId]) {
+      throw new Error(`Image references missing asset: ${node.assetId}.`);
     }
     if (node.type !== "group") return;
     visiting.add(id);
