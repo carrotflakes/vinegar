@@ -132,5 +132,5 @@ Ordered by agreed priority. These are the biggest gaps toward a "real" vector ed
 - [ ] MCPサーバー化
 - [ ] グループ内のオブジェクトの移動　（グループ選択に吸われてしまう）
 - [ ] ロゴ / ファビコン
-- [ ] ユーザ選択不要な部分に select-none
-- [ ] Fileメニューの階層化（Export submenu）
+- [x] ユーザ選択不要な部分に select-none
+- [x] Fileメニューの階層化（Export submenu）
