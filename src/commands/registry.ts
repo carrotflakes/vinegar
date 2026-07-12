@@ -21,6 +21,7 @@ import { isInstance, parentIdOf, selectionRoots } from "../model/scene";
 import { artboardBounds, type Artboard, type Vec2 } from "../model/types";
 import { initialViewport, screenToWorld, zoomAt } from "../model/viewport";
 import { downloadBlob, downloadText, pickTextFile } from "../io/download";
+import { fileSlug, uniqueFileSlugs } from "../io/exportFilenames";
 import { pickImageFiles } from "../io/importImage";
 import { exportPng } from "../io/exportPng";
 import { exportSvg } from "../io/exportSvg";
@@ -95,12 +96,6 @@ function sel(s: EditorState) {
 /** The currently selected artboard, or null. */
 function selectedArtboard(s: EditorState): Artboard | null {
   return s.doc.artboards.find((ab) => ab.id === s.selectedArtboardId) ?? null;
-}
-
-/** Filesystem-friendly slug for an artboard name (fallback "artboard"). */
-function fileSlug(name: string): string {
-  const slug = name.trim().toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
-  return slug || "artboard";
 }
 
 /** Center of the canvas viewport in screen coords (for zoom-to-center). */
@@ -464,13 +459,14 @@ export const COMMANDS: Command[] = [
     enabled: (s) => s.doc.artboards.length > 0,
     run: async (s) => {
       try {
-        for (const ab of s.doc.artboards) {
+        const slugs = uniqueFileSlugs(s.doc.artboards.map((ab) => ab.name));
+        for (const [index, ab] of s.doc.artboards.entries()) {
           const blob = await exportPng(s.doc, {
             scale: 2,
             bounds: artboardBounds(ab),
             background: ab.background ?? undefined,
           });
-          downloadBlob(blob, `${fileSlug(ab.name)}.png`);
+          downloadBlob(blob, `${slugs[index]}.png`);
         }
       } catch (err) {
         window.alert(err instanceof Error ? err.message : String(err));

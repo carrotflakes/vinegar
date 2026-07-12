@@ -14,8 +14,8 @@ Ordered by agreed priority. These are the biggest gaps toward a "real" vector ed
        tool hit/move them too (or clarify the split)
      - [ ] No snapping or modifier keys on board create/move/resize (grid + shapes +
        other boards; Shift = square, Alt = from center)
-     - [ ] "Export all artboards" fires N sequential downloads and duplicate board
-       names collide — dedupe filenames (and consider a zip)
+     - [ ] "Export all artboards" fires N sequential downloads (filenames are
+       deduplicated); consider a zip
    - Follow-ups:
      - [ ] Artboards list panel (list / rename / reorder = export order / select)
      - [ ] Fit / zoom to artboard navigation
