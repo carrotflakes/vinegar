@@ -31,7 +31,24 @@ Ordered by agreed priority. These are the biggest gaps toward a "real" vector ed
    - [ ] Mirroring: dragging a resize handle across the opposite side
      normalizes instead of flipping (same as rect)
    - [ ] Script API: expose image nodes
-3. [ ] **Masking / clipping mask** — clip one object's paint by another's shape.
+3. [ ] **Masking / clipping mask** — clip a group's content by one shape. Decided
+   scope: **clip group** = a normal `Group` with `clip?: true` (no new node type,
+   so ungroup / layers / childIds machinery keep working; file version bump,
+   absent `clip` ⇒ normal group so migration is a no-op). The **frontmost child**
+   (last in `childIds`) is the mask; the rest are the clipped content. The mask
+   defines a **vector clip** — its filled silhouette only (fill/stroke/opacity
+   ignored), via `ctx.clip()` in `canvas/render.ts` and SVG `<clipPath>`
+   (`clip-rule` = the mask's fill rule; aliased edges are the accepted Canvas
+   limitation). Mask geometry must be areal (same test as fillable — lines /
+   open paths rejected). Hit-test & bounds use the **mask-clipped** region: a
+   point hits only inside the mask silhouette, and the clip group's world bounds
+   are the mask's bounds (matches Illustrator; drives handles + export bounds).
+   Create/Release act on a multi-selection (topmost = mask), reusing the
+   compound-path style structure ops; double-click descends to edit mask/content
+   like any group. Nested clip groups fall out for free (recursive group render).
+   - [ ] Deferred: alpha / luminance masks (soft, gradient & image masks),
+     multi-object masks, mask a raw shape without a wrapping group,
+     anti-aliased clip via offscreen `destination-in`
 4. [ ] **Effects (drop shadow / blur)** — per-node shadow and blur; render + SVG + serialize.
 5. [ ] **Text tool** — a `text` leaf shape (file v13). Decided scope:
    point text (click; auto-size) + area text (drag; fixed `width`, auto height,
