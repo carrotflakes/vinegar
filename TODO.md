@@ -33,7 +33,19 @@ Ordered by agreed priority. These are the biggest gaps toward a "real" vector ed
    - [ ] Script API: expose image nodes
 3. [ ] **Masking / clipping mask** — clip one object's paint by another's shape.
 4. [ ] **Effects (drop shadow / blur)** — per-node shadow and blur; render + SVG + serialize.
-5. [ ] **Text tool** — a `text` shape type (typography, editing, on-path later).
+5. [ ] **Text tool** — a `text` leaf shape (file v13). Decided scope:
+   point text (click; auto-size) + area text (drag; fixed `width`, auto height,
+   greedy wrap incl. per-character CJK breaks in `canvas/textLayout.ts`); one
+   style per node (family / size / weight / italic / lineHeight / align);
+   measured bbox stored on the node so bounds/hit-test stay pure and files open
+   without the font; overlay `textarea` editing in place (world×viewport matrix
+   as a CSS transform — rotated editing expected to work, horizontal fallback
+   if not); fonts from a web-safe list in `ui/fonts.ts` (name → CSS stack;
+   re-measure on `document.fonts` load so Google Fonts can slot in later);
+   SVG `<text>`/`<tspan>` per laid-out line, PNG awaits `document.fonts.ready`.
+   - [ ] Deferred: rich text (style runs), text on path, vertical text,
+     letter-spacing, outline-on-export, fixed-height clipping boxes,
+     Google Fonts loading
 6. [ ] **Stroke detail options** — dash pattern, line cap/join (currently hard-coded
    `round` in `canvas/render.ts`), and stroke alignment (inside / center / outside).
 
@@ -87,3 +99,4 @@ Ordered by agreed priority. These are the biggest gaps toward a "real" vector ed
   - [ ] Export bounds: include stroke extents of instance content
 - [ ] MCPサーバー化
 - [ ] グループ内のオブジェクトの移動　（グループ選択に吸われてしまう）
+- [ ] ロゴ / ファビコン
