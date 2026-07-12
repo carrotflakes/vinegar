@@ -117,6 +117,9 @@ export interface ShapeActions {
     at: Vec2,
     fitWithin?: { width: number; height: number }
   ) => Promise<void>;
+  /** Import one image file as a document asset (no scene node) for use as a
+   *  pattern fill/stroke. Resolves the new asset id, or null on failure. */
+  addPatternImage: (file: File) => Promise<string | null>;
   updateShape: (shape: Shape, select?: boolean) => void;
   toggleNodeSmooth: (shapeId: string, sub: number, index: number) => void;
   deleteEditNode: () => void;

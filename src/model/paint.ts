@@ -6,7 +6,7 @@
 // means "no paint".
 // ===========================================================================
 
-import type { Bounds } from "./types";
+import type { Bounds, Vec2 } from "./types";
 
 export interface SolidPaint {
   type: "solid";
@@ -39,13 +39,46 @@ export interface RadialGradientPaint {
 
 export type GradientPaint = LinearGradientPaint | RadialGradientPaint;
 
-// Future: | PatternPaint (raster fill via doc.assets)
-export type Paint = SolidPaint | GradientPaint;
+/**
+ * Raster fill: a document image asset tiled across the shape. The image is
+ * repeated in the shape's local space; `scale`/`rotation`/`offset` place the
+ * tiling lattice. Decoded pixels come from the asset cache at paint time, so
+ * a pattern that references a missing/decoding asset simply paints nothing.
+ */
+export interface PatternPaint {
+  type: "pattern";
+  /** Id of a `kind: "image"` asset in `doc.assets`. */
+  assetId: string;
+  /** Uniform scale applied to the image's natural pixel size. */
+  scale: number;
+  /** Rotation of the tiling lattice, radians (canvas convention, y-down). */
+  rotation: number;
+  /** Tile origin offset in the shape's local space. */
+  offset: Vec2;
+  /** 0..1 opacity of this paint, independent of the node's opacity. */
+  alpha: number;
+}
+
+export type Paint = SolidPaint | GradientPaint | PatternPaint;
 
 const clamp01 = (n: number) => Math.max(0, Math.min(1, n));
 
 export function solid(color: string, alpha = 1): SolidPaint {
   return { type: "solid", color, alpha: clamp01(alpha) };
+}
+
+export function pattern(
+  assetId: string,
+  opts: Partial<Omit<PatternPaint, "type" | "assetId">> = {}
+): PatternPaint {
+  return {
+    type: "pattern",
+    assetId,
+    scale: opts.scale ?? 1,
+    rotation: opts.rotation ?? 0,
+    offset: opts.offset ?? { x: 0, y: 0 },
+    alpha: clamp01(opts.alpha ?? 1),
+  };
 }
 
 export function linearGradient(stops: GradientStop[], angle = 0): LinearGradientPaint {
@@ -62,6 +95,10 @@ export function isSolid(paint: Paint): paint is SolidPaint {
 
 export function isGradient(paint: Paint): paint is GradientPaint {
   return paint.type === "linear" || paint.type === "radial";
+}
+
+export function isPattern(paint: Paint): paint is PatternPaint {
+  return paint.type === "pattern";
 }
 
 /** Stops in ascending offset order (rendering requires monotonic offsets). */
@@ -87,6 +124,9 @@ function rgba(color: string, alpha: number): string {
 /** CSS value for a paint (canvas solid styles, and popover/swatch previews). */
 export function paintToCss(paint: Paint): string {
   if (paint.type === "solid") return rgba(paint.color, paint.alpha);
+  // Patterns need the decoded asset to preview; callers that can resolve it
+  // (ColorField) render their own swatch. Fall back to a neutral fill here.
+  if (paint.type === "pattern") return "#8a9099";
   const stops = sortedStops(paint.stops)
     .map((s) => `${rgba(s.color, s.alpha)} ${round(s.offset * 100)}%`)
     .join(", ");
@@ -115,6 +155,9 @@ export function resolvePaint(
   bounds?: Bounds
 ): string | CanvasGradient {
   if (paint.type === "solid") return rgba(paint.color, paint.alpha);
+  // Patterns are resolved by the canvas renderer (it owns the asset cache);
+  // this pure helper only knows solids and gradients.
+  if (paint.type === "pattern") return "transparent";
   const b = bounds ?? { x: 0, y: 0, width: 0, height: 0 };
   const cx = b.x + b.width / 2;
   const cy = b.y + b.height / 2;

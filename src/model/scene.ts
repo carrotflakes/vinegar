@@ -1,3 +1,4 @@
+import type { Paint } from "./paint";
 import type { Document, Group, Matrix, SceneNode, Shape, SymbolInstance } from "./types";
 
 export const isGroup = (node: SceneNode | undefined): node is Group =>
@@ -262,6 +263,28 @@ export function shapesInPaintOrder(
   return scopeLeafIds(doc, scope)
     .map((id) => doc.nodes[id])
     .filter(isShape);
+}
+
+const paintAssetId = (paint: Paint | null): string | null =>
+  paint && paint.type === "pattern" ? paint.assetId : null;
+
+/**
+ * All asset ids a document references: `image` nodes plus every pattern
+ * fill/stroke (including on compound-path components). Drives export
+ * pre-decode and save-time orphan pruning so a texture's asset survives even
+ * when no image node uses it.
+ */
+export function referencedAssetIds(doc: Document): Set<string> {
+  const ids = new Set<string>();
+  const addShape = (shape: Shape) => {
+    if (shape.type === "image") ids.add(shape.assetId);
+    for (const id of [paintAssetId(shape.fill), paintAssetId(shape.stroke)]) {
+      if (id) ids.add(id);
+    }
+    if (shape.type === "compoundPath") shape.components.forEach(addShape);
+  };
+  for (const node of Object.values(doc.nodes)) if (isShape(node)) addShape(node);
+  return ids;
 }
 
 export function isNodeHidden(doc: Document, id: string): boolean {

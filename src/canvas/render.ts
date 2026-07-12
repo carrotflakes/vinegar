@@ -1,9 +1,9 @@
 import { subpathSegments } from "../model/bezier";
 import { shapeBounds } from "../model/bounds";
 import { isIdentity } from "../model/matrix";
-import { resolvePaint } from "../model/paint";
+import { resolvePaint, type Paint, type PatternPaint } from "../model/paint";
 import { isGroup, isInstance, isShape } from "../model/scene";
-import type { Artboard, Document, DocumentAsset, ImageShape, Shape } from "../model/types";
+import type { Artboard, Bounds, Document, DocumentAsset, ImageShape, Shape } from "../model/types";
 import { worldToScreen, type Viewport } from "../model/viewport";
 import { getAssetImage } from "./imageCache";
 
@@ -168,6 +168,7 @@ export function paintShape(
     return;
   }
   tracePath(ctx, shape);
+  const bounds = shapeBounds(shape);
 
   // Lines and open paths/curves are never filled.
   const fillable =
@@ -176,21 +177,87 @@ export function paintShape(
     !(shape.type === "path" && !shape.closed) &&
     !(shape.type === "bezier" && !shape.subpaths.some((sp) => sp.closed));
   if (fillable && shape.fill) {
-    ctx.fillStyle = resolvePaint(ctx, shape.fill, shapeBounds(shape));
-    ctx.fill(
-      shape.type === "polygon" || shape.type === "compoundPath"
-        ? "evenodd"
-        : "nonzero"
-    );
+    const style = resolveStyle(ctx, shape.fill, bounds, assets);
+    // A null style is a pattern still decoding; skip until the cache repaints.
+    if (style) {
+      withPaintAlpha(ctx, shape.opacity, shape.fill, () => {
+        ctx.fillStyle = style;
+        ctx.fill(
+          shape.type === "polygon" || shape.type === "compoundPath"
+            ? "evenodd"
+            : "nonzero"
+        );
+      });
+    }
   }
   if (shape.stroke !== null && shape.strokeWidth > 0) {
-    ctx.strokeStyle = resolvePaint(ctx, shape.stroke, shapeBounds(shape));
-    ctx.lineWidth = shape.strokeWidth;
-    ctx.lineJoin = "round";
-    ctx.lineCap = "round";
-    ctx.stroke();
+    const style = resolveStyle(ctx, shape.stroke, bounds, assets);
+    if (style) {
+      withPaintAlpha(ctx, shape.opacity, shape.stroke, () => {
+        ctx.strokeStyle = style;
+        ctx.lineWidth = shape.strokeWidth;
+        ctx.lineJoin = "round";
+        ctx.lineCap = "round";
+        ctx.stroke();
+      });
+    }
   }
   ctx.restore();
+}
+
+/**
+ * Canvas fill/stroke style for a paint. Patterns resolve to a CanvasPattern
+ * from the decoded asset — null while it's still decoding or missing, so the
+ * caller skips painting until the cache repaints. Solids and gradients defer
+ * to the pure resolver (they bake their alpha into the style).
+ */
+function resolveStyle(
+  ctx: CanvasRenderingContext2D,
+  paint: Paint,
+  bounds: Bounds,
+  assets: Record<string, DocumentAsset>
+): string | CanvasGradient | CanvasPattern | null {
+  if (paint.type === "pattern") return resolvePattern(ctx, paint, assets);
+  return resolvePaint(ctx, paint, bounds);
+}
+
+function resolvePattern(
+  ctx: CanvasRenderingContext2D,
+  paint: PatternPaint,
+  assets: Record<string, DocumentAsset>
+): CanvasPattern | null {
+  const asset = assets[paint.assetId];
+  const img = asset ? getAssetImage(asset) : null;
+  if (!img) return null;
+  const pat = ctx.createPattern(img, "repeat");
+  if (!pat) return null;
+  // The pattern lives in the shape's local space (transform already applied).
+  pat.setTransform(
+    new DOMMatrix()
+      .translateSelf(paint.offset.x, paint.offset.y)
+      .rotateSelf((paint.rotation * 180) / Math.PI)
+      .scaleSelf(paint.scale)
+  );
+  return pat;
+}
+
+/**
+ * Run `paint()` with the pattern's own alpha folded into the node opacity.
+ * Solids/gradients carry alpha in their style, so only patterns adjust it.
+ */
+function withPaintAlpha(
+  ctx: CanvasRenderingContext2D,
+  nodeOpacity: number,
+  paint: Paint,
+  paintFn: () => void
+): void {
+  if (paint.type !== "pattern" || paint.alpha >= 1) {
+    paintFn();
+    return;
+  }
+  ctx.globalAlpha = nodeOpacity * paint.alpha;
+  paintFn();
+  ctx.globalAlpha = nodeOpacity;
 }
 
 /**

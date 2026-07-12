@@ -12,12 +12,15 @@ import {
   isGradient,
   linearGradient,
   paintToCss,
+  pattern,
   radialGradient,
   solid,
   stopsToCssBar,
   type GradientStop,
   type Paint,
+  type PatternPaint,
 } from "../model/paint";
+import { pickImageFiles } from "../io/importImage";
 import { useEditor } from "../store/editorStore";
 
 /** A curated default palette (grayscale + a hue wheel + tints). */
@@ -49,10 +52,12 @@ export default function ColorField({ label, value, onChange }: Props) {
   const savedSwatches = useEditor((s) => s.savedSwatches);
   const addSwatch = useEditor((s) => s.addSwatch);
   const removeSwatch = useEditor((s) => s.removeSwatch);
+  const assets = useEditor((s) => s.doc.assets);
+  const addPatternImage = useEditor((s) => s.addPatternImage);
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
   const enabled = value !== null;
-  const kind = value === null ? "none" : value.type; // none|solid|linear|radial
+  const kind = value === null ? "none" : value.type; // none|solid|linear|radial|pattern
   // Colour and alpha are edited independently; a paint keeps its alpha when the
   // colour changes (and vice-versa). Swatches/recents/palette store colours.
   const gradient = value && isGradient(value) ? value : null;
@@ -84,11 +89,33 @@ export default function ColorField({ label, value, onChange }: Props) {
   const removeStop = (i: number) =>
     stops.length > 2 && setStops(stops.filter((_, j) => j !== i));
 
-  const setKind = (next: "none" | "solid" | "linear" | "radial") => {
+  // ---- pattern (raster fill) editing -------------------------------------
+  const patternPaint = value && value.type === "pattern" ? value : null;
+  // Remember the last chosen pattern so toggling away and back keeps its image.
+  const lastPattern = useRef<PatternPaint | null>(null);
+  if (patternPaint) lastPattern.current = patternPaint;
+  const patternAsset = patternPaint ? assets[patternPaint.assetId] : null;
+  const patternUrl = patternAsset?.source.data ?? null;
+  const updatePattern = (patch: Partial<PatternPaint>) =>
+    patternPaint && onChange({ ...patternPaint, ...patch });
+  const choosePattern = async () => {
+    const [file] = await pickImageFiles();
+    if (!file) return;
+    const id = await addPatternImage(file);
+    if (!id) return;
+    onChange(
+      pattern(id, patternPaint ?? lastPattern.current ?? undefined)
+    );
+  };
+
+  const setKind = (next: "none" | "solid" | "linear" | "radial" | "pattern") => {
     if (next === "none") return onChange(null);
     if (next === "solid") return onChange(solid(color, alpha));
     if (next === "linear") return onChange(linearGradient(stops, angle));
-    return onChange(radialGradient(stops));
+    if (next === "radial") return onChange(radialGradient(stops));
+    // Pattern: reuse a remembered image, else pick one now.
+    const memo = patternPaint ?? lastPattern.current;
+    return memo ? onChange(memo) : void choosePattern();
   };
 
   // The popover portals to <body> so the sidebar's overflow can't clip it;
@@ -111,7 +138,8 @@ export default function ColorField({ label, value, onChange }: Props) {
 
   const close = () => {
     setOpen(false);
-    if (enabled) addRecentColor(color);
+    // Patterns have no meaningful colour; don't push the gray fallback.
+    if (enabled && value?.type !== "pattern") addRecentColor(color);
   };
 
   // Dismiss on outside press or Escape. Uses pointerdown (not mousedown):
@@ -154,7 +182,11 @@ export default function ColorField({ label, value, onChange }: Props) {
           {value && (
             <span
               className="swatch-fill"
-              style={{ background: paintToCss(value) }}
+              style={
+                patternPaint && patternUrl
+                  ? { backgroundImage: `url(${patternUrl})`, backgroundSize: "cover" }
+                  : { background: paintToCss(value) }
+              }
             />
           )}
         </button>
@@ -167,7 +199,9 @@ export default function ColorField({ label, value, onChange }: Props) {
                 : color
               : kind === "linear"
                 ? "Linear"
-                : "Radial"}
+                : kind === "radial"
+                  ? "Radial"
+                  : "Image"}
         </span>
       </div>
 
@@ -179,7 +213,7 @@ export default function ColorField({ label, value, onChange }: Props) {
             style={floatingStyles}
           >
           <div className="paint-type-row">
-            {(["none", "solid", "linear", "radial"] as const).map((t) => (
+            {(["none", "solid", "linear", "radial", "pattern"] as const).map((t) => (
               <button
                 key={t}
                 className={"paint-type-btn" + (kind === t ? " active" : "")}
@@ -191,7 +225,9 @@ export default function ColorField({ label, value, onChange }: Props) {
                     ? "Solid"
                     : t === "linear"
                       ? "Linear"
-                      : "Radial"}
+                      : t === "radial"
+                        ? "Radial"
+                        : "Image"}
               </button>
             ))}
           </div>
@@ -377,6 +413,72 @@ export default function ColorField({ label, value, onChange }: Props) {
                   </button>
                 </div>
               ))}
+            </>
+          )}
+
+          {patternPaint && (
+            <>
+              <div
+                className="pattern-preview"
+                style={
+                  patternUrl ? { backgroundImage: `url(${patternUrl})` } : undefined
+                }
+              >
+                {!patternUrl && <span className="swatch-hint">No image</span>}
+              </div>
+              <button className="ghost-btn pattern-replace" onClick={choosePattern}>
+                Replace image…
+              </button>
+
+              <div className="color-pop-alpha">
+                <span className="alpha-label">Scale</span>
+                <input
+                  type="range"
+                  min={5}
+                  max={400}
+                  value={Math.round(patternPaint.scale * 100)}
+                  onChange={(e) =>
+                    updatePattern({ scale: Number(e.target.value) / 100 })
+                  }
+                />
+                <span className="alpha-value">
+                  {Math.round(patternPaint.scale * 100)}%
+                </span>
+              </div>
+
+              <div className="color-pop-alpha">
+                <span className="alpha-label">Rotate</span>
+                <input
+                  type="range"
+                  min={0}
+                  max={360}
+                  value={Math.round((patternPaint.rotation * 180) / Math.PI)}
+                  onChange={(e) =>
+                    updatePattern({
+                      rotation: (Number(e.target.value) * Math.PI) / 180,
+                    })
+                  }
+                />
+                <span className="alpha-value">
+                  {Math.round((patternPaint.rotation * 180) / Math.PI)}°
+                </span>
+              </div>
+
+              <div className="color-pop-alpha">
+                <span className="alpha-label">Alpha</span>
+                <input
+                  type="range"
+                  min={0}
+                  max={100}
+                  value={Math.round(patternPaint.alpha * 100)}
+                  onChange={(e) =>
+                    updatePattern({ alpha: Number(e.target.value) / 100 })
+                  }
+                />
+                <span className="alpha-value">
+                  {Math.round(patternPaint.alpha * 100)}%
+                </span>
+              </div>
             </>
           )}
           </div>,

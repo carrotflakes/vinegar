@@ -30,6 +30,9 @@ function makeDefs(): Defs {
     items,
     paintAttrs(paint, kind) {
       if (paint.type === "solid") return paintToSvgAttrs(paint, kind);
+      // SVG pattern export is not implemented yet; emit a neutral placeholder
+      // so the shape stays visible rather than crashing the exporter.
+      if (paint.type === "pattern") return [`${kind}="#8a9099"`];
       const id = `grad${items.length}`;
       items.push(gradientToSvg(paint, id));
       return [`${kind}="url(#${id})"`];

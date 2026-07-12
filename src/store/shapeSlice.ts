@@ -72,6 +72,14 @@ export function createShapeActions({ set, get, transact }: StoreCtx): ShapeActio
       transact(appendToScope(doc, currentSymbolScope(s), ids));
       set({ selection: ids, ...clearTransient });
     },
+    addPatternImage: async (file) => {
+      if (!isImageFile(file)) return null;
+      const img = await importImageFile(file);
+      if (!img) return null;
+      const s = get();
+      transact({ ...s.doc, assets: { ...s.doc.assets, [img.asset.id]: img.asset } });
+      return img.asset.id;
+    },
     // Scripts operate on the scene scope; created shapes join the scene roots.
     applyScriptChanges: ({ created, updated, deleted }) => {
       let doc = get().doc; const del = new Set(deleted);

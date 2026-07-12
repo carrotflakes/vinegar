@@ -6,7 +6,7 @@
 // ===========================================================================
 
 import type { Document, DocumentAsset } from "../model/types";
-import { isShape } from "../model/scene";
+import { referencedAssetIds } from "../model/scene";
 
 /** Decoded pixels by asset id; null marks a failed decode (don't retry). */
 const decoded = new Map<string, HTMLImageElement | null>();
@@ -57,14 +57,11 @@ export function loadAssetImage(
   return decode(asset);
 }
 
-/** Ensure every asset referenced by an image node is decoded (for exports). */
+/** Ensure every asset the document references (image nodes + pattern fills/
+ *  strokes) is decoded, for synchronous export painting. */
 export async function ensureDocImagesLoaded(doc: Document): Promise<void> {
-  const used = new Set<string>();
-  for (const node of Object.values(doc.nodes)) {
-    if (isShape(node) && node.type === "image") used.add(node.assetId);
-  }
   await Promise.all(
-    [...used]
+    [...referencedAssetIds(doc)]
       .map((id) => doc.assets[id])
       .filter((asset): asset is DocumentAsset => !!asset)
       .map(loadAssetImage)

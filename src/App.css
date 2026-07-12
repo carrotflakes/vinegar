@@ -470,12 +470,12 @@
 
 .paint-type-btn {
   flex: 1;
-  padding: 5px 4px;
+  padding: 5px 2px;
   border: 1px solid var(--border);
   border-radius: 6px;
   background: var(--panel);
   color: var(--muted);
-  font-size: 11.5px;
+  font-size: 11px;
 }
 
 .paint-type-btn.active {
@@ -488,6 +488,22 @@
   height: 18px;
   border: 1px solid var(--border);
   border-radius: 6px;
+}
+
+.pattern-preview {
+  height: 84px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  /* Tiled at natural pixel size, over a checkerboard for transparency. */
+  background-repeat: repeat;
+  background-color: var(--panel);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.pattern-replace {
+  align-self: stretch;
 }
 
 .gradient-stop {

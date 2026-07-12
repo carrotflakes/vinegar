@@ -88,7 +88,17 @@ Ordered by agreed priority. These are the biggest gaps toward a "real" vector ed
 - [ ] On-screen alternatives for the remaining keyboard-only actions (delete, copy/paste, group, pen finish/cancel)
 
 ## Backlog / ideas
-- [ ] Pattern/texture paint (raster fill) — the asset pipeline now exists (`canvas/imageCache.ts`)
+- [x] Pattern/texture paint (raster fill) — shipped (`PatternPaint` in the fill/
+  stroke `Paint` union, file v13). A pattern tiles a `doc.assets` image in the
+  shape's **local** space via `ctx.createPattern(img, "repeat")` +
+  `pattern.setTransform` (scale / rotation / offset); a decoding/missing asset
+  paints nothing that frame (the cache repaints on load). Both fill and stroke.
+  Asset lifetime uses `referencedAssetIds` (image nodes + pattern paints) so
+  save-time orphan pruning and export pre-decode both retain texture assets.
+  - [ ] Deferred: **SVG export** (currently a neutral `#8a9099` placeholder) —
+    needs `<pattern>` + embedded `<image>` sized from the decoded asset;
+    fit-to-bounds (stretch) mode; per-axis repeat / no-repeat; interactive
+    on-canvas placement; Script API for pattern paints.
 - [ ] Swatches saved in the document (currently localStorage, color-only)
 - [ ] System clipboard integration (paste across tabs/apps)
 - [ ] Distribution: match an existing gap (not just centering)
@@ -109,7 +119,7 @@ Ordered by agreed priority. These are the biggest gaps toward a "real" vector ed
 ## User ideas / wishlist
 - [ ] Rectangleの角丸
 - [ ] 塗り機能
-- [ ] テクスチャ
+- [x] テクスチャ（パターン塗り／fill・stroke、SVG出力は後回し）
 - [ ] スクリプティングの拡充
   - [ ] 実行後に生成物へビューを自動フィット
   - [ ] DSL に bezier() を追加
@@ -130,7 +140,6 @@ Ordered by agreed priority. These are the biggest gaps toward a "real" vector ed
   - [ ] Script API: expose instances (currently scene shapes only)
   - [ ] Export bounds: include stroke extents of instance content
 - [ ] MCPサーバー化
-- [ ] グループ内のオブジェクトの移動　（グループ選択に吸われてしまう）
 - [ ] ロゴ / ファビコン
 - [x] ユーザ選択不要な部分に select-none
 - [x] Fileメニューの階層化（Export submenu）

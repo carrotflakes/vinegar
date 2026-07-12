@@ -1,15 +1,18 @@
 import { paintFromLegacy } from "../model/paint";
+import { referencedAssetIds } from "../model/scene";
 import { BLEND_MODES, type Document, type ShapeType } from "../model/types";
 
-export const CURRENT_FILE_VERSION = 12 as const;
+export const CURRENT_FILE_VERSION = 13 as const;
 
 /**
  * v8 lacked `symbols` (added as an empty registry). v8 and v9 stored fill/
  * stroke as bare colour strings; v10 upgrades them to structured Paint. v11
  * adds `artboards` (backfilled as an empty list for older files). v12 adds
- * `image` nodes over the existing asset store (no structural change).
+ * `image` nodes over the existing asset store (no structural change). v13 adds
+ * `pattern` fills/strokes (raster fill via doc.assets; purely additive, so
+ * older files load unchanged).
  */
-const MIGRATABLE_VERSIONS = new Set<unknown>([8, 9, 10, 11]);
+const MIGRATABLE_VERSIONS = new Set<unknown>([8, 9, 10, 11, 12]);
 
 export interface VinegarFile {
   app: "vinegar";
@@ -30,12 +33,9 @@ export function serializeDocument(doc: Document): string {
   return JSON.stringify(file, null, 2);
 }
 
-/** Assets still referenced by an image node (drops orphans on save). */
+/** Assets still referenced by an image node or pattern paint (drops orphans). */
 function usedAssets(doc: Document): Document["assets"] {
-  const used = new Set<string>();
-  for (const node of Object.values(doc.nodes)) {
-    if (node.type === "image") used.add(node.assetId);
-  }
+  const used = referencedAssetIds(doc);
   return Object.fromEntries(
     Object.entries(doc.assets).filter(([id]) => used.has(id))
   );
@@ -69,6 +69,11 @@ const isPaint = (value: unknown): boolean => {
   }
   if (value.type === "linear") return isStops(value.stops) && isNumber(value.angle);
   if (value.type === "radial") return isStops(value.stops);
+  if (value.type === "pattern") {
+    return typeof value.assetId === "string" &&
+      isNumber(value.scale) && isNumber(value.rotation) && isPoint(value.offset) &&
+      isNumber(value.alpha) && value.alpha >= 0 && value.alpha <= 1;
+  }
   return false;
 };
 const isPaintOrNull = (value: unknown): boolean => value === null || isPaint(value);
@@ -224,7 +229,14 @@ function validateTree(doc: Document): void {
     if (node.type === "image" && !doc.assets[node.assetId]) {
       throw new Error(`Image references missing asset: ${node.assetId}.`);
     }
-    if (node.type !== "group") return;
+    if (node.type !== "group") {
+      for (const paint of [node.fill, node.stroke]) {
+        if (paint?.type === "pattern" && !doc.assets[paint.assetId]) {
+          throw new Error(`Pattern references missing asset: ${paint.assetId}.`);
+        }
+      }
+      return;
+    }
     visiting.add(id);
     for (const childId of node.childIds) visit(childId);
     visiting.delete(id);

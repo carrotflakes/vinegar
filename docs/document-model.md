@@ -14,7 +14,13 @@ active tool, selection, viewport and undo history does not belong in the file.
 - Parent ids, ancestors, depth, leaf shapes, inherited visibility/locking and
   world matrices are derived by the Scene Index and are not persisted.
 - Asset-bearing nodes reference entries in `assets` by id; binary data does not
-  belong directly in a node.
+  belong directly in a node. `image` nodes and `pattern` fills/strokes both
+  reference an image asset; an asset survives save only while something still
+  references it (see `referencedAssetIds`).
+- `fill`/`stroke` are a `Paint` union: `solid`, linear/radial `gradient`, or a
+  `pattern` (an image asset tiled in the shape's local space, placed by
+  `scale`/`rotation`/`offset`). A pattern that references a decoding/missing
+  asset simply paints nothing that frame.
 - Extension data uses namespaced keys in `extensions` and must be JSON-safe.
 - Compound paths are single scene nodes. Their closed source shapes are stored
   inline in `components`, are not independently selectable, and are painted
