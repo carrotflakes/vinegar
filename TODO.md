@@ -143,3 +143,4 @@ Ordered by agreed priority. These are the biggest gaps toward a "real" vector ed
 - [ ] ロゴ / ファビコン
 - [x] ユーザ選択不要な部分に select-none
 - [x] Fileメニューの階層化（Export submenu）
+- [ ] assetを確認できるビュー

@@ -1,6 +1,28 @@
-import { createEmptyDocument, makeArtboard, type SceneNode } from "../model/types";
-import { solid } from "../model/paint";
+import { createEmptyDocument, makeArtboard, type DocumentAsset, type SceneNode } from "../model/types";
+import { linearGradient, pattern, radialGradient, solid } from "../model/paint";
 import { IDENTITY, multiply, rotation, translation } from "../model/matrix";
+
+// A tiny seamless polka-dot tile, embedded as an SVG data URL so the demo has
+// a texture asset without any external file. Dots at (6,6) and (18,18) on a
+// 24-unit grid repeat evenly in every direction.
+const DEMO_TEXTURE: DocumentAsset = {
+  id: "demo_texture",
+  kind: "image",
+  mimeType: "image/svg+xml",
+  name: "Demo dots",
+  source: {
+    type: "data",
+    data:
+      "data:image/svg+xml;utf8," +
+      encodeURIComponent(
+        `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24">` +
+          `<rect width="24" height="24" fill="#f4d58d"/>` +
+          `<circle cx="6" cy="6" r="4.2" fill="#d8b061"/>` +
+          `<circle cx="18" cy="18" r="4.2" fill="#d8b061"/>` +
+          `</svg>`
+      ),
+  },
+};
 
 const shapeBase = (
   name: string,
@@ -73,7 +95,11 @@ export function createDemoDocument() {
       transform: [...IDENTITY], transformOrigin: null, opacity: 1,
     },
     demo_card_a: {
-      id: "demo_card_a", type: "rect", ...shapeBase("Card A", "#e8f0ff", "#52617a"),
+      id: "demo_card_a", type: "rect", ...shapeBase("Card A · linear gradient", null, "#52617a"),
+      fill: linearGradient(
+        [{ offset: 0, color: "#dbe7ff", alpha: 1 }, { offset: 1, color: "#6f8ff7", alpha: 1 }],
+        0.62
+      ),
       x: 0, y: 0, width: 248, height: 174,
     },
     demo_skew_rect: {
@@ -116,7 +142,11 @@ export function createDemoDocument() {
       closed: false,
     },
     demo_blob: {
-      id: "demo_blob", type: "bezier", ...shapeBase("Closed Bézier", "#ffd15c", "#28344f"),
+      id: "demo_blob", type: "bezier", ...shapeBase("Closed Bézier · radial gradient", null, "#28344f"),
+      fill: radialGradient([
+        { offset: 0, color: "#fff0a8", alpha: 1 },
+        { offset: 1, color: "#f2932f", alpha: 1 },
+      ]),
       subpaths: [{
         anchors: [
           { p: { x: 92, y: 70 }, hIn: { x: 63, y: 54 }, hOut: { x: 120, y: 42 } },
@@ -174,17 +204,20 @@ export function createDemoDocument() {
       transform: translation(80, 440), transformOrigin: null, opacity: 1,
     },
     demo_footer_panel: {
-      id: "demo_footer_panel", type: "rect", ...shapeBase("Footer panel", "#222b45", null),
+      id: "demo_footer_panel", type: "rect", ...shapeBase("Footer panel · pattern fill", null, null),
+      fill: pattern("demo_texture"),
       x: 0, y: 0, width: 818, height: 172,
     },
     demo_rotated_rect: {
-      id: "demo_rotated_rect", type: "rect", ...shapeBase("Rotated rectangle · off-center pivot", "#ffcf5c", "#fff8e8"),
+      id: "demo_rotated_rect", type: "rect", ...shapeBase("Rotated rectangle · pattern fill + pivot", null, "#fff8e8"),
+      fill: pattern("demo_texture", { scale: 1.6, rotation: 0.35 }),
       x: 56, y: 48, width: 170, height: 72,
       transform: multiply(translation(18, -8), rotation(-0.22)), transformOrigin: { x: 40, y: 138 },
     },
     demo_dash_line: {
-      id: "demo_dash_line", type: "line", ...shapeBase("Long line", null, "#8aa4ff"),
-      x1: 285, y1: 42, x2: 514, y2: 130, strokeWidth: 8, opacity: 0.75,
+      id: "demo_dash_line", type: "line", ...shapeBase("Textured stroke line", null, "#8aa4ff"),
+      stroke: pattern("demo_texture", { scale: 0.3 }),
+      x1: 285, y1: 42, x2: 514, y2: 130, strokeWidth: 24, opacity: 0.9,
     },
     demo_footer_ellipse: {
       id: "demo_footer_ellipse", type: "ellipse", ...shapeBase("Scaled ellipse", "#f26d85", null),
@@ -202,6 +235,7 @@ export function createDemoDocument() {
     },
   };
 
+  doc.assets = { [DEMO_TEXTURE.id]: DEMO_TEXTURE };
   doc.nodes = nodes;
   doc.rootIds = [
     "demo_background",
@@ -215,7 +249,7 @@ export function createDemoDocument() {
   doc.settings.gridSize = 40;
   doc.extensions["vinegar.demo"] = {
     purpose: "manual-debugging",
-    features: ["all-shape-types", "compound-path", "nested-groups", "empty-group", "transforms", "pivots", "blend", "hidden", "locked"],
+    features: ["all-shape-types", "compound-path", "nested-groups", "empty-group", "transforms", "pivots", "blend", "hidden", "locked", "pattern-fill", "pattern-stroke", "linear-gradient", "radial-gradient"],
   };
   return doc;
 }
