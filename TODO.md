@@ -27,7 +27,22 @@ Ordered by agreed priority. These are the biggest gaps toward a "real" vector ed
 2. [x] **Raster image placement** — shipped (`image` node + `DocumentAsset` store,
    file v12; decode cache in `canvas/imageCache.ts`). Follow-ups:
    - [ ] Paste an image from the system clipboard
-   - [ ] Image-specific properties (reset to natural size, aspect-ratio lock)
+   - [x] Image-specific properties — Image panel section with "Reset to natural
+     size" + "Reset aspect ratio" buttons (read natural size from the decoded
+     asset) and a persistent "Lock aspect ratio" toggle (`ImageShape.lockAspect`,
+     optional so no file-version bump). The lock constrains both the numeric
+     W/H fields and interactive handle dragging (`constrainAspectRatio` in
+     `canvas/handles.ts`); holding Shift constrains any resize the same way.
+   - [x] Design fix (root cause of the above): **single-shape resize folds the
+     scale into geometry (w/h / points), not `transform`** (`selectTool` resize
+     `soloLeaf` branch). Provably identical visuals (`S' = S · localDelta`), but
+     `transform` stays rotation-only so the numeric size fields, aspect lock,
+     and reset buttons all read the true size — no special-case needed. Applies
+     to every leaf shape (rect / ellipse / image / paths), not just images.
+     - [ ] Known gap: resizing a shape *inside a multi-selection* still writes
+       scale to its `transform` (the shared frame isn't axis-aligned to a
+       rotated child; genuine shear can't fold into intrinsic w/h). Fold the
+       axis-aligned case on commit; leave sheared cases in the transform.
    - [ ] Mirroring: dragging a resize handle across the opposite side
      normalizes instead of flipping (same as rect)
    - [ ] Script API: expose image nodes
@@ -117,3 +132,5 @@ Ordered by agreed priority. These are the biggest gaps toward a "real" vector ed
 - [ ] MCPサーバー化
 - [ ] グループ内のオブジェクトの移動　（グループ選択に吸われてしまう）
 - [ ] ロゴ / ファビコン
+- [ ] ユーザ選択不要な部分に select-none
+- [ ] Fileメニューの階層化（Export submenu）

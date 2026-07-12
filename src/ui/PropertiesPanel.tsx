@@ -33,6 +33,9 @@ import { descendantShapeIds, isInstance, isShape, selectionRoots } from "../mode
 import { useEditor } from "../store/editorStore";
 import ColorField from "./ColorField";
 import { getSelectionFrame } from "../canvas/frame";
+import { getAssetImage, subscribeImageCache } from "../canvas/imageCache";
+import { useEffect, useReducer } from "react";
+import type { DocumentAsset, ImageShape } from "../model/types";
 
 export default function PropertiesPanel() {
   const doc = useEditor((s) => s.doc);
@@ -301,6 +304,10 @@ export default function PropertiesPanel() {
           </div>
         )}
       </div>
+
+      {selected.length === 1 && first.type === "image" && (
+        <ImageSection shape={first} asset={doc.assets[first.assetId] ?? null} />
+      )}
 
       {selectedGroup && (
         <div className="panel-section">
@@ -642,9 +649,80 @@ function ArtboardPanel({
   );
 }
 
+function ImageSection({
+  shape,
+  asset,
+}: {
+  shape: ImageShape;
+  asset: DocumentAsset | null;
+}) {
+  const setImageLockAspect = useEditor((s) => s.setImageLockAspect);
+  const setShapeGeometry = useEditor((s) => s.setShapeGeometry);
+  // The natural size lives on the decoded pixels; re-render once it arrives.
+  const [, bump] = useReducer((n) => n + 1, 0);
+  useEffect(() => subscribeImageCache(bump), []);
+
+  const img = asset ? getAssetImage(asset) : null;
+  const natural =
+    img && img.naturalWidth > 0 && img.naturalHeight > 0
+      ? { w: img.naturalWidth, h: img.naturalHeight }
+      : null;
+
+  return (
+    <div className="panel-section">
+      <div className="panel-title">Image</div>
+      <div className="field">
+        <label className="checkbox-row">
+          <input
+            type="checkbox"
+            checked={!!shape.lockAspect}
+            onChange={(e) => setImageLockAspect(shape.id, e.target.checked)}
+          />
+          Lock aspect ratio
+        </label>
+      </div>
+      <div className="btn-row">
+        <button
+          className="ghost-btn"
+          disabled={!natural}
+          title={
+            natural
+              ? `Restore original pixel size (${natural.w}×${natural.h})`
+              : "Decoding image…"
+          }
+          onClick={() =>
+            natural &&
+            setShapeGeometry(shape.id, { width: natural.w, height: natural.h })
+          }
+        >
+          Reset to natural size
+        </button>
+        <button
+          className="ghost-btn"
+          disabled={!natural}
+          title="Fix the height to the image's natural aspect ratio"
+          onClick={() =>
+            natural &&
+            setShapeGeometry(shape.id, {
+              height: (shape.width * natural.h) / natural.w,
+            })
+          }
+        >
+          Reset aspect ratio
+        </button>
+      </div>
+    </div>
+  );
+}
+
 function Geometry({ shape }: { shape: Shape }) {
   const setShapeGeometry = useEditor((s) => s.setShapeGeometry);
   const b = shapeBounds(shape);
+  // A locked image keeps its ratio when either dimension is typed in.
+  const lockRatio =
+    shape.type === "image" && shape.lockAspect && b.height > 0
+      ? b.width / b.height
+      : null;
 
   const field = (key: "x" | "y" | "width" | "height", label: string) => {
     const v = Math.round(b[key]);
@@ -661,7 +739,11 @@ function Geometry({ shape }: { shape: Shape }) {
           onBlur={(e) => {
             const n = Number(e.target.value);
             if (e.target.value !== "" && !Number.isNaN(n)) {
-              setShapeGeometry(shape.id, { [key]: n });
+              const patch: Partial<Record<"x" | "y" | "width" | "height", number>> =
+                { [key]: n };
+              if (lockRatio && key === "width") patch.height = n / lockRatio;
+              else if (lockRatio && key === "height") patch.width = n * lockRatio;
+              setShapeGeometry(shape.id, patch);
             }
           }}
         />

@@ -116,3 +116,59 @@ export function resizeBounds(
     height: Math.abs(bottom - top),
   };
 }
+
+/**
+ * Constrain a freely-resized bounds to `ratio` (= width / height), keeping the
+ * edge opposite the dragged handle fixed. Corner handles grow uniformly along
+ * whichever axis moved more; edge handles drive the perpendicular axis and grow
+ * it symmetrically about the fixed edge. Used for aspect-locked resizing.
+ */
+export function constrainAspectRatio(
+  from: Bounds,
+  handle: HandleId,
+  free: Bounds,
+  ratio: number
+): Bounds {
+  const horiz = handle.includes("e") || handle.includes("w");
+  const vert = handle.includes("n") || handle.includes("s");
+
+  let width: number;
+  let height: number;
+  if (horiz && vert) {
+    // Corner: uniform scale by the axis that changed most.
+    const scale = Math.max(free.width / from.width, free.height / from.height);
+    width = from.width * scale;
+    height = from.height * scale;
+  } else if (horiz) {
+    width = free.width;
+    height = width / ratio;
+  } else {
+    height = free.height;
+    width = height * ratio;
+  }
+
+  // Anchor: the fixed edge stays put; a free axis grows about its centre.
+  const anchorX = handle.includes("w")
+    ? from.x + from.width
+    : handle.includes("e")
+      ? from.x
+      : from.x + from.width / 2;
+  const anchorY = handle.includes("n")
+    ? from.y + from.height
+    : handle.includes("s")
+      ? from.y
+      : from.y + from.height / 2;
+
+  const x = handle.includes("w")
+    ? anchorX - width
+    : handle.includes("e")
+      ? anchorX
+      : anchorX - width / 2;
+  const y = handle.includes("n")
+    ? anchorY - height
+    : handle.includes("s")
+      ? anchorY
+      : anchorY - height / 2;
+
+  return { x, y, width, height };
+}

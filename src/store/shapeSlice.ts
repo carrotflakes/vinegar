@@ -91,6 +91,7 @@ export function createShapeActions({ set, get, transact }: StoreCtx): ShapeActio
       if (changed) transact({ ...doc, nodes }, "style:" + Object.keys(patch).sort().join(","));
     },
     setShapeGeometry: (id, patch) => { const doc = get().doc; const shape = doc.nodes[id]; if (!isShape(shape)) return; const b = shapeBounds(shape); let next = resizeShapeToBounds(shape, b, { x: b.x, y: b.y, width: Math.max(1, patch.width ?? b.width), height: Math.max(1, patch.height ?? b.height) }); next = translateShape(next, (patch.x ?? b.x) - b.x, (patch.y ?? b.y) - b.y); transact({ ...doc, nodes: { ...doc.nodes, [id]: next } }, "geom:" + id); },
+    setImageLockAspect: (id, lock) => { const doc = get().doc; const shape = doc.nodes[id]; if (!isShape(shape) || shape.type !== "image") return; const next = { ...shape, lockAspect: lock || undefined }; transact({ ...doc, nodes: { ...doc.nodes, [id]: next } }, "lockAspect:" + id); },
     setClosedSelected: (closed) => { const doc = get().doc; const nodes = { ...doc.nodes }; let changed = false; for (const id of selectionRoots(doc, get().selection)) { const shape = nodes[id]; if (!isShape(shape)) continue; if (shape.type === "path" && shape.closed !== closed) { nodes[id] = { ...shape, closed }; changed = true; } else if (shape.type === "bezier" && shape.subpaths.some((sp) => sp.closed !== closed)) { nodes[id] = { ...shape, subpaths: shape.subpaths.map((sp) => ({ ...sp, closed })) }; changed = true; } } if (changed) transact({ ...doc, nodes }); },
   };
 }

@@ -41,6 +41,8 @@ export type Interaction =
       frameTransform: Matrix;
       originals: Record<string, SceneNode>;
       single: boolean;
+      /** Preserve the starting width:height ratio (locked image or Shift). */
+      lockAspect: boolean;
       selectionPivot?: Vec2;
       selectionTransform?: Matrix;
     }

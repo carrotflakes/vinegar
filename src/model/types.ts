@@ -169,6 +169,11 @@ export interface ImageShape extends BaseShape {
   y: number;
   width: number;
   height: number;
+  /**
+   * When true, resizing keeps the current width:height ratio — both the panel's
+   * numeric fields and interactive handle dragging. Absent means unlocked.
+   */
+  lockAspect?: boolean;
 }
 
 /**

@@ -113,6 +113,7 @@ export interface ShapeActions {
   applyScriptChanges: (changes: { created: Shape[]; updated: Shape[]; deleted: string[] }) => void;
   updateSelectedStyle: (patch: Partial<StyleStylableFields>) => void;
   setShapeGeometry: (id: string, patch: Partial<{ x: number; y: number; width: number; height: number }>) => void;
+  setImageLockAspect: (id: string, lock: boolean) => void;
   setClosedSelected: (closed: boolean) => void;
 }
 

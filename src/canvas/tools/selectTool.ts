@@ -17,6 +17,7 @@ import {
   translation as translationMatrix,
 } from "../../model/matrix";
 import { magnetAngle, snapAngle } from "../../model/rotate";
+import { resizeShapeToBounds } from "../../model/transforms";
 import {
   descendantShapeIds,
   isGroup,
@@ -34,7 +35,7 @@ import type { SceneNode, Shape, Vec2 } from "../../model/types";
 import { worldToScreen } from "../../model/viewport";
 import { currentSymbolScope, useEditor, type EditorState } from "../../store/editorStore";
 import { setReadout } from "../../store/pointerStore";
-import { handleCursorRotated, resizeBounds } from "../handles";
+import { constrainAspectRatio, handleCursorRotated, resizeBounds } from "../handles";
 import type { Interaction, ToolContext } from "../interaction";
 import { hitFrameHandle, pickShape, pointSnap, selectionFrame } from "../picking";
 import { boundsFromPoints, formatAngle, formatSize } from "../util";
@@ -101,6 +102,10 @@ export function onSelectDown(
     const frame = selectionFrame()!;
     const group = exactlySelectedGroup(state.doc, state.selection);
     const transient = !group && state.selection.length > 1;
+    const single =
+      state.selection.length === 1 ? state.doc.nodes[state.selection[0]] : null;
+    const lockAspect =
+      !!single && isShape(single) && single.type === "image" && !!single.lockAspect;
     state.beginInteraction();
     ctx.interaction.current = {
       kind: "resize",
@@ -109,6 +114,7 @@ export function onSelectDown(
       frameTransform: frame.transform,
       originals: snapshot(state.selection),
       single: state.selection.length === 1,
+      lockAspect,
       selectionPivot: transient ? state.selectionPivot ?? undefined : undefined,
       selectionTransform: transient ? frame.transform : undefined,
     };
@@ -266,24 +272,51 @@ export function onSelectMove(
       const inverseFrame = invertMatrix(inter.frameTransform);
       if (!inverseFrame) break;
       const localPointer = applyMatrix(inverseFrame, handlePt);
-      const to = resizeBounds(inter.from, inter.handle, localPointer);
-      const localDelta = boundsTransform(inter.from, to);
-      const worldDelta = multiply(
-        inter.frameTransform,
-        multiply(localDelta, inverseFrame)
-      );
-      const next: Record<string, SceneNode> = {};
-      for (const [id, orig] of Object.entries(inter.originals)) {
-        next[id] = applyWorldTransformToNode(state.doc, orig, worldDelta);
-      }
-      state.applyShapes(next);
-      if (inter.selectionPivot) {
-        state.setSelectionPivot(applyMatrix(worldDelta, inter.selectionPivot));
-      }
-      if (inter.selectionTransform) {
-        state.setSelectionTransform(
-          multiply(worldDelta, inter.selectionTransform)
+      let to = resizeBounds(inter.from, inter.handle, localPointer);
+      if (
+        (inter.lockAspect || shiftKey) &&
+        inter.from.width > 0 &&
+        inter.from.height > 0
+      ) {
+        to = constrainAspectRatio(
+          inter.from,
+          inter.handle,
+          to,
+          inter.from.width / inter.from.height
         );
+      }
+      const entries = Object.entries(inter.originals);
+      const soloLeaf =
+        inter.single && entries.length === 1 && isShape(entries[0][1])
+          ? (entries[0][1] as Shape)
+          : null;
+      const next: Record<string, SceneNode> = {};
+      if (soloLeaf) {
+        // A single leaf shape resizes in its own local axes, so the scale can
+        // be folded straight into its geometry (w/h or points) instead of the
+        // transform — keeping `transform` rotation-only and the numeric size
+        // fields honest. Visually identical: resizeShapeToBounds applies the
+        // same axis-aligned scale the transform path would post-multiply.
+        next[soloLeaf.id] = resizeShapeToBounds(soloLeaf, inter.from, to);
+        state.applyShapes(next);
+      } else {
+        const localDelta = boundsTransform(inter.from, to);
+        const worldDelta = multiply(
+          inter.frameTransform,
+          multiply(localDelta, inverseFrame)
+        );
+        for (const [id, orig] of entries) {
+          next[id] = applyWorldTransformToNode(state.doc, orig, worldDelta);
+        }
+        state.applyShapes(next);
+        if (inter.selectionPivot) {
+          state.setSelectionPivot(applyMatrix(worldDelta, inter.selectionPivot));
+        }
+        if (inter.selectionTransform) {
+          state.setSelectionTransform(
+            multiply(worldDelta, inter.selectionTransform)
+          );
+        }
       }
       setReadout(formatSize(to.width, to.height));
       break;

@@ -95,7 +95,8 @@ const isNode = (id: string, node: unknown): boolean => {
       return isNumber(node.x) && isNumber(node.y) && isNumber(node.width) && isNumber(node.height);
     case "image":
       return typeof node.assetId === "string" &&
-        isNumber(node.x) && isNumber(node.y) && isNumber(node.width) && isNumber(node.height);
+        isNumber(node.x) && isNumber(node.y) && isNumber(node.width) && isNumber(node.height) &&
+        (node.lockAspect === undefined || typeof node.lockAspect === "boolean");
     case "line":
       return isNumber(node.x1) && isNumber(node.y1) && isNumber(node.x2) && isNumber(node.y2);
     case "path":
