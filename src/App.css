@@ -172,11 +172,11 @@
 }
 
 .left {
-  width: 168px;
+  width: 50px;
   flex: none;
   background: var(--panel);
   border-right: 1px solid var(--border);
-  padding: 8px;
+  padding: 6px;
   overflow-y: auto;
 }
 
@@ -246,28 +246,30 @@
   touch-action: none;
 }
 
-/* ---- toolbar ---------------------------------------------------------- */
+/* ---- toolbar: narrow icon-only rail (name + shortcut in the tooltip) --- */
 .toolbar {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  align-items: center;
+  gap: 3px;
 }
 
 .tool-btn {
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 8px 10px;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
+  padding: 0;
   border: 1px solid transparent;
   border-radius: 8px;
   background: transparent;
-  color: var(--text);
-  font-size: 13px;
-  text-align: left;
+  color: var(--muted);
 }
 
 .tool-btn:hover {
-  background: var(--bg);
+  background: var(--hover);
+  color: var(--text);
 }
 
 .tool-btn.active {
@@ -280,8 +282,15 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 18px;
-  font-size: 16px;
+  font-size: 18px;
+}
+
+/* Hairline between tool groups (select/edit · shapes · freehand). */
+.tool-sep {
+  width: 22px;
+  height: 1px;
+  margin: 4px 0;
+  background: var(--border);
 }
 
 /* ---- properties panel ------------------------------------------------- */
@@ -1250,32 +1259,16 @@
     display: inline-flex;
   }
 
-  /* Toolbar becomes a compact, icon-only rail floating over the canvas. */
+  /* The icon rail floats over the canvas instead of taking a column. */
   .left {
     position: absolute;
     z-index: 15;
     top: 8px;
     left: 8px;
-    width: auto;
     max-height: calc(100% - 16px);
-    padding: 5px;
     border: 1px solid var(--border);
     border-radius: 12px;
     box-shadow: 0 6px 20px var(--shadow);
-  }
-
-  .tool-label {
-    display: none;
-  }
-
-  .tool-btn {
-    justify-content: center;
-    padding: 12px;
-  }
-
-  .tool-icon {
-    width: auto;
-    font-size: 17px;
   }
 
   /* Right sidebar slides in from the right as an overlay drawer. */
