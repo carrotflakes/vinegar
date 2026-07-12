@@ -74,6 +74,21 @@ body {
   background: var(--bg);
   color: var(--text);
   -webkit-font-smoothing: antialiased;
+  /* This is an app UI, not a document — text selection on labels, buttons and
+   * canvas chrome only gets in the way of dragging. Disable it globally and
+   * opt back in for genuine text-editing surfaces below. */
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+/* Re-enable selection where the user actually edits or reads text. */
+input,
+textarea,
+[contenteditable="true"],
+[contenteditable=""],
+.selectable {
+  user-select: text;
+  -webkit-user-select: text;
 }
 
 button {

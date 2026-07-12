@@ -102,7 +102,7 @@ export default function ScriptPanel({ open, onClose }: Props) {
         <div className="modal-foot">
           <span
             className={
-              "script-status" + (status ? ` ${status.kind}` : "")
+              "script-status selectable" + (status ? ` ${status.kind}` : "")
             }
           >
             {status?.msg ?? "Ctrl/⌘ + Enter to run"}
