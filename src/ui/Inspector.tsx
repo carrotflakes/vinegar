@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { LuX } from "react-icons/lu";
 import { useEditor } from "../store/editorStore";
 
 // ===========================================================================
@@ -30,8 +31,8 @@ export default function Inspector({ open, onClose }: Props) {
       <div className="modal inspector-modal" onMouseDown={(e) => e.stopPropagation()}>
         <div className="modal-head">
           <span>Inspector</span>
-          <button className="ghost-btn" onClick={onClose}>
-            Close
+          <button className="modal-close" onClick={onClose} title="Close" aria-label="Close">
+            <LuX aria-hidden />
           </button>
         </div>
         <input

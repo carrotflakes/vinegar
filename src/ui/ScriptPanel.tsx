@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { LuX } from "react-icons/lu";
 import { runScript } from "../script/runScript";
 import { useEditor } from "../store/editorStore";
 import { shapesInPaintOrder } from "../model/scene";
@@ -82,8 +83,8 @@ export default function ScriptPanel({ open, onClose }: Props) {
       <div className="modal script-modal" onMouseDown={(e) => e.stopPropagation()}>
         <div className="modal-head">
           <span>Script</span>
-          <button className="ghost-btn" onClick={onClose}>
-            Close
+          <button className="modal-close" onClick={onClose} title="Close" aria-label="Close">
+            <LuX aria-hidden />
           </button>
         </div>
         <textarea

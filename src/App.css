@@ -1237,6 +1237,25 @@
   border-top: 1px solid var(--border);
 }
 
+.modal-close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--muted);
+  font-size: 16px;
+  cursor: pointer;
+}
+
+.modal-close:hover {
+  background: var(--bg);
+  color: var(--text);
+}
+
 .script-editor {
   flex: 1;
   min-height: 0;
