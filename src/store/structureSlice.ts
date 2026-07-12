@@ -1,0 +1,191 @@
+// Scene-tree structure: hierarchy, z-order, per-node flags, alignment and
+// shape conversions (boolean ops, outline stroke, compound paths).
+
+import { booleanShapes, isAreal } from "../model/boolean";
+import { nodeWorldBounds, unionNodeWorldBounds } from "../model/bounds";
+import {
+  canMakeCompoundPathSelection,
+  canReleaseCompoundPathSelection,
+  makeCompoundPath,
+  releaseCompoundPath,
+} from "../model/compoundPath";
+import {
+  IDENTITY,
+  applyWorldTransformToNode,
+  invertMatrix,
+  multiply,
+  nodeWorldMatrix,
+  translation as translationMatrix,
+} from "../model/matrix";
+import { strokeOutline } from "../model/outlineStroke";
+import {
+  childIdsOf,
+  descendantNodeIds,
+  isGroup,
+  isShape,
+  parentIdOf,
+  selectionRoots,
+} from "../model/scene";
+import { makeId, type Bounds, type Document, type Shape } from "../model/types";
+import { groupNode, removeRoots, replaceChildren } from "./docOps";
+import {
+  clearTransient,
+  type StoreCtx,
+  type StructureActions,
+} from "./state";
+
+interface AlignItem { id: string; bounds: Bounds }
+function selectionItems(doc: Document, selection: string[]): AlignItem[] {
+  return selectionRoots(doc, selection).flatMap((id) => {
+    const bounds = nodeWorldBounds(doc, id);
+    return bounds ? [{ id, bounds }] : [];
+  });
+}
+
+export function createStructureActions({ set, get, transact }: StoreCtx): StructureActions {
+  return {
+    deleteSelected: () => { const roots = selectionRoots(get().doc, get().selection); if (!roots.length) return; transact(removeRoots(get().doc, roots)); set({ selection: [], ...clearTransient }); },
+    bringToFront: () => { let doc = get().doc; const roots = selectionRoots(doc, get().selection); for (const parent of new Set(roots.map((id) => parentIdOf(doc, id)))) { const selected = new Set(roots.filter((id) => parentIdOf(doc, id) === parent)); const ids = childIdsOf(doc, parent); doc = replaceChildren(doc, parent, [...ids.filter((id) => !selected.has(id)), ...ids.filter((id) => selected.has(id))]); } transact(doc); },
+    sendToBack: () => { let doc = get().doc; const roots = selectionRoots(doc, get().selection); for (const parent of new Set(roots.map((id) => parentIdOf(doc, id)))) { const selected = new Set(roots.filter((id) => parentIdOf(doc, id) === parent)); const ids = childIdsOf(doc, parent); doc = replaceChildren(doc, parent, [...ids.filter((id) => selected.has(id)), ...ids.filter((id) => !selected.has(id))]); } transact(doc); },
+    groupSelected: () => {
+      const { doc } = get(); const roots = selectionRoots(doc, get().selection); if (roots.length < 2) return;
+      const parent = parentIdOf(doc, roots[0]); if (!roots.every((id) => parentIdOf(doc, id) === parent)) return;
+      const selected = new Set(roots); const siblings = childIdsOf(doc, parent); const members = siblings.filter((id) => selected.has(id)); const insert = siblings.indexOf(members[members.length - 1]); const rest = siblings.filter((id) => !selected.has(id)); const below = siblings.slice(0, insert).filter((id) => !selected.has(id)).length;
+      const id = makeId("group"); rest.splice(below, 0, id);
+      let next = { ...doc, nodes: { ...doc.nodes, [id]: groupNode(id, members) } }; next = replaceChildren(next, parent, rest); transact(next); set({ selection: [id], ...clearTransient });
+    },
+    ungroupSelected: () => {
+      let doc = get().doc; const selected: string[] = [];
+      for (const id of selectionRoots(doc, get().selection)) {
+        const group = doc.nodes[id]; if (!isGroup(group)) continue;
+        const parent = parentIdOf(doc, id); const siblings = childIdsOf(doc, parent); const at = siblings.indexOf(id);
+        const nodes = { ...doc.nodes };
+        for (const child of group.childIds) {
+          const node = nodes[child];
+          nodes[child] = {
+            ...node,
+            transform: multiply(group.transform, node.transform),
+            opacity: node.opacity * group.opacity,
+            blendMode: node.blendMode ?? group.blendMode,
+            hidden: node.hidden || group.hidden || undefined,
+            locked: node.locked || group.locked || undefined,
+          };
+        }
+        delete nodes[id];
+        doc = { ...doc, nodes }; const order = [...siblings]; order.splice(at, 1, ...group.childIds); doc = replaceChildren(doc, parent, order); selected.push(...group.childIds);
+      }
+      if (selected.length) { transact(doc); set({ selection: selected, ...clearTransient }); }
+    },
+    alignSelected: (type) => {
+      const doc = get().doc; const items = selectionItems(doc, get().selection); const union = unionNodeWorldBounds(doc, items.map((i) => i.id)); if (items.length < 2 || !union) return; const nodes = { ...doc.nodes };
+      for (const item of items) { const b = item.bounds; let dx = 0, dy = 0; if (type === "left") dx = union.x - b.x; if (type === "hcenter") dx = union.x + union.width / 2 - b.x - b.width / 2; if (type === "right") dx = union.x + union.width - b.x - b.width; if (type === "top") dy = union.y - b.y; if (type === "vmiddle") dy = union.y + union.height / 2 - b.y - b.height / 2; if (type === "bottom") dy = union.y + union.height - b.y - b.height; if (dx || dy) nodes[item.id] = applyWorldTransformToNode(doc, nodes[item.id], translationMatrix(dx, dy)); }
+      transact({ ...doc, nodes }); set(clearTransient);
+    },
+    distributeSelected: (axis) => {
+      const doc = get().doc; const items = selectionItems(doc, get().selection); if (items.length < 3) return; const horizontal = axis === "h"; const start = (b: Bounds) => horizontal ? b.x : b.y; const size = (b: Bounds) => horizontal ? b.width : b.height; const sorted = [...items].sort((a, b) => start(a.bounds) - start(b.bounds)); const last = sorted[sorted.length - 1]; const span = start(last.bounds) + size(last.bounds) - start(sorted[0].bounds); const gap = (span - sorted.reduce((n, x) => n + size(x.bounds), 0)) / (sorted.length - 1); const nodes = { ...doc.nodes }; let cursor = start(sorted[0].bounds) + size(sorted[0].bounds) + gap;
+      for (const item of sorted.slice(1, -1)) { const d = cursor - start(item.bounds); nodes[item.id] = applyWorldTransformToNode(doc, nodes[item.id], translationMatrix(horizontal ? d : 0, horizontal ? 0 : d)); cursor += size(item.bounds) + gap; }
+      transact({ ...doc, nodes }); set(clearTransient);
+    },
+    outlineStrokeSelected: () => {
+      let doc = get().doc; const selected: string[] = [];
+      for (const id of selectionRoots(doc, get().selection)) {
+        const shape = doc.nodes[id]; if (!isShape(shape) || !shape.stroke || shape.strokeWidth <= 0) continue;
+        const polys = strokeOutline(shape); if (!polys?.length) continue;
+        const outline: Shape = { id: makeId("polygon"), name: "Outline", type: "polygon", polys, fill: shape.stroke, stroke: null, strokeWidth: 0, opacity: shape.opacity, blendMode: shape.blendMode, transform: [...IDENTITY], transformOrigin: null };
+        const parent = parentIdOf(doc, id); const siblings = childIdsOf(doc, parent); const at = siblings.indexOf(id); const nodes = { ...doc.nodes };
+        if (isAreal(shape) && shape.fill) { const gid = makeId("group"); nodes[id] = { ...shape, stroke: null }; nodes[outline.id] = outline; nodes[gid] = groupNode(gid, [id, outline.id]); const order = [...siblings]; order.splice(at, 1, gid); doc = replaceChildren({ ...doc, nodes }, parent, order); selected.push(gid); }
+        else { delete nodes[id]; nodes[outline.id] = outline; const order = [...siblings]; order.splice(at, 1, outline.id); doc = replaceChildren({ ...doc, nodes }, parent, order); selected.push(outline.id); }
+      }
+      if (selected.length) { transact(doc); set({ selection: selected, ...clearTransient }); }
+    },
+    booleanSelected: (op) => {
+      const doc = get().doc; const roots = selectionRoots(doc, get().selection); if (roots.length < 2 || !roots.every((id) => isShape(doc.nodes[id]))) return; const parent = parentIdOf(doc, roots[0]); if (!roots.every((id) => parentIdOf(doc, id) === parent)) return; const siblings = childIdsOf(doc, parent); const selected = new Set(roots); const ordered = siblings.filter((id) => selected.has(id)); const result = booleanShapes(ordered.map((id) => doc.nodes[id] as Shape), op); if (!result) return; const nodes = { ...doc.nodes }; for (const id of roots) delete nodes[id]; nodes[result.id] = result; const order = siblings.filter((id) => !selected.has(id)); order.splice(siblings.slice(0, siblings.indexOf(ordered[0])).filter((id) => !selected.has(id)).length, 0, result.id); const next = replaceChildren({ ...doc, nodes }, parent, order); transact(next); set({ selection: [result.id], ...clearTransient });
+    },
+    makeCompoundPathSelected: () => {
+      const doc = get().doc;
+      const roots = selectionRoots(doc, get().selection);
+      if (!canMakeCompoundPathSelection(doc, roots)) return;
+      const parent = parentIdOf(doc, roots[0]);
+      const siblings = childIdsOf(doc, parent);
+      const selected = new Set(roots);
+      const ordered = siblings.filter((id) => selected.has(id));
+      const compound = makeCompoundPath(ordered.map((id) => doc.nodes[id] as Shape));
+      if (!compound) return;
+      const nodes = { ...doc.nodes };
+      for (const id of ordered) delete nodes[id];
+      nodes[compound.id] = compound;
+      const order = siblings.filter((id) => !selected.has(id));
+      const at = siblings.slice(0, siblings.indexOf(ordered[0])).filter((id) => !selected.has(id)).length;
+      order.splice(at, 0, compound.id);
+      const next = replaceChildren({ ...doc, nodes }, parent, order);
+      transact(next);
+      set({ selection: [compound.id], editNode: null, ...clearTransient });
+    },
+    releaseCompoundPathSelected: () => {
+      let doc = get().doc;
+      const roots = selectionRoots(doc, get().selection);
+      if (!canReleaseCompoundPathSelection(doc, roots)) return;
+      const selected: string[] = [];
+      for (const id of roots) {
+        const compound = doc.nodes[id];
+        if (!compound || compound.type !== "compoundPath") continue;
+        const parent = parentIdOf(doc, id);
+        const siblings = childIdsOf(doc, parent);
+        const at = siblings.indexOf(id);
+        const released = releaseCompoundPath(compound);
+        const nodes = { ...doc.nodes };
+        delete nodes[id];
+        for (const shape of released) nodes[shape.id] = shape;
+        const order = [...siblings];
+        order.splice(at, 1, ...released.map((shape) => shape.id));
+        doc = replaceChildren({ ...doc, nodes }, parent, order);
+        selected.push(...released.map((shape) => shape.id));
+      }
+      if (selected.length) {
+        transact(doc);
+        set({ selection: selected, editNode: null, ...clearTransient });
+      }
+    },
+    toggleHidden: (id) => { const doc = get().doc, node = doc.nodes[id]; if (!node) return; transact({ ...doc, nodes: { ...doc.nodes, [id]: { ...node, hidden: !node.hidden } } }); if (!node.hidden) { const affected = new Set([id, ...descendantNodeIds(doc, id)]); set({ selection: get().selection.filter((x) => !affected.has(x)), ...clearTransient }); } },
+    toggleLocked: (id) => { const doc = get().doc, node = doc.nodes[id]; if (!node) return; transact({ ...doc, nodes: { ...doc.nodes, [id]: { ...node, locked: !node.locked } } }); if (!node.locked) { const affected = new Set([id, ...descendantNodeIds(doc, id)]); set({ selection: get().selection.filter((x) => !affected.has(x)), ...clearTransient }); } },
+    renameShape: (id, name) => { const doc = get().doc, node = doc.nodes[id]; if (!isShape(node)) return; transact({ ...doc, nodes: { ...doc.nodes, [id]: { ...node, name } } }); },
+    renameGroup: (id, name) => { const doc = get().doc, node = doc.nodes[id]; if (!isGroup(node)) return; transact({ ...doc, nodes: { ...doc.nodes, [id]: { ...node, name } } }); },
+    renameNode: (id, name) => { const doc = get().doc, node = doc.nodes[id]; if (!node) return; transact({ ...doc, nodes: { ...doc.nodes, [id]: { ...node, name } } }); },
+    updateGroupStyle: (id, patch) => { const doc = get().doc, node = doc.nodes[id]; if (!isGroup(node)) return; transact({ ...doc, nodes: { ...doc.nodes, [id]: { ...node, ...patch } } }, "gstyle:" + id + ":" + Object.keys(patch).sort().join(",")); if (patch.hidden || patch.locked) { const affected = new Set([id, ...descendantNodeIds(doc, id)]); set({ selection: get().selection.filter((x) => !affected.has(x)), ...clearTransient }); } },
+    moveNode: (id, parent, index) => {
+      const doc = get().doc;
+      const node = doc.nodes[id];
+      if (!node || (parent !== null && !isGroup(doc.nodes[parent]))) return;
+      if (parent === id || descendantNodeIds(doc, id).includes(parent ?? "")) return;
+
+      const oldParent = parentIdOf(doc, id);
+      const oldWorld = nodeWorldMatrix(doc, id);
+      const targetWorld = nodeWorldMatrix(doc, parent);
+      const inverseTarget = invertMatrix(targetWorld);
+      if (!inverseTarget) return;
+
+      let next = replaceChildren(
+        doc,
+        oldParent,
+        childIdsOf(doc, oldParent).filter((child) => child !== id)
+      );
+      const targetChildren = childIdsOf(next, parent).filter((child) => child !== id);
+      const at = Math.max(0, Math.min(Math.trunc(index), targetChildren.length));
+      targetChildren.splice(at, 0, id);
+      if (
+        oldParent === parent &&
+        targetChildren.every((child, i) => childIdsOf(doc, parent)[i] === child)
+      ) return;
+      next = replaceChildren(next, parent, targetChildren);
+      next = {
+        ...next,
+        nodes: {
+          ...next.nodes,
+          [id]: { ...node, transform: multiply(inverseTarget, oldWorld) },
+        },
+      };
+
+      transact(next);
+    },
+  };
+}

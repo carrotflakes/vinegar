@@ -117,4 +117,4 @@ A running list of what's built and what's next. Check items off as they land.
   - [ ] Script API: expose instances (currently scene shapes only)
   - [ ] Export bounds: include stroke extents of instance content
 - [ ] MCPサーバー化
-- [ ] プロジェクトインスペクタ
+- [ ] プロジェクトインスペクタ (デバッグ用)
