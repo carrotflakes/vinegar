@@ -83,6 +83,20 @@ Ordered by agreed priority. These are the biggest gaps toward a "real" vector ed
 
 ## Next (candidates)
 - [ ] Alignment guides during resize and rotate (currently move only)
+- [ ] **SVG import / placement** — open or place existing vector artwork while
+  preserving paths, transforms, groups, fills/strokes and gradients where possible
+- [ ] **Rulers and draggable guides** — horizontal/vertical rulers, persistent
+  document guides, snapping, lock/hide/clear actions
+- [ ] **Fit navigation** — zoom to selection and fit all drawing content in the
+  viewport (in addition to the planned fit-to-artboard action)
+- [ ] **Document recovery** — autosave a local recovery snapshot, restore after a
+  crash/reload, and warn before closing or replacing a document with unsaved changes
+- [ ] **Document identity and save workflow** — editable document name, Save As,
+  recent files, and overwrite the opened file where the File System Access API permits
+- [ ] **Document settings UI** — edit unit and DPI as well as grid size; show the
+  selected unit consistently in coordinates, dimensions and export settings
+- [ ] **Layer search / filtering** — find nodes by name/type and quickly reveal the
+  selected result in deeply nested documents
 
 ## Mobile / touch
 - [ ] On-screen alternatives for the remaining keyboard-only actions (delete, copy/paste, group, pen finish/cancel)
