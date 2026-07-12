@@ -41,7 +41,7 @@ const rect = (id, x, y, width, height) => ({
   y,
   width,
   height,
-  fill: "#ff0000",
+  fill: { type: "solid", color: "#ff0000", alpha: 1 },
   stroke: null,
   strokeWidth: 0,
   opacity: 1,

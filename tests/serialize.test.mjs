@@ -74,13 +74,16 @@ test("a nested v8 scene tree survives save/load and remains usable", () => {
     id: "rect", type: "rect", name: "Rectangle",
     x: 10, y: 20, width: 30, height: 40,
     transform: [2, 0, 0, 2, 0, 0], transformOrigin: { x: 12, y: 22 },
-    fill: "#123456", stroke: "#000000", strokeWidth: 2, opacity: 0.9,
+    fill: { type: "solid", color: "#123456", alpha: 1 },
+    stroke: { type: "solid", color: "#000000", alpha: 1 },
+    strokeWidth: 2, opacity: 0.9,
   };
   doc.nodes.ellipse = {
     id: "ellipse", type: "ellipse", name: "Ellipse",
     x: 0, y: 0, width: 20, height: 10,
     transform: [1, 0, 0, 1, 0, 0], transformOrigin: null,
-    fill: "#abcdef", stroke: null, strokeWidth: 0, opacity: 1,
+    fill: { type: "solid", color: "#abcdef", alpha: 1 },
+    stroke: null, strokeWidth: 0, opacity: 1,
   };
   doc.rootIds = ["empty", "outer"];
   doc.settings.gridSize = 24;
@@ -129,7 +132,8 @@ test("a nested v8 scene tree survives save/load and remains usable", () => {
 
 test("boolean ops keep curves and produce editable compound béziers", () => {
   const style = {
-    name: "e", fill: "#ffffff", stroke: null, strokeWidth: 0, opacity: 1,
+    name: "e", fill: { type: "solid", color: "#ffffff", alpha: 1 },
+    stroke: null, strokeWidth: 0, opacity: 1,
     transform: [1, 0, 0, 1, 0, 0], transformOrigin: null,
   };
   const outer = { id: "a", type: "ellipse", x: 0, y: 0, width: 100, height: 100, ...style };
@@ -162,7 +166,8 @@ test("boolean ops keep curves and produce editable compound béziers", () => {
 test("compound paths retain source shapes, cut even-odd holes, and release", () => {
   const doc = createEmptyDocument();
   const base = {
-    name: "base", fill: "#123456", stroke: "#222222", strokeWidth: 2,
+    name: "base", fill: { type: "solid", color: "#123456", alpha: 1 },
+    stroke: { type: "solid", color: "#222222", alpha: 1 }, strokeWidth: 2,
     opacity: 0.8, transform: [1, 0, 0, 1, 0, 0], transformOrigin: null,
   };
   doc.nodes.outer = {
@@ -170,7 +175,8 @@ test("compound paths retain source shapes, cut even-odd holes, and release", () 
   };
   doc.nodes.inner = {
     id: "inner", type: "ellipse", x: 25, y: 25, width: 50, height: 50,
-    ...base, name: "cutter", fill: "#ff0000", transform: [1, 0, 0, 1, 5, 0],
+    ...base, name: "cutter", fill: { type: "solid", color: "#ff0000", alpha: 1 },
+    transform: [1, 0, 0, 1, 5, 0],
   };
   doc.rootIds = ["outer", "inner"];
 
@@ -186,7 +192,7 @@ test("compound paths retain source shapes, cut even-odd holes, and release", () 
   let compound = state.doc.nodes[compoundId];
   assert.equal(compound.type, "compoundPath");
   assert.deepEqual(compound.components.map((component) => component.type), ["rect", "ellipse"]);
-  assert.equal(compound.fill, "#123456");
+  assert.deepEqual(compound.fill, { type: "solid", color: "#123456", alpha: 1 });
   assert.equal("subpaths" in compound, false);
   assert.equal(hitTestShape(state.doc, compound, { x: 10, y: 10 }, 0), true);
   assert.equal(hitTestShape(state.doc, compound, { x: 55, y: 50 }, 0), false);
@@ -224,7 +230,7 @@ test("compound paths retain source shapes, cut even-odd holes, and release", () 
   useEditor.getState().setSelection([compoundId]);
 
   useEditor.getState().updateSelectedStyle({
-    fill: "#abcdef",
+    fill: { type: "solid", color: "#abcdef", alpha: 1 },
     transform: [1, 0, 0, 1, 10, 5],
   });
   useEditor.getState().releaseCompoundPathSelected();
@@ -233,7 +239,9 @@ test("compound paths retain source shapes, cut even-odd holes, and release", () 
   assert.deepEqual(state.doc.rootIds, state.selection);
   const released = state.doc.rootIds.map((id) => state.doc.nodes[id]);
   assert.deepEqual(released.map((shape) => shape.type), ["rect", "ellipse"]);
-  assert.ok(released.every((shape) => shape.fill === "#abcdef"));
+  assert.ok(released.every((shape) =>
+    shape.fill?.type === "solid" && shape.fill.color === "#abcdef"
+  ));
   assert.deepEqual(
     released.map((shape) => [shape.transform[4], shape.transform[5]]),
     [[10, 5], [15, 5]]
@@ -243,7 +251,7 @@ test("compound paths retain source shapes, cut even-odd holes, and release", () 
   useEditor.getState().undo();
   compound = useEditor.getState().doc.nodes[compoundId];
   assert.equal(compound.type, "compoundPath");
-  assert.equal(compound.fill, "#abcdef");
+  assert.deepEqual(compound.fill, { type: "solid", color: "#abcdef", alpha: 1 });
   useEditor.getState().redo();
   assert.equal(useEditor.getState().doc.rootIds.length, 2);
 
