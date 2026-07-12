@@ -6,10 +6,10 @@ transforms, hit-testing and selection.
 
 ## Stack
 
-- React 18 + TypeScript + Vite
+- React 19 + TypeScript + Vite
 - Zustand for state (with undo/redo history)
 - Canvas 2D rendering (no SVG/WebGL)
-- `polygon-clipping` for boolean path operations; `clipper-lib` for stroke outlining
+- Paper.js for boolean path operations; `clipper-lib` for stroke outlining
 - `react-icons` (Lucide) for the toolbar; `@floating-ui/react-dom` for popovers
 - Package manager: **pnpm**
 
@@ -20,12 +20,13 @@ pnpm install
 pnpm dev        # start the dev server (http://localhost:5173)
 pnpm build      # typecheck + production build
 pnpm typecheck  # types only
-pnpm test       # node --test (document serialization)
+pnpm test       # node --test (serialization, symbols)
 ```
 
 ## Features
 
-- Tools: Select, Edit Nodes, Rectangle, Ellipse, Line, **Pen (Bézier)**, Pencil (freehand)
+- Tools: Select, Edit Nodes, Rectangle, Ellipse, Line, **Pen (Bézier)**,
+  Pencil (freehand), Artboard
 - Pencil: freehand strokes are simplified and smoothed into an editable Bézier
   path (tweak it with the Node tool); end near the start to close it
 - Pen tool: click for corner anchors, click-drag for smooth anchors; click the
@@ -39,25 +40,37 @@ pnpm test       # node --test (document serialization)
   all driven by per-node **affine matrices**, so rotated/nested resize is exact
 - **Movable rotation centers** (transform origin) per shape and group; a
   transient pivot for multi-selection
-- **Group / ungroup** (Ctrl/⌘+G, Ctrl/⌘+Shift+G), including **nested groups**;
-  grouped shapes select together
+- **Group / ungroup**, including **nested groups**; grouped shapes select together
 - Multi-select (shift-click & marquee)
 - Copy / cut / paste / duplicate (groups stay grouped on paste; **Paste here**
   from the canvas context menu)
-- **Boolean operations**: union, subtract, intersect, exclude (closed shapes →
-  a single polygon with holes, via `polygon-clipping`)
+- **Boolean operations**: union, subtract, intersect, exclude (Paper.js;
+  curve-preserving — the result is a node-editable compound Bézier)
 - **Compound paths**: retain closed source shapes behind one shared appearance,
-  cut even-odd holes, and release back to the original shape types (`Ctrl/⌘+8`)
+  cut even-odd holes, and release back to the original shape types
 - **Outline stroke**: convert a shape's stroke into a filled path (`clipper-lib`)
-- Fill / stroke color (swatch popover with preset palette, recent colors, saved
-  swatches, hex input, "none" and the **eyedropper**), stroke width, opacity,
-  and per-node **blend modes** (multiply, screen, overlay, … — shapes and groups)
+- **Paint model** for fill/stroke: solid colors with **per-color alpha** and
+  **gradients** (linear & radial, with a stop editor) — rendered on Canvas and
+  exported to SVG. Swatch popover with preset palette, recent colors, saved
+  swatches, hex input, "none" and the **eyedropper**
+- Stroke width, opacity, and per-node **blend modes** (multiply, screen,
+  overlay, … — shapes and groups)
+- **Symbols** (reusable components): create from a selection, place instances,
+  edit in an isolated view (double-click an instance), detach / rename / delete
+- **Artboards**: non-owning frames on the infinite plane — create/move/resize
+  with the Artboard tool, per-board (or all-board) PNG/SVG export
+- **Raster images**: place via File ▸ Place image…, the canvas context menu, or
+  drag & drop; images select/move/resize/rotate and take opacity/blend like any
+  shape; embedded in the file as document assets
 - Numeric **X / Y / W / H** editing, **align & distribute** buttons
 - Arrange: bring to front / send to back
 - **Layers panel**: tree view of groups (collapse, show/hide, lock/unlock),
   z-order list, click to select, drag to reorder (across parents), double-click
   to rename
-- **Context menus** on the canvas and layers panel (a shared menu foundation)
+- **Command registry**: one source of truth for actions, driving keyboard
+  shortcuts, the File menu, context menus and the **command palette**
+  (Ctrl/⌘+K — shortcuts are discoverable there and in the menus)
+- **Context menus** on the canvas and layers panel
 - **Snapping**: edges/centers snap to other shapes (magenta alignment guides),
   equal-spacing distribution between neighbours (spacing markers), and an
   optional grid (adjustable size). Works while moving, **drawing, resizing, and
@@ -68,26 +81,14 @@ pnpm test       # node --test (document serialization)
 - Live **status bar**: pointer readout, per-tool hints, selection info, and live
   numbers during interactions (W×H while creating, ΔX/ΔY while moving, angle
   while rotating, new size while resizing)
-- Undo / redo (Ctrl+Z / Ctrl+Shift+Z / Ctrl+Y)
+- Undo / redo
 - Pan (Space + drag, or middle mouse) and zoom (Ctrl/⌘ + wheel)
-- **Responsive / touch** layout: icon-only toolbar rail, slide-in panels, and
-  enlarged hit targets for coarse pointers
+- **Responsive / touch** layout: icon-only toolbar rail, slide-in panels,
+  enlarged hit targets for coarse pointers, pinch-to-zoom & two-finger pan,
+  on-screen Shift/Alt modifier bar
+- Debug **project inspector** (app bar ▸ Inspect): searchable JSON tree of the
+  whole store
 - File: New, Open, Save (.json), Export PNG, Export SVG, load Demo
-
-### Keyboard
-
-| Key | Action |
-| --- | --- |
-| `V` `N` `R` `O` `L` `P` `B` | Select / Nodes / Rect / Ellipse / Line / Pen / Pencil |
-| `Enter` | Finish the current pen path |
-| `Ctrl/⌘ + G` / `+ Shift + G` | Group / Ungroup |
-| `Ctrl/⌘ + A` | Select all |
-| `Ctrl/⌘ + C / X / V` | Copy / Cut / Paste |
-| `Ctrl/⌘ + D` | Duplicate |
-| `Delete` / `Backspace` | Delete selection (or the active node) |
-| `Ctrl/⌘ + Z` | Undo |
-| `Ctrl/⌘ + Shift + Z` / `Ctrl/⌘ + Y` | Redo |
-| `Esc` | Clear selection / cancel pen path |
 
 ## Document model
 
@@ -96,32 +97,36 @@ id, with `rootIds` and each group's `childIds` as the only source of hierarchy
 and back-to-front paint order. Every node carries a Canvas/SVG-compatible affine
 `transform` into its parent space plus a `transformOrigin`; parents, world
 matrices and leaf shapes are derived (not stored). The document also holds
-`settings` (unit, dpi, grid size), `metadata`, `assets` and namespaced
-`extensions`. The file wrapper is versioned and strict — only the current
-version (v6) loads. See [docs/document-model.md](docs/document-model.md).
+`symbols`, `artboards`, `assets` (embedded raster images), `settings` (unit,
+dpi, grid size), `metadata` and namespaced `extensions`. The file wrapper is
+versioned — the current version is v12; v8–v11 files migrate automatically on
+load, older versions are unsupported. See
+[docs/document-model.md](docs/document-model.md).
 
 ## Project layout
 
 ```
 src/
-  model/    types, geometry, hit-testing, matrix/affine transforms, rotate,
-            bounds, scene index, groups, snapping, freehand, boolean, outlineStroke
-  store/    zustand editor store (state + undo/redo), pointer & menu stores
-  canvas/   CanvasView (interaction), rendering, overlay, handles, node chrome
-  script/   sandboxed drawing DSL (runScript + Web Worker)
-  io/       JSON save/load (versioned), PNG/SVG export, export/snap bounds
-  ui/       Toolbar, PropertiesPanel, LayersPanel, FileMenu, ColorField,
-            ContextMenu, ScriptPanel, RightSidebar
-  demo/     demo document
-  App.tsx   layout, app bar, global shortcuts
-docs/       document-model.md
-tests/      document serialization tests (node --test)
+  model/     types, geometry, hit-testing, matrix/affine transforms, bounds,
+             scene index, groups, paint, snapping, freehand, boolean,
+             compound paths, outlineStroke
+  store/     zustand editor store split into slices (shapes, selection,
+             structure, symbols, artboards, clipboard, history, prefs),
+             pointer & menu stores
+  commands/  command registry (actions + shortcuts, drives menus & palette)
+  canvas/    CanvasView (interaction), per-tool logic, rendering, overlay,
+             handles, node chrome, image decode cache
+  script/    sandboxed drawing DSL (runScript + Web Worker)
+  io/        JSON save/load (versioned + migrations), PNG/SVG export,
+             image import, export/snap bounds
+  ui/        Toolbar, PropertiesPanel, LayersPanel, FileMenu, ColorField,
+             ContextMenu, CommandPalette, ScriptPanel, Inspector, RightSidebar
+  demo/      demo document
+  App.tsx    layout, app bar, global shortcuts
+docs/        document-model.md
+tests/       node --test (serialization, symbols)
 ```
 
-## Ideas for next steps
+## Roadmap
 
-- Alignment guides during resize and rotate (currently move only)
-- Pinch-to-zoom & two-finger pan; on-screen alternatives for keyboard actions
-- Text tool; rounded rectangles; gradients / textures; raster images
-- Scripting: `bezier()`, group creation, auto-fit to generated content
-- Boolean operations across different parent groups
+See [TODO.md](TODO.md).
