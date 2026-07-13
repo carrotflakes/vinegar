@@ -1,13 +1,21 @@
 import { flattenSubpath } from "./bezier";
-import { instanceWorldBounds, shapeBounds, worldShapeBounds } from "./bounds";
+import {
+  expandBounds,
+  instanceWorldBounds,
+  intersectBounds,
+  pointInBounds,
+  shapeBounds,
+  worldShapeBounds,
+} from "./bounds";
 import {
   clippingMaskAncestors,
   isClippingMaskNode,
+  isNodeVisibleForHitTesting,
   shapeFillRule,
   type ClippingMaskShape,
 } from "./clippingMask";
 import { invertMatrix, matrixScale, nodeWorldMatrix, shapeWorldMatrix, transformBounds } from "./matrix";
-import { ancestorIds, isInstance, isNodeHidden, isShape, scopeLeafIds } from "./scene";
+import { isInstance, isShape, scopeLeafIds } from "./scene";
 import type { Bounds, Document, Shape, SymbolInstance, Vec2 } from "./types";
 import { applyMatrix } from "./matrix";
 
@@ -187,15 +195,6 @@ function pointPassesAncestorMasks(
 }
 
 /**
- * A mask's own hidden flag does not hide its geometry, but a hidden ancestor
- * still suppresses the entire clipping group (and any containing symbol).
- */
-function isLeafHiddenForHit(doc: Document, nodeId: string): boolean {
-  if (!isClippingMaskNode(doc, nodeId)) return isNodeHidden(doc, nodeId);
-  return ancestorIds(doc, nodeId).some((id) => !!doc.nodes[id]?.hidden);
-}
-
-/**
  * Whether world-point `p` hits the given shape.
  * `tol` is an extra tolerance in world units (scaled for stroke pickability).
  */
@@ -357,7 +356,7 @@ export function hitTestNode(
   for (let i = leaves.length - 1; i >= 0; i--) {
     const leaf = doc.nodes[leaves[i]];
     if (!isShape(leaf) && !isInstance(leaf)) continue;
-    if (isLeafHiddenForHit(doc, leaf.id)) continue;
+    if (!isNodeVisibleForHitTesting(doc, leaf.id)) continue;
     // Leaf world matrices inside a definition are symbol-local, matching
     // the transformed point.
     if (hitTestNode(doc, leaf, local, localTol, seen)) {
@@ -394,7 +393,7 @@ export function marqueeHitNode(
   const hit = scopeLeafIds(doc, node.symbolId).some((id) => {
     const leaf = doc.nodes[id];
     if (!isShape(leaf) && !isInstance(leaf)) return false;
-    if (isLeafHiddenForHit(doc, leaf.id)) return false;
+    if (!isNodeVisibleForHitTesting(doc, leaf.id)) return false;
     return marqueeHitNode(doc, leaf, localRegion, seen);
   });
   seen.delete(node.symbolId);
@@ -420,7 +419,7 @@ export function marqueeHitClippingMask(
   }));
 
   for (const line of lines) {
-    if (line.points.some((point) => pointInRect(point, region))) return true;
+    if (line.points.some((point) => pointInBounds(point, region))) return true;
     for (let i = 0; i + 1 < line.points.length; i++) {
       if (segmentIntersectsRect(line.points[i], line.points[i + 1], region)) {
         return true;
@@ -455,7 +454,7 @@ function marqueeRegionInsideAncestorMasks(
 ): Bounds | null {
   let clipped = region;
   for (const mask of clippingMaskAncestors(doc, nodeId)) {
-    const next = intersectRects(clipped, worldShapeBounds(doc, mask));
+    const next = intersectBounds(clipped, worldShapeBounds(doc, mask));
     if (!next || !marqueeHitClippingMask(doc, mask, next)) return null;
     clipped = next;
   }
@@ -486,7 +485,7 @@ export function marqueeHitShape(
   const edgeRegion = expandBounds(region, stroke);
 
   for (const line of lines) {
-    if (line.points.some((point) => pointInRect(point, edgeRegion))) return true;
+    if (line.points.some((point) => pointInBounds(point, edgeRegion))) return true;
     for (let i = 0; i + 1 < line.points.length; i++) {
       if (segmentIntersectsRect(line.points[i], line.points[i + 1], edgeRegion)) {
         return true;
@@ -527,16 +526,6 @@ function rectsIntersect(a: Bounds, b: Bounds): boolean {
     a.y <= b.y + b.height &&
     a.y + a.height >= b.y
   );
-}
-
-function intersectRects(a: Bounds, b: Bounds): Bounds | null {
-  const x = Math.max(a.x, b.x);
-  const y = Math.max(a.y, b.y);
-  const right = Math.min(a.x + a.width, b.x + b.width);
-  const bottom = Math.min(a.y + a.height, b.y + b.height);
-  return right < x || bottom < y
-    ? null
-    : { x, y, width: right - x, height: bottom - y };
 }
 
 function localPolylines(shape: Shape): WorldPolyline[] {
@@ -597,24 +586,6 @@ function localPolylines(shape: Shape): WorldPolyline[] {
         }))
       );
   }
-}
-
-function expandBounds(bounds: Bounds, amount: number): Bounds {
-  return {
-    x: bounds.x - amount,
-    y: bounds.y - amount,
-    width: bounds.width + amount * 2,
-    height: bounds.height + amount * 2,
-  };
-}
-
-function pointInRect(point: Vec2, bounds: Bounds): boolean {
-  return (
-    point.x >= bounds.x &&
-    point.x <= bounds.x + bounds.width &&
-    point.y >= bounds.y &&
-    point.y <= bounds.y + bounds.height
-  );
 }
 
 /** Liang–Barsky segment/axis-aligned-rectangle intersection. */

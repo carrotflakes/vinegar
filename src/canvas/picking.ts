@@ -1,9 +1,11 @@
 import { exactlySelectedGroup } from "../model/groups";
-import { clippingMask, isClippingMaskNode } from "../model/clippingMask";
+import {
+  clippingMask,
+  isNodeVisibleForHitTesting,
+} from "../model/clippingMask";
 import { hitTestNode } from "../model/hitTest";
 import {
   descendantNodeIds,
-  ancestorIds,
   isGroup,
   isInstance,
   isNodeHidden,
@@ -60,11 +62,7 @@ export const EMPTY_EXCLUDE = new Set<string>();
 export const pickTolerance = (ctx: ToolContext) =>
   (5 * ctx.hitScale()) / useEditor.getState().viewport.scale;
 
-/** Mask geometry ignores the mask node's own visibility, but not hidden groups. */
-export function isVisibleForPicking(doc: EditorState["doc"], id: string): boolean {
-  if (!isClippingMaskNode(doc, id)) return !isNodeHidden(doc, id);
-  return !ancestorIds(doc, id).some((ancestor) => !!doc.nodes[ancestor]?.hidden);
-}
+export const isVisibleForPicking = isNodeVisibleForHitTesting;
 
 export function selectionFrame(): SelectionFrame | null {
   const { doc, selection, selectionPivot, selectionTransform } =

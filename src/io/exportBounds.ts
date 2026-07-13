@@ -1,4 +1,8 @@
-import { nodeWorldBounds, worldShapeBounds } from "../model/bounds";
+import {
+  intersectBounds,
+  nodeWorldBounds,
+  worldShapeBounds,
+} from "../model/bounds";
 import { clippingMask } from "../model/clippingMask";
 import { matrixScale, shapeWorldMatrix } from "../model/matrix";
 import {
@@ -9,16 +13,6 @@ import {
   scopeLeafIds,
 } from "../model/scene";
 import type { Bounds, Document } from "../model/types";
-
-function intersectBounds(a: Bounds, b: Bounds): Bounds | null {
-  const x = Math.max(a.x, b.x);
-  const y = Math.max(a.y, b.y);
-  const right = Math.min(a.x + a.width, b.x + b.width);
-  const bottom = Math.min(a.y + a.height, b.y + b.height);
-  return right < x || bottom < y
-    ? null
-    : { x, y, width: right - x, height: bottom - y };
-}
 
 /**
  * Tight content bounds of the document's visible leaves (shapes and symbol

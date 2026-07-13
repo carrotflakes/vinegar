@@ -2,6 +2,7 @@ import {
   ancestorIds,
   childIdsOf,
   isGroup,
+  isNodeHidden,
   parentIdOf,
   selectionRoots,
 } from "./scene";
@@ -120,6 +121,18 @@ export function isClippingMaskNode(doc: Document, nodeId: string): boolean {
   if (parentId === null) return false;
   const parent = doc.nodes[parentId];
   return isGroup(parent) && clippingMask(doc, parent)?.id === nodeId;
+}
+
+/**
+ * Whether a leaf participates in hit testing. A mask's own hidden flag does
+ * not hide its geometry, but a hidden ancestor still suppresses it.
+ */
+export function isNodeVisibleForHitTesting(
+  doc: Document,
+  nodeId: string
+): boolean {
+  if (!isClippingMaskNode(doc, nodeId)) return !isNodeHidden(doc, nodeId);
+  return !ancestorIds(doc, nodeId).some((id) => !!doc.nodes[id]?.hidden);
 }
 
 /** Active clipping masks enclosing a node, nearest ancestor first. */
