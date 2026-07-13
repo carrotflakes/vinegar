@@ -13,7 +13,13 @@ export function transformShape(shape: Shape, fn: (p: Vec2) => Vec2): Shape {
   switch (shape.type) {
     case "rect":
     case "ellipse":
-    case "image": {
+    case "image":
+    // NOTE: for text this is only correct under translation. A scaling `fn`
+    // rewrites the measured box (w/h) but leaves fontSize/glyphs untouched, so
+    // the text would not actually resize. Text is therefore kept off the
+    // scaling callers (see resizeShapeToBounds and the selectTool soloLeaf
+    // exclusion); only translateShape may reach it here.
+    case "text": {
       const a = fn({ x: shape.x, y: shape.y });
       const b = fn({ x: shape.x + shape.width, y: shape.y + shape.height });
       const r = normalizeRect(a.x, a.y, b.x - a.x, b.y - a.y);

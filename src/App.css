@@ -295,6 +295,34 @@
   touch-action: none;
 }
 
+.text-editor-overlay {
+  position: absolute;
+  left: 0;
+  top: 0;
+  z-index: 8;
+  box-sizing: border-box;
+  min-width: 1px;
+  min-height: 1px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  outline: 1px solid var(--accent);
+  outline-offset: 1px;
+  background: transparent;
+  overflow: hidden;
+  resize: none;
+  transform-origin: 0 0;
+  white-space: pre-wrap;
+  overflow-wrap: normal;
+}
+
+.text-editor-overlay:focus-visible {
+  outline: 1px solid var(--accent);
+  outline-offset: 1px;
+  box-shadow: none;
+}
+
 /* ---- toolbar: narrow icon-only rail (name + shortcut in the tooltip) --- */
 .toolbar {
   display: flex;

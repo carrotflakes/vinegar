@@ -39,6 +39,7 @@ export function shapeBounds(shape: Shape): Bounds {
     case "rect":
     case "ellipse":
     case "image":
+    case "text":
       return normalizeRect(shape.x, shape.y, shape.width, shape.height);
     case "line":
       return normalizeRect(

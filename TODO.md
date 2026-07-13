@@ -65,7 +65,7 @@ Ordered by agreed priority. These are the biggest gaps toward a "real" vector ed
      multi-object masks, mask a raw shape without a wrapping group,
      anti-aliased clip via offscreen `destination-in`
 4. [ ] **Effects (drop shadow / blur)** — per-node shadow and blur; render + SVG + serialize.
-5. [ ] **Text tool** — a `text` leaf shape (file v13). Decided scope:
+5. [x] **Text tool** — a `text` leaf shape (file v14). Shipped scope:
    point text (click; auto-size) + area text (drag; fixed `width`, auto height,
    greedy wrap incl. per-character CJK breaks in `canvas/textLayout.ts`); one
    style per node (family / size / weight / italic / lineHeight / align);
@@ -158,3 +158,4 @@ Ordered by agreed priority. These are the biggest gaps toward a "real" vector ed
 - [x] ユーザ選択不要な部分に select-none
 - [x] Fileメニューの階層化（Export submenu）
 - [ ] assetを確認できるビュー
+- [ ] テキストのパス化

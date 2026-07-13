@@ -14,12 +14,13 @@ import type {
   Matrix,
   SceneNode,
   Shape,
+  TextShape,
   Vec2,
 } from "../model/types";
 import type { Viewport } from "../model/viewport";
 import type { ClipboardPayload } from "./docOps";
 
-export type ToolId = "select" | "node" | "rect" | "ellipse" | "line" | "pen" | "pencil" | "artboard";
+export type ToolId = "select" | "node" | "rect" | "ellipse" | "line" | "pen" | "pencil" | "text" | "artboard";
 export interface EditNode { shapeId: string; sub: number; index: number }
 export type AlignType = "left" | "hcenter" | "right" | "top" | "vmiddle" | "bottom";
 export interface StyleDefaults { fill: Paint | null; stroke: Paint | null; strokeWidth: number }
@@ -121,6 +122,14 @@ export interface ShapeActions {
    *  pattern fill/stroke. Resolves the new asset id, or null on failure. */
   addPatternImage: (file: File) => Promise<string | null>;
   updateShape: (shape: Shape, select?: boolean) => void;
+  updateTextShape: (
+    id: string,
+    patch: Partial<Pick<TextShape,
+      "text" | "width" | "fontFamily" | "fontSize" | "fontWeight" |
+      "italic" | "lineHeight" | "align">>
+  ) => void;
+  /** Refresh persisted text bounds after browser fonts become available. */
+  remeasureTextShapes: () => void;
   toggleNodeSmooth: (shapeId: string, sub: number, index: number) => void;
   deleteEditNode: () => void;
   applyScriptChanges: (changes: { created: Shape[]; updated: Shape[]; deleted: string[] }) => void;

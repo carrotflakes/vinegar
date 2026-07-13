@@ -6,6 +6,7 @@ import { isGroup, isInstance, isShape } from "../model/scene";
 import type { Artboard, Bounds, Document, DocumentAsset, ImageShape, Shape } from "../model/types";
 import { worldToScreen, type Viewport } from "../model/viewport";
 import { getAssetImage } from "./imageCache";
+import { layoutTextWithCanvas } from "./textLayout";
 
 /**
  * Paint a render node. Groups and instances with opacity/blend are drawn into
@@ -17,12 +18,13 @@ export function paintNode(
   doc: Document,
   nodeId: string,
   preview?: Shape | null,
+  hiddenShapeId?: string | null,
   activeSymbols: Set<string> = new Set()
 ): void {
   const node = doc.nodes[nodeId];
   if (!node) return;
   if (isShape(node)) {
-    if (node.hidden) return;
+    if (node.hidden || node.id === hiddenShapeId) return;
     paintShape(ctx, preview?.id === node.id ? preview : node, doc.assets);
     return;
   }
@@ -46,7 +48,7 @@ export function paintNode(
   const alpha = node.opacity ?? 1;
   const blend = node.blendMode && node.blendMode !== "normal" ? node.blendMode : null;
   if (alpha >= 1 && !blend) {
-    for (const childId of childIds) paintNode(ctx, doc, childId, preview, activeSymbols);
+    for (const childId of childIds) paintNode(ctx, doc, childId, preview, hiddenShapeId, activeSymbols);
     ctx.restore();
     if (symbolId) activeSymbols.delete(symbolId);
     return;
@@ -61,7 +63,7 @@ export function paintNode(
     return;
   }
   lctx.setTransform(ctx.getTransform());
-  for (const childId of childIds) paintNode(lctx, doc, childId, preview, activeSymbols);
+  for (const childId of childIds) paintNode(lctx, doc, childId, preview, hiddenShapeId, activeSymbols);
   ctx.restore();
   ctx.save();
   ctx.setTransform(1, 0, 0, 1, 0, 0);
@@ -147,6 +149,9 @@ function tracePath(ctx: CanvasRenderingContext2D, shape: Shape, begin = true): v
       }
       break;
     }
+    case "image":
+    case "text":
+      break;
   }
 }
 
@@ -164,6 +169,11 @@ export function paintShape(
   if (!isIdentity(shape.transform)) ctx.transform(...shape.transform);
   if (shape.type === "image") {
     paintImage(ctx, shape, assets[shape.assetId]);
+    ctx.restore();
+    return;
+  }
+  if (shape.type === "text") {
+    paintText(ctx, shape, assets);
     ctx.restore();
     return;
   }
@@ -203,6 +213,40 @@ export function paintShape(
     }
   }
   ctx.restore();
+}
+
+function paintText(
+  ctx: CanvasRenderingContext2D,
+  shape: Extract<Shape, { type: "text" }>,
+  assets: Record<string, DocumentAsset>
+): void {
+  const layout = layoutTextWithCanvas(ctx, shape);
+  const bounds = shapeBounds(shape);
+  ctx.textBaseline = "alphabetic";
+  if (shape.fill) {
+    const style = resolveStyle(ctx, shape.fill, bounds, assets);
+    if (style) {
+      withPaintAlpha(ctx, shape.opacity, shape.fill, () => {
+        ctx.fillStyle = style;
+        for (const line of layout.lines) {
+          if (line.text) ctx.fillText(line.text, shape.x + line.x, shape.y + line.baseline);
+        }
+      });
+    }
+  }
+  if (shape.stroke && shape.strokeWidth > 0) {
+    const style = resolveStyle(ctx, shape.stroke, bounds, assets);
+    if (style) {
+      withPaintAlpha(ctx, shape.opacity, shape.stroke, () => {
+        ctx.strokeStyle = style;
+        ctx.lineWidth = shape.strokeWidth;
+        ctx.lineJoin = "round";
+        for (const line of layout.lines) {
+          if (line.text) ctx.strokeText(line.text, shape.x + line.x, shape.y + line.baseline);
+        }
+      });
+    }
+  }
 }
 
 /**
@@ -300,6 +344,8 @@ export interface RenderOptions {
   rootIds?: string[];
   /** Artboard frames/backdrops to draw under the scene (omit in symbol view). */
   artboards?: Artboard[];
+  /** Omit this shape while an HTML overlay edits it. */
+  hiddenShapeId?: string | null;
 }
 
 /** Full scene render: background, grid, shapes, preview. */
@@ -326,7 +372,7 @@ export function renderScene(
   // A preview that shares a document shape's id supersedes it (the pen
   // extending an existing path); skip the stale copy underneath.
   for (const nodeId of opts.rootIds ?? doc.rootIds) {
-    paintNode(ctx, doc, nodeId, opts.preview);
+    paintNode(ctx, doc, nodeId, opts.preview, opts.hiddenShapeId);
   }
   if (opts.preview && !doc.nodes[opts.preview.id]) {
     paintShape(ctx, opts.preview, doc.assets);

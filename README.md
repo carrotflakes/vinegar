@@ -20,13 +20,13 @@ pnpm install
 pnpm dev        # start the dev server (http://localhost:5173)
 pnpm build      # typecheck + production build
 pnpm typecheck  # types only
-pnpm test       # node --test (serialization, symbols)
+pnpm test       # node --test (serialization, symbols, text, viewport)
 ```
 
 ## Features
 
 - Tools: Select, Edit Nodes, Rectangle, Ellipse, Line, **Pen (Bézier)**,
-  Pencil (freehand), Artboard
+  Pencil (freehand), Text, Artboard
 - Pencil: freehand strokes are simplified and smoothed into an editable Bézier
   path (tweak it with the Node tool); end near the start to close it
 - Pen tool: click for corner anchors, click-drag for smooth anchors; click the
@@ -62,6 +62,9 @@ pnpm test       # node --test (serialization, symbols)
 - **Raster images**: place via File ▸ Place image…, the canvas context menu, or
   drag & drop; images select/move/resize/rotate and take opacity/blend like any
   shape; embedded in the file as document assets
+- **Text**: click for auto-width point text or drag for fixed-width wrapping
+  text; in-place editing supports newlines, CJK wrapping, rotation, font/style
+  controls, saved measured bounds, and Canvas/SVG/PNG output
 - Numeric **X / Y / W / H** editing, **align & distribute** buttons
 - Arrange: bring to front / send to back
 - **Layers panel**: tree view of groups (collapse, show/hide, lock/unlock),
@@ -100,7 +103,7 @@ and back-to-front paint order. Every node carries a Canvas/SVG-compatible affine
 matrices and leaf shapes are derived (not stored). The document also holds
 `symbols`, `artboards`, `assets` (embedded raster images), `settings` (unit,
 dpi, grid size), `metadata` and namespaced `extensions`. The file wrapper is
-versioned — the current version is v12; v8–v11 files migrate automatically on
+versioned — the current version is v14; v8–v13 files migrate automatically on
 load, older versions are unsupported. See
 [docs/document-model.md](docs/document-model.md).
 
@@ -116,7 +119,7 @@ src/
              pointer & menu stores
   commands/  command registry (actions + shortcuts, drives menus & palette)
   canvas/    CanvasView (interaction), per-tool logic, rendering, overlay,
-             handles, node chrome, image decode cache
+             handles, node chrome, image decode cache, text layout/editor
   script/    sandboxed drawing DSL (runScript + Web Worker)
   io/        JSON save/load (versioned + migrations), PNG/SVG export,
              image import, export/snap bounds
@@ -125,7 +128,7 @@ src/
   demo/      demo document
   App.tsx    layout, app bar, global shortcuts
 docs/        document-model.md
-tests/       node --test (serialization, symbols)
+tests/       node --test (serialization, symbols, text, viewport)
 ```
 
 ## Roadmap

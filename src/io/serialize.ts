@@ -2,17 +2,17 @@ import { paintFromLegacy } from "../model/paint";
 import { referencedAssetIds } from "../model/scene";
 import { BLEND_MODES, type Document, type ShapeType } from "../model/types";
 
-export const CURRENT_FILE_VERSION = 13 as const;
+export const CURRENT_FILE_VERSION = 14 as const;
 
 /**
  * v8 lacked `symbols` (added as an empty registry). v8 and v9 stored fill/
  * stroke as bare colour strings; v10 upgrades them to structured Paint. v11
  * adds `artboards` (backfilled as an empty list for older files). v12 adds
  * `image` nodes over the existing asset store (no structural change). v13 adds
- * `pattern` fills/strokes (raster fill via doc.assets; purely additive, so
- * older files load unchanged).
+ * `pattern` fills/strokes (raster fill via doc.assets). v14 adds single-style
+ * text leaves with persisted measured bounds. Both additions are additive.
  */
-const MIGRATABLE_VERSIONS = new Set<unknown>([8, 9, 10, 11, 12]);
+const MIGRATABLE_VERSIONS = new Set<unknown>([8, 9, 10, 11, 12, 13]);
 
 export interface VinegarFile {
   app: "vinegar";
@@ -42,7 +42,7 @@ function usedAssets(doc: Document): Document["assets"] {
 }
 
 const NODE_TYPES = new Set<ShapeType | "group" | "instance">([
-  "group", "rect", "ellipse", "line", "path", "bezier", "polygon", "compoundPath", "instance", "image",
+  "group", "rect", "ellipse", "line", "path", "bezier", "polygon", "compoundPath", "instance", "image", "text",
 ]);
 const isObject = (value: unknown): value is Record<string, unknown> =>
   !!value && typeof value === "object" && !Array.isArray(value);
@@ -102,6 +102,19 @@ const isNode = (id: string, node: unknown): boolean => {
       return typeof node.assetId === "string" &&
         isNumber(node.x) && isNumber(node.y) && isNumber(node.width) && isNumber(node.height) &&
         (node.lockAspect === undefined || typeof node.lockAspect === "boolean");
+    case "text":
+      return typeof node.text === "string" &&
+        (node.textMode === "point" || node.textMode === "area") &&
+        isNumber(node.x) && isNumber(node.y) &&
+        isNumber(node.width) && node.width > 0 &&
+        isNumber(node.height) && node.height > 0 &&
+        typeof node.fontFamily === "string" && node.fontFamily.trim().length > 0 &&
+        isNumber(node.fontSize) && node.fontSize > 0 &&
+        isNumber(node.fontWeight) && node.fontWeight >= 100 &&
+        node.fontWeight <= 900 && node.fontWeight % 100 === 0 &&
+        typeof node.italic === "boolean" &&
+        isNumber(node.lineHeight) && node.lineHeight > 0 &&
+        (node.align === "left" || node.align === "center" || node.align === "right");
     case "line":
       return isNumber(node.x1) && isNumber(node.y1) && isNumber(node.x2) && isNumber(node.y2);
     case "path":
@@ -121,7 +134,7 @@ const isNode = (id: string, node: unknown): boolean => {
         Array.isArray(node.components) && node.components.length > 0 &&
         node.components.every((component: unknown) =>
           isObject(component) && component.type !== "compoundPath" &&
-          component.type !== "line" && component.type !== "image" &&
+          component.type !== "line" && component.type !== "image" && component.type !== "text" &&
           typeof component.id === "string" &&
           isNode(component.id, component) &&
           (component.type !== "path" || component.closed === true) &&

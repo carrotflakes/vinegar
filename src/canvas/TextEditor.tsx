@@ -1,0 +1,77 @@
+import { useEffect, useRef } from "react";
+import { multiply, shapeWorldMatrix, translation } from "../model/matrix";
+import type { Matrix, TextShape } from "../model/types";
+import { useEditor } from "../store/editorStore";
+import { fontStack } from "../ui/fonts";
+
+interface Props {
+  shape: TextShape;
+  onChange: (text: string) => void;
+  onCommit: () => void;
+  onCancel: () => void;
+}
+
+export default function TextEditor({ shape, onChange, onCommit, onCancel }: Props) {
+  const doc = useEditor((state) => state.doc);
+  const viewport = useEditor((state) => state.viewport);
+  const textarea = useRef<HTMLTextAreaElement>(null);
+  const composing = useRef(false);
+
+  useEffect(() => {
+    const input = textarea.current;
+    if (!input) return;
+    input.focus();
+    input.setSelectionRange(input.value.length, input.value.length);
+  }, []);
+
+  const view: Matrix = [
+    viewport.scale, 0, 0, viewport.scale,
+    viewport.offset.x, viewport.offset.y,
+  ];
+  const localToScreen = multiply(
+    view,
+    multiply(shapeWorldMatrix(doc, shape), translation(shape.x, shape.y))
+  );
+
+  return (
+    <textarea
+      ref={textarea}
+      className="text-editor-overlay"
+      value={shape.text}
+      wrap={shape.textMode === "area" ? "soft" : "off"}
+      spellCheck={false}
+      aria-label="Edit text"
+      style={{
+        width: `${shape.width}px`,
+        height: `${shape.height}px`,
+        transform: `matrix(${localToScreen.join(",")})`,
+        fontFamily: fontStack(shape.fontFamily),
+        fontSize: `${shape.fontSize}px`,
+        fontWeight: shape.fontWeight,
+        fontStyle: shape.italic ? "italic" : "normal",
+        lineHeight: String(shape.lineHeight),
+        textAlign: shape.align,
+        whiteSpace: shape.textMode === "point" ? "pre" : "pre-wrap",
+        color: shape.fill?.type === "solid" ? shape.fill.color : "#111827",
+      }}
+      onChange={(event) => onChange(event.target.value)}
+      onCompositionStart={() => { composing.current = true; }}
+      onCompositionEnd={() => { composing.current = false; }}
+      onPointerDown={(event) => event.stopPropagation()}
+      onKeyDown={(event) => {
+        if (event.key === "Escape") {
+          event.preventDefault();
+          onCancel();
+        } else if (
+          event.key === "Enter" &&
+          (event.ctrlKey || event.metaKey) &&
+          !composing.current
+        ) {
+          event.preventDefault();
+          onCommit();
+        }
+      }}
+      onBlur={onCommit}
+    />
+  );
+}

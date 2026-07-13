@@ -40,8 +40,8 @@ function retainedComponents(shape: Shape): PrimitiveShape[] {
       transform: multiply(shape.transform, component.transform),
     }));
   }
-  // Images never pass canCompoundShape; this branch is unreachable for them.
-  if (shape.type === "image") return [];
+  // Non-path leaves never pass canCompoundShape; this branch is unreachable.
+  if (shape.type === "image" || shape.type === "text") return [];
   return [structuredClone(shape)];
 }
 

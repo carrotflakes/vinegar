@@ -301,8 +301,13 @@ export function onSelectMove(
         );
       }
       const entries = Object.entries(inter.originals);
+      // Text is deliberately excluded from the geometry-fold path: it has no
+      // baked-scale representation (w/h are measured, not authored, and fontSize
+      // is separate), so it must resize through the transform below, which
+      // scales the glyphs at paint time. Routing it into resizeShapeToBounds
+      // would resize the box without scaling the text. See transformShape.
       const soloLeaf =
-        inter.single && entries.length === 1 && isShape(entries[0][1])
+        inter.single && entries.length === 1 && isShape(entries[0][1]) && entries[0][1].type !== "text"
           ? (entries[0][1] as Shape)
           : null;
       const next: Record<string, SceneNode> = {};

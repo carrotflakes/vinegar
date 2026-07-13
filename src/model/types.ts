@@ -18,7 +18,8 @@ export type ShapeType =
   | "bezier"
   | "polygon"
   | "compoundPath"
-  | "image";
+  | "image"
+  | "text";
 
 /**
  * Blend modes shared verbatim by Canvas 2D (`globalCompositeOperation`) and
@@ -176,6 +177,30 @@ export interface ImageShape extends BaseShape {
   lockAspect?: boolean;
 }
 
+export type TextMode = "point" | "area";
+export type TextAlign = "left" | "center" | "right";
+
+/** A single-style text leaf. Width/height are persisted measured bounds. */
+export interface TextShape extends BaseShape {
+  type: "text";
+  text: string;
+  textMode: TextMode;
+  x: number;
+  y: number;
+  /** Auto-measured for point text; the fixed wrapping width for area text. */
+  width: number;
+  /** Auto-measured line-box height. */
+  height: number;
+  /** Stable display name resolved through the editor's font catalogue. */
+  fontFamily: string;
+  fontSize: number;
+  fontWeight: number;
+  italic: boolean;
+  /** Unitless multiplier of fontSize. */
+  lineHeight: number;
+  align: TextAlign;
+}
+
 /**
  * A reusable symbol definition. Its content is a Group stored in `doc.nodes`
  * but never listed in `rootIds`; the definition root keeps an identity
@@ -216,7 +241,7 @@ export type PrimitiveShape =
   | BezierShape
   | PolygonShape;
 
-export type Shape = PrimitiveShape | CompoundPathShape | ImageShape;
+export type Shape = PrimitiveShape | CompoundPathShape | ImageShape | TextShape;
 
 export type SceneNode = Shape | Group | SymbolInstance;
 

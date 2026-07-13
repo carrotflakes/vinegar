@@ -5,6 +5,8 @@ import { gradientToSvg, paintToSvgAttrs, type Paint } from "../model/paint";
 import { isGroup, isShape } from "../model/scene";
 import type { BezierShape, Bounds, Document, Matrix, PrimitiveShape, SceneNode, Shape } from "../model/types";
 import { contentBounds } from "./exportBounds";
+import { layoutTextInBrowser } from "../canvas/textLayout";
+import { fontStack } from "../ui/fonts";
 
 export interface SvgOptions {
   margin?: number;
@@ -47,6 +49,15 @@ function num(n: number): string {
 
 function matrixAttr(matrix: Matrix): string {
   return `matrix(${matrix.map(num).join(" ")})`;
+}
+
+function escapeXml(value: string): string {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&apos;");
 }
 
 /** Opacity / blend / transform attributes shared by every node kind. */
@@ -94,6 +105,20 @@ function shapeToSvg(doc: Document, shape: Shape, defs: Defs): string {
   }
   const attrs = commonAttrs(shape, defs);
   switch (shape.type) {
+    case "text": {
+      const layout = layoutTextInBrowser(shape);
+      const fontAttrs = [
+        `font-family="${escapeXml(fontStack(shape.fontFamily))}"`,
+        `font-size="${num(shape.fontSize)}"`,
+        `font-weight="${shape.fontWeight}"`,
+        shape.italic ? `font-style="italic"` : "",
+        `xml:space="preserve"`,
+      ].filter(Boolean).join(" ");
+      const lines = layout.lines.map((line) =>
+        `<tspan x="${num(shape.x + line.x)}" y="${num(shape.y + line.baseline)}">${escapeXml(line.text)}</tspan>`
+      ).join("");
+      return `<text ${fontAttrs} ${attrs}>${lines}</text>`;
+    }
     case "rect": {
       const b = shapeBounds(shape);
       return `<rect x="${num(b.x)}" y="${num(b.y)}" width="${num(

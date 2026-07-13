@@ -57,6 +57,7 @@ export type Interaction =
       selectionTransform?: Matrix;
     }
   | { kind: "create"; start: Vec2 }
+  | { kind: "text-create"; start: Vec2; current: Vec2 }
   | { kind: "pencil" }
   | { kind: "pen-anchor"; index: number }
   | {

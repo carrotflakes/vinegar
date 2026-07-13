@@ -39,7 +39,8 @@ function containsLocal(shape: Shape, p: Vec2): boolean {
   p = applyMatrix(inverse, p);
   switch (shape.type) {
     case "rect":
-    case "image": {
+    case "image":
+    case "text": {
       const b = shapeBounds(shape);
       return p.x >= b.x && p.x <= b.x + b.width && p.y >= b.y && p.y <= b.y + b.height;
     }
@@ -113,6 +114,15 @@ export function hitTestShape(doc: Document, shape: Shape, p: Vec2, tol: number):
   p = applyMatrix(inverse, p);
 
   switch (shape.type) {
+    case "text": {
+      const b = shapeBounds(shape);
+      return (
+        p.x >= b.x - tol &&
+        p.x <= b.x + b.width + tol &&
+        p.y >= b.y - tol &&
+        p.y <= b.y + b.height + tol
+      );
+    }
     case "image": {
       // Images are opaque content: anywhere inside the rect hits.
       const b = shapeBounds(shape);
@@ -331,7 +341,7 @@ export function marqueeHitShape(
   }
 
   const fillable =
-    (shape.fill !== null || shape.type === "image") &&
+    (shape.fill !== null || shape.type === "image" || shape.type === "text") &&
     shape.type !== "line" &&
     !(shape.type === "path" && !shape.closed) &&
     !(shape.type === "bezier" && !shape.subpaths.some((sp) => sp.closed));
@@ -357,7 +367,8 @@ function rectsIntersect(a: Bounds, b: Bounds): boolean {
 function localPolylines(shape: Shape): WorldPolyline[] {
   switch (shape.type) {
     case "rect":
-    case "image": {
+    case "image":
+    case "text": {
       const b = shapeBounds(shape);
       return [{
         points: [

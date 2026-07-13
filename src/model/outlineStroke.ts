@@ -73,6 +73,7 @@ function centerlines(shape: Shape): Polyline[] {
         }))
       );
     case "image":
+    case "text":
       // Images never stroke.
       return [];
   }

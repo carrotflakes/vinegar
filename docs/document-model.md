@@ -25,10 +25,15 @@ active tool, selection, viewport and undo history does not belong in the file.
 - Compound paths are single scene nodes. Their closed source shapes are stored
   inline in `components`, are not independently selectable, and are painted
   once with the compound path's shared appearance using the even-odd rule.
+- Text is a leaf shape, not compound-path geometry. Point text stores its
+  measured width; area text stores its fixed wrapping width; both store the
+  measured auto-height so bounds and hit-testing never need a live font.
+  Typography is one style per node (`fontFamily`, size, weight, italic,
+  line-height and alignment); line layout is derived from the text at render.
 
-The file wrapper version is deliberately strict. Only the current version is
-loaded; changing the persisted shape of `Document` requires bumping
-`CURRENT_FILE_VERSION`.
+The file wrapper version is deliberately strict. The current version is v14;
+supported older versions are migrated before validation. Changing the
+persisted shape of `Document` requires bumping `CURRENT_FILE_VERSION`.
 
 ## Coordinate policy
 

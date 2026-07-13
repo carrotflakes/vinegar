@@ -28,7 +28,7 @@ import {
   selectionUnits,
 } from "../model/groups";
 import type { Paint } from "../model/paint";
-import { BLEND_MODES, type Artboard, type BlendMode, type Shape, type SymbolInstance } from "../model/types";
+import { BLEND_MODES, type Artboard, type BlendMode, type Shape, type SymbolInstance, type TextShape } from "../model/types";
 import { descendantShapeIds, isInstance, isShape, selectionRoots } from "../model/scene";
 import { useEditor } from "../store/editorStore";
 import ColorField from "./ColorField";
@@ -36,6 +36,7 @@ import { getSelectionFrame } from "../canvas/frame";
 import { getAssetImage, subscribeImageCache } from "../canvas/imageCache";
 import { useEffect, useReducer } from "react";
 import type { DocumentAsset, ImageShape } from "../model/types";
+import { FONT_OPTIONS } from "./fonts";
 
 export default function PropertiesPanel() {
   const doc = useEditor((s) => s.doc);
@@ -102,7 +103,7 @@ export default function PropertiesPanel() {
       : s.type === "bezier" && s.subpaths.some((sp) => !sp.closed)
   );
   const canOutline = !selectedGroup && selected.some(
-    (s) => s.stroke !== null && s.strokeWidth > 0
+    (s) => s.type !== "text" && s.type !== "image" && s.stroke !== null && s.strokeWidth > 0
   );
   const canMakeCompound = canMakeCompoundPathSelection(doc, selection);
   const canReleaseCompound = canReleaseCompoundPathSelection(doc, selection);
@@ -307,6 +308,10 @@ export default function PropertiesPanel() {
 
       {selected.length === 1 && first.type === "image" && (
         <ImageSection shape={first} asset={doc.assets[first.assetId] ?? null} />
+      )}
+
+      {selected.length === 1 && first.type === "text" && (
+        <TextSection shape={first} />
       )}
 
       {selectedGroup && (
@@ -715,6 +720,94 @@ function ImageSection({
   );
 }
 
+function TextSection({ shape }: { shape: TextShape }) {
+  const update = useEditor((state) => state.updateTextShape);
+  const weights = [100, 200, 300, 400, 500, 600, 700, 800, 900];
+  return (
+    <div className="panel-section">
+      <div className="panel-title">Text</div>
+      <div className="field">
+        <label>Font</label>
+        <select
+          className="blend-select"
+          value={shape.fontFamily}
+          onChange={(event) => update(shape.id, { fontFamily: event.target.value })}
+        >
+          {FONT_OPTIONS.map((font) => (
+            <option key={font.name} value={font.name}>{font.name}</option>
+          ))}
+        </select>
+      </div>
+      <div className="field">
+        <label>Size</label>
+        <div className="field-row">
+          <input
+            type="number"
+            className="num"
+            min={1}
+            step={1}
+            value={shape.fontSize}
+            onChange={(event) => update(shape.id, { fontSize: Math.max(1, Number(event.target.value)) })}
+          />
+          <select
+            className="blend-select"
+            value={shape.fontWeight}
+            onChange={(event) => update(shape.id, { fontWeight: Number(event.target.value) })}
+          >
+            {weights.map((weight) => <option key={weight} value={weight}>{weight}</option>)}
+          </select>
+        </div>
+      </div>
+      <div className="field">
+        <label className="checkbox-row">
+          <input
+            type="checkbox"
+            checked={shape.italic}
+            onChange={(event) => update(shape.id, { italic: event.target.checked })}
+          />
+          Italic
+        </label>
+      </div>
+      <div className="field">
+        <label>Line height</label>
+        <input
+          type="number"
+          className="num"
+          min={0.5}
+          step={0.1}
+          value={shape.lineHeight}
+          onChange={(event) => update(shape.id, { lineHeight: Math.max(0.5, Number(event.target.value)) })}
+        />
+      </div>
+      <div className="field">
+        <label>Align</label>
+        <select
+          className="blend-select"
+          value={shape.align}
+          onChange={(event) => update(shape.id, { align: event.target.value as TextShape["align"] })}
+        >
+          <option value="left">Left</option>
+          <option value="center">Center</option>
+          <option value="right">Right</option>
+        </select>
+      </div>
+      {shape.textMode === "area" && (
+        <div className="field">
+          <label>Wrapping width</label>
+          <input
+            type="number"
+            className="num"
+            min={1}
+            step={1}
+            value={Math.round(shape.width)}
+            onChange={(event) => update(shape.id, { width: Math.max(1, Number(event.target.value)) })}
+          />
+        </div>
+      )}
+    </div>
+  );
+}
+
 function Geometry({ shape }: { shape: Shape }) {
   const setShapeGeometry = useEditor((s) => s.setShapeGeometry);
   const b = shapeBounds(shape);
@@ -755,8 +848,8 @@ function Geometry({ shape }: { shape: Shape }) {
     <div className="geometry-grid">
       {field("x", "X")}
       {field("y", "Y")}
-      {field("width", "W")}
-      {field("height", "H")}
+      {shape.type !== "text" && field("width", "W")}
+      {shape.type !== "text" && field("height", "H")}
     </div>
   );
 }
@@ -784,5 +877,7 @@ function typeName(shape: Shape): string {
       return "Compound Path";
     case "image":
       return "Image";
+    case "text":
+      return "Text";
   }
 }

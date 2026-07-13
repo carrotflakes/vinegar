@@ -370,3 +370,23 @@ export function drawPenDraft(
     ctx.stroke();
   });
 }
+
+/** Rubber-band rectangle swept while dragging out an area-text box. */
+export function drawTextDraft(
+  ctx: CanvasRenderingContext2D,
+  dpr: number,
+  viewport: Viewport,
+  start: Vec2,
+  current: Vec2
+): void {
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  const a = worldToScreen(viewport, start);
+  const b = worldToScreen(viewport, current);
+  const x = Math.min(a.x, b.x);
+  const y = Math.min(a.y, b.y);
+  ctx.strokeStyle = ACCENT;
+  ctx.lineWidth = 1;
+  ctx.setLineDash([4, 3]);
+  ctx.strokeRect(x + 0.5, y + 0.5, Math.abs(b.x - a.x), Math.abs(b.y - a.y));
+  ctx.setLineDash([]);
+}

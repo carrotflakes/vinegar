@@ -19,6 +19,7 @@ import {
   LuPencil,
   LuPlus,
   LuTrash2,
+  LuType,
 } from "react-icons/lu";
 import type { Group, Shape, SymbolInstance } from "../model/types";
 import {
@@ -44,6 +45,7 @@ const TYPE_ICON: Record<Shape["type"], ComponentType> = {
   polygon: LuHexagon,
   compoundPath: LuCombine,
   image: LuImage,
+  text: LuType,
 };
 
 /** Display node: the render tree with every level front-most first. */

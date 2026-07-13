@@ -24,6 +24,9 @@ export async function exportPng(
 
   // Painting is synchronous; make sure every placed image has pixels first.
   await ensureDocImagesLoaded(doc);
+  if (typeof document !== "undefined" && "fonts" in document) {
+    await document.fonts.ready;
+  }
 
   const canvas = document.createElement("canvas");
   canvas.width = Math.max(1, Math.ceil(bounds.width * scale));

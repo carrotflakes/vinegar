@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { unionNodeWorldBounds } from "../model/bounds";
 import {
   drillScopeRoot,
@@ -7,7 +7,7 @@ import {
 } from "../model/groups";
 import { shapeWorldMatrix } from "../model/matrix";
 import { type Guide, type Spacing } from "../model/snap";
-import type { BezierShape, Bounds, Shape, Vec2 } from "../model/types";
+import type { BezierShape, Bounds, Shape, TextShape, Vec2 } from "../model/types";
 import { screenToWorld, zoomAt, type Viewport } from "../model/viewport";
 import { isGroup, scopeRootGroupId } from "../model/scene";
 import { currentSymbolScope, useEditor } from "../store/editorStore";
@@ -33,6 +33,7 @@ import {
   drawOverlay,
   drawPenDraft,
   drawSpacings,
+  drawTextDraft,
 } from "./overlay";
 import {
   artboardCursor,
@@ -74,6 +75,19 @@ import {
   startShape,
 } from "./tools/shapeTools";
 import { isTypingTarget } from "./util";
+import TextEditor from "./TextEditor";
+import { measureTextShape } from "./textLayout";
+import {
+  finishTextCreate,
+  moveTextCreate,
+  startTextCreate,
+} from "./tools/textTool";
+
+interface TextEditSession {
+  shape: TextShape;
+  original: TextShape | null;
+  previousSelection: string[];
+}
 
 export default function CanvasView() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -92,6 +106,8 @@ export default function CanvasView() {
   const penExtendRef = useRef<BezierShape | null>(null);
   const lastInsertRef = useRef<LastInsert | null>(null);
   const hoverRef = useRef<Vec2 | null>(null);
+  const textEditRef = useRef<TextEditSession | null>(null);
+  const [textEdit, setTextEditState] = useState<TextEditSession | null>(null);
   const guidesRef = useRef<Guide[]>([]);
   const spacingsRef = useRef<Spacing[]>([]);
   const rafRef = useRef<number | null>(null);
@@ -133,6 +149,7 @@ export default function CanvasView() {
       gridSize: state.gridSize,
       rootIds: scopeRoot !== null ? [scopeRoot] : undefined,
       artboards: scope ? undefined : doc.artboards,
+      hiddenShapeId: textEditRef.current?.original?.id ?? null,
     });
 
     const chrome = coarseRef.current ? TOUCH_DRAW_SCALE : 1;
@@ -199,6 +216,10 @@ export default function CanvasView() {
         hoverRef.current
       );
     }
+    const inter = interactionRef.current;
+    if (inter.kind === "text-create") {
+      drawTextDraft(ctx, dpr, viewport, inter.start, inter.current);
+    }
     drawGuides(ctx, dpr, viewport, guidesRef.current);
     drawSpacings(ctx, dpr, viewport, spacingsRef.current);
   }, []);
@@ -210,6 +231,60 @@ export default function CanvasView() {
       draw();
     });
   }, [draw]);
+
+  const setTextEdit = useCallback((session: TextEditSession | null) => {
+    textEditRef.current = session;
+    setTextEditState(session);
+    scheduleDraw();
+  }, [scheduleDraw]);
+
+  const beginTextEdit = useCallback((shape: TextShape, original: TextShape | null) => {
+    const state = useEditor.getState();
+    const previousSelection = state.selection;
+    state.setSelection([shape.id]);
+    setTextEdit({ shape, original, previousSelection });
+  }, [setTextEdit]);
+
+  const commitTextEdit = useCallback((expectedId?: string) => {
+    const session = textEditRef.current;
+    if (!session || (expectedId && session.shape.id !== expectedId)) return;
+    textEditRef.current = null;
+    setTextEditState(null);
+    const state = useEditor.getState();
+    const isEmpty = session.shape.text.trim() === "";
+    if (session.original) {
+      if (isEmpty) {
+        // Emptying an existing text removes it rather than leaving an
+        // invisible, unselectable node behind.
+        state.setSelection([session.shape.id]);
+        state.deleteSelected();
+      } else if (JSON.stringify(session.shape) !== JSON.stringify(session.original)) {
+        // Skip the no-op history entry when nothing actually changed.
+        state.updateShape(session.shape);
+      }
+    } else if (!isEmpty) {
+      state.addShape(session.shape);
+    } else {
+      // A freshly created text left empty never becomes a document node.
+      state.setSelection(session.previousSelection);
+    }
+    scheduleDraw();
+  }, [scheduleDraw]);
+
+  const cancelTextEdit = useCallback((expectedId?: string) => {
+    const session = textEditRef.current;
+    if (!session || (expectedId && session.shape.id !== expectedId)) return;
+    setTextEdit(null);
+    if (session && !session.original) {
+      useEditor.getState().setSelection(session.previousSelection);
+    }
+  }, [setTextEdit]);
+
+  const changeTextEdit = useCallback((text: string) => {
+    const session = textEditRef.current;
+    if (!session) return;
+    setTextEdit({ ...session, shape: measureTextShape({ ...session.shape, text }) });
+  }, [setTextEdit]);
 
   // Mutable state shared with the tool modules (see ToolContext).
   const ctx = useMemo<ToolContext>(
@@ -241,6 +316,26 @@ export default function CanvasView() {
 
   // Repaint when an image asset finishes decoding.
   useEffect(() => subscribeImageCache(scheduleDraw), [scheduleDraw]);
+
+  // Font metrics can change after the document first paints. Refresh the
+  // persisted text bounds without creating an undo entry.
+  useEffect(() => {
+    if (!("fonts" in document)) return;
+    let active = true;
+    const refresh = () => {
+      if (!active) return;
+      useEditor.getState().remeasureTextShapes();
+      const session = textEditRef.current;
+      if (session) setTextEdit({ ...session, shape: measureTextShape(session.shape) });
+      scheduleDraw();
+    };
+    void document.fonts.ready.then(refresh);
+    document.fonts.addEventListener("loadingdone", refresh);
+    return () => {
+      active = false;
+      document.fonts.removeEventListener("loadingdone", refresh);
+    };
+  }, [scheduleDraw, setTextEdit]);
 
   // ---- sizing ------------------------------------------------------------
   useEffect(() => {
@@ -312,6 +407,8 @@ export default function CanvasView() {
         // Drag-time changes live only in the preview shape.
         previewRef.current = null;
         break;
+      case "text-create":
+        break;
       case "marquee":
         marqueeRef.current = null;
         break;
@@ -355,6 +452,8 @@ export default function CanvasView() {
   const onPointerDown = (e: React.PointerEvent<HTMLCanvasElement>) => {
     // Right button is reserved for the context menu (see onContextMenu).
     if (e.button === 2) return;
+    const activeTextId = textEditRef.current?.shape.id;
+    if (activeTextId) commitTextEdit(activeTextId);
     const canvas = canvasRef.current!;
     canvas.setPointerCapture(e.pointerId);
     const screen = screenPoint(e);
@@ -400,6 +499,16 @@ export default function CanvasView() {
     }
     if (tool === "artboard") {
       onArtboardDown(ctx, state, screen, world);
+      return;
+    }
+    if (tool === "text") {
+      const hitId = pickShape(ctx, world);
+      const hit = hitId ? state.doc.nodes[hitId] : null;
+      if (hit?.type === "text") {
+        beginTextEdit(hit, hit);
+        return;
+      }
+      startTextCreate(ctx, world);
       return;
     }
 
@@ -450,6 +559,9 @@ export default function CanvasView() {
         break;
       case "create":
         onCreateMove(ctx, state, inter.start, world, mod.shift, mod.alt);
+        break;
+      case "text-create":
+        moveTextCreate(ctx, inter, world);
         break;
       case "pencil":
         onPencilMove(ctx, world);
@@ -505,6 +617,9 @@ export default function CanvasView() {
       case "create":
         finishCreate(ctx, state);
         break;
+      case "text-create":
+        beginTextEdit(finishTextCreate(state, inter), null);
+        break;
       case "pencil":
         finishPencil(ctx, state);
         break;
@@ -547,6 +662,11 @@ export default function CanvasView() {
       const world = screenToWorld(state.viewport, screen);
       const hitId = pickShape(ctx, world);
       if (!hitId) return;
+      const directHit = state.doc.nodes[hitId];
+      if (directHit?.type === "text") {
+        beginTextEdit(directHit, directHit);
+        return;
+      }
       // Drill one level into the group under the cursor, selecting the child
       // that was hit; a second double-click descends further.
       const symbolRoot = scopeRootGroupId(state.doc, currentSymbolScope(state));
@@ -622,6 +742,10 @@ export default function CanvasView() {
     }
     if (state.tool === "artboard") {
       canvas.style.cursor = artboardCursor(ctx, state, screen, world);
+      return;
+    }
+    if (state.tool === "text") {
+      canvas.style.cursor = "text";
       return;
     }
     canvas.style.cursor = selectCursor(ctx, screen, world);
@@ -722,6 +846,15 @@ export default function CanvasView() {
         onDragOver={(e) => e.preventDefault()}
         onDrop={onDrop}
       />
+      {textEdit && (
+        <TextEditor
+          key={textEdit.shape.id}
+          shape={textEdit.shape}
+          onChange={changeTextEdit}
+          onCommit={() => commitTextEdit(textEdit.shape.id)}
+          onCancel={() => cancelTextEdit(textEdit.shape.id)}
+        />
+      )}
       <ModifierBar />
       {editingSymbolName !== null && (
         <div className="symbol-edit-bar">

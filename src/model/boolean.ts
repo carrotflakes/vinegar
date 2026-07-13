@@ -124,6 +124,7 @@ function shapeToGeom(shape: Shape): paper.PathItem | null {
       break;
     case "line":
     case "image":
+    case "text":
       return null;
   }
   if (!item) return null;
@@ -145,6 +146,7 @@ export function isAreal(shape: Shape): boolean {
       return shape.subpaths.some((sp) => sp.closed && sp.anchors.length >= 2);
     case "line":
     case "image":
+    case "text":
       return false;
   }
 }
