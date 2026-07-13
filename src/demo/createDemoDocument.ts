@@ -53,19 +53,18 @@ export function createDemoDocument() {
     demo_header: {
       id: "demo_header", type: "group", name: "Header · group transform",
       childIds: [
-        "demo_header_shadow", "demo_header_panel", "demo_header_orbit",
+        "demo_header_panel", "demo_header_orbit",
         "demo_header_curve", "demo_header_title", "demo_header_subtitle",
       ],
       transform: multiply(translation(82, 68), rotation(-0.035)),
       transformOrigin: { x: 410, y: 55 }, opacity: 1,
     },
-    demo_header_shadow: {
-      id: "demo_header_shadow", type: "rect", ...shapeBase("Shadow · opacity", "#28344f", null),
-      x: 8, y: 10, width: 820, height: 112, opacity: 0.18,
-    },
     demo_header_panel: {
-      id: "demo_header_panel", type: "rect", ...shapeBase("Rectangle", "#fffdf8", "#28344f"),
+      id: "demo_header_panel", type: "rect", ...shapeBase("Rectangle · drop shadow effect", "#fffdf8", "#28344f"),
       x: 0, y: 0, width: 820, height: 112,
+      effects: [
+        { type: "drop-shadow", color: "#28344f", alpha: 0.24, blur: 9, offsetX: 7, offsetY: 11 },
+      ],
     },
     demo_header_orbit: {
       id: "demo_header_orbit", type: "ellipse", ...shapeBase("Ellipse", "#ffcf5c", "#28344f"),
@@ -102,9 +101,13 @@ export function createDemoDocument() {
     },
 
     demo_cards: {
-      id: "demo_cards", type: "group", name: "Cards · nested groups",
+      id: "demo_cards", type: "group", name: "Cards · nested groups + group drop shadow",
       childIds: ["demo_card_shapes", "demo_card_paths", "demo_card_boolean"],
       transform: translation(80, 220), transformOrigin: null, opacity: 1,
+      // A group-level effect: one drop shadow lifts all three cards at once.
+      effects: [
+        { type: "drop-shadow", color: "#28344f", alpha: 0.18, blur: 14, offsetX: 5, offsetY: 9 },
+      ],
     },
     demo_card_shapes: {
       id: "demo_card_shapes", type: "group", name: "Basic shapes",
@@ -237,14 +240,16 @@ export function createDemoDocument() {
       x1: 285, y1: 42, x2: 514, y2: 130, strokeWidth: 24, opacity: 0.9,
     },
     demo_footer_ellipse: {
-      id: "demo_footer_ellipse", type: "ellipse", ...shapeBase("Scaled ellipse", "#f26d85", null),
+      id: "demo_footer_ellipse", type: "ellipse", ...shapeBase("Scaled ellipse · blur effect", "#f26d85", null),
       x: 610, y: 44, width: 118, height: 78,
       transform: [1.12, 0.18, -0.08, 0.82, 0, 0], transformOrigin: null, blendMode: "screen",
+      // Blur under a skew transform and a screen blend: a soft glowing accent.
+      effects: [{ type: "blur", radius: 6 }],
     },
 
     demo_caption: {
       id: "demo_caption", type: "text", ...shapeBase("Caption · area (wrapping) text", "#52617a", null),
-      text: "A deterministic kitchen-sink document that exercises every shape type — including text — across nested transforms, blends, gradients, and patterns.",
+      text: "A deterministic kitchen-sink document that exercises every shape type — including text — across nested transforms, blends, gradients, patterns, and non-destructive effects (drop shadow & blur).",
       textMode: "area",
       x: 48, y: 624, width: 872, height: 48.6,
       fontFamily: "System Sans", fontSize: 18, fontWeight: 400,
@@ -276,7 +281,7 @@ export function createDemoDocument() {
   doc.settings.gridSize = 40;
   doc.extensions["vinegar.demo"] = {
     purpose: "manual-debugging",
-    features: ["all-shape-types", "compound-path", "nested-groups", "empty-group", "transforms", "pivots", "blend", "hidden", "locked", "pattern-fill", "pattern-stroke", "linear-gradient", "radial-gradient", "point-text", "area-text"],
+    features: ["all-shape-types", "compound-path", "nested-groups", "empty-group", "transforms", "pivots", "blend", "hidden", "locked", "pattern-fill", "pattern-stroke", "linear-gradient", "radial-gradient", "point-text", "area-text", "drop-shadow-effect", "group-effect", "blur-effect"],
   };
   return doc;
 }
