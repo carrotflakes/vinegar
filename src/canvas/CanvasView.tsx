@@ -4,6 +4,7 @@ import {
   drillScopeRoot,
   exactlySelectedGroup,
   expandToGroups,
+  isWithinGroup,
 } from "../model/groups";
 import { shapeWorldMatrix } from "../model/matrix";
 import { type Guide, type Spacing } from "../model/snap";
@@ -713,7 +714,18 @@ export default function CanvasView() {
     if (state.tool === "select" || state.tool === "node") {
       const hitId = pickShape(ctx, world);
       if (hitId) {
-        const scopeRoot = scopeRootGroupId(state.doc, currentSymbolScope(state));
+        // Mirror onSelectDown's drill-aware resolution so right-clicking a
+        // child inside the active group keeps it selected instead of jumping
+        // out to the whole group.
+        const symbolRoot = scopeRootGroupId(state.doc, currentSymbolScope(state));
+        const activeGroup =
+          state.activeGroupId && isGroup(state.doc.nodes[state.activeGroupId])
+            ? state.activeGroupId
+            : null;
+        const insideActive =
+          activeGroup != null && isWithinGroup(state.doc, hitId, activeGroup);
+        if (activeGroup && !insideActive) state.setActiveGroup(null);
+        const scopeRoot = insideActive ? activeGroup : symbolRoot;
         const expanded = expandToGroups(state.doc, [hitId], scopeRoot);
         if (!expanded.some((id) => state.selection.includes(id))) {
           state.setSelection(expanded);
