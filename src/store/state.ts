@@ -10,6 +10,7 @@ import type {
   Artboard,
   BlendMode,
   Document,
+  Effect,
   Group,
   Matrix,
   SceneNode,
@@ -160,6 +161,8 @@ export interface StructureActions {
   renameGroup: (id: string, name: string) => void;
   renameNode: (id: string, name: string) => void;
   updateGroupStyle: (id: string, patch: Partial<Pick<Group, "opacity" | "blendMode" | "hidden" | "locked" | "transform" | "transformOrigin">>) => void;
+  /** Replace a node's effect stack; an empty list clears it. Works on any node. */
+  setNodeEffects: (id: string, effects: Effect[]) => void;
   moveNode: (id: string, parentId: string | null, index: number) => void;
 }
 

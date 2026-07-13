@@ -5,10 +5,11 @@ import {
   clippingMask,
   shapeFillRule,
 } from "../model/clippingMask";
+import { hasEffects } from "../model/effects";
 import { isIdentity } from "../model/matrix";
 import { resolvePaint, type Paint, type PatternPaint } from "../model/paint";
 import { isGroup, isInstance, isShape } from "../model/scene";
-import type { Artboard, Bounds, Document, DocumentAsset, ImageShape, Shape } from "../model/types";
+import type { Artboard, Bounds, Document, DocumentAsset, Effect, ImageShape, Shape } from "../model/types";
 import { worldToScreen, type Viewport } from "../model/viewport";
 import { getAssetImage } from "./imageCache";
 import { layoutTextWithCanvas } from "./textLayout";
@@ -30,7 +31,19 @@ export function paintNode(
   if (!node) return;
   if (isShape(node)) {
     if (node.hidden || node.id === hiddenShapeId) return;
-    paintShape(ctx, preview?.id === node.id ? preview : node, doc.assets);
+    const shape = preview?.id === node.id ? preview : node;
+    if (!hasEffects(shape.effects)) {
+      paintShape(ctx, shape, doc.assets);
+      return;
+    }
+    // Effects need the shape composited as a layer, so its own opacity/blend is
+    // deferred to the final draw (content -> effects -> opacity/blend).
+    const layer = makeLayer(ctx);
+    const lctx = layer?.getContext("2d");
+    if (!layer || !lctx) return;
+    lctx.setTransform(ctx.getTransform());
+    paintShape(lctx, { ...shape, opacity: 1, blendMode: undefined }, doc.assets);
+    compositeEffects(ctx, layer, deviceScale(ctx), shape.effects, shape.opacity, shape.blendMode);
     return;
   }
   let childIds: string[];
@@ -63,33 +76,92 @@ export function paintNode(
   };
   const alpha = node.opacity ?? 1;
   const blend = node.blendMode && node.blendMode !== "normal" ? node.blendMode : null;
-  if (alpha >= 1 && !blend) {
+  const effects = hasEffects(node.effects) ? node.effects : null;
+  if (alpha >= 1 && !blend && !effects) {
     applyMask(ctx);
     for (const childId of childIds) paintNode(ctx, doc, childId, preview, hiddenShapeId, activeSymbols);
     ctx.restore();
     if (symbolId) activeSymbols.delete(symbolId);
     return;
   }
-  const layer = document.createElement("canvas");
-  layer.width = ctx.canvas.width;
-  layer.height = ctx.canvas.height;
-  const lctx = layer.getContext("2d");
-  if (!lctx) {
+  const layer = makeLayer(ctx);
+  const lctx = layer?.getContext("2d");
+  if (!layer || !lctx) {
     ctx.restore();
     if (symbolId) activeSymbols.delete(symbolId);
     return;
   }
   lctx.setTransform(ctx.getTransform());
+  const scale = deviceScale(ctx);
   applyMask(lctx);
   for (const childId of childIds) paintNode(lctx, doc, childId, preview, hiddenShapeId, activeSymbols);
   ctx.restore();
+  compositeEffects(ctx, layer, scale, effects, alpha, node.blendMode);
+  if (symbolId) activeSymbols.delete(symbolId);
+}
+
+/** A fresh offscreen canvas matching the target's pixel dimensions. */
+function makeLayer(ctx: CanvasRenderingContext2D): HTMLCanvasElement | null {
+  const layer = document.createElement("canvas");
+  layer.width = ctx.canvas.width;
+  layer.height = ctx.canvas.height;
+  return layer;
+}
+
+/** World->device length scale of the current transform (for local-space effects). */
+function deviceScale(ctx: CanvasRenderingContext2D): number {
+  const m = ctx.getTransform();
+  return Math.sqrt(Math.abs(m.a * m.d - m.b * m.c)) || 1;
+}
+
+function rgba(color: string, alpha: number): string {
+  const hex = color.replace("#", "");
+  if (hex.length !== 6) return color;
+  const r = parseInt(hex.slice(0, 2), 16);
+  const g = parseInt(hex.slice(2, 4), 16);
+  const b = parseInt(hex.slice(4, 6), 16);
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+}
+
+/**
+ * Composite a fully-rendered content `layer` onto `ctx`, running the effect
+ * stack first (each producing a new offscreen layer in device space), then
+ * drawing the result 1:1 with the node's opacity and blend mode. `effects` may
+ * be null to composite the bare layer (opacity/blend only).
+ */
+function compositeEffects(
+  ctx: CanvasRenderingContext2D,
+  layer: HTMLCanvasElement,
+  scale: number,
+  effects: Effect[] | null,
+  alpha: number,
+  blendMode: string | undefined
+): void {
+  let src = layer;
+  for (const effect of effects ?? []) {
+    const next = makeLayer(ctx);
+    const nctx = next?.getContext("2d");
+    if (!next || !nctx) break;
+    if (effect.type === "blur") {
+      nctx.filter = `blur(${effect.radius * scale}px)`;
+      nctx.drawImage(src, 0, 0);
+    } else {
+      nctx.shadowColor = rgba(effect.color, effect.alpha);
+      nctx.shadowBlur = effect.blur * scale;
+      nctx.shadowOffsetX = effect.offsetX * scale;
+      nctx.shadowOffsetY = effect.offsetY * scale;
+      nctx.drawImage(src, 0, 0);
+    }
+    src = next;
+  }
   ctx.save();
   ctx.setTransform(1, 0, 0, 1, 0, 0);
   ctx.globalAlpha = Math.max(0, Math.min(1, alpha));
-  if (blend) ctx.globalCompositeOperation = blend;
-  ctx.drawImage(layer, 0, 0);
+  if (blendMode && blendMode !== "normal") {
+    ctx.globalCompositeOperation = blendMode as GlobalCompositeOperation;
+  }
+  ctx.drawImage(src, 0, 0);
   ctx.restore();
-  if (symbolId) activeSymbols.delete(symbolId);
 }
 
 /** Build the geometry of a shape onto the current canvas path. */

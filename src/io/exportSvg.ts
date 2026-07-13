@@ -6,10 +6,11 @@ import {
   shapeFillRule,
   type ClippingMaskShape,
 } from "../model/clippingMask";
+import { hasEffects, SHADOW_BLUR_TO_STDDEV } from "../model/effects";
 import { applyMatrix, isIdentity } from "../model/matrix";
 import { gradientToSvg, paintToSvgAttrs, type Paint } from "../model/paint";
 import { isGroup, isShape } from "../model/scene";
-import type { BezierShape, Bounds, Document, Matrix, PrimitiveShape, SceneNode, Shape } from "../model/types";
+import type { BezierShape, Bounds, Document, Effect, Matrix, PrimitiveShape, SceneNode, Shape } from "../model/types";
 import { contentBounds } from "./exportBounds";
 import { layoutTextInBrowser } from "../canvas/textLayout";
 import { fontStack } from "../ui/fonts";
@@ -31,7 +32,20 @@ interface Defs {
   items: string[];
   paintAttrs(paint: Paint, kind: "fill" | "stroke"): string[];
   clipPath(shape: ClippingMaskShape): string;
+  filter(effects: Effect[]): string;
   nextId(prefix: string): string;
+}
+
+/** Filter primitives for one effect, consuming the previous result via default `in`. */
+function effectPrimitive(effect: Effect): string {
+  if (effect.type === "blur") {
+    return `<feGaussianBlur stdDeviation="${num(effect.radius)}" />`;
+  }
+  return `<feDropShadow dx="${num(effect.offsetX)}" dy="${num(
+    effect.offsetY
+  )}" stdDeviation="${num(effect.blur * SHADOW_BLUR_TO_STDDEV)}" flood-color="${
+    effect.color
+  }" flood-opacity="${num(effect.alpha)}" />`;
 }
 
 function makeDefs(): Defs {
@@ -56,6 +70,16 @@ function makeDefs(): Defs {
         `<clipPath id="${clipId}" clipPathUnits="userSpaceOnUse">${maskShapeToSvg(shape)}</clipPath>`
       );
       return clipId;
+    },
+    filter(effects) {
+      const filterId = nextId("fx");
+      // A generous region keeps large blurs/offset shadows from clipping.
+      items.push(
+        `<filter id="${filterId}" x="-50%" y="-50%" width="200%" height="200%">${effects
+          .map(effectPrimitive)
+          .join("")}</filter>`
+      );
+      return filterId;
     },
   };
 }
@@ -91,6 +115,11 @@ function baseAttrs(shape: Shape): string[] {
   return parts;
 }
 
+/** `filter="url(#…)"` for a node's effect stack, or empty when it has none. */
+function filterAttr(node: SceneNode, defs: Defs): string {
+  return hasEffects(node.effects) ? `filter="url(#${defs.filter(node.effects)})"` : "";
+}
+
 function commonAttrs(shape: Shape, defs: Defs): string {
   const parts: string[] = [];
   const fillable = !(
@@ -106,6 +135,8 @@ function commonAttrs(shape: Shape, defs: Defs): string {
     parts.push(`stroke-linejoin="round" stroke-linecap="round"`);
   }
   parts.push(...baseAttrs(shape));
+  const fx = filterAttr(shape, defs);
+  if (fx) parts.push(fx);
   return parts.join(" ");
 }
 
@@ -114,7 +145,7 @@ function shapeToSvg(doc: Document, shape: Shape, defs: Defs): string {
     const asset = doc.assets[shape.assetId];
     if (!asset) return "";
     const b = shapeBounds(shape);
-    const attrs = baseAttrs(shape).join(" ");
+    const attrs = [...baseAttrs(shape), filterAttr(shape, defs)].filter(Boolean).join(" ");
     return `<image x="${num(b.x)}" y="${num(b.y)}" width="${num(
       b.width
     )}" height="${num(b.height)}" preserveAspectRatio="none" href="${
@@ -321,6 +352,8 @@ function nodeToSvg(
   const attrs: string[] = [];
   if (!isIdentity(node.transform)) attrs.push(`transform="${matrixAttr(node.transform)}"`);
   if (clipId) attrs.push(`clip-path="url(#${clipId})"`);
+  const fx = filterAttr(node, defs);
+  if (fx) attrs.push(fx);
   const alpha = node.opacity ?? 1;
   if (alpha < 1) attrs.push(`opacity="${num(alpha)}"`);
   if (node.blendMode && node.blendMode !== "normal") {

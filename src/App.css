@@ -804,6 +804,38 @@
   margin: 0;
 }
 
+/* ---- effects ---------------------------------------------------------- */
+.effect-card {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 8px;
+  margin-bottom: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.effect-head {
+  align-items: center;
+}
+
+.effect-name {
+  flex: 1 1 auto;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.effect-card .geo-field > span {
+  width: auto;
+  min-width: 12px;
+}
+
+.icon-btn {
+  padding: 2px 6px;
+  min-width: 0;
+  line-height: 1;
+}
+
 /* ---- layers panel ----------------------------------------------------- */
 .layers {
   flex: 1 1 auto;

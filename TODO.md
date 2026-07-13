@@ -64,7 +64,25 @@ Ordered by agreed priority. These are the biggest gaps toward a "real" vector ed
    - [ ] Deferred: alpha / luminance masks (soft, gradient & image masks),
      multi-object masks, mask a raw shape without a wrapping group,
      anti-aliased clip via offscreen `destination-in`
-4. [ ] **Effects (drop shadow / blur)** — per-node shadow and blur; render + SVG + serialize.
+4. [x] **Effects (drop shadow / blur)** — shipped. Illustrator-style non-destructive
+   appearance effects as an **ordered stack** (`BaseNode.effects?: Effect[]`, file
+   v16; absent ⇒ no effects, additive migration) on any node (shape / group /
+   instance). v1 set: **Drop Shadow** (color / opacity / blur / offset) and
+   **Gaussian Blur** (radius). Lengths are in node-local units (like stroke
+   width), so they scale with the transform chain and zoom. Composite order =
+   content → effects → opacity/blend: an effected node renders to an offscreen
+   layer (reusing the opacity/blend layer path in `canvas/render.ts`), each
+   effect is a filtered `drawImage` step (`ctx.filter` blur / `ctx.shadow*`),
+   then the result draws with the node's opacity+blend. SVG export emits a
+   `<filter>` (`feGaussianBlur` / `feDropShadow`, `shadowBlur ≈ 2×stdDeviation`
+   conversion) per effected node; PNG reuses the canvas. Export bounds inflate
+   by an effect margin (leaf + ancestor effects) so shadows/blur aren't cropped;
+   selection handles stay on geometry (Illustrator default). UI: an Effects
+   section in the properties panel (add / reorder / remove, per-effect fields).
+   - [ ] Deferred: inner/outer glow, feather (needs offscreen `destination-in`),
+     per-fill/stroke effects (finer appearance granularity), effects on
+     artboards/layers, rotating drop-shadow offset with the object,
+     group-effect export bounds beyond the per-leaf approximation.
 5. [x] **Text tool** — a `text` leaf shape (file v14). Shipped scope:
    point text (click; auto-size) + area text (drag; fixed `width`, auto height,
    greedy wrap incl. per-character CJK breaks in `canvas/textLayout.ts`); one
@@ -159,3 +177,4 @@ Ordered by agreed priority. These are the biggest gaps toward a "real" vector ed
 - [x] Fileメニューの階層化（Export submenu）
 - [ ] assetを確認できるビュー
 - [ ] テキストのパス化
+- [ ] 保存形式の検討 zip化?

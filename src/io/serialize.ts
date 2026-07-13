@@ -3,7 +3,7 @@ import { paintFromLegacy } from "../model/paint";
 import { referencedAssetIds } from "../model/scene";
 import { BLEND_MODES, type Document, type ShapeType } from "../model/types";
 
-export const CURRENT_FILE_VERSION = 15 as const;
+export const CURRENT_FILE_VERSION = 16 as const;
 
 /**
  * v8 lacked `symbols` (added as an empty registry). v8 and v9 stored fill/
@@ -12,10 +12,11 @@ export const CURRENT_FILE_VERSION = 15 as const;
  * `image` nodes over the existing asset store (no structural change). v13 adds
  * `pattern` fills/strokes (raster fill via doc.assets). v14 adds single-style
  * text leaves with persisted measured bounds. v15 adds the optional `clip`
- * marker to groups. v8-v14 groups migrate unchanged and therefore remain
- * ordinary, non-clipping groups. These additions are additive.
+ * marker to groups. v16 adds the optional `effects` stack to every node. v8-v15
+ * groups migrate unchanged and therefore remain ordinary, non-clipping groups;
+ * absent `effects` means no effects. These additions are additive.
  */
-const MIGRATABLE_VERSIONS = new Set<unknown>([8, 9, 10, 11, 12, 13, 14]);
+const MIGRATABLE_VERSIONS = new Set<unknown>([8, 9, 10, 11, 12, 13, 14, 15]);
 
 export interface VinegarFile {
   app: "vinegar";
@@ -80,6 +81,19 @@ const isPaint = (value: unknown): boolean => {
   return false;
 };
 const isPaintOrNull = (value: unknown): boolean => value === null || isPaint(value);
+const isEffect = (value: unknown): boolean => {
+  if (!isObject(value)) return false;
+  if (value.type === "blur") return isNumber(value.radius) && value.radius >= 0;
+  if (value.type === "drop-shadow") {
+    return typeof value.color === "string" &&
+      isNumber(value.alpha) && value.alpha >= 0 && value.alpha <= 1 &&
+      isNumber(value.blur) && value.blur >= 0 &&
+      isNumber(value.offsetX) && isNumber(value.offsetY);
+  }
+  return false;
+};
+const isEffectsOrUndefined = (value: unknown): boolean =>
+  value === undefined || (Array.isArray(value) && value.every(isEffect));
 const isPoints = (value: unknown): boolean =>
   Array.isArray(value) && value.every(isPoint);
 const isNode = (id: string, node: unknown): boolean => {
@@ -88,6 +102,7 @@ const isNode = (id: string, node: unknown): boolean => {
       !isMatrix(node.transform) || !isPointOrNull(node.transformOrigin) ||
       !isNumber(node.opacity) || node.opacity < 0 || node.opacity > 1 ||
       (node.blendMode !== undefined && !BLEND_MODES.includes(node.blendMode as never)) ||
+      !isEffectsOrUndefined(node.effects) ||
       (node.hidden !== undefined && typeof node.hidden !== "boolean") ||
       (node.locked !== undefined && typeof node.locked !== "boolean")) return false;
   if (node.type === "group") {

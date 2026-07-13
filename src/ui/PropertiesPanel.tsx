@@ -33,7 +33,8 @@ import {
   selectionUnits,
 } from "../model/groups";
 import type { Paint } from "../model/paint";
-import { BLEND_MODES, type Artboard, type BlendMode, type Shape, type SymbolInstance, type TextShape } from "../model/types";
+import { defaultEffect } from "../model/effects";
+import { BLEND_MODES, type Artboard, type BlendMode, type DropShadowEffect, type Effect, type SceneNode, type Shape, type SymbolInstance, type TextShape } from "../model/types";
 import { descendantShapeIds, isInstance, isShape, selectionRoots } from "../model/scene";
 import { useEditor } from "../store/editorStore";
 import ColorField from "./ColorField";
@@ -119,6 +120,10 @@ export default function PropertiesPanel() {
 
   // Images carry no paint; hide the fill/stroke controls for image-only picks.
   const paintless = hasSelection && selected.every((s) => s.type === "image");
+
+  // Effects attach to a single node (shape, group, or instance).
+  const effectTarget: SceneNode | null =
+    selectedInstance ?? selectedGroup ?? (selected.length === 1 ? first : null);
 
   // Effective values: selected shape's values, else the new-shape defaults.
   const fill = hasSelection ? first.fill : style.fill;
@@ -413,6 +418,8 @@ export default function PropertiesPanel() {
           </button>
         </div>
       )}
+
+      {effectTarget && <EffectsSection node={effectTarget} />}
 
       {(hasSelection || selectedGroup) && (
         <div className="panel-section">
@@ -878,6 +885,112 @@ function Geometry({ shape }: { shape: Shape }) {
       {field("y", "Y")}
       {shape.type !== "text" && field("width", "W")}
       {shape.type !== "text" && field("height", "H")}
+    </div>
+  );
+}
+
+function effectLabel(type: Effect["type"]): string {
+  return type === "blur" ? "Blur" : "Drop Shadow";
+}
+
+function EffectsSection({ node }: { node: SceneNode }) {
+  const setNodeEffects = useEditor((s) => s.setNodeEffects);
+  const effects = node.effects ?? [];
+
+  const replace = (index: number, next: Effect) =>
+    setNodeEffects(node.id, effects.map((e, i) => (i === index ? next : e)));
+  const remove = (index: number) =>
+    setNodeEffects(node.id, effects.filter((_, i) => i !== index));
+  const move = (index: number, dir: -1 | 1) => {
+    const to = index + dir;
+    if (to < 0 || to >= effects.length) return;
+    const next = [...effects];
+    [next[index], next[to]] = [next[to], next[index]];
+    setNodeEffects(node.id, next);
+  };
+  const add = (type: Effect["type"]) =>
+    setNodeEffects(node.id, [...effects, defaultEffect(type)]);
+
+  const numField = (
+    label: string,
+    value: number,
+    onChange: (n: number) => void,
+    opts: { min?: number; step?: number } = {}
+  ) => (
+    <label className="geo-field">
+      <span>{label}</span>
+      <input
+        type="number"
+        className="num"
+        min={opts.min}
+        step={opts.step ?? 1}
+        value={Math.round(value * 100) / 100}
+        onChange={(e) => {
+          const n = Number(e.target.value);
+          if (!Number.isNaN(n)) onChange(n);
+        }}
+      />
+    </label>
+  );
+
+  return (
+    <div className="panel-section">
+      <div className="panel-title">Effects</div>
+      {effects.map((effect, i) => (
+        <div className="effect-card" key={i}>
+          <div className="field-row effect-head">
+            <span className="effect-name">{effectLabel(effect.type)}</span>
+            <button className="ghost-btn icon-btn" title="Move up" disabled={i === 0} onClick={() => move(i, -1)}>↑</button>
+            <button className="ghost-btn icon-btn" title="Move down" disabled={i === effects.length - 1} onClick={() => move(i, 1)}>↓</button>
+            <button className="ghost-btn icon-btn danger" title="Remove" onClick={() => remove(i)}>✕</button>
+          </div>
+          {effect.type === "blur" ? (
+            <div className="geometry-grid">
+              {numField("Radius", effect.radius, (n) => replace(i, { ...effect, radius: Math.max(0, n) }), { min: 0 })}
+            </div>
+          ) : (
+            <>
+              <div className="geometry-grid">
+                {numField("X", effect.offsetX, (n) => replace(i, { ...effect, offsetX: n }))}
+                {numField("Y", effect.offsetY, (n) => replace(i, { ...effect, offsetY: n }))}
+                {numField("Blur", effect.blur, (n) => replace(i, { ...effect, blur: Math.max(0, n) }), { min: 0 })}
+              </div>
+              <div className="field-row">
+                <input
+                  type="color"
+                  value={(effect as DropShadowEffect).color}
+                  onChange={(e) => replace(i, { ...effect, color: e.target.value })}
+                />
+                <label className="geo-field">
+                  <span>Opacity</span>
+                  <input
+                    type="range"
+                    min={0}
+                    max={1}
+                    step={0.01}
+                    value={effect.alpha}
+                    onChange={(e) => replace(i, { ...effect, alpha: Number(e.target.value) })}
+                  />
+                </label>
+                <span className="num readout">{Math.round(effect.alpha * 100)}%</span>
+              </div>
+            </>
+          )}
+        </div>
+      ))}
+      <div className="field">
+        <select
+          className="blend-select"
+          value=""
+          onChange={(e) => {
+            if (e.target.value) add(e.target.value as Effect["type"]);
+          }}
+        >
+          <option value="">Add effect…</option>
+          <option value="drop-shadow">Drop Shadow</option>
+          <option value="blur">Blur</option>
+        </select>
+      </div>
     </div>
   );
 }

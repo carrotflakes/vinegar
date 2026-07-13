@@ -57,6 +57,11 @@ pnpm test       # node --test (serialization, clipping masks, symbols, text, vie
   swatches, hex input, "none" and the **eyedropper**
 - Stroke width, opacity, and per-node **blend modes** (multiply, screen,
   overlay, … — shapes and groups)
+- **Effects**: non-destructive, Illustrator-style **ordered effect stack** on any
+  node (shape / group / instance) — **Drop Shadow** and **Gaussian Blur**, applied
+  after content but before opacity/blend, scaling with the transform and zoom;
+  rendered on Canvas, exported to SVG (`<filter>`) and PNG, with export bounds
+  grown so shadows/blur aren't cropped
 - **Symbols** (reusable components): create from a selection, place instances,
   edit in an isolated view (double-click an instance), detach / rename / delete
 - **Artboards**: non-owning frames on the infinite plane — create/move/resize
@@ -105,7 +110,7 @@ and back-to-front paint order. Every node carries a Canvas/SVG-compatible affine
 matrices and leaf shapes are derived (not stored). The document also holds
 `symbols`, `artboards`, `assets` (embedded raster images), `settings` (unit,
 dpi, grid size), `metadata` and namespaced `extensions`. The file wrapper is
-versioned — the current version is v15; v8–v14 files migrate automatically on
+versioned — the current version is v16; v8–v15 files migrate automatically on
 load, older versions are unsupported. See
 [docs/document-model.md](docs/document-model.md).
 

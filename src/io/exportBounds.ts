@@ -4,7 +4,8 @@ import {
   worldShapeBounds,
 } from "../model/bounds";
 import { clippingMask } from "../model/clippingMask";
-import { matrixScale, shapeWorldMatrix } from "../model/matrix";
+import { effectsMargin } from "../model/effects";
+import { matrixScale, nodeWorldMatrix, shapeWorldMatrix } from "../model/matrix";
 import {
   ancestorIds,
   isGroup,
@@ -59,11 +60,21 @@ export function contentBounds(
       b = nodeWorldBounds(doc, id);
     }
     if (!b) continue;
+    // Effects (drop shadow / blur) extend the visual beyond geometry. Include
+    // the leaf's own effects plus any on its ancestor groups/instances so the
+    // crop never clips them. A mask deliberately ignores the mask shape's own
+    // effects, matching the clipping model.
+    let effectPad = masks.has(id) ? 0 : effectsMargin(node.effects) * matrixScale(nodeWorldMatrix(doc, id));
+    for (const ancestorId of ancestorIds(doc, id)) {
+      const ancestor = doc.nodes[ancestorId];
+      effectPad += effectsMargin(ancestor?.effects) * matrixScale(nodeWorldMatrix(doc, ancestorId));
+    }
+    const pad = half + effectPad;
     b = {
-      x: b.x - half,
-      y: b.y - half,
-      width: b.width + half * 2,
-      height: b.height + half * 2,
+      x: b.x - pad,
+      y: b.y - pad,
+      width: b.width + pad * 2,
+      height: b.height + pad * 2,
     };
     // A clipped descendant cannot expand the export range beyond any of its
     // ancestor masks. The mask itself remains a bounds-bearing leaf, matching

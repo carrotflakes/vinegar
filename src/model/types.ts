@@ -46,6 +46,34 @@ export const BLEND_MODES = [
 
 export type BlendMode = (typeof BLEND_MODES)[number];
 
+/**
+ * A non-destructive appearance effect (Illustrator's Effect menu). Effects are
+ * an ordered stack rendered after the node's content but before its opacity/
+ * blend composite. Their lengths are in the node's local space, like geometry
+ * and stroke width, so they scale with the node's transform chain.
+ */
+export interface DropShadowEffect {
+  type: "drop-shadow";
+  /** Shadow colour (`#rrggbb`). */
+  color: string;
+  /** 0..1 shadow opacity. */
+  alpha: number;
+  /** Gaussian blur amount in local units. */
+  blur: number;
+  offsetX: number;
+  offsetY: number;
+}
+
+export interface BlurEffect {
+  type: "blur";
+  /** Gaussian standard deviation in local units. */
+  radius: number;
+}
+
+export type Effect = DropShadowEffect | BlurEffect;
+
+export const EFFECT_TYPES = ["drop-shadow", "blur"] as const;
+
 /** Fields shared by every persisted scene node. */
 export interface BaseNode {
   id: string;
@@ -58,6 +86,8 @@ export interface BaseNode {
   opacity: number;
   /** How the node composites onto what's below. */
   blendMode?: BlendMode;
+  /** Ordered appearance-effect stack; absent/empty means no effects. */
+  effects?: Effect[];
   hidden?: boolean;
   locked?: boolean;
 }
