@@ -24,7 +24,6 @@ import {
   descendantShapeIds,
   isGroup,
   isInstance,
-  isNodeHidden,
   isNodeLocked,
   isShape,
   scopeLeafIds,
@@ -39,7 +38,13 @@ import { currentSymbolScope, useEditor, type EditorState } from "../../store/edi
 import { setReadout } from "../../store/pointerStore";
 import { constrainAspectRatio, handleCursorRotated, resizeBounds } from "../handles";
 import type { Interaction, ToolContext } from "../interaction";
-import { hitFrameHandle, pickShape, pointSnap, selectionFrame } from "../picking";
+import {
+  hitFrameHandle,
+  isVisibleForPicking,
+  pickShape,
+  pointSnap,
+  selectionFrame,
+} from "../picking";
 import { boundsFromPoints, formatAngle, formatSize } from "../util";
 
 export type SelectInteraction = Extract<
@@ -400,7 +405,7 @@ export function onMarqueeUp(
     const s = state.doc.nodes[id];
     return (
       (isShape(s) || isInstance(s)) &&
-      !isNodeHidden(state.doc, id) &&
+      isVisibleForPicking(state.doc, id) &&
       !isNodeLocked(state.doc, id) &&
       marqueeHitNode(state.doc, s, region)
     );

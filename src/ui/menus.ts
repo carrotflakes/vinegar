@@ -43,6 +43,8 @@ export function selectionMenu(): MenuEntry[] {
     "separator",
     item("structure.group"),
     item("structure.ungroup"),
+    item("structure.makeClippingMask"),
+    item("structure.releaseClippingMask"),
     item("structure.makeCompound"),
     item("structure.releaseCompound"),
     "separator",

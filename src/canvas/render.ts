@@ -1,5 +1,10 @@
 import { subpathSegments } from "../model/bezier";
 import { shapeBounds } from "../model/bounds";
+import {
+  clippingContentIds,
+  clippingMask,
+  shapeFillRule,
+} from "../model/clippingMask";
 import { isIdentity } from "../model/matrix";
 import { resolvePaint, type Paint, type PatternPaint } from "../model/paint";
 import { isGroup, isInstance, isShape } from "../model/scene";
@@ -29,9 +34,11 @@ export function paintNode(
     return;
   }
   let childIds: string[];
+  let mask: Shape | null = null;
   let symbolId: string | null = null;
   if (isGroup(node)) {
-    childIds = node.childIds;
+    mask = clippingMask(doc, node);
+    childIds = clippingContentIds(doc, node);
   } else if (isInstance(node)) {
     if (activeSymbols.has(node.symbolId)) return;
     const def = doc.symbols[node.symbolId];
@@ -45,9 +52,19 @@ export function paintNode(
   if (symbolId) activeSymbols.add(symbolId);
   ctx.save();
   ctx.transform(...node.transform);
+  const applyMask = (target: CanvasRenderingContext2D) => {
+    if (!mask) return;
+    const geometry = preview?.id === mask.id ? preview : mask;
+    target.save();
+    target.transform(...geometry.transform);
+    tracePath(target, geometry);
+    target.restore();
+    target.clip(shapeFillRule(geometry));
+  };
   const alpha = node.opacity ?? 1;
   const blend = node.blendMode && node.blendMode !== "normal" ? node.blendMode : null;
   if (alpha >= 1 && !blend) {
+    applyMask(ctx);
     for (const childId of childIds) paintNode(ctx, doc, childId, preview, hiddenShapeId, activeSymbols);
     ctx.restore();
     if (symbolId) activeSymbols.delete(symbolId);
@@ -63,6 +80,7 @@ export function paintNode(
     return;
   }
   lctx.setTransform(ctx.getTransform());
+  applyMask(lctx);
   for (const childId of childIds) paintNode(lctx, doc, childId, preview, hiddenShapeId, activeSymbols);
   ctx.restore();
   ctx.save();

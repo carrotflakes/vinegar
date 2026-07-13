@@ -1,8 +1,9 @@
+import { clippingMask } from "../model/clippingMask";
 import { paintFromLegacy } from "../model/paint";
 import { referencedAssetIds } from "../model/scene";
 import { BLEND_MODES, type Document, type ShapeType } from "../model/types";
 
-export const CURRENT_FILE_VERSION = 14 as const;
+export const CURRENT_FILE_VERSION = 15 as const;
 
 /**
  * v8 lacked `symbols` (added as an empty registry). v8 and v9 stored fill/
@@ -10,9 +11,11 @@ export const CURRENT_FILE_VERSION = 14 as const;
  * adds `artboards` (backfilled as an empty list for older files). v12 adds
  * `image` nodes over the existing asset store (no structural change). v13 adds
  * `pattern` fills/strokes (raster fill via doc.assets). v14 adds single-style
- * text leaves with persisted measured bounds. Both additions are additive.
+ * text leaves with persisted measured bounds. v15 adds the optional `clip`
+ * marker to groups. v8-v14 groups migrate unchanged and therefore remain
+ * ordinary, non-clipping groups. These additions are additive.
  */
-const MIGRATABLE_VERSIONS = new Set<unknown>([8, 9, 10, 11, 12, 13]);
+const MIGRATABLE_VERSIONS = new Set<unknown>([8, 9, 10, 11, 12, 13, 14]);
 
 export interface VinegarFile {
   app: "vinegar";
@@ -88,7 +91,9 @@ const isNode = (id: string, node: unknown): boolean => {
       (node.hidden !== undefined && typeof node.hidden !== "boolean") ||
       (node.locked !== undefined && typeof node.locked !== "boolean")) return false;
   if (node.type === "group") {
-    return Array.isArray(node.childIds) && node.childIds.every((child) => typeof child === "string");
+    return (node.clip === undefined || node.clip === true) &&
+      Array.isArray(node.childIds) &&
+      node.childIds.every((child) => typeof child === "string");
   }
   if (node.type === "instance") {
     return typeof node.symbolId === "string";
@@ -249,6 +254,9 @@ function validateTree(doc: Document): void {
         }
       }
       return;
+    }
+    if (node.clip === true && !clippingMask(doc, node)) {
+      throw new Error(`Clipping group has no valid final mask: ${id}.`);
     }
     visiting.add(id);
     for (const childId of node.childIds) visit(childId);

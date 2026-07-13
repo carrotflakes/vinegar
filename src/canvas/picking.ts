@@ -1,7 +1,10 @@
 import { exactlySelectedGroup } from "../model/groups";
+import { clippingMask, isClippingMaskNode } from "../model/clippingMask";
 import { hitTestNode } from "../model/hitTest";
 import {
   descendantNodeIds,
+  ancestorIds,
+  isGroup,
   isInstance,
   isNodeHidden,
   isNodeLocked,
@@ -39,7 +42,15 @@ export function selectedShapes(
   selection: string[]
 ): SelectionLeaf[] {
   return selectionRoots(doc, selection)
-    .flatMap((id) => (isLeaf(doc.nodes[id]) ? [id] : descendantNodeIds(doc, id)))
+    .flatMap((id) => {
+      const node = doc.nodes[id];
+      if (isLeaf(node)) return [id];
+      if (isGroup(node) && node.clip) {
+        const mask = clippingMask(doc, node);
+        return mask ? [mask.id] : [];
+      }
+      return descendantNodeIds(doc, id);
+    })
     .map((id) => doc.nodes[id])
     .filter(isLeaf);
 }
@@ -48,6 +59,12 @@ export const EMPTY_EXCLUDE = new Set<string>();
 
 export const pickTolerance = (ctx: ToolContext) =>
   (5 * ctx.hitScale()) / useEditor.getState().viewport.scale;
+
+/** Mask geometry ignores the mask node's own visibility, but not hidden groups. */
+export function isVisibleForPicking(doc: EditorState["doc"], id: string): boolean {
+  if (!isClippingMaskNode(doc, id)) return !isNodeHidden(doc, id);
+  return !ancestorIds(doc, id).some((ancestor) => !!doc.nodes[ancestor]?.hidden);
+}
 
 export function selectionFrame(): SelectionFrame | null {
   const { doc, selection, selectionPivot, selectionTransform } =
@@ -96,12 +113,20 @@ export function pickShape(ctx: ToolContext, world: Vec2): string | null {
   const state = useEditor.getState();
   const { doc } = state;
   const tol = pickTolerance(ctx);
-  const ids = scopeLeafIds(doc, currentSymbolScope(state));
+  let ids = scopeLeafIds(doc, currentSymbolScope(state));
+  // Once the user has drilled into a clipping group, prefer its visible
+  // content over the otherwise-frontmost mask. The mask remains the fallback
+  // hit for empty parts of its silhouette and stays frontmost outside edit mode.
+  const active = state.activeGroupId ? doc.nodes[state.activeGroupId] : null;
+  const activeMask = active?.type === "group" ? clippingMask(doc, active) : null;
+  if (activeMask && ids.includes(activeMask.id)) {
+    ids = [activeMask.id, ...ids.filter((id) => id !== activeMask.id)];
+  }
   for (let i = ids.length - 1; i >= 0; i--) {
     const node = doc.nodes[ids[i]];
     if (
       isLeaf(node) &&
-      !isNodeHidden(doc, node.id) &&
+      isVisibleForPicking(doc, node.id) &&
       !isNodeLocked(doc, node.id) &&
       hitTestNode(doc, node, world, tol)
     )

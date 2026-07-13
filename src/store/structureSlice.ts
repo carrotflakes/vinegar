@@ -10,6 +10,12 @@ import {
   releaseCompoundPath,
 } from "../model/compoundPath";
 import {
+  canMakeClippingMaskSelection,
+  canReleaseClippingMaskSelection,
+  hasValidClippingMasks,
+  isClippingGroup,
+} from "../model/clippingMask";
+import {
   IDENTITY,
   applyWorldTransformToNode,
   invertMatrix,
@@ -42,39 +48,161 @@ function selectionItems(doc: Document, selection: string[]): AlignItem[] {
   });
 }
 
+/** Expand groups into their parent while preserving their rendered appearance. */
+function releaseGroups(
+  initial: Document,
+  ids: string[]
+): { doc: Document; selected: string[] } {
+  let doc = initial;
+  const selected: string[] = [];
+  for (const id of ids) {
+    const group = doc.nodes[id];
+    if (!isGroup(group)) continue;
+    const parent = parentIdOf(doc, id);
+    const siblings = childIdsOf(doc, parent);
+    const at = siblings.indexOf(id);
+    if (at < 0) continue;
+    const children = [...group.childIds];
+    const nodes = { ...doc.nodes };
+    for (const child of children) {
+      const node = nodes[child];
+      if (!node) continue;
+      nodes[child] = {
+        ...node,
+        transform: multiply(group.transform, node.transform),
+        opacity: node.opacity * group.opacity,
+        blendMode: node.blendMode ?? group.blendMode,
+        hidden: node.hidden || group.hidden || undefined,
+        locked: node.locked || group.locked || undefined,
+      };
+    }
+    delete nodes[id];
+    const order = [...siblings];
+    order.splice(at, 1, ...children);
+    doc = replaceChildren({ ...doc, nodes }, parent, order);
+    selected.push(...children);
+  }
+  return { doc, selected };
+}
+
 export function createStructureActions({ set, get, transact }: StoreCtx): StructureActions {
   return {
-    deleteSelected: () => { const roots = selectionRoots(get().doc, get().selection); if (!roots.length) return; transact(removeRoots(get().doc, roots)); set({ selection: [], ...clearTransient }); },
-    bringToFront: () => { let doc = get().doc; const roots = selectionRoots(doc, get().selection); for (const parent of new Set(roots.map((id) => parentIdOf(doc, id)))) { const selected = new Set(roots.filter((id) => parentIdOf(doc, id) === parent)); const ids = childIdsOf(doc, parent); doc = replaceChildren(doc, parent, [...ids.filter((id) => !selected.has(id)), ...ids.filter((id) => selected.has(id))]); } transact(doc); },
-    sendToBack: () => { let doc = get().doc; const roots = selectionRoots(doc, get().selection); for (const parent of new Set(roots.map((id) => parentIdOf(doc, id)))) { const selected = new Set(roots.filter((id) => parentIdOf(doc, id) === parent)); const ids = childIdsOf(doc, parent); doc = replaceChildren(doc, parent, [...ids.filter((id) => selected.has(id)), ...ids.filter((id) => !selected.has(id))]); } transact(doc); },
+    deleteSelected: () => {
+      const doc = get().doc;
+      const roots = selectionRoots(doc, get().selection);
+      if (!roots.length) return;
+      const next = removeRoots(doc, roots);
+      if (!hasValidClippingMasks(next)) return;
+      transact(next);
+      set({ selection: [], ...clearTransient });
+    },
+    bringToFront: () => {
+      let doc = get().doc;
+      const roots = selectionRoots(doc, get().selection);
+      for (const parent of new Set(roots.map((id) => parentIdOf(doc, id)))) {
+        const selected = new Set(
+          roots.filter((id) => parentIdOf(doc, id) === parent)
+        );
+        const ids = childIdsOf(doc, parent);
+        doc = replaceChildren(doc, parent, [
+          ...ids.filter((id) => !selected.has(id)),
+          ...ids.filter((id) => selected.has(id)),
+        ]);
+      }
+      if (!hasValidClippingMasks(doc)) return;
+      transact(doc);
+    },
+    sendToBack: () => {
+      let doc = get().doc;
+      const roots = selectionRoots(doc, get().selection);
+      for (const parent of new Set(roots.map((id) => parentIdOf(doc, id)))) {
+        const selected = new Set(
+          roots.filter((id) => parentIdOf(doc, id) === parent)
+        );
+        const ids = childIdsOf(doc, parent);
+        doc = replaceChildren(doc, parent, [
+          ...ids.filter((id) => selected.has(id)),
+          ...ids.filter((id) => !selected.has(id)),
+        ]);
+      }
+      if (!hasValidClippingMasks(doc)) return;
+      transact(doc);
+    },
     groupSelected: () => {
       const { doc } = get(); const roots = selectionRoots(doc, get().selection); if (roots.length < 2) return;
       const parent = parentIdOf(doc, roots[0]); if (!roots.every((id) => parentIdOf(doc, id) === parent)) return;
       const selected = new Set(roots); const siblings = childIdsOf(doc, parent); const members = siblings.filter((id) => selected.has(id)); const insert = siblings.indexOf(members[members.length - 1]); const rest = siblings.filter((id) => !selected.has(id)); const below = siblings.slice(0, insert).filter((id) => !selected.has(id)).length;
       const id = makeId("group"); rest.splice(below, 0, id);
-      let next = { ...doc, nodes: { ...doc.nodes, [id]: groupNode(id, members) } }; next = replaceChildren(next, parent, rest); transact(next); set({ selection: [id], ...clearTransient });
+      let next = { ...doc, nodes: { ...doc.nodes, [id]: groupNode(id, members) } }; next = replaceChildren(next, parent, rest); if (!hasValidClippingMasks(next)) return; transact(next); set({ selection: [id], ...clearTransient });
     },
     ungroupSelected: () => {
-      let doc = get().doc; const selected: string[] = [];
-      for (const id of selectionRoots(doc, get().selection)) {
-        const group = doc.nodes[id]; if (!isGroup(group)) continue;
-        const parent = parentIdOf(doc, id); const siblings = childIdsOf(doc, parent); const at = siblings.indexOf(id);
-        const nodes = { ...doc.nodes };
-        for (const child of group.childIds) {
-          const node = nodes[child];
-          nodes[child] = {
-            ...node,
-            transform: multiply(group.transform, node.transform),
-            opacity: node.opacity * group.opacity,
-            blendMode: node.blendMode ?? group.blendMode,
-            hidden: node.hidden || group.hidden || undefined,
-            locked: node.locked || group.locked || undefined,
-          };
-        }
-        delete nodes[id];
-        doc = { ...doc, nodes }; const order = [...siblings]; order.splice(at, 1, ...group.childIds); doc = replaceChildren(doc, parent, order); selected.push(...group.childIds);
-      }
-      if (selected.length) { transact(doc); set({ selection: selected, ...clearTransient }); }
+      const state = get();
+      const roots = selectionRoots(state.doc, state.selection);
+      const result = releaseGroups(
+        state.doc,
+        roots
+      );
+      if (!result.selected.length || !hasValidClippingMasks(result.doc)) return;
+      transact(result.doc);
+      set({
+        selection: result.selected,
+        activeGroupId:
+          state.activeGroupId && roots.includes(state.activeGroupId)
+            ? null
+            : state.activeGroupId,
+        ...clearTransient,
+      });
+    },
+    makeClippingMaskSelected: () => {
+      const state = get();
+      const { doc, selection } = state;
+      if (!canMakeClippingMaskSelection(doc, selection)) return;
+      const roots = selectionRoots(doc, selection);
+      const parent = parentIdOf(doc, roots[0]);
+      const siblings = childIdsOf(doc, parent);
+      const selected = new Set(roots);
+      const members = siblings.filter((id) => selected.has(id));
+      const insert = siblings.indexOf(members[members.length - 1]);
+      const rest = siblings.filter((id) => !selected.has(id));
+      const below = siblings
+        .slice(0, insert)
+        .filter((id) => !selected.has(id)).length;
+      const id = makeId("group");
+      rest.splice(below, 0, id);
+      let next: Document = {
+        ...doc,
+        nodes: {
+          ...doc.nodes,
+          [id]: {
+            ...groupNode(id, members),
+            name: "Clip Group",
+            clip: true,
+          },
+        },
+      };
+      next = replaceChildren(next, parent, rest);
+      if (!hasValidClippingMasks(next)) return;
+      transact(next);
+      set({ selection: [id], ...clearTransient });
+    },
+    releaseClippingMaskSelected: () => {
+      const state = get();
+      const { doc, selection } = state;
+      if (!canReleaseClippingMaskSelection(doc, selection)) return;
+      const roots = selectionRoots(doc, selection).filter((id) =>
+        isClippingGroup(doc.nodes[id])
+      );
+      const result = releaseGroups(doc, roots);
+      if (!result.selected.length || !hasValidClippingMasks(result.doc)) return;
+      transact(result.doc);
+      set({
+        selection: result.selected,
+        activeGroupId:
+          state.activeGroupId && roots.includes(state.activeGroupId)
+            ? null
+            : state.activeGroupId,
+        ...clearTransient,
+      });
     },
     alignSelected: (type) => {
       const doc = get().doc; const items = selectionItems(doc, get().selection); const union = unionNodeWorldBounds(doc, items.map((i) => i.id)); if (items.length < 2 || !union) return; const nodes = { ...doc.nodes };
@@ -96,10 +224,10 @@ export function createStructureActions({ set, get, transact }: StoreCtx): Struct
         if (isAreal(shape) && shape.fill) { const gid = makeId("group"); nodes[id] = { ...shape, stroke: null }; nodes[outline.id] = outline; nodes[gid] = groupNode(gid, [id, outline.id]); const order = [...siblings]; order.splice(at, 1, gid); doc = replaceChildren({ ...doc, nodes }, parent, order); selected.push(gid); }
         else { delete nodes[id]; nodes[outline.id] = outline; const order = [...siblings]; order.splice(at, 1, outline.id); doc = replaceChildren({ ...doc, nodes }, parent, order); selected.push(outline.id); }
       }
-      if (selected.length) { transact(doc); set({ selection: selected, ...clearTransient }); }
+      if (selected.length && hasValidClippingMasks(doc)) { transact(doc); set({ selection: selected, ...clearTransient }); }
     },
     booleanSelected: (op) => {
-      const doc = get().doc; const roots = selectionRoots(doc, get().selection); if (roots.length < 2 || !roots.every((id) => isShape(doc.nodes[id]))) return; const parent = parentIdOf(doc, roots[0]); if (!roots.every((id) => parentIdOf(doc, id) === parent)) return; const siblings = childIdsOf(doc, parent); const selected = new Set(roots); const ordered = siblings.filter((id) => selected.has(id)); const result = booleanShapes(ordered.map((id) => doc.nodes[id] as Shape), op); if (!result) return; const nodes = { ...doc.nodes }; for (const id of roots) delete nodes[id]; nodes[result.id] = result; const order = siblings.filter((id) => !selected.has(id)); order.splice(siblings.slice(0, siblings.indexOf(ordered[0])).filter((id) => !selected.has(id)).length, 0, result.id); const next = replaceChildren({ ...doc, nodes }, parent, order); transact(next); set({ selection: [result.id], ...clearTransient });
+      const doc = get().doc; const roots = selectionRoots(doc, get().selection); if (roots.length < 2 || !roots.every((id) => isShape(doc.nodes[id]))) return; const parent = parentIdOf(doc, roots[0]); if (!roots.every((id) => parentIdOf(doc, id) === parent)) return; const siblings = childIdsOf(doc, parent); const selected = new Set(roots); const ordered = siblings.filter((id) => selected.has(id)); const result = booleanShapes(ordered.map((id) => doc.nodes[id] as Shape), op); if (!result) return; const nodes = { ...doc.nodes }; for (const id of roots) delete nodes[id]; nodes[result.id] = result; const order = siblings.filter((id) => !selected.has(id)); order.splice(siblings.slice(0, siblings.indexOf(ordered[0])).filter((id) => !selected.has(id)).length, 0, result.id); const next = replaceChildren({ ...doc, nodes }, parent, order); if (!hasValidClippingMasks(next)) return; transact(next); set({ selection: [result.id], ...clearTransient });
     },
     makeCompoundPathSelected: () => {
       const doc = get().doc;
@@ -118,6 +246,7 @@ export function createStructureActions({ set, get, transact }: StoreCtx): Struct
       const at = siblings.slice(0, siblings.indexOf(ordered[0])).filter((id) => !selected.has(id)).length;
       order.splice(at, 0, compound.id);
       const next = replaceChildren({ ...doc, nodes }, parent, order);
+      if (!hasValidClippingMasks(next)) return;
       transact(next);
       set({ selection: [compound.id], editNode: null, ...clearTransient });
     },
@@ -141,7 +270,7 @@ export function createStructureActions({ set, get, transact }: StoreCtx): Struct
         doc = replaceChildren({ ...doc, nodes }, parent, order);
         selected.push(...released.map((shape) => shape.id));
       }
-      if (selected.length) {
+      if (selected.length && hasValidClippingMasks(doc)) {
         transact(doc);
         set({ selection: selected, editNode: null, ...clearTransient });
       }
@@ -185,6 +314,7 @@ export function createStructureActions({ set, get, transact }: StoreCtx): Struct
         },
       };
 
+      if (!hasValidClippingMasks(next)) return;
       transact(next);
     },
   };

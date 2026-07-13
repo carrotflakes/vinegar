@@ -3,6 +3,7 @@
 // commit a document change as an undoable step.
 
 import { createEmptyDocument, type Document } from "../model/types";
+import { hasValidClippingMasks } from "../model/clippingMask";
 import {
   clearTransient,
   type HistoryActions,
@@ -30,6 +31,7 @@ export function createHistory(set: StoreSet, get: StoreGet): HistorySlice {
   let coalesceTime = 0;
   const resetCoalesce = () => { coalesceKey = null; };
   const transact = (next: Document, key?: string) => {
+    if (!hasValidClippingMasks(next)) return;
     const now = Date.now();
     if (key && key === coalesceKey && now - coalesceTime < 600) {
       coalesceTime = now; set({ doc: next }); return;

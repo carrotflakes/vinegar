@@ -20,7 +20,7 @@ pnpm install
 pnpm dev        # start the dev server (http://localhost:5173)
 pnpm build      # typecheck + production build
 pnpm typecheck  # types only
-pnpm test       # node --test (serialization, symbols, text, viewport)
+pnpm test       # node --test (serialization, clipping masks, symbols, text, viewport)
 ```
 
 ## Features
@@ -41,6 +41,8 @@ pnpm test       # node --test (serialization, symbols, text, viewport)
 - **Movable rotation centers** (transform origin) per shape and group; a
   transient pivot for multi-selection
 - **Group / ungroup**, including **nested groups**; grouped shapes select together
+- **Clipping masks**: use the frontmost closed vector shape to clip a group;
+  nested masks work in Canvas, PNG and SVG output and can be released for editing
 - Multi-select (shift-click & marquee)
 - Copy / cut / paste / duplicate (groups stay grouped on paste; **Paste here**
   from the canvas context menu)
@@ -103,7 +105,7 @@ and back-to-front paint order. Every node carries a Canvas/SVG-compatible affine
 matrices and leaf shapes are derived (not stored). The document also holds
 `symbols`, `artboards`, `assets` (embedded raster images), `settings` (unit,
 dpi, grid size), `metadata` and namespaced `extensions`. The file wrapper is
-versioned — the current version is v14; v8–v13 files migrate automatically on
+versioned — the current version is v15; v8–v14 files migrate automatically on
 load, older versions are unsupported. See
 [docs/document-model.md](docs/document-model.md).
 

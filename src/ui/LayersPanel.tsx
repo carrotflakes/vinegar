@@ -22,6 +22,7 @@ import {
   LuType,
 } from "react-icons/lu";
 import type { Group, Shape, SymbolInstance } from "../model/types";
+import { isClippingGroup, isClippingMaskNode } from "../model/clippingMask";
 import {
   descendantNodeIds,
   instanceIdsOf,
@@ -240,6 +241,7 @@ export default function LayersPanel() {
   const shapeRow = (node: DNode, depth: number, path: Path, dim: boolean) => {
     const shape = node.shape!;
     const id = shape.id;
+    const isMask = isClippingMaskNode(doc, id);
     return (
       <div
         className={
@@ -247,6 +249,7 @@ export default function LayersPanel() {
           (selection.includes(id) ? " selected" : "") +
           (shape.hidden || dim ? " hidden" : "")
         }
+        title={isMask ? "Clipping mask" : undefined}
         style={{ paddingLeft: 6 + depth * 16 }}
         draggable={editing !== id}
         onDragStart={(e) => {
@@ -312,6 +315,7 @@ export default function LayersPanel() {
             }}
           >
             {shape.name}
+            {isMask && <span className="layer-symbol-ref"> (Mask)</span>}
           </span>
         )}
       </div>
@@ -406,6 +410,7 @@ export default function LayersPanel() {
     const ids = shapeIds([node]);
     const selected = selection.includes(gid);
     const isCollapsed = collapsed.has(gid);
+    const isClip = isClippingGroup(group);
     return (
       <div
         className={
@@ -485,6 +490,7 @@ export default function LayersPanel() {
             }}
           >
             {group.name}
+            {isClip && <span className="layer-symbol-ref"> (Clip)</span>}
           </span>
         )}
         <span className="layer-count">{ids.length}</span>

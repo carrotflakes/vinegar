@@ -13,6 +13,11 @@ import {
   canMakeCompoundPathSelection,
   canReleaseCompoundPathSelection,
 } from "../model/compoundPath";
+import {
+  canMakeClippingMaskSelection,
+  canReleaseClippingMaskSelection,
+  clippingMask,
+} from "../model/clippingMask";
 import { shapeBounds } from "../model/bounds";
 import {
   applyMatrix,
@@ -51,6 +56,8 @@ export default function PropertiesPanel() {
   const sendToBack = useEditor((s) => s.sendToBack);
   const groupSelected = useEditor((s) => s.groupSelected);
   const ungroupSelected = useEditor((s) => s.ungroupSelected);
+  const makeClippingMaskSelected = useEditor((s) => s.makeClippingMaskSelected);
+  const releaseClippingMaskSelected = useEditor((s) => s.releaseClippingMaskSelected);
   const updateGroupStyle = useEditor((s) => s.updateGroupStyle);
   const alignSelected = useEditor((s) => s.alignSelected);
   const distributeSelected = useEditor((s) => s.distributeSelected);
@@ -107,6 +114,8 @@ export default function PropertiesPanel() {
   );
   const canMakeCompound = canMakeCompoundPathSelection(doc, selection);
   const canReleaseCompound = canReleaseCompoundPathSelection(doc, selection);
+  const canMakeClippingMask = canMakeClippingMaskSelection(doc, selection);
+  const canReleaseClippingMask = canReleaseClippingMaskSelection(doc, selection);
 
   // Images carry no paint; hide the fill/stroke controls for image-only picks.
   const paintless = hasSelection && selected.every((s) => s.type === "image");
@@ -151,7 +160,12 @@ export default function PropertiesPanel() {
     : 0;
   const setGroupRotation = (degrees: number) => {
     if (!selectedGroup) return;
-    const frame = getSelectionFrame(doc, selected, selectedGroup);
+    const mask = clippingMask(doc, selectedGroup);
+    const frame = getSelectionFrame(
+      doc,
+      mask ? [mask] : selected,
+      selectedGroup
+    );
     if (!frame) return;
     const localCenter = selectedGroup.transformOrigin ?? {
       x: frame.bounds.x + frame.bounds.width / 2,
@@ -427,6 +441,20 @@ export default function PropertiesPanel() {
               >
                 Ungroup
               </button>
+            </div>
+          )}
+          {(canMakeClippingMask || canReleaseClippingMask) && (
+            <div className="btn-row">
+              {canMakeClippingMask && (
+                <button className="ghost-btn" onClick={makeClippingMaskSelected}>
+                  Make clipping mask
+                </button>
+              )}
+              {canReleaseClippingMask && (
+                <button className="ghost-btn" onClick={releaseClippingMaskSelected}>
+                  Release clipping mask
+                </button>
+              )}
             </div>
           )}
           {(canMakeCompound || canReleaseCompound) && (

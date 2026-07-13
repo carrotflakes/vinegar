@@ -1,7 +1,13 @@
 import { flattenSubpath } from "./bezier";
 import { instanceWorldBounds, shapeBounds, worldShapeBounds } from "./bounds";
+import {
+  clippingMaskAncestors,
+  isClippingMaskNode,
+  shapeFillRule,
+  type ClippingMaskShape,
+} from "./clippingMask";
 import { invertMatrix, matrixScale, nodeWorldMatrix, shapeWorldMatrix, transformBounds } from "./matrix";
-import { isInstance, isNodeHidden, isShape, scopeLeafIds } from "./scene";
+import { ancestorIds, isInstance, isNodeHidden, isShape, scopeLeafIds } from "./scene";
 import type { Bounds, Document, Shape, SymbolInstance, Vec2 } from "./types";
 import { applyMatrix } from "./matrix";
 
@@ -21,6 +27,47 @@ function pointInPolygon(p: Vec2, poly: Vec2[]): boolean {
   return inside;
 }
 
+function pointOnPolygonBoundary(p: Vec2, poly: Vec2[]): boolean {
+  if (poly.length < 2) return false;
+  for (let i = 0; i < poly.length; i++) {
+    if (distToSegment(p, poly[i], poly[(i + 1) % poly.length]) <= 1e-9) {
+      return true;
+    }
+  }
+  return false;
+}
+
+/** Signed winding count used by Canvas/SVG's non-zero fill rule. */
+function polygonWinding(p: Vec2, poly: Vec2[]): number {
+  let winding = 0;
+  for (let i = 0; i < poly.length; i++) {
+    const a = poly[i];
+    const b = poly[(i + 1) % poly.length];
+    const cross = (b.x - a.x) * (p.y - a.y) - (p.x - a.x) * (b.y - a.y);
+    if (a.y <= p.y) {
+      if (b.y > p.y && cross > 0) winding += 1;
+    } else if (b.y <= p.y && cross < 0) {
+      winding -= 1;
+    }
+  }
+  return winding;
+}
+
+function containsRings(
+  rings: Vec2[][],
+  p: Vec2,
+  rule: "nonzero" | "evenodd"
+): boolean {
+  if (rings.some((ring) => pointOnPolygonBoundary(p, ring))) return true;
+  if (rule === "evenodd") {
+    return rings.reduce(
+      (inside, ring) => inside !== pointInPolygon(p, ring),
+      false
+    );
+  }
+  return rings.reduce((winding, ring) => winding + polygonWinding(p, ring), 0) !== 0;
+}
+
 /** Distance from p to the nearest segment of a polyline (optionally closed). */
 function distToPolyline(p: Vec2, pts: Vec2[], closed: boolean): number {
   let best = Infinity;
@@ -33,14 +80,24 @@ function distToPolyline(p: Vec2, pts: Vec2[], closed: boolean): number {
   return best;
 }
 
-function containsLocal(shape: Shape, p: Vec2): boolean {
+function containsTransformedGeometry(
+  shape: Shape,
+  p: Vec2,
+  rule: "nonzero" | "evenodd"
+): boolean {
   const inverse = invertMatrix(shape.transform);
   if (!inverse) return false;
-  p = applyMatrix(inverse, p);
+  return containsGeometry(shape, applyMatrix(inverse, p), rule);
+}
+
+/** Fill containment using geometry only: paint and visibility are ignored. */
+function containsGeometry(
+  shape: Shape,
+  p: Vec2,
+  rule: "nonzero" | "evenodd"
+): boolean {
   switch (shape.type) {
-    case "rect":
-    case "image":
-    case "text": {
+    case "rect": {
       const b = shapeBounds(shape);
       return p.x >= b.x && p.x <= b.x + b.width && p.y >= b.y && p.y <= b.y + b.height;
     }
@@ -52,25 +109,30 @@ function containsLocal(shape: Shape, p: Vec2): boolean {
       return nx * nx + ny * ny <= 1;
     }
     case "path":
-      return shape.closed && pointInPolygon(p, shape.points);
+      return shape.closed && containsRings([shape.points], p, rule);
     case "bezier":
-      return shape.subpaths.reduce(
-        (inside, sp) => sp.closed ? inside !== pointInPolygon(p, flattenSubpath(sp)) : inside,
-        false
+      return containsRings(
+        shape.subpaths.filter((subpath) => subpath.closed).map(flattenSubpath),
+        p,
+        rule
       );
     case "polygon":
-      return shape.polys.flat().reduce(
-        (inside, ring) => inside !== pointInPolygon(p, ring),
-        false
-      );
+      return containsRings(shape.polys.flat(), p, rule);
     case "compoundPath":
       return shape.components.reduce(
-        (inside, component) => inside !== containsLocal(component, p),
+        (inside, component) =>
+          inside !== containsTransformedGeometry(component, p, "evenodd"),
         false
       );
     case "line":
+    case "image":
+    case "text":
       return false;
   }
+}
+
+function containsLocal(shape: Shape, p: Vec2): boolean {
+  return containsTransformedGeometry(shape, p, shapeFillRule(shape));
 }
 
 function strokesLocal(shape: Shape, p: Vec2, tolerance: number): boolean {
@@ -99,11 +161,49 @@ export function distToSegment(p: Vec2, a: Vec2, b: Vec2): number {
   return Math.hypot(p.x - cx, p.y - cy);
 }
 
+/** Whether a world point lies in a clipping shape's paint-independent fill. */
+export function hitTestClippingMask(
+  doc: Document,
+  shape: ClippingMaskShape,
+  p: Vec2
+): boolean {
+  const inverse = invertMatrix(shapeWorldMatrix(doc, shape));
+  if (!inverse) return false;
+  return containsGeometry(
+    shape,
+    applyMatrix(inverse, p),
+    shapeFillRule(shape)
+  );
+}
+
+function pointPassesAncestorMasks(
+  doc: Document,
+  nodeId: string,
+  p: Vec2
+): boolean {
+  return clippingMaskAncestors(doc, nodeId).every((mask) =>
+    hitTestClippingMask(doc, mask, p)
+  );
+}
+
+/**
+ * A mask's own hidden flag does not hide its geometry, but a hidden ancestor
+ * still suppresses the entire clipping group (and any containing symbol).
+ */
+function isLeafHiddenForHit(doc: Document, nodeId: string): boolean {
+  if (!isClippingMaskNode(doc, nodeId)) return isNodeHidden(doc, nodeId);
+  return ancestorIds(doc, nodeId).some((id) => !!doc.nodes[id]?.hidden);
+}
+
 /**
  * Whether world-point `p` hits the given shape.
  * `tol` is an extra tolerance in world units (scaled for stroke pickability).
  */
 export function hitTestShape(doc: Document, shape: Shape, p: Vec2, tol: number): boolean {
+  if (!pointPassesAncestorMasks(doc, shape.id, p)) return false;
+  if (isClippingMaskNode(doc, shape.id)) {
+    return hitTestClippingMask(doc, shape as ClippingMaskShape, p);
+  }
   const worldMatrix = shapeWorldMatrix(doc, shape);
   tol /= matrixScale(worldMatrix);
   const hasFill = shape.fill !== null;
@@ -244,6 +344,7 @@ export function hitTestNode(
   seen: Set<string> = new Set()
 ): boolean {
   if (isShape(node)) return hitTestShape(doc, node, p, tol);
+  if (!pointPassesAncestorMasks(doc, node.id, p)) return false;
   if (seen.has(node.symbolId)) return false;
   const world = nodeWorldMatrix(doc, node.id);
   const inverse = invertMatrix(world);
@@ -256,7 +357,7 @@ export function hitTestNode(
   for (let i = leaves.length - 1; i >= 0; i--) {
     const leaf = doc.nodes[leaves[i]];
     if (!isShape(leaf) && !isInstance(leaf)) continue;
-    if (isNodeHidden(doc, leaf.id)) continue;
+    if (isLeafHiddenForHit(doc, leaf.id)) continue;
     // Leaf world matrices inside a definition are symbol-local, matching
     // the transformed point.
     if (hitTestNode(doc, leaf, local, localTol, seen)) {
@@ -280,18 +381,20 @@ export function marqueeHitNode(
   seen: Set<string> = new Set()
 ): boolean {
   if (isShape(node)) return marqueeHitShape(doc, node, region);
+  const clippedRegion = marqueeRegionInsideAncestorMasks(doc, node.id, region);
+  if (!clippedRegion) return false;
   if (seen.has(node.symbolId)) return false;
   const bounds = instanceWorldBounds(doc, node);
-  if (!bounds || !rectsIntersect(bounds, region)) return false;
+  if (!bounds || !rectsIntersect(bounds, clippedRegion)) return false;
   const world = nodeWorldMatrix(doc, node.id);
   const inverse = invertMatrix(world);
   if (!inverse) return false;
-  const localRegion = transformBounds(region, inverse);
+  const localRegion = transformBounds(clippedRegion, inverse);
   seen.add(node.symbolId);
   const hit = scopeLeafIds(doc, node.symbolId).some((id) => {
     const leaf = doc.nodes[id];
     if (!isShape(leaf) && !isInstance(leaf)) return false;
-    if (isNodeHidden(doc, leaf.id)) return false;
+    if (isLeafHiddenForHit(doc, leaf.id)) return false;
     return marqueeHitNode(doc, leaf, localRegion, seen);
   });
   seen.delete(node.symbolId);
@@ -303,12 +406,74 @@ interface WorldPolyline {
   closed: boolean;
 }
 
+/** Whether a marquee intersects a mask's paint-independent filled silhouette. */
+export function marqueeHitClippingMask(
+  doc: Document,
+  shape: ClippingMaskShape,
+  region: Bounds
+): boolean {
+  if (!rectsIntersect(worldShapeBounds(doc, shape), region)) return false;
+  const matrix = shapeWorldMatrix(doc, shape);
+  const lines = localPolylines(shape).map((line) => ({
+    ...line,
+    points: line.points.map((point) => applyMatrix(matrix, point)),
+  }));
+
+  for (const line of lines) {
+    if (line.points.some((point) => pointInRect(point, region))) return true;
+    for (let i = 0; i + 1 < line.points.length; i++) {
+      if (segmentIntersectsRect(line.points[i], line.points[i + 1], region)) {
+        return true;
+      }
+    }
+    if (
+      line.closed &&
+      line.points.length > 2 &&
+      segmentIntersectsRect(
+        line.points[line.points.length - 1],
+        line.points[0],
+        region
+      )
+    ) {
+      return true;
+    }
+  }
+
+  const corners = [
+    { x: region.x, y: region.y },
+    { x: region.x + region.width, y: region.y },
+    { x: region.x + region.width, y: region.y + region.height },
+    { x: region.x, y: region.y + region.height },
+  ];
+  return corners.some((corner) => hitTestClippingMask(doc, shape, corner));
+}
+
+function marqueeRegionInsideAncestorMasks(
+  doc: Document,
+  nodeId: string,
+  region: Bounds
+): Bounds | null {
+  let clipped = region;
+  for (const mask of clippingMaskAncestors(doc, nodeId)) {
+    const next = intersectRects(clipped, worldShapeBounds(doc, mask));
+    if (!next || !marqueeHitClippingMask(doc, mask, next)) return null;
+    clipped = next;
+  }
+  return clipped;
+}
+
 /** Whether a marquee rectangle intersects the shape's rendered geometry. */
 export function marqueeHitShape(
   doc: Document,
   shape: Shape,
   region: Bounds
 ): boolean {
+  const clippedRegion = marqueeRegionInsideAncestorMasks(doc, shape.id, region);
+  if (!clippedRegion) return false;
+  region = clippedRegion;
+  if (isClippingMaskNode(doc, shape.id)) {
+    return marqueeHitClippingMask(doc, shape as ClippingMaskShape, region);
+  }
   if (!rectsIntersect(worldShapeBounds(doc, shape), region)) return false;
   const matrix = shapeWorldMatrix(doc, shape);
   const lines = localPolylines(shape).map((line) => ({
@@ -362,6 +527,16 @@ function rectsIntersect(a: Bounds, b: Bounds): boolean {
     a.y <= b.y + b.height &&
     a.y + a.height >= b.y
   );
+}
+
+function intersectRects(a: Bounds, b: Bounds): Bounds | null {
+  const x = Math.max(a.x, b.x);
+  const y = Math.max(a.y, b.y);
+  const right = Math.min(a.x + a.width, b.x + b.width);
+  const bottom = Math.min(a.y + a.height, b.y + b.height);
+  return right < x || bottom < y
+    ? null
+    : { x, y, width: right - x, height: bottom - y };
 }
 
 function localPolylines(shape: Shape): WorldPolyline[] {

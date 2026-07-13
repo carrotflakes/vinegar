@@ -15,6 +15,10 @@ import {
   canReleaseCompoundPathSelection,
   canMakeCompoundPathSelection,
 } from "../model/compoundPath";
+import {
+  canMakeClippingMaskSelection,
+  canReleaseClippingMaskSelection,
+} from "../model/clippingMask";
 import { createDemoDocument } from "../demo/createDemoDocument";
 import { canGroupSelection, selectionUnits } from "../model/groups";
 import { isInstance, parentIdOf, selectionRoots } from "../model/scene";
@@ -95,6 +99,8 @@ function sel(s: EditorState) {
     hasSelection: s.selection.length > 0,
     canGroup: canGroupSelection(s.doc, s.selection),
     canUngroup: selectionUnits(s.doc, s.selection).groups.length > 0,
+    canMakeClippingMask: canMakeClippingMaskSelection(s.doc, s.selection),
+    canReleaseClippingMask: canReleaseClippingMaskSelection(s.doc, s.selection),
     canMakeCompound: canMakeCompoundPathSelection(s.doc, s.selection),
     canReleaseCompound: canReleaseCompoundPathSelection(s.doc, s.selection),
     canMakeSymbol: roots.length >= 1 && parents.size === 1,
@@ -238,6 +244,22 @@ export const COMMANDS: Command[] = [
     keys: [{ key: "g", mod: true, shift: true }],
     enabled: (s) => sel(s).canUngroup,
     run: (s) => s.ungroupSelected(),
+  },
+  {
+    id: "structure.makeClippingMask",
+    label: "Make clipping mask",
+    group: "Arrange",
+    keys: [{ key: "7", mod: true }],
+    enabled: (s) => sel(s).canMakeClippingMask,
+    run: (s) => s.makeClippingMaskSelected(),
+  },
+  {
+    id: "structure.releaseClippingMask",
+    label: "Release clipping mask",
+    group: "Arrange",
+    keys: [{ key: "7", mod: true, alt: true }],
+    enabled: (s) => sel(s).canReleaseClippingMask,
+    run: (s) => s.releaseClippingMaskSelected(),
   },
   {
     id: "structure.makeCompound",

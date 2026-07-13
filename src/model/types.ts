@@ -231,6 +231,8 @@ export interface Group extends BaseNode {
   type: "group";
   /** Child node ids, back-to-front. This is the canonical hierarchy/order. */
   childIds: string[];
+  /** The frontmost child clips all preceding children when present. */
+  clip?: true;
 }
 
 export type PrimitiveShape =

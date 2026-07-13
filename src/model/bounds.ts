@@ -1,6 +1,7 @@
 import { flattenBezier } from "./bezier";
+import { clippingMask } from "./clippingMask";
 import { nodeWorldMatrix, shapeWorldMatrix, transformBounds } from "./matrix";
-import { isGroup, isInstance, isShape, scopeRootIds } from "./scene";
+import { isGroup, isInstance, isShape } from "./scene";
 import type { Bounds, Document, Shape, SymbolInstance, Vec2 } from "./types";
 
 function pointsBounds(points: Vec2[]): Bounds {
@@ -133,10 +134,10 @@ export function symbolContentBounds(
   seen: Set<string> = new Set()
 ): Bounds | null {
   if (seen.has(symbolId)) return null;
+  const definition = doc.symbols[symbolId];
+  if (!definition) return null;
   seen.add(symbolId);
-  const bounds = unionOf(
-    scopeRootIds(doc, symbolId).map((id) => nodeWorldBounds(doc, id, seen))
-  );
+  const bounds = nodeWorldBounds(doc, definition.rootNodeId, seen);
   seen.delete(symbolId);
   return bounds;
 }
@@ -178,6 +179,8 @@ export function nodeWorldBounds(
   if (isShape(node)) return worldShapeBounds(doc, node);
   if (isInstance(node)) return instanceWorldBounds(doc, node, seen);
   if (isGroup(node)) {
+    const mask = clippingMask(doc, node);
+    if (mask) return worldShapeBounds(doc, mask);
     return unionOf(node.childIds.map((id) => nodeWorldBounds(doc, id, seen)));
   }
   return null;

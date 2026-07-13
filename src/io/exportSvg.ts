@@ -1,5 +1,11 @@
 import { subpathSegments } from "../model/bezier";
 import { shapeBounds } from "../model/bounds";
+import {
+  clippingContentIds,
+  clippingMask,
+  shapeFillRule,
+  type ClippingMaskShape,
+} from "../model/clippingMask";
 import { applyMatrix, isIdentity } from "../model/matrix";
 import { gradientToSvg, paintToSvgAttrs, type Paint } from "../model/paint";
 import { isGroup, isShape } from "../model/scene";
@@ -24,20 +30,32 @@ export interface SvgOptions {
 interface Defs {
   items: string[];
   paintAttrs(paint: Paint, kind: "fill" | "stroke"): string[];
+  clipPath(shape: ClippingMaskShape): string;
+  nextId(prefix: string): string;
 }
 
 function makeDefs(): Defs {
   const items: string[] = [];
+  let id = 0;
+  const nextId = (prefix: string) => `${prefix}${id++}`;
   return {
     items,
+    nextId,
     paintAttrs(paint, kind) {
       if (paint.type === "solid") return paintToSvgAttrs(paint, kind);
       // SVG pattern export is not implemented yet; emit a neutral placeholder
       // so the shape stays visible rather than crashing the exporter.
       if (paint.type === "pattern") return [`${kind}="#8a9099"`];
-      const id = `grad${items.length}`;
-      items.push(gradientToSvg(paint, id));
-      return [`${kind}="url(#${id})"`];
+      const gradientId = nextId("grad");
+      items.push(gradientToSvg(paint, gradientId));
+      return [`${kind}="url(#${gradientId})"`];
+    },
+    clipPath(shape) {
+      const clipId = nextId("clip");
+      items.push(
+        `<clipPath id="${clipId}" clipPathUnits="userSpaceOnUse">${maskShapeToSvg(shape)}</clipPath>`
+      );
+      return clipId;
     },
   };
 }
@@ -231,6 +249,39 @@ function bezierPathData(shape: BezierShape): string {
 }
 
 /**
+ * SVG geometry for a clipping shape. A clipping mask is defined only by its
+ * path, transform, and fill rule: its paint, opacity, blend mode, and hidden
+ * flag deliberately never enter the definition.
+ */
+function maskShapeToSvg(shape: ClippingMaskShape): string {
+  let d = "";
+  switch (shape.type) {
+    case "rect":
+    case "ellipse":
+    case "path":
+    case "bezier":
+    case "polygon":
+      d = primitivePathData(shape, [1, 0, 0, 1, 0, 0]);
+      break;
+    case "compoundPath":
+      d = shape.components
+        .map((component) => primitivePathData(component, component.transform))
+        .join(" ");
+      break;
+  }
+  const rule = shapeFillRule(shape);
+  const attrs = [
+    `d="${d}"`,
+    `fill-rule="${rule}"`,
+    `clip-rule="${rule}"`,
+  ];
+  if (!isIdentity(shape.transform)) {
+    attrs.push(`transform="${matrixAttr(shape.transform)}"`);
+  }
+  return `<path ${attrs.join(" ")} />`;
+}
+
+/**
  * Serialize a render node. Groups become `<g>`; ones that composite as a
  * layer (opacity/blend) get `isolation:isolate` so their children blend
  * within the group, matching the canvas. Symbol instances expand inline as
@@ -249,8 +300,15 @@ function nodeToSvg(
   if (node.hidden) return [];
   let childIds: string[];
   let symbolId: string | null = null;
+  let clipId: string | null = null;
   if (isGroup(node)) {
-    childIds = node.childIds;
+    const mask = clippingMask(doc, node);
+    if (mask) {
+      childIds = clippingContentIds(doc, node);
+      clipId = defs.clipPath(mask);
+    } else {
+      childIds = node.childIds;
+    }
   } else if (node.type === "instance") {
     if (activeSymbols.has(node.symbolId)) return [];
     const def = doc.symbols[node.symbolId];
@@ -262,6 +320,7 @@ function nodeToSvg(
   }
   const attrs: string[] = [];
   if (!isIdentity(node.transform)) attrs.push(`transform="${matrixAttr(node.transform)}"`);
+  if (clipId) attrs.push(`clip-path="url(#${clipId})"`);
   const alpha = node.opacity ?? 1;
   if (alpha < 1) attrs.push(`opacity="${num(alpha)}"`);
   if (node.blendMode && node.blendMode !== "normal") {
@@ -299,7 +358,7 @@ function usesBlend(
     activeSymbols.delete(node.symbolId);
     return result;
   }
-  return isGroup(node) && node.childIds.some((id) => {
+  return isGroup(node) && clippingContentIds(doc, node).some((id) => {
     const child = doc.nodes[id];
     return !!child && usesBlend(doc, child, activeSymbols);
   });
@@ -321,9 +380,7 @@ export function exportSvg(doc: Document, opts: SvgOptions = {}): string {
     : "";
 
   // An explicit crop clips content to the region; a background paints behind it.
-  const clip = opts.bounds
-    ? `clip${defs.items.length}`
-    : null;
+  const clip = opts.bounds ? defs.nextId("clip") : null;
   if (clip) {
     defs.items.push(
       `<clipPath id="${clip}"><rect x="${num(bounds.x)}" y="${num(

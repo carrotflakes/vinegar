@@ -146,6 +146,8 @@ export interface StructureActions {
   sendToBack: () => void;
   groupSelected: () => void;
   ungroupSelected: () => void;
+  makeClippingMaskSelected: () => void;
+  releaseClippingMaskSelected: () => void;
   alignSelected: (type: AlignType) => void;
   distributeSelected: (axis: "h" | "v") => void;
   outlineStrokeSelected: () => void;

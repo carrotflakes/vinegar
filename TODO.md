@@ -46,7 +46,7 @@ Ordered by agreed priority. These are the biggest gaps toward a "real" vector ed
    - [ ] Mirroring: dragging a resize handle across the opposite side
      normalizes instead of flipping (same as rect)
    - [ ] Script API: expose image nodes
-3. [ ] **Masking / clipping mask** — clip a group's content by one shape. Decided
+3. [x] **Masking / clipping mask** — clip a group's content by one shape. Decided
    scope: **clip group** = a normal `Group` with `clip?: true` (no new node type,
    so ungroup / layers / childIds machinery keep working; file version bump,
    absent `clip` ⇒ normal group so migration is a no-op). The **frontmost child**
