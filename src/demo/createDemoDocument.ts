@@ -63,7 +63,7 @@ export function createDemoDocument() {
       id: "demo_header_panel", type: "rect", ...shapeBase("Rectangle · drop shadow effect", "#fffdf8", "#28344f"),
       x: 0, y: 0, width: 820, height: 112,
       effects: [
-        { type: "drop-shadow", color: "#28344f", alpha: 0.24, blur: 9, offsetX: 7, offsetY: 11 },
+        { type: "drop-shadow", color: "#28344f", alpha: 0.24, blur: 0, offsetX: 7, offsetY: 11 },
       ],
     },
     demo_header_orbit: {
@@ -98,6 +98,75 @@ export function createDemoDocument() {
       x: 152, y: 74, width: 265, height: 24,
       fontFamily: "System Serif", fontSize: 20, fontWeight: 400,
       italic: true, lineHeight: 1.2, align: "left",
+    },
+    demo_spiky_callout: {
+      id: "demo_spiky_callout", type: "group", name: "Spiky callout",
+      childIds: ["demo_spiky_callout_shape", "demo_spiky_callout_cat", "demo_spiky_callout_text"],
+      transform: multiply(translation(190, 20), rotation(0.2)), transformOrigin: null, opacity: 1,
+    },
+    demo_spiky_callout_shape: {
+      id: "demo_spiky_callout_shape", type: "path",
+      ...shapeBase("Spiky callout shape", "#ff3b30", "#111111"),
+      strokeWidth: 8,
+      strokeJoin: "miter",
+      points: [
+        { x: 528, y: 56 }, { x: 553, y: 47 }, { x: 537, y: 29 },
+        { x: 568, y: 31 }, { x: 566, y: 7 }, { x: 593, y: 25 },
+        { x: 612, y: 3 }, { x: 623, y: 24 }, { x: 657, y: 5 },
+        { x: 663, y: 25 }, { x: 702, y: 7 }, { x: 701, y: 27 },
+        { x: 744, y: 14 }, { x: 734, y: 35 }, { x: 784, y: 30 },
+        { x: 756, y: 50 }, { x: 808, y: 59 }, { x: 758, y: 67 },
+        { x: 788, y: 90 }, { x: 745, y: 79 }, { x: 747, y: 105 },
+        { x: 709, y: 84 }, { x: 689, y: 108 }, { x: 672, y: 85 },
+        { x: 636, y: 106 }, { x: 628, y: 84 }, { x: 588, y: 99 },
+        { x: 593, y: 77 }, { x: 551, y: 83 }, { x: 566, y: 65 },
+      ],
+      closed: true,
+    },
+    demo_spiky_callout_cat: {
+      id: "demo_spiky_callout_cat", type: "group", name: "Abstract cat",
+      childIds: [
+        "demo_spiky_callout_cat_head", "demo_spiky_callout_cat_eye_left",
+        "demo_spiky_callout_cat_eye_right", "demo_spiky_callout_cat_nose",
+      ],
+      transform: [...IDENTITY], transformOrigin: null, opacity: 1,
+    },
+    demo_spiky_callout_cat_head: {
+      id: "demo_spiky_callout_cat_head", type: "path",
+      ...shapeBase("Cat head", "#fffdf8", "#111111"),
+      strokeWidth: 3.5,
+      strokeJoin: "round",
+      points: [
+        { x: 575, y: 81 }, { x: 575, y: 67 }, { x: 578, y: 53 },
+        { x: 589, y: 60 }, { x: 598, y: 53 }, { x: 601, y: 67 },
+        { x: 604, y: 74 }, { x: 601, y: 83 }, { x: 594, y: 90 },
+        { x: 583, y: 90 }, { x: 577, y: 85 },
+      ],
+      closed: true,
+    },
+    demo_spiky_callout_cat_eye_left: {
+      id: "demo_spiky_callout_cat_eye_left", type: "ellipse",
+      ...shapeBase("Cat left eye", "#111111", null),
+      x: 582, y: 70, width: 4, height: 6,
+    },
+    demo_spiky_callout_cat_eye_right: {
+      id: "demo_spiky_callout_cat_eye_right", type: "ellipse",
+      ...shapeBase("Cat right eye", "#111111", null),
+      x: 593, y: 70, width: 4, height: 6,
+    },
+    demo_spiky_callout_cat_nose: {
+      id: "demo_spiky_callout_cat_nose", type: "path",
+      ...shapeBase("Cat nose", "#111111", null),
+      points: [{ x: 587, y: 79 }, { x: 592, y: 79 }, { x: 589.5, y: 82 }],
+      closed: true,
+    },
+    demo_spiky_callout_text: {
+      id: "demo_spiky_callout_text", type: "text",
+      ...shapeBase("Callout text", "#fffdf8", null),
+      text: "にゃーん", textMode: "point",
+      x: 613, y: 34, width: 136, height: 40.8,
+      fontFamily: "System Sans", fontSize: 34, fontWeight: 700,
+      italic: false, lineHeight: 1.2, align: "left",
     },
 
     demo_cards: {
@@ -237,11 +306,12 @@ export function createDemoDocument() {
     demo_dash_line: {
       id: "demo_dash_line", type: "line", ...shapeBase("Textured stroke line", null, "#8aa4ff"),
       stroke: pattern("demo_texture", { scale: 0.3 }),
-      x1: 285, y1: 42, x2: 514, y2: 130, strokeWidth: 24, opacity: 0.9,
+      x1: 302, y1: 42, x2: 514, y2: 130, strokeWidth: 12, opacity: 0.5, blendMode: "exclusion",
+      strokeDash: [14, 16], strokeDashOffset: 6, strokeCap: "round",
     },
     demo_footer_ellipse: {
       id: "demo_footer_ellipse", type: "ellipse", ...shapeBase("Scaled ellipse · blur effect", "#f26d85", null),
-      x: 610, y: 44, width: 118, height: 78,
+      x: 580, y: 4, width: 200, height: 100,
       transform: [1.12, 0.18, -0.08, 0.82, 0, 0], transformOrigin: null, blendMode: "screen",
       // Blur under a skew transform and a screen blend: a soft glowing accent.
       effects: [{ type: "blur", radius: 6 }],
@@ -274,6 +344,7 @@ export function createDemoDocument() {
     "demo_cards",
     "demo_footer",
     "demo_caption",
+    "demo_spiky_callout",
     "demo_empty_group",
     "demo_hidden",
   ];
@@ -281,7 +352,7 @@ export function createDemoDocument() {
   doc.settings.gridSize = 40;
   doc.extensions["vinegar.demo"] = {
     purpose: "manual-debugging",
-    features: ["all-shape-types", "compound-path", "nested-groups", "empty-group", "transforms", "pivots", "blend", "hidden", "locked", "pattern-fill", "pattern-stroke", "linear-gradient", "radial-gradient", "point-text", "area-text", "drop-shadow-effect", "group-effect", "blur-effect"],
+    features: ["all-shape-types", "compound-path", "nested-groups", "empty-group", "transforms", "pivots", "blend", "hidden", "locked", "pattern-fill", "pattern-stroke", "linear-gradient", "radial-gradient", "point-text", "area-text", "spiky-callout", "abstract-cat", "thick-stroke", "drop-shadow-effect", "group-effect", "blur-effect"],
   };
   return doc;
 }
