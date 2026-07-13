@@ -11,9 +11,10 @@ import type { Bounds, Document } from "../model/types";
  */
 export function contentBounds(
   doc: Document,
-  margin = 8
+  margin = 8,
+  symbolId: string | null = null
 ): Bounds | null {
-  const ids = scopeLeafIds(doc, null).filter((id) => !isNodeHidden(doc, id));
+  const ids = scopeLeafIds(doc, symbolId).filter((id) => !isNodeHidden(doc, id));
   if (ids.length === 0) return null;
 
   // Expand each shape's box by half its stroke width, then add the margin.

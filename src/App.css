@@ -105,8 +105,31 @@
 }
 
 .zoom-readout {
-  min-width: 52px;
+  min-width: 64px;
   font-variant-numeric: tabular-nums;
+}
+
+.zoom-menu-trigger {
+  padding-right: 6px;
+}
+
+.zoom-menu-popover {
+  right: 0;
+  left: auto;
+  min-width: 190px;
+}
+
+.zoom-menu-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+}
+
+.menu-shortcut {
+  color: var(--muted);
+  font-size: 11px;
+  white-space: nowrap;
 }
 
 /* ---- file menu -------------------------------------------------------- */

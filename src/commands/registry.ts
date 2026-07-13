@@ -18,15 +18,28 @@ import {
 import { createDemoDocument } from "../demo/createDemoDocument";
 import { canGroupSelection, selectionUnits } from "../model/groups";
 import { isInstance, parentIdOf, selectionRoots } from "../model/scene";
-import { artboardBounds, type Artboard, type Vec2 } from "../model/types";
-import { initialViewport, screenToWorld, zoomAt } from "../model/viewport";
+import { unionNodeWorldBounds } from "../model/bounds";
+import {
+  artboardBounds,
+  type Artboard,
+  type Bounds,
+  type Vec2,
+} from "../model/types";
+import {
+  fitBoundsInViewport,
+  initialViewport,
+  screenToWorld,
+  zoomAt,
+  type ViewportSize,
+} from "../model/viewport";
 import { downloadBlob, downloadText, pickTextFile } from "../io/download";
+import { contentBounds } from "../io/exportBounds";
 import { fileSlug, uniqueFileSlugs } from "../io/exportFilenames";
 import { pickImageFiles } from "../io/importImage";
 import { exportPng } from "../io/exportPng";
 import { exportSvg } from "../io/exportSvg";
 import { parseDocument, serializeDocument } from "../io/serialize";
-import { useEditor } from "../store/editorStore";
+import { currentSymbolScope, useEditor } from "../store/editorStore";
 import type { EditorState } from "../store/state";
 import { toggleFullscreen } from "../ui/fullscreen";
 
@@ -100,10 +113,30 @@ function selectedArtboard(s: EditorState): Artboard | null {
 
 /** Center of the canvas viewport in screen coords (for zoom-to-center). */
 export function canvasCenter(): Vec2 {
+  const size = canvasViewportSize();
+  return { x: size.width / 2, y: size.height / 2 };
+}
+
+/** Size of the drawable canvas area in CSS pixels. */
+function canvasViewportSize(): ViewportSize {
   const el = document.querySelector(".canvas-wrap");
-  if (!el) return { x: window.innerWidth / 2, y: window.innerHeight / 2 };
+  if (!el) return { width: window.innerWidth, height: window.innerHeight };
   const r = el.getBoundingClientRect();
-  return { x: r.width / 2, y: r.height / 2 };
+  return { width: r.width, height: r.height };
+}
+
+/** Apply the shared padded fit calculation to the live canvas. */
+function fitViewport(s: EditorState, bounds: Bounds | null): void {
+  if (!bounds) return;
+  s.setViewport(fitBoundsInViewport(bounds, canvasViewportSize()));
+}
+
+function selectionBounds(s: EditorState): Bounds | null {
+  return unionNodeWorldBounds(s.doc, selectionRoots(s.doc, s.selection));
+}
+
+function drawingBounds(s: EditorState): Bounds | null {
+  return contentBounds(s.doc, 0, currentSymbolScope(s));
 }
 
 // --- The commands --------------------------------------------------------
@@ -314,6 +347,32 @@ export const COMMANDS: Command[] = [
     run: (s) => s.setViewport(initialViewport),
   },
   {
+    id: "view.fitSelection",
+    label: "Fit selection",
+    group: "View",
+    keys: [{ key: "2", shift: true }],
+    enabled: (s) => selectionBounds(s) != null,
+    run: (s) => fitViewport(s, selectionBounds(s)),
+  },
+  {
+    id: "view.fitAll",
+    label: "Fit all content",
+    group: "View",
+    keys: [{ key: "1", shift: true }],
+    enabled: (s) => drawingBounds(s) != null,
+    run: (s) => fitViewport(s, drawingBounds(s)),
+  },
+  {
+    id: "view.fitArtboard",
+    label: "Fit artboard",
+    group: "View",
+    enabled: (s) => selectedArtboard(s) != null,
+    run: (s) => {
+      const artboard = selectedArtboard(s);
+      fitViewport(s, artboard ? artboardBounds(artboard) : null);
+    },
+  },
+  {
     id: "view.toggleSnap",
     label: "Toggle snapping",
     group: "View",
@@ -516,7 +575,11 @@ export function runCommand(id: string, ctx?: CommandContext): void {
 function strokeMatches(k: KeyStroke, e: KeyboardEvent): boolean {
   const evKey = e.key.length === 1 ? e.key.toLowerCase() : e.key;
   const want = k.key.length === 1 ? k.key.toLowerCase() : k.key;
-  if (evKey !== want) return false;
+  // Shift changes digit `key` values into punctuation (Shift+1 => "!"). The
+  // physical `code` keeps the intended digit and makes numeric chords stable
+  // across that transformation.
+  const digit = /^Digit([0-9])$/.exec(e.code)?.[1];
+  if (evKey !== want && digit !== want) return false;
   if (!!k.mod !== (e.ctrlKey || e.metaKey)) return false;
   if (!!k.shift !== e.shiftKey) return false;
   if (!!k.alt !== e.altKey) return false;

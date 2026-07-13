@@ -18,7 +18,7 @@ Ordered by agreed priority. These are the biggest gaps toward a "real" vector ed
        deduplicated); consider a zip
    - Follow-ups:
      - [ ] Artboards list panel (list / rename / reorder = export order / select)
-     - [ ] Fit / zoom to artboard navigation
+     - [x] Fit / zoom to artboard navigation
      - [ ] Duplicate artboard (and copy/paste)
      - [ ] Background: transparent checkerboard indicator on canvas; don't hide grid;
        later gradient/image board backgrounds
@@ -87,7 +87,7 @@ Ordered by agreed priority. These are the biggest gaps toward a "real" vector ed
   preserving paths, transforms, groups, fills/strokes and gradients where possible
 - [ ] **Rulers and draggable guides** — horizontal/vertical rulers, persistent
   document guides, snapping, lock/hide/clear actions
-- [ ] **Fit navigation** — zoom to selection and fit all drawing content in the
+- [x] **Fit navigation** — zoom to selection and fit all drawing content in the
   viewport (in addition to the planned fit-to-artboard action)
 - [ ] **Document recovery** — autosave a local recovery snapshot, restore after a
   crash/reload, and warn before closing or replacing a document with unsaved changes

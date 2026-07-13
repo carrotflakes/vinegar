@@ -17,6 +17,7 @@ let exportSvg;
 let canMakeCompoundPathSelection;
 let paintShape;
 let commands;
+let matchKeydown;
 
 before(async () => {
   server = await createServer({ server: { middlewareMode: true } });
@@ -32,7 +33,8 @@ before(async () => {
   ({ exportSvg } = await server.ssrLoadModule("/src/io/exportSvg.ts"));
   ({ canMakeCompoundPathSelection } = await server.ssrLoadModule("/src/model/compoundPath.ts"));
   ({ paintShape } = await server.ssrLoadModule("/src/canvas/render.ts"));
-  ({ COMMANDS: commands } = await server.ssrLoadModule("/src/commands/registry.ts"));
+  ({ COMMANDS: commands, matchKeydown } =
+    await server.ssrLoadModule("/src/commands/registry.ts"));
 });
 
 after(async () => server.close());
@@ -54,6 +56,80 @@ test("the shared Delete command removes a selected artboard", () => {
 
   useEditor.getState().undo();
   assert.equal(useEditor.getState().doc.artboards[0].id, selectedId);
+});
+
+test("fit commands frame content, selection, and the selected artboard", () => {
+  const previousDocument = globalThis.document;
+  globalThis.document = {
+    querySelector: () => ({
+      getBoundingClientRect: () => ({ width: 1000, height: 600 }),
+    }),
+  };
+
+  try {
+    const editor = useEditor.getState();
+    editor.newDocument();
+    const style = {
+      name: "rect",
+      type: "rect",
+      fill: { type: "solid", color: "#ffffff", alpha: 1 },
+      stroke: null,
+      strokeWidth: 0,
+      opacity: 1,
+      transform: [1, 0, 0, 1, 0, 0],
+      transformOrigin: null,
+    };
+    editor.addShape({ ...style, id: "left", x: 0, y: 0, width: 100, height: 100 });
+    useEditor.getState().addShape({
+      ...style,
+      id: "right",
+      x: 900,
+      y: 0,
+      width: 100,
+      height: 100,
+    });
+
+    const fitAll = commands.find((command) => command.id === "view.fitAll");
+    const fitSelection = commands.find(
+      (command) => command.id === "view.fitSelection"
+    );
+    const fitArtboard = commands.find(
+      (command) => command.id === "view.fitArtboard"
+    );
+    assert.ok(fitAll && fitSelection && fitArtboard);
+
+    fitAll.run(useEditor.getState());
+    assert.equal(useEditor.getState().viewport.scale, 0.904);
+
+    // addShape selects the newly-created right rectangle.
+    fitSelection.run(useEditor.getState());
+    assert.equal(useEditor.getState().viewport.scale, 5.04);
+    assert.deepEqual(useEditor.getState().viewport.offset, { x: -4288, y: 48 });
+
+    useEditor.getState().addArtboard({ x: 500, y: 300 });
+    assert.equal(fitArtboard.enabled(useEditor.getState()), true);
+    fitArtboard.run(useEditor.getState());
+    assert.equal(useEditor.getState().viewport.scale, 504 / 1080);
+    assert.deepEqual(useEditor.getState().viewport.offset, {
+      x: 500 - 500 * (504 / 1080),
+      y: 300 - 300 * (504 / 1080),
+    });
+  } finally {
+    if (previousDocument === undefined) delete globalThis.document;
+    else globalThis.document = previousDocument;
+  }
+});
+
+test("Shift+number shortcuts match their physical digit keys", () => {
+  const match = matchKeydown({
+    key: "!",
+    code: "Digit1",
+    ctrlKey: false,
+    metaKey: false,
+    shiftKey: true,
+    altKey: false,
+  });
+  assert.equal(match?.cmd.id, "view.fitAll");
 });
 
 test("a nested v8 scene tree survives save/load and remains usable", () => {

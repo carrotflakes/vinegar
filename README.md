@@ -82,7 +82,8 @@ pnpm test       # node --test (serialization, symbols)
   numbers during interactions (W×H while creating, ΔX/ΔY while moving, angle
   while rotating, new size while resizing)
 - Undo / redo
-- Pan (Space + drag, or middle mouse) and zoom (Ctrl/⌘ + wheel)
+- Pan (Space + drag, or middle mouse) and zoom (Ctrl/⌘ + wheel); fit all content
+  (Shift+1), the selection (Shift+2), or the selected artboard from the zoom menu
 - **Responsive / touch** layout: icon-only toolbar rail, slide-in panels,
   enlarged hit targets for coarse pointers, pinch-to-zoom & two-finger pan,
   on-screen Shift/Alt modifier bar

@@ -16,6 +16,7 @@ import Inspector from "./ui/Inspector";
 import CommandPalette from "./ui/CommandPalette";
 import FullscreenButton from "./ui/FullscreenButton";
 import ContextMenuHost from "./ui/ContextMenu";
+import ZoomMenu from "./ui/ZoomMenu";
 import "./App.css";
 import { scopeLeafIds } from "./model/scene";
 
@@ -79,7 +80,6 @@ function ToolHint() {
 }
 
 export default function App() {
-  const viewport = useEditor((s) => s.viewport);
   const canUndo = useEditor((s) => s.history.past.length > 0);
   const canRedo = useEditor((s) => s.history.future.length > 0);
   const snapEnabled = useEditor((s) => s.snapEnabled);
@@ -184,13 +184,7 @@ export default function App() {
           >
             <LuMinus aria-hidden />
           </button>
-          <button
-            className="bar-btn zoom-readout"
-            onClick={() => runCommand("view.reset")}
-            title="Reset view"
-          >
-            {Math.round(viewport.scale * 100)}%
-          </button>
+          <ZoomMenu />
           <button
             className="bar-btn icon"
             onClick={() => runCommand("view.zoomIn")}
