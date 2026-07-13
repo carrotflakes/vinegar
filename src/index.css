@@ -68,9 +68,18 @@ body,
 #root {
   height: 100%;
   margin: 0;
+  /* This is a full-screen app, not a scrollable document. Stop iOS Safari from
+   * scrolling / rubber-banding the page vertically when a touch gesture starts
+   * outside the canvas (or overshoots it). */
+  overflow: hidden;
+  overscroll-behavior: none;
 }
 
 body {
+  /* Lock the body in place so iOS Safari can't pan the whole viewport; older
+   * WebKit ignores `overflow: hidden` on the body but honours a fixed frame. */
+  position: fixed;
+  inset: 0;
   background: var(--bg);
   color: var(--text);
   -webkit-font-smoothing: antialiased;
