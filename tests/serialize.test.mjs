@@ -182,7 +182,7 @@ test("a nested v8 scene tree survives save/load and remains usable", () => {
   const demo = parseDocument(serializeDocument(createDemoDocument()));
   assert.deepEqual(
     new Set(Object.values(demo.nodes).map((node) => node.type)),
-    new Set(["group", "rect", "ellipse", "line", "path", "bezier", "polygon", "compoundPath"])
+    new Set(["group", "rect", "ellipse", "line", "path", "bezier", "polygon", "compoundPath", "text"])
   );
   const demoCompound = demo.nodes.demo_compound_path;
   assert.equal(demoCompound.type, "compoundPath");

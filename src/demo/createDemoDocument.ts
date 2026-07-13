@@ -52,7 +52,10 @@ export function createDemoDocument() {
 
     demo_header: {
       id: "demo_header", type: "group", name: "Header · group transform",
-      childIds: ["demo_header_shadow", "demo_header_panel", "demo_header_orbit", "demo_header_curve"],
+      childIds: [
+        "demo_header_shadow", "demo_header_panel", "demo_header_orbit",
+        "demo_header_curve", "demo_header_title", "demo_header_subtitle",
+      ],
       transform: multiply(translation(82, 68), rotation(-0.035)),
       transformOrigin: { x: 410, y: 55 }, opacity: 1,
     },
@@ -82,6 +85,20 @@ export function createDemoDocument() {
         ],
         closed: false,
       }],
+    },
+    demo_header_title: {
+      id: "demo_header_title", type: "text", ...shapeBase("Title · point text", "#28344f", null),
+      text: "Vinegar", textMode: "point",
+      x: 150, y: 14, width: 205, height: 59.8,
+      fontFamily: "System Sans", fontSize: 52, fontWeight: 700,
+      italic: false, lineHeight: 1.15, align: "left",
+    },
+    demo_header_subtitle: {
+      id: "demo_header_subtitle", type: "text", ...shapeBase("Subtitle · italic serif", "#6f8ff7", null),
+      text: "Kitchen-sink demo document", textMode: "point",
+      x: 152, y: 74, width: 265, height: 24,
+      fontFamily: "System Serif", fontSize: 20, fontWeight: 400,
+      italic: true, lineHeight: 1.2, align: "left",
     },
 
     demo_cards: {
@@ -225,6 +242,15 @@ export function createDemoDocument() {
       transform: [1.12, 0.18, -0.08, 0.82, 0, 0], transformOrigin: null, blendMode: "screen",
     },
 
+    demo_caption: {
+      id: "demo_caption", type: "text", ...shapeBase("Caption · area (wrapping) text", "#52617a", null),
+      text: "A deterministic kitchen-sink document that exercises every shape type — including text — across nested transforms, blends, gradients, and patterns.",
+      textMode: "area",
+      x: 48, y: 624, width: 872, height: 48.6,
+      fontFamily: "System Sans", fontSize: 18, fontWeight: 400,
+      italic: false, lineHeight: 1.35, align: "left",
+    },
+
     demo_empty_group: {
       id: "demo_empty_group", type: "group", name: "Empty group (valid)", childIds: [],
       transform: translation(900, 630), transformOrigin: { x: 0, y: 0 }, opacity: 1,
@@ -242,6 +268,7 @@ export function createDemoDocument() {
     "demo_header",
     "demo_cards",
     "demo_footer",
+    "demo_caption",
     "demo_empty_group",
     "demo_hidden",
   ];
@@ -249,7 +276,7 @@ export function createDemoDocument() {
   doc.settings.gridSize = 40;
   doc.extensions["vinegar.demo"] = {
     purpose: "manual-debugging",
-    features: ["all-shape-types", "compound-path", "nested-groups", "empty-group", "transforms", "pivots", "blend", "hidden", "locked", "pattern-fill", "pattern-stroke", "linear-gradient", "radial-gradient"],
+    features: ["all-shape-types", "compound-path", "nested-groups", "empty-group", "transforms", "pivots", "blend", "hidden", "locked", "pattern-fill", "pattern-stroke", "linear-gradient", "radial-gradient", "point-text", "area-text"],
   };
   return doc;
 }
