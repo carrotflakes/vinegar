@@ -144,7 +144,7 @@ export default function App() {
         {/* Left zone — identity + menus. */}
         <div className="appbar-zone">
           <div className="brand">
-            <span className="brand-mark">▰</span>
+            <img className="brand-mark" src="/logo.svg" alt="Vinegar logo" />
             <span className="brand-word">Vinegar</span>
           </div>
           <span className="appbar-sep" />
