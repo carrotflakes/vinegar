@@ -17,6 +17,21 @@ function clone(doc: Document): Document {
   return structuredClone(doc);
 }
 
+function documentReset(doc: Document) {
+  return {
+    doc,
+    gridSize: doc.settings.gridSize,
+    selection: [],
+    editingSymbols: [],
+    activeGroupId: null,
+    selectedArtboardId: null,
+    history: { past: [], future: [] },
+    _pending: null,
+    _dirty: false,
+    ...clearTransient,
+  };
+}
+
 export interface HistorySlice {
   /** Commit a document change as one undo step (optionally coalesced). */
   transact: (next: Document, coalesceKey?: string) => void;
@@ -43,8 +58,12 @@ export function createHistory(set: StoreSet, get: StoreGet): HistorySlice {
   };
 
   const actions: HistoryActions = {
-    newDocument: () => { const doc = createEmptyDocument(); set({ doc, savedDoc: doc, gridSize: doc.settings.gridSize, selection: [], editingSymbols: [], activeGroupId: null, selectedArtboardId: null, history: { past: [], future: [] }, _pending: null, _dirty: false, ...clearTransient }); },
-    loadDocument: (doc) => set({ doc, savedDoc: doc, gridSize: doc.settings.gridSize, selection: [], editingSymbols: [], activeGroupId: null, selectedArtboardId: null, history: { past: [], future: [] }, _pending: null, _dirty: false, ...clearTransient }),
+    newDocument: () => { const doc = createEmptyDocument(); set({ ...documentReset(doc), savedDoc: doc }); },
+    loadDocument: (doc) => set({ ...documentReset(doc), savedDoc: doc }),
+    // savedDoc deliberately receives a clone. Dirty state is reference-based,
+    // so recovered work continues to trigger beforeunload and autosave until
+    // the user explicitly downloads it.
+    recoverDocument: (doc) => set({ ...documentReset(doc), savedDoc: clone(doc) }),
     markSaved: () => set({ savedDoc: get().doc }),
     beginInteraction: () => set({ _pending: clone(get().doc), _dirty: false }),
     applyShapes: (next) => set({ doc: { ...get().doc, nodes: { ...get().doc.nodes, ...next } }, _dirty: true }),

@@ -100,6 +100,9 @@ pnpm test       # node --test (serialization, clipping masks, symbols, text, vie
   on-screen Shift/Alt modifier bar
 - Debug **project inspector** (app bar ▸ Inspect): searchable JSON tree of the
   whole store
+- **Browser recovery autosave**: dirty documents are saved locally in IndexedDB
+  and, after a reload/crash, offered for restore on next launch (Cancel discards);
+  progress is reported in the status bar
 - File: New, Open, Save (.json), Export PNG, Export SVG, load Demo
 
 ## Document model

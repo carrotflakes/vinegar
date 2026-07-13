@@ -19,6 +19,8 @@ import ContextMenuHost from "./ui/ContextMenu";
 import ZoomMenu from "./ui/ZoomMenu";
 import "./App.css";
 import { scopeLeafIds } from "./model/scene";
+import { startDocumentAutosave } from "./io/recovery";
+import { useRecoveryStatus } from "./store/recoveryStore";
 
 /**
  * Live pointer position in world coordinates. While an interaction is in
@@ -81,6 +83,50 @@ function ToolHint() {
   return <span className="status-hint">{TOOL_HINTS[tool]}</span>;
 }
 
+function recoveryTime(value?: string): string {
+  if (!value) return "";
+  const date = new Date(value);
+  if (!Number.isFinite(date.getTime())) return "";
+  return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: false });
+}
+
+// Wording is intentionally "back up", not "save" — this is the local recovery
+// snapshot, distinct from File ▸ Save. A leading state dot carries the colour so
+// the label itself stays quiet.
+const AUTOSAVE_LABEL: Record<string, string> = {
+  ready: "Autosave on",
+  saving: "Backing up…",
+  saved: "Backed up",
+  recovered: "Recovered",
+  error: "Autosave failed",
+};
+
+const AUTOSAVE_TITLE: Record<string, string> = {
+  ready: "Changes are backed up to this browser automatically",
+  saving: "Backing up your changes to this browser…",
+  saved: "Your work is backed up in this browser (not the .json file)",
+  recovered: "Restored unsaved work from a previous session",
+  error: "Autosave to this browser failed",
+};
+
+/** Browser recovery status; deliberately distinct from manual file saving. */
+function AutosaveInfo() {
+  const status = useRecoveryStatus((s) => s.status);
+  const time = recoveryTime(status.at);
+  const showTime = status.phase === "saved" || status.phase === "recovered";
+  return (
+    <span
+      className={`autosave ${status.phase}`}
+      title={status.error ?? AUTOSAVE_TITLE[status.phase]}
+      role={status.phase === "error" ? "alert" : undefined}
+    >
+      <span className="autosave-dot" aria-hidden />
+      <span className="autosave-label">{AUTOSAVE_LABEL[status.phase]}</span>
+      {showTime && time && <span className="autosave-time">{time}</span>}
+    </span>
+  );
+}
+
 export default function App() {
   const canUndo = useEditor((s) => s.history.past.length > 0);
   const canRedo = useEditor((s) => s.history.future.length > 0);
@@ -94,6 +140,11 @@ export default function App() {
   const [showInspector, setShowInspector] = useState(false);
   const [showPanel, setShowPanel] = useState(false);
   const [showPalette, setShowPalette] = useState(false);
+
+  useEffect(() => {
+    const autosave = startDocumentAutosave();
+    return () => autosave.stop();
+  }, []);
 
   // Global keyboard shortcuts — dispatched through the command registry so the
   // bindings stay in sync with the menus and palette. Escape stays bespoke: it
@@ -255,6 +306,8 @@ export default function App() {
         <span className="dot status-hint">·</span>
         <ToolHint />
         <span className="status-spacer" />
+        <AutosaveInfo />
+        <span className="status-sep" />
         <label className="snap-toggle">
           <input
             type="checkbox"

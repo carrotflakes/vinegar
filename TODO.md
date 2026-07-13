@@ -110,14 +110,14 @@ Ordered by agreed priority. These are the biggest gaps toward a "real" vector ed
   document guides, snapping, lock/hide/clear actions
 - [x] **Fit navigation** — zoom to selection and fit all drawing content in the
   viewport (in addition to the planned fit-to-artboard action)
-- [ ] **Document recovery** — autosave a local recovery snapshot, restore after a
+- [x] **Document recovery** — autosave a local recovery snapshot, restore after a
   crash/reload, and warn before closing or replacing a document with unsaved changes
   - [x] Unsaved-changes warning — `savedDoc` reference on the store (`doc !==
     savedDoc` ⇒ dirty, since edits are immutable); `beforeunload` warns on
     close/reload, and New / Open / Open demo confirm only when dirty. Save marks
     clean (`markSaved`). Undo back to the saved state stays "dirty" (history
     holds clones) — conservative, acceptable for a safety valve.
-  - [ ] Autosave a local recovery snapshot + restore after crash/reload
+  - [x] Autosave a local recovery snapshot + restore after crash/reload
 - [ ] **Document identity and save workflow** — editable document name, Save As,
   recent files, and overwrite the opened file where the File System Access API permits
 - [ ] **Document settings UI** — edit unit and DPI as well as grid size; show the
@@ -145,7 +145,7 @@ Ordered by agreed priority. These are the biggest gaps toward a "real" vector ed
 - [ ] Distribution: match an existing gap (not just centering)
 - [ ] Configurable pencil smoothing strength
 - [ ] Status bar: color swatch under the cursor (eyedropper-style; watch getImageData cost)
-- [ ] Status bar: unsaved-changes indicator (or autosave status)
+- [x] Status bar: unsaved-changes indicator (or autosave status)
 
 ## Known issues / polish
 - [ ] Transform manual smoke test: nested rotated group → move → resize → rotate → undo/redo → SVG/PNG export

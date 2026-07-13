@@ -122,6 +122,8 @@ export interface SelectionActions {
 export interface HistoryActions {
   newDocument: () => void;
   loadDocument: (doc: Document) => void;
+  /** Restore a browser recovery snapshot while keeping it unsaved. */
+  recoverDocument: (doc: Document) => void;
   /** Mark the current document as saved (clears the unsaved-changes flag). */
   markSaved: () => void;
   beginInteraction: () => void;
