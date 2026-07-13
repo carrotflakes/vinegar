@@ -16,6 +16,7 @@ import {
 } from "./clippingMask";
 import { invertMatrix, matrixScale, nodeWorldMatrix, shapeWorldMatrix, transformBounds } from "./matrix";
 import { isInstance, isShape, scopeLeafIds } from "./scene";
+import { effectiveStrokeAlignment, strokeOutset } from "./stroke";
 import type { Bounds, Document, Shape, SymbolInstance, Vec2 } from "./types";
 import { applyMatrix } from "./matrix";
 
@@ -206,11 +207,22 @@ export function hitTestShape(doc: Document, shape: Shape, p: Vec2, tol: number):
   const worldMatrix = shapeWorldMatrix(doc, shape);
   tol /= matrixScale(worldMatrix);
   const hasFill = shape.fill !== null;
-  const pickTol = Math.max(tol, shape.stroke ? shape.strokeWidth / 2 + tol : tol);
+  const alignment = effectiveStrokeAlignment(shape);
+  const strokeReach = shape.stroke
+    ? (alignment === "center" ? shape.strokeWidth / 2 : shape.strokeWidth)
+    : 0;
+  const pickTol = Math.max(tol, strokeReach + tol);
 
   const inverse = invertMatrix(worldMatrix);
   if (!inverse) return false;
   p = applyMatrix(inverse, p);
+
+  const hitsStroke = (distance: number, inside: boolean) => {
+    if (!shape.stroke || shape.strokeWidth <= 0 || distance > pickTol) return false;
+    // Keep the centerline easy to acquire, then enforce the visible side.
+    if (distance <= tol || alignment === "center") return true;
+    return alignment === "inside" ? inside : !inside;
+  };
 
   switch (shape.type) {
     case "text": {
@@ -234,15 +246,14 @@ export function hitTestShape(doc: Document, shape: Shape, p: Vec2, tol: number):
     }
     case "rect": {
       const b = shapeBounds(shape);
-      if (hasFill) {
-        return (
-          p.x >= b.x - tol &&
-          p.x <= b.x + b.width + tol &&
-          p.y >= b.y - tol &&
-          p.y <= b.y + b.height + tol
-        );
-      }
-      // outline only: near any of the four edges
+      const inside =
+        p.x >= b.x && p.x <= b.x + b.width &&
+        p.y >= b.y && p.y <= b.y + b.height;
+      if (
+        hasFill &&
+        p.x >= b.x - tol && p.x <= b.x + b.width + tol &&
+        p.y >= b.y - tol && p.y <= b.y + b.height + tol
+      ) return true;
       const corners: Vec2[] = [
         { x: b.x, y: b.y },
         { x: b.x + b.width, y: b.y },
@@ -250,8 +261,7 @@ export function hitTestShape(doc: Document, shape: Shape, p: Vec2, tol: number):
         { x: b.x, y: b.y + b.height },
       ];
       for (let i = 0; i < 4; i++) {
-        if (distToSegment(p, corners[i], corners[(i + 1) % 4]) <= pickTol)
-          return true;
+        if (hitsStroke(distToSegment(p, corners[i], corners[(i + 1) % 4]), inside)) return true;
       }
       return false;
     }
@@ -265,66 +275,57 @@ export function hitTestShape(doc: Document, shape: Shape, p: Vec2, tol: number):
       const nx = (p.x - cx) / rx;
       const ny = (p.y - cy) / ry;
       const d = nx * nx + ny * ny;
-      if (hasFill) {
-        return d <= 1 + pickTol / Math.max(rx, ry);
-      }
-      // ring test: close to the unit circle in normalized space
-      const ring = pickTol / Math.min(rx, ry);
-      return Math.abs(Math.sqrt(d) - 1) <= ring;
+      const inside = d <= 1;
+      if (hasFill && d <= 1 + tol / Math.max(rx, ry)) return true;
+      const distance = Math.abs(Math.sqrt(d) - 1) * Math.min(rx, ry);
+      return hitsStroke(distance, inside);
     }
     case "line": {
-      return (
+      return hitsStroke(
         distToSegment(
           p,
           { x: shape.x1, y: shape.y1 },
           { x: shape.x2, y: shape.y2 }
-        ) <= pickTol
+        ),
+        false
       );
     }
     case "path": {
-      if (hasFill && shape.closed && pointInPolygon(p, shape.points))
-        return true;
-      return distToPolyline(p, shape.points, shape.closed) <= pickTol;
+      const inside = shape.closed && pointInPolygon(p, shape.points);
+      if (hasFill && inside) return true;
+      return hitsStroke(distToPolyline(p, shape.points, shape.closed), inside);
     }
     case "bezier": {
-      if (hasFill) {
-        // Even-odd across all closed subpaths, so holes are excluded.
-        const inside = shape.subpaths.reduce(
-          (acc, sp) =>
-            sp.closed
-              ? acc !== pointInPolygon(p, flattenSubpath(sp))
-              : acc,
-          false
-        );
-        if (inside) return true;
-      }
-      return shape.subpaths.some(
-        (sp) => distToPolyline(p, flattenSubpath(sp), sp.closed) <= pickTol
+      const inside = shape.subpaths.reduce(
+        (acc, sp) => sp.closed ? acc !== pointInPolygon(p, flattenSubpath(sp)) : acc,
+        false
+      );
+      if (hasFill && inside) return true;
+      return shape.subpaths.some((sp) =>
+        hitsStroke(distToPolyline(p, flattenSubpath(sp), sp.closed), inside)
       );
     }
     case "polygon": {
       const rings = shape.polys.flat();
-      if (hasFill) {
-        // Even-odd across all rings, so holes are excluded.
-        const inside = rings.reduce(
-          (acc, ring) => acc !== pointInPolygon(p, ring),
-          false
-        );
-        if (inside) return true;
-      }
+      const inside = rings.reduce((acc, ring) => acc !== pointInPolygon(p, ring), false);
+      if (hasFill && inside) return true;
       for (const ring of rings) {
-        if (distToPolyline(p, ring, true) <= pickTol) return true;
+        if (hitsStroke(distToPolyline(p, ring, true), inside)) return true;
       }
       return false;
     }
     case "compoundPath": {
-      if (hasFill && shape.components.reduce(
+      const inside = shape.components.reduce(
         (inside, component) => inside !== containsLocal(component, p),
         false
-      )) return true;
+      );
+      if (hasFill && inside) return true;
+      const sideMatches = alignment === "center" ||
+        (alignment === "inside" ? inside : !inside);
       return shape.stroke !== null && shape.strokeWidth > 0 &&
+        sideMatches &&
         shape.components.some((component) =>
-          strokesLocal(component, p, shape.strokeWidth / 2 + tol)
+          strokesLocal(component, p, pickTol)
         );
     }
   }
@@ -473,15 +474,24 @@ export function marqueeHitShape(
   if (isClippingMaskNode(doc, shape.id)) {
     return marqueeHitClippingMask(doc, shape as ClippingMaskShape, region);
   }
-  if (!rectsIntersect(worldShapeBounds(doc, shape), region)) return false;
   const matrix = shapeWorldMatrix(doc, shape);
+  const visualBounds = expandBounds(
+    worldShapeBounds(doc, shape),
+    strokeOutset(shape) * matrixScale(matrix)
+  );
+  if (!rectsIntersect(visualBounds, region)) return false;
   const lines = localPolylines(shape).map((line) => ({
     ...line,
     points: line.points.map((point) => applyMatrix(matrix, point)),
   }));
+  const alignment = effectiveStrokeAlignment(shape);
   const stroke = shape.stroke
-    ? (shape.strokeWidth / 2) * matrixScale(matrix)
+    ? (alignment === "center" ? shape.strokeWidth / 2 : shape.strokeWidth) * matrixScale(matrix)
     : 0;
+  // This is intentionally conservative: expanding the marquee catches the
+  // visible stroke extent, but does not polygon-clip the candidate region to
+  // the inside/outside half. Exact side-aware marquee selection would require
+  // intersecting the aligned stroke outline with the marquee.
   const edgeRegion = expandBounds(region, stroke);
 
   for (const line of lines) {

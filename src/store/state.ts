@@ -15,6 +15,9 @@ import type {
   Matrix,
   SceneNode,
   Shape,
+  StrokeAlignment,
+  StrokeCap,
+  StrokeJoin,
   TextShape,
   Vec2,
 } from "../model/types";
@@ -24,13 +27,27 @@ import type { ClipboardPayload } from "./docOps";
 export type ToolId = "select" | "node" | "rect" | "ellipse" | "line" | "pen" | "pencil" | "text" | "artboard";
 export interface EditNode { shapeId: string; sub: number; index: number }
 export type AlignType = "left" | "hcenter" | "right" | "top" | "vmiddle" | "bottom";
-export interface StyleDefaults { fill: Paint | null; stroke: Paint | null; strokeWidth: number }
+export interface StyleDefaults {
+  fill: Paint | null;
+  stroke: Paint | null;
+  strokeWidth: number;
+  strokeDash: number[];
+  strokeDashOffset: number;
+  strokeCap: StrokeCap;
+  strokeJoin: StrokeJoin;
+  strokeAlignment: StrokeAlignment;
+}
 export interface HistoryState { past: Document[]; future: Document[] }
 
 export interface StyleStylableFields {
   fill: Paint | null;
   stroke: Paint | null;
   strokeWidth: number;
+  strokeDash: number[] | undefined;
+  strokeDashOffset: number | undefined;
+  strokeCap: StrokeCap | undefined;
+  strokeJoin: StrokeJoin | undefined;
+  strokeAlignment: StrokeAlignment | undefined;
   opacity: number;
   blendMode: BlendMode | undefined;
   transform: Shape["transform"];

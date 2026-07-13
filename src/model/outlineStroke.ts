@@ -2,6 +2,13 @@ import ClipperLib, { type IntPoint, type PolyNode } from "clipper-lib";
 import { flattenSubpath } from "./bezier";
 import { shapeBounds } from "./bounds";
 import { applyMatrix } from "./matrix";
+import {
+  effectiveStrokeAlignment,
+  normalizeStrokeDash,
+  STROKE_MITER_LIMIT,
+  strokeCap,
+  strokeJoin,
+} from "./stroke";
 import type { Shape, Vec2 } from "./types";
 
 // Clipper works in integers; scale world units up for sub-pixel precision.
@@ -83,49 +90,188 @@ function ringFrom(path: IntPoint[]): Vec2[] {
   return path.map((pt) => ({ x: pt.X / SCALE, y: pt.Y / SCALE }));
 }
 
+function samePoint(a: Vec2, b: Vec2): boolean {
+  return Math.abs(a.x - b.x) < 1e-9 && Math.abs(a.y - b.y) < 1e-9;
+}
+
+/** Split a flattened centerline into its visible dash chunks in local units. */
+function dashedCenterlines(shape: Shape, line: Polyline): Polyline[] {
+  let dash = normalizeStrokeDash(shape.strokeDash);
+  if (!dash.length) return [line];
+  if (dash.length % 2) dash = [...dash, ...dash];
+  const patternLength = dash.reduce((sum, value) => sum + value, 0);
+  if (patternLength <= 0) return [line];
+
+  let phase = ((shape.strokeDashOffset ?? 0) % patternLength + patternLength) % patternLength;
+  let dashIndex = 0;
+  while (phase > dash[dashIndex] && dash.length) {
+    phase -= dash[dashIndex];
+    dashIndex = (dashIndex + 1) % dash.length;
+  }
+  let remaining = dash[dashIndex] - phase;
+  let on = dashIndex % 2 === 0;
+  const points = line.closed && line.points.length
+    ? [...line.points, line.points[0]]
+    : line.points;
+  const chunks: Polyline[] = [];
+  let current: Vec2[] = [];
+
+  const finishCurrent = () => {
+    if (current.length >= 2) chunks.push({ points: current, closed: false });
+    current = [];
+  };
+  const advancePattern = (at: Vec2, direction: Vec2) => {
+    let guard = 0;
+    while (remaining <= 1e-9 && guard++ <= dash.length) {
+      if (on && dash[dashIndex] === 0 && strokeCap(shape) !== "butt") {
+        // Clipper drops zero-length paths, while Canvas uses the cap to render
+        // dotted patterns such as [0, gap]. A one-quantum segment preserves
+        // that dot; changing SCALE changes this approximation too.
+        const epsilon = 1 / SCALE;
+        chunks.push({
+          points: [at, { x: at.x + direction.x * epsilon, y: at.y + direction.y * epsilon }],
+          closed: false,
+        });
+      }
+      if (on) finishCurrent();
+      dashIndex = (dashIndex + 1) % dash.length;
+      on = dashIndex % 2 === 0;
+      remaining = dash[dashIndex];
+    }
+  };
+
+  for (let i = 0; i + 1 < points.length; i++) {
+    const a = points[i], b = points[i + 1];
+    const dx = b.x - a.x, dy = b.y - a.y;
+    const length = Math.hypot(dx, dy);
+    if (length <= 1e-9) continue;
+    const direction = { x: dx / length, y: dy / length };
+    let walked = 0;
+    advancePattern(a, direction);
+    while (walked < length - 1e-9) {
+      const take = Math.min(remaining, length - walked);
+      const start = { x: a.x + direction.x * walked, y: a.y + direction.y * walked };
+      const end = { x: a.x + direction.x * (walked + take), y: a.y + direction.y * (walked + take) };
+      if (on && take > 1e-9) {
+        if (!current.length || !samePoint(current[current.length - 1], start)) current.push(start);
+        current.push(end);
+      }
+      walked += take;
+      remaining -= take;
+      advancePattern(end, direction);
+    }
+  }
+  finishCurrent();
+  // Closed dashed contours deliberately remain open chunks. Joining the first
+  // and last chunks across the seam would avoid a duplicate cap when the dash
+  // phase leaves both ends "on", but needs careful wraparound length handling.
+  return chunks;
+}
+
+function joinType(shape: Shape): number {
+  switch (strokeJoin(shape)) {
+    case "miter": return ClipperLib.JoinType.jtMiter;
+    // Clipper has no true SVG/Canvas bevel join. jtSquare is the closest
+    // available offset join and can differ at very acute corners.
+    case "bevel": return ClipperLib.JoinType.jtSquare;
+    case "round": return ClipperLib.JoinType.jtRound;
+  }
+}
+
+function endType(shape: Shape, closed: boolean): number {
+  if (closed) return ClipperLib.EndType.etClosedLine;
+  switch (strokeCap(shape)) {
+    case "butt": return ClipperLib.EndType.etOpenButt;
+    case "square": return ClipperLib.EndType.etOpenSquare;
+    case "round": return ClipperLib.EndType.etOpenRound;
+  }
+}
+
+function intPath(points: Vec2[]): IntPoint[] {
+  return points.map((p) => ({
+    X: Math.round(p.x * SCALE),
+    Y: Math.round(p.y * SCALE),
+  }));
+}
+
+function contours(node: PolyNode): IntPoint[][] {
+  const paths: IntPoint[][] = [];
+  const walk = (parent: PolyNode) => {
+    for (const child of parent.Childs()) {
+      if (child.Contour().length >= 3) paths.push(child.Contour());
+      walk(child);
+    }
+  };
+  walk(node);
+  return paths;
+}
+
+function alignOutline(shape: Shape, strokeTree: PolyNode): PolyNode {
+  const alignment = effectiveStrokeAlignment(shape);
+  if (alignment === "center") return strokeTree;
+  const silhouette = centerlines(shape)
+    .filter((line) => line.closed && line.points.length >= 3)
+    .map((line) => intPath(withTransform(shape, line.points)));
+  if (!silhouette.length) return strokeTree;
+  const clipper = new ClipperLib.Clipper();
+  clipper.AddPaths(contours(strokeTree), ClipperLib.PolyType.ptSubject, true);
+  clipper.AddPaths(silhouette, ClipperLib.PolyType.ptClip, true);
+  const result = new ClipperLib.PolyTree();
+  clipper.Execute(
+    alignment === "inside"
+      ? ClipperLib.ClipType.ctIntersection
+      : ClipperLib.ClipType.ctDifference,
+    result,
+    ClipperLib.PolyFillType.pftEvenOdd,
+    ClipperLib.PolyFillType.pftEvenOdd
+  );
+  return result;
+}
+
+function treeToPolys(tree: PolyNode): Vec2[][][] {
+  const polys: Vec2[][][] = [];
+  const walk = (node: PolyNode) => {
+    for (const child of node.Childs()) {
+      const contour = child.Contour();
+      if (!contour.length) continue;
+      const poly: Vec2[][] = [ringFrom(contour)];
+      for (const hole of child.Childs()) {
+        if (hole.Contour().length) poly.push(ringFrom(hole.Contour()));
+      }
+      polys.push(poly);
+      for (const hole of child.Childs()) walk(hole);
+    }
+  };
+  walk(tree);
+  return polys;
+}
+
 /**
  * Outline a shape's stroke into a filled multi-polygon (world space, rotation
- * baked in), using Clipper's polygon offsetting with round joins/caps to match
- * the renderer. Returns null if the shape has no stroke or produces nothing.
+ * baked in), using Clipper's polygon offsetting. Dash chunks, cap/join and
+ * inside/outside clipping mirror the live renderer as closely as the flattened
+ * Clipper approximation permits.
  */
 export function strokeOutline(shape: Shape): Vec2[][][] | null {
   if (shape.stroke === null || shape.strokeWidth <= 0) return null;
-  const half = shape.strokeWidth / 2;
+  const alignment = effectiveStrokeAlignment(shape);
+  const half = alignment === "center" ? shape.strokeWidth / 2 : shape.strokeWidth;
 
-  const co = new ClipperLib.ClipperOffset(2, 0.25 * SCALE);
+  const co = new ClipperLib.ClipperOffset(STROKE_MITER_LIMIT, 0.25 * SCALE);
   let added = false;
   for (const pl of centerlines(shape)) {
-    const pts = withTransform(shape, pl.points);
-    if (pts.length < 2) continue;
-    const path: IntPoint[] = pts.map((p) => ({
-      X: Math.round(p.x * SCALE),
-      Y: Math.round(p.y * SCALE),
-    }));
-    co.AddPath(
-      path,
-      ClipperLib.JoinType.jtRound,
-      pl.closed
-        ? ClipperLib.EndType.etClosedLine
-        : ClipperLib.EndType.etOpenRound
-    );
-    added = true;
+    for (const dashed of dashedCenterlines(shape, pl)) {
+      const pts = withTransform(shape, dashed.points);
+      if (pts.length < 2) continue;
+      co.AddPath(intPath(pts), joinType(shape), endType(shape, dashed.closed));
+      added = true;
+    }
   }
   if (!added) return null;
 
   const tree = new ClipperLib.PolyTree();
   co.Execute(tree, half * SCALE);
 
-  // Walk the PolyTree into [outer, ...holes] polygons.
-  const polys: Vec2[][][] = [];
-  const walk = (node: PolyNode) => {
-    for (const child of node.Childs()) {
-      const poly: Vec2[][] = [ringFrom(child.Contour())];
-      for (const hole of child.Childs()) poly.push(ringFrom(hole.Contour()));
-      polys.push(poly);
-      for (const hole of child.Childs()) walk(hole);
-    }
-  };
-  walk(tree);
-
+  const polys = treeToPolys(alignOutline(shape, tree));
   return polys.length ? polys : null;
 }

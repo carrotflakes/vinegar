@@ -34,13 +34,33 @@ import {
 } from "../model/groups";
 import type { Paint } from "../model/paint";
 import { defaultEffect } from "../model/effects";
-import { BLEND_MODES, type Artboard, type BlendMode, type DropShadowEffect, type Effect, type SceneNode, type Shape, type SymbolInstance, type TextShape } from "../model/types";
+import {
+  BLEND_MODES,
+  type Artboard,
+  type BlendMode,
+  type DropShadowEffect,
+  type Effect,
+  type SceneNode,
+  type Shape,
+  type StrokeAlignment,
+  type StrokeCap,
+  type StrokeJoin,
+  type SymbolInstance,
+  type TextShape,
+} from "../model/types";
+import {
+  effectiveStrokeAlignment,
+  normalizeStrokeDash,
+  strokeCap as resolvedStrokeCap,
+  strokeJoin as resolvedStrokeJoin,
+  supportsStrokeAlignment,
+} from "../model/stroke";
 import { descendantShapeIds, isInstance, isShape, selectionRoots } from "../model/scene";
 import { useEditor } from "../store/editorStore";
 import ColorField from "./ColorField";
 import { getSelectionFrame } from "../canvas/frame";
 import { getAssetImage, subscribeImageCache } from "../canvas/imageCache";
-import { useEffect, useReducer } from "react";
+import { useEffect, useReducer, useState } from "react";
 import type { DocumentAsset, ImageShape } from "../model/types";
 import { FONT_OPTIONS } from "./fonts";
 
@@ -129,6 +149,24 @@ export default function PropertiesPanel() {
   const fill = hasSelection ? first.fill : style.fill;
   const stroke = hasSelection ? first.stroke : style.stroke;
   const strokeWidth = hasSelection ? first.strokeWidth : style.strokeWidth;
+  const strokeDetails: StrokeDetailsValue = hasSelection
+    ? {
+        dash: normalizeStrokeDash(first.strokeDash),
+        dashOffset: first.strokeDashOffset ?? 0,
+        cap: resolvedStrokeCap(first),
+        join: resolvedStrokeJoin(first),
+        alignment: effectiveStrokeAlignment(first),
+      }
+    : {
+        dash: normalizeStrokeDash(style.strokeDash),
+        dashOffset: style.strokeDashOffset,
+        cap: style.strokeCap,
+        join: style.strokeJoin,
+        alignment: style.strokeAlignment,
+      };
+  const alignmentEnabled = !hasSelection || selected
+    .filter((shape) => shape.type !== "image")
+    .every(supportsStrokeAlignment);
   const opacity = hasSelection ? first.opacity : 1;
 
   const setFill = (v: Paint | null) =>
@@ -139,6 +177,31 @@ export default function PropertiesPanel() {
     hasSelection
       ? updateSelectedStyle({ strokeWidth: v })
       : setStyle({ strokeWidth: v });
+  const setStrokeDetails = (patch: Partial<StrokeDetailsValue>) => {
+    if (hasSelection) {
+      updateSelectedStyle({
+        ...(patch.dash !== undefined
+          ? { strokeDash: patch.dash.length ? [...patch.dash] : undefined }
+          : {}),
+        ...(patch.dashOffset !== undefined
+          ? { strokeDashOffset: patch.dashOffset || undefined }
+          : {}),
+        ...(patch.cap !== undefined ? { strokeCap: patch.cap } : {}),
+        ...(patch.join !== undefined ? { strokeJoin: patch.join } : {}),
+        ...(patch.alignment !== undefined
+          ? { strokeAlignment: patch.alignment }
+          : {}),
+      });
+      return;
+    }
+    setStyle({
+      ...(patch.dash !== undefined ? { strokeDash: [...patch.dash] } : {}),
+      ...(patch.dashOffset !== undefined ? { strokeDashOffset: patch.dashOffset } : {}),
+      ...(patch.cap !== undefined ? { strokeCap: patch.cap } : {}),
+      ...(patch.join !== undefined ? { strokeJoin: patch.join } : {}),
+      ...(patch.alignment !== undefined ? { strokeAlignment: patch.alignment } : {}),
+    });
+  };
   const rotationDeg = hasSelection
     ? Math.round((matrixAngle(shapeWorldMatrix(doc, first)) * 180) / Math.PI)
     : 0;
@@ -250,6 +313,12 @@ export default function PropertiesPanel() {
                 />
               </div>
             </div>
+            <StrokeDetailControls
+              value={strokeDetails}
+              strokeWidth={strokeWidth}
+              alignmentEnabled={alignmentEnabled}
+              onChange={setStrokeDetails}
+            />
           </>
         )}
 
@@ -574,6 +643,149 @@ export default function PropertiesPanel() {
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+interface StrokeDetailsValue {
+  dash: number[];
+  dashOffset: number;
+  cap: StrokeCap;
+  join: StrokeJoin;
+  alignment: StrokeAlignment;
+}
+
+function parseDashPattern(input: string): number[] | null {
+  const trimmed = input.trim();
+  if (!trimmed) return [];
+  const values = trimmed.split(/[\s,]+/).map(Number);
+  if (values.some((value) => !Number.isFinite(value) || value < 0)) return null;
+  return normalizeStrokeDash(values);
+}
+
+function StrokeDetailControls({
+  value,
+  strokeWidth,
+  alignmentEnabled,
+  onChange,
+}: {
+  value: StrokeDetailsValue;
+  strokeWidth: number;
+  alignmentEnabled: boolean;
+  onChange: (patch: Partial<StrokeDetailsValue>) => void;
+}) {
+  const formatted = value.dash.join(", ");
+  const [dashDraft, setDashDraft] = useState(formatted);
+  const [dashInvalid, setDashInvalid] = useState(false);
+
+  useEffect(() => {
+    setDashDraft(formatted);
+    setDashInvalid(false);
+  }, [formatted]);
+
+  const commitDash = () => {
+    const dash = parseDashPattern(dashDraft);
+    if (!dash) {
+      setDashInvalid(true);
+      return;
+    }
+    setDashInvalid(false);
+    setDashDraft(dash.join(", "));
+    onChange({ dash });
+  };
+  const unit = Math.max(1, strokeWidth);
+
+  return (
+    <div className="stroke-details">
+      <div className="stroke-detail-grid">
+        <label>
+          <span>Alignment</span>
+          <select
+            className="blend-select"
+            value={alignmentEnabled ? value.alignment : "center"}
+            onChange={(e) => onChange({ alignment: e.target.value as StrokeAlignment })}
+          >
+            <option value="inside" disabled={!alignmentEnabled}>Inside</option>
+            <option value="center">Center</option>
+            <option value="outside" disabled={!alignmentEnabled}>Outside</option>
+          </select>
+        </label>
+        <label>
+          <span>Cap</span>
+          <select
+            className="blend-select"
+            value={value.cap}
+            onChange={(e) => onChange({ cap: e.target.value as StrokeCap })}
+          >
+            <option value="butt">Butt</option>
+            <option value="round">Round</option>
+            <option value="square">Square</option>
+          </select>
+        </label>
+        <label>
+          <span>Join</span>
+          <select
+            className="blend-select"
+            value={value.join}
+            onChange={(e) => onChange({ join: e.target.value as StrokeJoin })}
+          >
+            <option value="miter">Miter</option>
+            <option value="round">Round</option>
+            <option value="bevel">Bevel</option>
+          </select>
+        </label>
+        <label>
+          <span>Dash offset</span>
+          <input
+            type="number"
+            className="num stroke-offset"
+            step={0.5}
+            value={value.dashOffset}
+            onChange={(e) => {
+              const next = Number(e.target.value);
+              if (Number.isFinite(next)) onChange({ dashOffset: next });
+            }}
+          />
+        </label>
+      </div>
+      <div className="field">
+        <label>Dash pattern</label>
+        <div className="btn-row stroke-presets">
+          <button type="button" className="ghost-btn" onClick={() => onChange({ dash: [] })}>
+            Solid
+          </button>
+          <button
+            type="button"
+            className="ghost-btn"
+            onClick={() => onChange({ dash: [unit * 4, unit * 2] })}
+          >
+            Dashed
+          </button>
+          <button
+            type="button"
+            className="ghost-btn"
+            onClick={() => onChange({ dash: [0, unit * 2], cap: "round" })}
+          >
+            Dotted
+          </button>
+        </div>
+        <input
+          type="text"
+          className={`dash-input${dashInvalid ? " invalid" : ""}`}
+          value={dashDraft}
+          placeholder="e.g. 8, 4, 2, 4"
+          aria-invalid={dashInvalid}
+          onChange={(e) => {
+            const next = e.target.value;
+            setDashDraft(next);
+            setDashInvalid(parseDashPattern(next) === null);
+          }}
+          onBlur={commitDash}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") e.currentTarget.blur();
+          }}
+        />
+      </div>
     </div>
   );
 }

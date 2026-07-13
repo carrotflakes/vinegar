@@ -455,6 +455,50 @@
   font-size: 12px;
 }
 
+.stroke-details {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.stroke-detail-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.stroke-detail-grid label {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  min-width: 0;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.stroke-detail-grid select,
+.stroke-offset {
+  width: 100%;
+}
+
+.stroke-presets .ghost-btn {
+  min-width: 0;
+  padding-inline: 8px;
+}
+
+.dash-input {
+  width: 100%;
+  padding: 5px 7px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font-size: 12px;
+}
+
+.dash-input.invalid {
+  border-color: var(--danger);
+  outline-color: var(--danger);
+}
+
 .readout {
   text-align: right;
   color: var(--muted);

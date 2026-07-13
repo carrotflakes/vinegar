@@ -34,7 +34,16 @@ export function initialPrefs(): PrefsData {
   return {
     tool: "select",
     viewport: initialViewport,
-    style: { fill: solid("#4f8cff"), stroke: solid("#1b1b1b"), strokeWidth: 2 },
+    style: {
+      fill: solid("#4f8cff"),
+      stroke: solid("#1b1b1b"),
+      strokeWidth: 2,
+      strokeDash: [],
+      strokeDashOffset: 0,
+      strokeCap: "round",
+      strokeJoin: "round",
+      strokeAlignment: "center",
+    },
     snapEnabled: true,
     gridSnap: false,
     gridSize: 50,

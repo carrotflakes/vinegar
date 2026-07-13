@@ -7,6 +7,15 @@ import type { Paint } from "./paint";
 
 export type Vec2 = { x: number; y: number };
 
+export const STROKE_CAPS = ["butt", "round", "square"] as const;
+export type StrokeCap = (typeof STROKE_CAPS)[number];
+
+export const STROKE_JOINS = ["miter", "round", "bevel"] as const;
+export type StrokeJoin = (typeof STROKE_JOINS)[number];
+
+export const STROKE_ALIGNMENTS = ["inside", "center", "outside"] as const;
+export type StrokeAlignment = (typeof STROKE_ALIGNMENTS)[number];
+
 /** Canvas/SVG-compatible 2D affine matrix [a, b, c, d, e, f]. */
 export type Matrix = [number, number, number, number, number, number];
 
@@ -99,6 +108,16 @@ export interface BaseShape extends BaseNode {
   /** `null` stroke means "no stroke". */
   stroke: Paint | null;
   strokeWidth: number;
+  /** Alternating dash/gap lengths in local units; absent/empty means solid. */
+  strokeDash?: number[];
+  /** Offset into the repeated dash pattern, in local units. */
+  strokeDashOffset?: number;
+  /** Missing values preserve the historical round-cap rendering. */
+  strokeCap?: StrokeCap;
+  /** Missing values preserve the historical round-join rendering. */
+  strokeJoin?: StrokeJoin;
+  /** Open paths render centered even if a non-center value is retained. */
+  strokeAlignment?: StrokeAlignment;
 }
 
 /** Axis-aligned rectangle, defined by its top-left corner and size. */

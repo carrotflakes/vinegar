@@ -1,9 +1,16 @@
 import { clippingMask } from "../model/clippingMask";
 import { paintFromLegacy } from "../model/paint";
 import { referencedAssetIds } from "../model/scene";
-import { BLEND_MODES, type Document, type ShapeType } from "../model/types";
+import {
+  BLEND_MODES,
+  STROKE_ALIGNMENTS,
+  STROKE_CAPS,
+  STROKE_JOINS,
+  type Document,
+  type ShapeType,
+} from "../model/types";
 
-export const CURRENT_FILE_VERSION = 16 as const;
+export const CURRENT_FILE_VERSION = 17 as const;
 
 /**
  * v8 lacked `symbols` (added as an empty registry). v8 and v9 stored fill/
@@ -12,11 +19,11 @@ export const CURRENT_FILE_VERSION = 16 as const;
  * `image` nodes over the existing asset store (no structural change). v13 adds
  * `pattern` fills/strokes (raster fill via doc.assets). v14 adds single-style
  * text leaves with persisted measured bounds. v15 adds the optional `clip`
- * marker to groups. v16 adds the optional `effects` stack to every node. v8-v15
- * groups migrate unchanged and therefore remain ordinary, non-clipping groups;
- * absent `effects` means no effects. These additions are additive.
+ * marker to groups. v16 adds the optional `effects` stack to every node. v17
+ * adds optional dash/cap/join/alignment fields to shapes. v8-v16 nodes migrate
+ * unchanged; absent optional fields retain their historical behavior.
  */
-const MIGRATABLE_VERSIONS = new Set<unknown>([8, 9, 10, 11, 12, 13, 14, 15]);
+const MIGRATABLE_VERSIONS = new Set<unknown>([8, 9, 10, 11, 12, 13, 14, 15, 16]);
 
 export interface VinegarFile {
   app: "vinegar";
@@ -94,6 +101,8 @@ const isEffect = (value: unknown): boolean => {
 };
 const isEffectsOrUndefined = (value: unknown): boolean =>
   value === undefined || (Array.isArray(value) && value.every(isEffect));
+const isStrokeDashOrUndefined = (value: unknown): boolean =>
+  value === undefined || (Array.isArray(value) && value.every((entry) => isNumber(entry) && entry >= 0));
 const isPoints = (value: unknown): boolean =>
   Array.isArray(value) && value.every(isPoint);
 const isNode = (id: string, node: unknown): boolean => {
@@ -114,7 +123,12 @@ const isNode = (id: string, node: unknown): boolean => {
     return typeof node.symbolId === "string";
   }
   if (!(isPaintOrNull(node.fill) && isPaintOrNull(node.stroke) &&
-      isNumber(node.strokeWidth) && node.strokeWidth >= 0)) return false;
+      isNumber(node.strokeWidth) && node.strokeWidth >= 0 &&
+      isStrokeDashOrUndefined(node.strokeDash) &&
+      (node.strokeDashOffset === undefined || isNumber(node.strokeDashOffset)) &&
+      (node.strokeCap === undefined || STROKE_CAPS.includes(node.strokeCap as never)) &&
+      (node.strokeJoin === undefined || STROKE_JOINS.includes(node.strokeJoin as never)) &&
+      (node.strokeAlignment === undefined || STROKE_ALIGNMENTS.includes(node.strokeAlignment as never)))) return false;
   switch (node.type) {
     case "rect": case "ellipse":
       return isNumber(node.x) && isNumber(node.y) && isNumber(node.width) && isNumber(node.height);

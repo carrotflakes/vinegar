@@ -68,5 +68,17 @@ export const useEditor = create<EditorState>((set, get) => {
 });
 
 export function styleFromDefaults(style: StyleDefaults) {
-  return { fill: style.fill, stroke: style.stroke, strokeWidth: style.strokeWidth, opacity: 1, transform: [...IDENTITY] as Shape["transform"], transformOrigin: null };
+  return {
+    fill: style.fill,
+    stroke: style.stroke,
+    strokeWidth: style.strokeWidth,
+    strokeDash: style.strokeDash.length ? [...style.strokeDash] : undefined,
+    strokeDashOffset: style.strokeDashOffset || undefined,
+    strokeCap: style.strokeCap,
+    strokeJoin: style.strokeJoin,
+    strokeAlignment: style.strokeAlignment,
+    opacity: 1,
+    transform: [...IDENTITY] as Shape["transform"],
+    transformOrigin: null,
+  };
 }

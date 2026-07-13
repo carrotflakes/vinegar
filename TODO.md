@@ -96,8 +96,11 @@ Ordered by agreed priority. These are the biggest gaps toward a "real" vector ed
    - [ ] Deferred: rich text (style runs), text on path, vertical text,
      letter-spacing, outline-on-export, fixed-height clipping boxes,
      Google Fonts loading
-6. [ ] **Stroke detail options** — dash pattern, line cap/join (currently hard-coded
-   `round` in `canvas/render.ts`), and stroke alignment (inside / center / outside).
+6. [x] **Stroke detail options** — shipped in file v17: custom dash pattern +
+   offset, butt/round/square caps, miter/round/bevel joins, and inside/center/
+   outside alignment for closed vector shapes and live text. Open paths remain
+   center-aligned; Canvas/PNG, SVG export, bounds/hit-testing and Outline Stroke
+   share the same appearance fields.
 
 ## Next (candidates)
 - [ ] Alignment guides during resize and rotate (currently move only)
@@ -178,3 +181,4 @@ Ordered by agreed priority. These are the biggest gaps toward a "real" vector ed
 - [ ] assetを確認できるビュー
 - [ ] テキストのパス化
 - [ ] 保存形式の検討 zip化?
+- [ ] タッチ操作、ちょっと選択するだけで移動となってしまう問題

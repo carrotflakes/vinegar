@@ -1,5 +1,6 @@
 import { IDENTITY, multiply } from "./matrix";
 import { isAreal } from "./boolean";
+import { strokeDetailFields } from "./stroke";
 import {
   makeId,
   type CompoundPathShape,
@@ -58,6 +59,7 @@ export function makeCompoundPath(shapes: Shape[]): CompoundPathShape | null {
     fill: base.fill,
     stroke: base.stroke,
     strokeWidth: base.strokeWidth,
+    ...strokeDetailFields(base),
     opacity: base.opacity,
     blendMode: base.blendMode,
     transform: [...IDENTITY],
@@ -73,6 +75,7 @@ export function releaseCompoundPath(shape: CompoundPathShape): PrimitiveShape[] 
     fill: shape.fill,
     stroke: shape.stroke,
     strokeWidth: shape.strokeWidth,
+    ...strokeDetailFields(shape),
     opacity: shape.opacity,
     blendMode: shape.blendMode,
     transform: multiply(shape.transform, component.transform),

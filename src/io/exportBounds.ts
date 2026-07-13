@@ -6,6 +6,7 @@ import {
 import { clippingMask } from "../model/clippingMask";
 import { effectsMargin } from "../model/effects";
 import { matrixScale, nodeWorldMatrix, shapeWorldMatrix } from "../model/matrix";
+import { strokeOutset } from "../model/stroke";
 import {
   ancestorIds,
   isGroup,
@@ -42,7 +43,7 @@ export function contentBounds(
   });
   if (ids.length === 0) return null;
 
-  // Expand each shape's box by half its stroke width, then add the margin.
+  // Expand each shape's box by its outward stroke extent, then add the margin.
   let minX = Infinity;
   let minY = Infinity;
   let maxX = -Infinity;
@@ -53,8 +54,8 @@ export function contentBounds(
     let half = 0;
     if (isShape(node)) {
       b = worldShapeBounds(doc, node);
-      half = !masks.has(id) && node.stroke !== null
-        ? (node.strokeWidth / 2) * matrixScale(shapeWorldMatrix(doc, node))
+      half = !masks.has(id)
+        ? strokeOutset(node) * matrixScale(shapeWorldMatrix(doc, node))
         : 0;
     } else {
       b = nodeWorldBounds(doc, id);

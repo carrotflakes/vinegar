@@ -10,6 +10,13 @@ import { hasEffects, SHADOW_BLUR_TO_STDDEV } from "../model/effects";
 import { applyMatrix, isIdentity } from "../model/matrix";
 import { gradientToSvg, paintToSvgAttrs, type Paint } from "../model/paint";
 import { isGroup, isShape } from "../model/scene";
+import {
+  effectiveStrokeAlignment,
+  normalizeStrokeDash,
+  STROKE_MITER_LIMIT,
+  strokeCap,
+  strokeJoin,
+} from "../model/stroke";
 import type { BezierShape, Bounds, Document, Effect, Matrix, PrimitiveShape, SceneNode, Shape } from "../model/types";
 import { contentBounds } from "./exportBounds";
 import { layoutTextInBrowser } from "../canvas/textLayout";
@@ -32,6 +39,8 @@ interface Defs {
   items: string[];
   paintAttrs(paint: Paint, kind: "fill" | "stroke"): string[];
   clipPath(shape: ClippingMaskShape): string;
+  strokeClip(markup: string): string;
+  strokeMask(markup: string, bounds: Bounds): string;
   filter(effects: Effect[]): string;
   nextId(prefix: string): string;
 }
@@ -70,6 +79,28 @@ function makeDefs(): Defs {
         `<clipPath id="${clipId}" clipPathUnits="userSpaceOnUse">${maskShapeToSvg(shape)}</clipPath>`
       );
       return clipId;
+    },
+    strokeClip(markup) {
+      const clipId = nextId("strokeClip");
+      items.push(
+        `<clipPath id="${clipId}" clipPathUnits="userSpaceOnUse">${markup}</clipPath>`
+      );
+      return clipId;
+    },
+    strokeMask(markup, bounds) {
+      const maskId = nextId("strokeMask");
+      items.push(
+        `<mask id="${maskId}" maskUnits="userSpaceOnUse" x="${num(bounds.x)}" y="${num(
+          bounds.y
+        )}" width="${num(bounds.width)}" height="${num(
+          bounds.height
+        )}" style="mask-type:luminance"><rect x="${num(bounds.x)}" y="${num(
+          bounds.y
+        )}" width="${num(bounds.width)}" height="${num(
+          bounds.height
+        )}" fill="white"/>${markup}</mask>`
+      );
+      return maskId;
     },
     filter(effects) {
       const filterId = nextId("fx");
@@ -130,14 +161,51 @@ function commonAttrs(shape: Shape, defs: Defs): string {
   if (fillable && shape.fill) parts.push(...defs.paintAttrs(shape.fill, "fill"));
   else parts.push(`fill="none"`);
   if (shape.stroke && shape.strokeWidth > 0) {
-    parts.push(...defs.paintAttrs(shape.stroke, "stroke"));
-    parts.push(`stroke-width="${num(shape.strokeWidth)}"`);
-    parts.push(`stroke-linejoin="round" stroke-linecap="round"`);
+    parts.push(...strokeSvgAttrs(shape, defs, shape.strokeWidth));
   }
   parts.push(...baseAttrs(shape));
   const fx = filterAttr(shape, defs);
   if (fx) parts.push(fx);
   return parts.join(" ");
+}
+
+function strokeSvgAttrs(shape: Shape, defs: Defs, width: number): string[] {
+  if (!shape.stroke) return [];
+  const parts = [
+    ...defs.paintAttrs(shape.stroke, "stroke"),
+    `stroke-width="${num(width)}"`,
+    `stroke-linecap="${strokeCap(shape)}"`,
+    `stroke-linejoin="${strokeJoin(shape)}"`,
+    `stroke-miterlimit="${STROKE_MITER_LIMIT}"`,
+  ];
+  const dash = normalizeStrokeDash(shape.strokeDash);
+  if (dash.length) {
+    parts.push(`stroke-dasharray="${dash.map(num).join(" ")}"`);
+    if (shape.strokeDashOffset) {
+      parts.push(`stroke-dashoffset="${num(shape.strokeDashOffset)}"`);
+    }
+  }
+  return parts;
+}
+
+function fillSvgAttrs(shape: Shape, defs: Defs): string[] {
+  const fillable = !(
+    shape.type === "line" ||
+    (shape.type === "path" && !shape.closed) ||
+    (shape.type === "bezier" && !shape.subpaths.some((sp) => sp.closed))
+  );
+  return fillable && shape.fill
+    ? defs.paintAttrs(shape.fill, "fill")
+    : [`fill="none"`];
+}
+
+function expandedBounds(bounds: Bounds, amount: number): Bounds {
+  return {
+    x: bounds.x - amount,
+    y: bounds.y - amount,
+    width: bounds.width + amount * 2,
+    height: bounds.height + amount * 2,
+  };
 }
 
 function shapeToSvg(doc: Document, shape: Shape, defs: Defs): string {
@@ -152,7 +220,38 @@ function shapeToSvg(doc: Document, shape: Shape, defs: Defs): string {
       asset.source.data
     }"${attrs ? " " + attrs : ""} />`;
   }
-  const attrs = commonAttrs(shape, defs);
+  const alignment = effectiveStrokeAlignment(shape);
+  if (!shape.stroke || shape.strokeWidth <= 0 || alignment === "center") {
+    return shapeGeometryToSvg(shape, commonAttrs(shape, defs));
+  }
+
+  // SVG has no interoperable inside/outside stroke positioning. Paint fill
+  // and stroke separately, double the stroke width, then clip/mask the latter.
+  const fill = shapeGeometryToSvg(shape, [...fillSvgAttrs(shape, defs), `stroke="none"`].join(" "));
+  const stroke = shapeGeometryToSvg(
+    shape,
+    [`fill="none"`, ...strokeSvgAttrs(shape, defs, shape.strokeWidth * 2)].join(" ")
+  );
+  const silhouette = shapeGeometryToSvg(
+    shape,
+    `fill="black" stroke="none"${
+      shape.type === "polygon" || shape.type === "compoundPath" ? ` clip-rule="evenodd"` : ""
+    }`
+  );
+  const limitedStroke = alignment === "inside"
+    ? `<g clip-path="url(#${defs.strokeClip(silhouette)})">${stroke}</g>`
+    : (() => {
+        // Keep this region padding in sync with STROKE_MITER_LIMIT and the
+        // conservative strokeOutset policy; an undersized mask clips miters.
+        const pad = Math.max(1, shape.strokeWidth * STROKE_MITER_LIMIT);
+        const mask = defs.strokeMask(silhouette, expandedBounds(shapeBounds(shape), pad));
+        return `<g mask="url(#${mask})">${stroke}</g>`;
+      })();
+  const wrapper = [...baseAttrs(shape), filterAttr(shape, defs)].filter(Boolean).join(" ");
+  return `<g${wrapper ? " " + wrapper : ""}>${fill}${limitedStroke}</g>`;
+}
+
+function shapeGeometryToSvg(shape: Shape, attrs: string): string {
   switch (shape.type) {
     case "text": {
       const layout = layoutTextInBrowser(shape);
@@ -207,6 +306,8 @@ function shapeToSvg(doc: Document, shape: Shape, defs: Defs): string {
       return `<path d="${shape.components
         .map((component) => primitivePathData(component, component.transform))
         .join(" ")}" fill-rule="evenodd" ${attrs} />`;
+    case "image":
+      return "";
   }
 }
 

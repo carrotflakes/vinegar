@@ -9,6 +9,13 @@ import { hasEffects } from "../model/effects";
 import { isIdentity } from "../model/matrix";
 import { resolvePaint, type Paint, type PatternPaint } from "../model/paint";
 import { isGroup, isInstance, isShape } from "../model/scene";
+import {
+  effectiveStrokeAlignment,
+  normalizeStrokeDash,
+  STROKE_MITER_LIMIT,
+  strokeCap,
+  strokeJoin,
+} from "../model/stroke";
 import type { Artboard, Bounds, Document, DocumentAsset, Effect, ImageShape, Shape } from "../model/types";
 import { worldToScreen, type Viewport } from "../model/viewport";
 import { getAssetImage } from "./imageCache";
@@ -291,16 +298,7 @@ export function paintShape(
     }
   }
   if (shape.stroke !== null && shape.strokeWidth > 0) {
-    const style = resolveStyle(ctx, shape.stroke, bounds, assets);
-    if (style) {
-      withPaintAlpha(ctx, shape.opacity, shape.stroke, () => {
-        ctx.strokeStyle = style;
-        ctx.lineWidth = shape.strokeWidth;
-        ctx.lineJoin = "round";
-        ctx.lineCap = "round";
-        ctx.stroke();
-      });
-    }
+    paintVectorStroke(ctx, shape, bounds, assets);
   }
   ctx.restore();
 }
@@ -325,18 +323,133 @@ function paintText(
     }
   }
   if (shape.stroke && shape.strokeWidth > 0) {
-    const style = resolveStyle(ctx, shape.stroke, bounds, assets);
-    if (style) {
-      withPaintAlpha(ctx, shape.opacity, shape.stroke, () => {
-        ctx.strokeStyle = style;
-        ctx.lineWidth = shape.strokeWidth;
-        ctx.lineJoin = "round";
-        for (const line of layout.lines) {
-          if (line.text) ctx.strokeText(line.text, shape.x + line.x, shape.y + line.baseline);
-        }
-      });
-    }
+    paintTextStroke(ctx, shape, layout.lines, bounds, assets);
   }
+}
+
+function applyStrokeStyle(
+  ctx: CanvasRenderingContext2D,
+  shape: Shape,
+  width: number
+): void {
+  ctx.lineWidth = width;
+  ctx.lineCap = strokeCap(shape);
+  ctx.lineJoin = strokeJoin(shape);
+  ctx.miterLimit = STROKE_MITER_LIMIT;
+  const dash = normalizeStrokeDash(shape.strokeDash);
+  // The guard keeps lightweight SSR/test contexts compatible while real
+  // Canvas contexts always reset the dash state for every shape.
+  if (typeof ctx.setLineDash === "function") ctx.setLineDash(dash);
+  ctx.lineDashOffset = shape.strokeDashOffset ?? 0;
+}
+
+function drawLayerInDeviceSpace(
+  ctx: CanvasRenderingContext2D,
+  layer: HTMLCanvasElement
+): void {
+  ctx.save();
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.drawImage(layer, 0, 0);
+  ctx.restore();
+}
+
+function paintVectorStroke(
+  ctx: CanvasRenderingContext2D,
+  shape: Shape,
+  bounds: Bounds,
+  assets: Record<string, DocumentAsset>
+): void {
+  if (!shape.stroke) return;
+  const alignment = effectiveStrokeAlignment(shape);
+  if (alignment === "outside") {
+    // PERF: this allocates a target-sized layer per outside-stroked shape on
+    // every frame. If documents commonly contain many such shapes, replace it
+    // with a tight device-space layer (including miter/effect padding) or cache
+    // the isolated stroke until the shape/viewport changes.
+    const layer = makeLayer(ctx);
+    const lctx = layer?.getContext("2d");
+    if (!layer || !lctx) return;
+    lctx.setTransform(ctx.getTransform());
+    const style = resolveStyle(lctx, shape.stroke, bounds, assets);
+    if (!style) return;
+    lctx.strokeStyle = style;
+    applyStrokeStyle(lctx, shape, shape.strokeWidth * 2);
+    tracePath(lctx, shape);
+    lctx.stroke();
+    lctx.globalCompositeOperation = "destination-out";
+    lctx.globalAlpha = 1;
+    lctx.fillStyle = "#000000";
+    tracePath(lctx, shape);
+    lctx.fill(shapeFillRule(shape));
+    withPaintAlpha(ctx, shape.opacity, shape.stroke, () => drawLayerInDeviceSpace(ctx, layer));
+    return;
+  }
+
+  const style = resolveStyle(ctx, shape.stroke, bounds, assets);
+  if (!style) return;
+  withPaintAlpha(ctx, shape.opacity, shape.stroke, () => {
+    ctx.save();
+    if (alignment === "inside") {
+      tracePath(ctx, shape);
+      ctx.clip(shapeFillRule(shape));
+      tracePath(ctx, shape);
+    }
+    ctx.strokeStyle = style;
+    applyStrokeStyle(
+      ctx,
+      shape,
+      alignment === "inside" ? shape.strokeWidth * 2 : shape.strokeWidth
+    );
+    ctx.stroke();
+    ctx.restore();
+  });
+}
+
+function paintTextStroke(
+  ctx: CanvasRenderingContext2D,
+  shape: Extract<Shape, { type: "text" }>,
+  lines: ReturnType<typeof layoutTextWithCanvas>["lines"],
+  bounds: Bounds,
+  assets: Record<string, DocumentAsset>
+): void {
+  if (!shape.stroke) return;
+  const alignment = effectiveStrokeAlignment(shape);
+  if (alignment === "center") {
+    const style = resolveStyle(ctx, shape.stroke, bounds, assets);
+    if (!style) return;
+    withPaintAlpha(ctx, shape.opacity, shape.stroke, () => {
+      ctx.strokeStyle = style;
+      applyStrokeStyle(ctx, shape, shape.strokeWidth);
+      for (const line of lines) {
+        if (line.text) ctx.strokeText(line.text, shape.x + line.x, shape.y + line.baseline);
+      }
+    });
+    return;
+  }
+
+  // PERF: live text has no Canvas path we can clip directly, so both inside
+  // and outside alignment currently use a full target-sized alpha layer. A
+  // tight glyph-bounds layer is the likely optimization if this becomes hot.
+  const layer = makeLayer(ctx);
+  const lctx = layer?.getContext("2d");
+  if (!layer || !lctx) return;
+  lctx.setTransform(ctx.getTransform());
+  lctx.font = ctx.font;
+  lctx.textBaseline = "alphabetic";
+  const style = resolveStyle(lctx, shape.stroke, bounds, assets);
+  if (!style) return;
+  lctx.strokeStyle = style;
+  applyStrokeStyle(lctx, shape, shape.strokeWidth * 2);
+  for (const line of lines) {
+    if (line.text) lctx.strokeText(line.text, shape.x + line.x, shape.y + line.baseline);
+  }
+  lctx.globalCompositeOperation = alignment === "inside" ? "destination-in" : "destination-out";
+  lctx.globalAlpha = 1;
+  lctx.fillStyle = "#000000";
+  for (const line of lines) {
+    if (line.text) lctx.fillText(line.text, shape.x + line.x, shape.y + line.baseline);
+  }
+  withPaintAlpha(ctx, shape.opacity, shape.stroke, () => drawLayerInDeviceSpace(ctx, layer));
 }
 
 /**

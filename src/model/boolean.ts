@@ -5,6 +5,7 @@ const paper: typeof paperNs =
   (paperNs as { default?: typeof paperNs }).default ?? paperNs;
 import { shapeBounds } from "./bounds";
 import { IDENTITY } from "./matrix";
+import { strokeDetailFields } from "./stroke";
 import {
   makeId,
   type BezierShape,
@@ -228,6 +229,7 @@ export function booleanShapes(shapes: Shape[], op: BoolOp): BezierShape | null {
     fill: base.fill,
     stroke: base.stroke,
     strokeWidth: base.strokeWidth,
+    ...strokeDetailFields(base),
     opacity: base.opacity,
     blendMode: base.blendMode,
     transform: [...IDENTITY],

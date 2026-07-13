@@ -20,8 +20,19 @@ declare module "clipper-lib" {
     Execute(solution: PolyTree, delta: number): void;
   }
 
+  export class Clipper {
+    AddPaths(paths: IntPoint[][], polyType: number, closed: boolean): boolean;
+    Execute(
+      clipType: number,
+      solution: PolyTree,
+      subjectFillType?: number,
+      clipFillType?: number
+    ): boolean;
+  }
+
   interface ClipperLibStatic {
     ClipperOffset: typeof ClipperOffset;
+    Clipper: typeof Clipper;
     PolyTree: typeof PolyTree;
     JoinType: { jtSquare: number; jtRound: number; jtMiter: number };
     EndType: {
@@ -31,6 +42,9 @@ declare module "clipper-lib" {
       etClosedLine: number;
       etClosedPolygon: number;
     };
+    PolyType: { ptSubject: number; ptClip: number };
+    ClipType: { ctIntersection: number; ctUnion: number; ctDifference: number; ctXor: number };
+    PolyFillType: { pftEvenOdd: number; pftNonZero: number; pftPositive: number; pftNegative: number };
   }
 
   const ClipperLib: ClipperLibStatic;
