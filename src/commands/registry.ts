@@ -53,6 +53,15 @@ const isMac = /Mac|iPhone|iPad/.test(navigator.userAgent);
 /** Display label for the primary modifier (Cmd on macOS, Ctrl elsewhere). */
 export const MOD = isMac ? "⌘" : "Ctrl";
 
+/**
+ * Guard for actions that replace the current document (new / open / demo).
+ * Prompts only when there are unsaved changes; returns whether to proceed.
+ */
+function confirmDiscard(s: EditorState): boolean {
+  if (s.doc === s.savedDoc) return true;
+  return window.confirm("Discard unsaved changes to the current drawing?");
+}
+
 // --- Shortcut model ------------------------------------------------------
 
 /** A single key chord. `mod` means Ctrl (or Cmd on macOS). */
@@ -420,12 +429,7 @@ export const COMMANDS: Command[] = [
     label: "New",
     group: "File",
     run: (s) => {
-      if (
-        s.doc.rootIds.length > 0 &&
-        !window.confirm("Discard the current drawing and start a new one?")
-      ) {
-        return;
-      }
+      if (!confirmDiscard(s)) return;
       s.newDocument();
     },
   },
@@ -434,6 +438,7 @@ export const COMMANDS: Command[] = [
     label: "Open…",
     group: "File",
     run: async (s) => {
+      if (!confirmDiscard(s)) return;
       const text = await pickTextFile(".json,application/json");
       if (text == null) return;
       try {
@@ -470,6 +475,7 @@ export const COMMANDS: Command[] = [
     run: (s) => {
       const json = serializeDocument(s.doc);
       downloadText(json, "drawing.vinegar.json", "application/json");
+      s.markSaved();
     },
   },
   {
@@ -560,12 +566,7 @@ export const COMMANDS: Command[] = [
     label: "Open demo",
     group: "File",
     run: (s) => {
-      if (
-        s.doc.rootIds.length > 0 &&
-        !window.confirm("Discard the current drawing and open the demo?")
-      ) {
-        return;
-      }
+      if (!confirmDiscard(s)) return;
       s.loadDocument(createDemoDocument());
       s.setViewport({ scale: 0.85, offset: { x: 12, y: 12 } });
     },

@@ -41,8 +41,10 @@ export const useEditor = create<EditorState>((set, get) => {
     transact: history.transact,
     resetCoalesce: history.resetCoalesce,
   };
+  const initialDoc = createEmptyDocument();
   return {
-    doc: createEmptyDocument(),
+    doc: initialDoc,
+    savedDoc: initialDoc,
     selection: [],
     selectionPivot: null,
     selectionTransform: null,
@@ -66,6 +68,11 @@ export const useEditor = create<EditorState>((set, get) => {
     ...createSymbolActions(ctx),
   };
 });
+
+/** Whether the document has changes since the last new / open / save. */
+export function useIsDirty() {
+  return useEditor((s) => s.doc !== s.savedDoc);
+}
 
 export function styleFromDefaults(style: StyleDefaults) {
   return {

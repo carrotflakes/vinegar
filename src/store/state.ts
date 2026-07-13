@@ -57,6 +57,12 @@ export interface StyleStylableFields {
 /** Plain state fields (everything that is not an action). */
 export interface EditorData {
   doc: Document;
+  /**
+   * The document as it was at the last new / open / save. Since every edit
+   * produces a fresh `doc` object (immutable updates), `doc !== savedDoc` is a
+   * precise "unsaved changes" signal (see `useIsDirty`).
+   */
+  savedDoc: Document;
   selection: string[];
   selectionPivot: Vec2 | null;
   selectionTransform: Matrix | null;
@@ -116,6 +122,8 @@ export interface SelectionActions {
 export interface HistoryActions {
   newDocument: () => void;
   loadDocument: (doc: Document) => void;
+  /** Mark the current document as saved (clears the unsaved-changes flag). */
+  markSaved: () => void;
   beginInteraction: () => void;
   applyShapes: (next: Record<string, SceneNode>) => void;
   setDoc: (doc: Document) => void;

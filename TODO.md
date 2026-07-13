@@ -112,6 +112,12 @@ Ordered by agreed priority. These are the biggest gaps toward a "real" vector ed
   viewport (in addition to the planned fit-to-artboard action)
 - [ ] **Document recovery** — autosave a local recovery snapshot, restore after a
   crash/reload, and warn before closing or replacing a document with unsaved changes
+  - [x] Unsaved-changes warning — `savedDoc` reference on the store (`doc !==
+    savedDoc` ⇒ dirty, since edits are immutable); `beforeunload` warns on
+    close/reload, and New / Open / Open demo confirm only when dirty. Save marks
+    clean (`markSaved`). Undo back to the saved state stays "dirty" (history
+    holds clones) — conservative, acceptable for a safety valve.
+  - [ ] Autosave a local recovery snapshot + restore after crash/reload
 - [ ] **Document identity and save workflow** — editable document name, Save As,
   recent files, and overwrite the opened file where the File System Access API permits
 - [ ] **Document settings UI** — edit unit and DPI as well as grid size; show the

@@ -138,6 +138,19 @@ export default function App() {
     return () => window.removeEventListener("keydown", handler);
   }, []);
 
+  // Warn before leaving (close / reload / navigate away) with unsaved changes.
+  useEffect(() => {
+    const onBeforeUnload = (e: BeforeUnloadEvent) => {
+      const s = useEditor.getState();
+      if (s.doc === s.savedDoc) return;
+      e.preventDefault();
+      // Legacy browsers require a returnValue to trigger the prompt.
+      e.returnValue = "";
+    };
+    window.addEventListener("beforeunload", onBeforeUnload);
+    return () => window.removeEventListener("beforeunload", onBeforeUnload);
+  }, []);
+
   return (
     <div className="app">
       <header className="appbar">
