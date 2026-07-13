@@ -663,11 +663,6 @@ export default function CanvasView() {
       const world = screenToWorld(state.viewport, screen);
       const hitId = pickShape(ctx, world);
       if (!hitId) return;
-      const directHit = state.doc.nodes[hitId];
-      if (directHit?.type === "text") {
-        beginTextEdit(directHit, directHit);
-        return;
-      }
       // Drill one level into the group under the cursor, selecting the child
       // that was hit; a second double-click descends further.
       const symbolRoot = scopeRootGroupId(state.doc, currentSymbolScope(state));
@@ -677,6 +672,11 @@ export default function CanvasView() {
         state.setActiveGroup(resolved);
         state.setSelection(expandToGroups(state.doc, [hitId], resolved));
         ctx.scheduleDraw();
+        return;
+      }
+      const directHit = state.doc.nodes[hitId];
+      if (directHit?.type === "text") {
+        beginTextEdit(directHit, directHit);
         return;
       }
       // Double-clicking an instance dives into its symbol's local view.
