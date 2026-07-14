@@ -2,6 +2,7 @@ import ClipperLib, { type IntPoint, type PolyNode } from "clipper-lib";
 import { flattenSubpath } from "./bezier";
 import { shapeBounds } from "./bounds";
 import { applyMatrix } from "./matrix";
+import { roundedRectPolyline } from "./roundedRect";
 import {
   effectiveStrokeAlignment,
   normalizeStrokeDash,
@@ -37,15 +38,9 @@ function centerlines(shape: Shape): Polyline[] {
         },
       ];
     case "rect": {
-      const b = shapeBounds(shape);
       return [
         {
-          points: [
-            { x: b.x, y: b.y },
-            { x: b.x + b.width, y: b.y },
-            { x: b.x + b.width, y: b.y + b.height },
-            { x: b.x, y: b.y + b.height },
-          ],
+          points: roundedRectPolyline(shape),
           closed: true,
         },
       ];

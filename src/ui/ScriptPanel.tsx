@@ -7,7 +7,7 @@ import { shapesInPaintOrder } from "../model/scene";
 const STORAGE_KEY = "vinegar.script";
 
 const DEFAULT_SCRIPT = `// Drawing script — runs in a sandbox, then applies its changes in one undo.
-// Create:  rect(x,y,w,h) ellipse(cx,cy,rx,ry) circle(cx,cy,r)
+// Create:  rect(x,y,w,h,radius=0) ellipse(cx,cy,rx,ry) circle(cx,cy,r)
 //          line(x1,y1,x2,y2) path(points,closed) polygon(points)
 //          push() pop() translate(x,y) rotate(rad) scale(s)
 //          fill(c) stroke(c) strokeWidth(w) opacity(o) blendMode('multiply')

@@ -145,6 +145,7 @@ function makeCreatedShape(
     y,
     width,
     height,
+    ...(tool === "rect" ? { cornerRadius: 0 } : {}),
     ...base,
   };
 }

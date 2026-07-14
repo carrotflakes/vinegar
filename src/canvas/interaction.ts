@@ -8,8 +8,10 @@ import type {
   Vec2,
 } from "../model/types";
 import type { HandleId } from "./handles";
+import type { CornerRadiusControl } from "./cornerRadiusHandle";
 
 export type FrameHit =
+  | { type: "corner-radius"; control: CornerRadiusControl }
   | { type: "pivot" }
   | { type: "resize"; id: HandleId }
   | { type: "rotate" }
@@ -55,6 +57,15 @@ export type Interaction =
       originals: Record<string, SceneNode>;
       selectionPivot?: Vec2;
       selectionTransform?: Matrix;
+    }
+  | {
+      kind: "corner-radius";
+      shapeId: string;
+      startScreen: Vec2;
+      startRadius: number;
+      direction: Vec2;
+      pixelsPerRadius: number;
+      maxRadius: number;
     }
   | { kind: "create"; start: Vec2 }
   | { kind: "text-create"; start: Vec2; current: Vec2 }

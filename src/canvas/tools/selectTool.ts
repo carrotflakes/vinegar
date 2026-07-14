@@ -49,7 +49,7 @@ import { boundsFromPoints, formatAngle, formatSize } from "../util";
 
 export type SelectInteraction = Extract<
   Interaction,
-  { kind: "pivot" | "move" | "resize" | "rotate" | "marquee" }
+  { kind: "pivot" | "move" | "resize" | "rotate" | "corner-radius" | "marquee" }
 >;
 
 function snapshot(ids: string[]): Record<string, SceneNode> {
@@ -68,6 +68,20 @@ export function onSelectDown(
 ) {
   // Rotation / resize handles take priority over picking shapes.
   const hit = hitFrameHandle(ctx, screen);
+  if (hit?.type === "corner-radius") {
+    const control = hit.control;
+    state.beginInteraction();
+    ctx.interaction.current = {
+      kind: "corner-radius",
+      shapeId: control.shapeId,
+      startScreen: screen,
+      startRadius: control.radius,
+      direction: control.direction,
+      pixelsPerRadius: control.pixelsPerRadius,
+      maxRadius: control.maxRadius,
+    };
+    return;
+  }
   if (hit?.type === "pivot") {
     const group = exactlySelectedGroup(state.doc, state.selection);
     const shape =
@@ -374,6 +388,25 @@ export function onSelectMove(
       setReadout(formatAngle(inter.startRotation + delta));
       break;
     }
+    case "corner-radius": {
+      const shape = state.doc.nodes[inter.shapeId];
+      if (!isShape(shape) || shape.type !== "rect") break;
+      const deltaPixels =
+        (screen.x - inter.startScreen.x) * inter.direction.x +
+        (screen.y - inter.startScreen.y) * inter.direction.y;
+      const radius = Math.max(
+        0,
+        Math.min(
+          inter.maxRadius,
+          inter.startRadius + deltaPixels / inter.pixelsPerRadius
+        )
+      );
+      state.applyShapes({
+        [shape.id]: { ...shape, cornerRadius: radius },
+      });
+      setReadout(`R ${Math.round(radius)}`);
+      break;
+    }
     case "marquee": {
       const start = worldToScreen(state.viewport, inter.start);
       ctx.marquee.current = {
@@ -444,6 +477,10 @@ export function selectCursor(
 ): string {
   const hit = hitFrameHandle(ctx, screen);
   if (hit?.type === "pivot") return "crosshair";
+  if (hit?.type === "corner-radius") {
+    const frame = selectionFrame();
+    return handleCursorRotated("se", frame?.rotation ?? 0);
+  }
   if (hit?.type === "rotate") return "grab";
   if (hit?.type === "resize") {
     const frame = selectionFrame();

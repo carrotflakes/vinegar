@@ -38,6 +38,8 @@ pnpm test       # node --test (serialization, clipping masks, symbols, text, vie
   the properties panel
 - Move, resize (8 handles), **rotate** (rotation handle; Shift snaps to 15°) —
   all driven by per-node **affine matrices**, so rotated/nested resize is exact
+- Rectangles support one shared **corner radius** for all four corners, editable
+  numerically or with an on-canvas control and preserved across export/geometry operations
 - **Movable rotation centers** (transform origin) per shape and group; a
   transient pivot for multi-selection
 - **Group / ungroup**, including **nested groups**; grouped shapes select together
@@ -114,7 +116,7 @@ and back-to-front paint order. Every node carries a Canvas/SVG-compatible affine
 matrices and leaf shapes are derived (not stored). The document also holds
 `symbols`, `artboards`, `assets` (embedded raster images), `settings` (unit,
 dpi, grid size), `metadata` and namespaced `extensions`. The file wrapper is
-versioned — the current version is v17; v8–v16 files migrate automatically on
+versioned — the current version is v18; v8–v17 files migrate automatically on
 load, older versions are unsupported. See
 [docs/document-model.md](docs/document-model.md).
 

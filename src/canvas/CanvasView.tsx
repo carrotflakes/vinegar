@@ -19,6 +19,7 @@ import { canvasMenu, selectionMenu } from "../ui/menus";
 import ModifierBar from "../ui/ModifierBar";
 import { getSelectionFrame } from "./frame";
 import { HANDLE_SIZE } from "./handles";
+import { cornerRadiusControl } from "./cornerRadiusHandle";
 import {
   TOUCH_DRAW_SCALE,
   TOUCH_HIT_SCALE,
@@ -171,6 +172,10 @@ export default function CanvasView() {
       marquee: marqueeRef.current,
       showHandles: tool === "select" && selected.length > 0,
       handleSize: HANDLE_SIZE * chrome,
+      cornerRadiusHandle:
+        tool === "select"
+          ? cornerRadiusControl(doc, selection, viewport, chrome)?.point ?? null
+          : null,
       activeGroupBounds:
         tool === "select" && state.activeGroupId && doc.nodes[state.activeGroupId]
           ? unionNodeWorldBounds(doc, [state.activeGroupId])
@@ -391,6 +396,7 @@ export default function CanvasView() {
       case "move":
       case "resize":
       case "rotate":
+      case "corner-radius":
       case "pivot":
       case "node-anchor":
       case "node-handle":
@@ -555,6 +561,7 @@ export default function CanvasView() {
       case "move":
       case "resize":
       case "rotate":
+      case "corner-radius":
       case "marquee":
         onSelectMove(ctx, state, inter, screen, world, mod.shift);
         break;
@@ -610,6 +617,7 @@ export default function CanvasView() {
       case "move":
       case "resize":
       case "rotate":
+      case "corner-radius":
       case "node-anchor":
       case "node-handle":
         state.endInteraction();

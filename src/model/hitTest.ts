@@ -16,6 +16,7 @@ import {
 } from "./clippingMask";
 import { invertMatrix, matrixScale, nodeWorldMatrix, shapeWorldMatrix, transformBounds } from "./matrix";
 import { isInstance, isShape, scopeLeafIds } from "./scene";
+import { pointInRoundedRect, roundedRectPolyline } from "./roundedRect";
 import { effectiveStrokeAlignment, strokeOutset } from "./stroke";
 import type { Bounds, Document, Shape, SymbolInstance, Vec2 } from "./types";
 import { applyMatrix } from "./matrix";
@@ -107,8 +108,7 @@ function containsGeometry(
 ): boolean {
   switch (shape.type) {
     case "rect": {
-      const b = shapeBounds(shape);
-      return p.x >= b.x && p.x <= b.x + b.width && p.y >= b.y && p.y <= b.y + b.height;
+      return pointInRoundedRect(shape, p);
     }
     case "ellipse": {
       const b = shapeBounds(shape);
@@ -245,25 +245,10 @@ export function hitTestShape(doc: Document, shape: Shape, p: Vec2, tol: number):
       );
     }
     case "rect": {
-      const b = shapeBounds(shape);
-      const inside =
-        p.x >= b.x && p.x <= b.x + b.width &&
-        p.y >= b.y && p.y <= b.y + b.height;
-      if (
-        hasFill &&
-        p.x >= b.x - tol && p.x <= b.x + b.width + tol &&
-        p.y >= b.y - tol && p.y <= b.y + b.height + tol
-      ) return true;
-      const corners: Vec2[] = [
-        { x: b.x, y: b.y },
-        { x: b.x + b.width, y: b.y },
-        { x: b.x + b.width, y: b.y + b.height },
-        { x: b.x, y: b.y + b.height },
-      ];
-      for (let i = 0; i < 4; i++) {
-        if (hitsStroke(distToSegment(p, corners[i], corners[(i + 1) % 4]), inside)) return true;
-      }
-      return false;
+      const inside = pointInRoundedRect(shape, p);
+      const distance = distToPolyline(p, roundedRectPolyline(shape), true);
+      if (hasFill && (inside || distance <= tol)) return true;
+      return hitsStroke(distance, inside);
     }
     case "ellipse": {
       const b = shapeBounds(shape);
@@ -540,7 +525,6 @@ function rectsIntersect(a: Bounds, b: Bounds): boolean {
 
 function localPolylines(shape: Shape): WorldPolyline[] {
   switch (shape.type) {
-    case "rect":
     case "image":
     case "text": {
       const b = shapeBounds(shape);
@@ -554,6 +538,8 @@ function localPolylines(shape: Shape): WorldPolyline[] {
         closed: true,
       }];
     }
+    case "rect":
+      return [{ points: roundedRectPolyline(shape), closed: true }];
     case "ellipse": {
       const b = shapeBounds(shape);
       const cx = b.x + b.width / 2;

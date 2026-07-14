@@ -172,7 +172,7 @@ function run(code: string, snap: DocSnapshot): Changeset {
     },
 
     // --- create shapes ---
-    rect: (x: number, y: number, w: number, h: number) => {
+    rect: (x: number, y: number, w: number, h: number, radius = 0) => {
       emit({
         type: "rect",
         name: "Rectangle",
@@ -180,6 +180,7 @@ function run(code: string, snap: DocSnapshot): Changeset {
         y,
         width: Math.abs(w),
         height: Math.abs(h),
+        cornerRadius: Math.max(0, radius),
         transform: [...matrix],
       });
     },

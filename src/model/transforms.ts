@@ -1,5 +1,6 @@
 import { normalizeRect } from "./bounds";
 import { boundsTransform, multiply, translation } from "./matrix";
+import { clampRectCornerRadius } from "./roundedRect";
 import type { Bounds, Shape, Vec2 } from "./types";
 
 /**
@@ -11,7 +12,26 @@ export function transformShape(shape: Shape, fn: (p: Vec2) => Vec2): Shape {
     ? fn(shape.transformOrigin)
     : null;
   switch (shape.type) {
-    case "rect":
+    case "rect": {
+      const a = fn({ x: shape.x, y: shape.y });
+      const b = fn({ x: shape.x + shape.width, y: shape.y + shape.height });
+      const r = normalizeRect(a.x, a.y, b.x - a.x, b.y - a.y);
+      const next = {
+        ...shape,
+        x: r.x,
+        y: r.y,
+        width: r.width,
+        height: r.height,
+        transformOrigin,
+      };
+      return {
+        ...next,
+        cornerRadius:
+          shape.cornerRadius === undefined
+            ? undefined
+            : clampRectCornerRadius(next, shape.cornerRadius),
+      };
+    }
     case "ellipse":
     case "image":
     // NOTE: for text this is only correct under translation. A scaling `fn`

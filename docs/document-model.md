@@ -26,6 +26,9 @@ active tool, selection, viewport and undo history does not belong in the file.
   solid, round-cap, round-join, center-aligned stroke. Inside/outside alignment
   is effective only for closed vector geometry and text; open paths render
   centered.
+- Rectangles may store one non-negative `cornerRadius` shared by all four
+  corners. An absent value means `0`; rendering clamps the effective radius to
+  half the rectangle's shorter side.
 - Extension data uses namespaced keys in `extensions` and must be JSON-safe.
 - Compound paths are single scene nodes. Their closed source shapes are stored
   inline in `components`, are not independently selectable, and are painted
@@ -40,7 +43,7 @@ active tool, selection, viewport and undo history does not belong in the file.
   Typography is one style per node (`fontFamily`, size, weight, italic,
   line-height and alignment); line layout is derived from the text at render.
 
-The file wrapper version is deliberately strict. The current version is v17;
+The file wrapper version is deliberately strict. The current version is v18;
 supported older versions are migrated before validation. Changing the
 persisted shape of `Document` requires bumping `CURRENT_FILE_VERSION`.
 

@@ -125,11 +125,26 @@ function buildCreated(spec: Record<string, unknown>): Shape | null {
     transformOrigin: pointOrNull(spec.transformOrigin, null),
   };
   switch (type) {
-    case "rect":
+    case "rect": {
+      const width = Math.max(0, num(spec.width));
+      const height = Math.max(0, num(spec.height));
+      return {
+        ...base,
+        type: "rect",
+        x: num(spec.x),
+        y: num(spec.y),
+        width,
+        height,
+        cornerRadius: Math.min(
+          Math.max(0, num(spec.cornerRadius)),
+          Math.min(width, height) / 2
+        ),
+      } as Shape;
+    }
     case "ellipse":
       return {
         ...base,
-        type,
+        type: "ellipse",
         x: num(spec.x),
         y: num(spec.y),
         width: Math.max(0, num(spec.width)),
@@ -177,7 +192,18 @@ function reconcile(existing: Shape, edited: Record<string, unknown>): Shape {
   } as Record<string, unknown>;
 
   switch (existing.type) {
-    case "rect":
+    case "rect": {
+      base.x = num(edited.x, existing.x);
+      base.y = num(edited.y, existing.y);
+      base.width = Math.max(0, num(edited.width, existing.width));
+      base.height = Math.max(0, num(edited.height, existing.height));
+      const maxRadius = Math.min(base.width as number, base.height as number) / 2;
+      base.cornerRadius = Math.min(
+        Math.max(0, num(edited.cornerRadius, existing.cornerRadius ?? 0)),
+        maxRadius
+      );
+      break;
+    }
     case "ellipse":
       base.x = num(edited.x, existing.x);
       base.y = num(edited.y, existing.y);

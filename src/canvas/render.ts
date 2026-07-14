@@ -8,6 +8,7 @@ import {
 import { hasEffects } from "../model/effects";
 import { isIdentity } from "../model/matrix";
 import { resolvePaint, type Paint, type PatternPaint } from "../model/paint";
+import { effectiveRectCornerRadius, roundedRectSubpath } from "../model/roundedRect";
 import { isGroup, isInstance, isShape } from "../model/scene";
 import {
   effectiveStrokeAlignment,
@@ -177,7 +178,25 @@ function tracePath(ctx: CanvasRenderingContext2D, shape: Shape, begin = true): v
   switch (shape.type) {
     case "rect": {
       const b = shapeBounds(shape);
-      ctx.rect(b.x, b.y, b.width, b.height);
+      if (effectiveRectCornerRadius(shape) <= 0) {
+        ctx.rect(b.x, b.y, b.width, b.height);
+        break;
+      }
+      const subpath = roundedRectSubpath(shape);
+      const segments = subpathSegments(subpath);
+      if (!segments.length) break;
+      ctx.moveTo(segments[0].p0.x, segments[0].p0.y);
+      for (const segment of segments) {
+        ctx.bezierCurveTo(
+          segment.c1.x,
+          segment.c1.y,
+          segment.c2.x,
+          segment.c2.y,
+          segment.p1.x,
+          segment.p1.y
+        );
+      }
+      ctx.closePath();
       break;
     }
     case "ellipse": {

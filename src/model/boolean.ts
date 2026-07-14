@@ -5,6 +5,7 @@ const paper: typeof paperNs =
   (paperNs as { default?: typeof paperNs }).default ?? paperNs;
 import { shapeBounds } from "./bounds";
 import { IDENTITY } from "./matrix";
+import { roundedRectSubpath } from "./roundedRect";
 import { strokeDetailFields } from "./stroke";
 import {
   makeId,
@@ -77,12 +78,7 @@ function shapeToGeom(shape: Shape): paper.PathItem | null {
   let item: paper.PathItem | null;
   switch (shape.type) {
     case "rect": {
-      const b = shapeBounds(shape);
-      item = new paper.Path.Rectangle({
-        point: [b.x, b.y],
-        size: [Math.max(b.width, 0), Math.max(b.height, 0)],
-        insert: false,
-      });
+      item = subpathToPath(roundedRectSubpath(shape));
       break;
     }
     case "ellipse": {

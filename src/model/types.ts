@@ -127,6 +127,8 @@ export interface RectShape extends BaseShape {
   y: number;
   width: number;
   height: number;
+  /** Shared circular radius for all four corners; absent means square corners. */
+  cornerRadius?: number;
 }
 
 /** Ellipse defined by its bounding box (top-left + size). */

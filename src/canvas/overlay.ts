@@ -10,6 +10,7 @@ import {
   type SelectionFrame,
 } from "./frame";
 import { ANCHOR_SIZE, HANDLE_DOT } from "./nodes";
+import { CORNER_RADIUS_HANDLE_SIZE } from "./cornerRadiusHandle";
 
 const ACCENT = "#3b82f6";
 
@@ -26,6 +27,8 @@ export interface OverlayOptions {
   handleSize?: number;
   /** World bounds of the drilled-into group, outlined to show isolation. */
   activeGroupBounds?: Bounds | null;
+  /** Screen-space center of the selected rectangle's shared-radius control. */
+  cornerRadiusHandle?: Vec2 | null;
 }
 
 /** Draw selection chrome on top of the rendered scene, in screen space. */
@@ -113,6 +116,18 @@ export function drawOverlay(
       ctx.moveTo(pivot.x, pivot.y - radius - 3);
       ctx.lineTo(pivot.x, pivot.y + radius + 3);
       ctx.stroke();
+
+      if (opts.cornerRadiusHandle) {
+        const control = opts.cornerRadiusHandle;
+        const controlRadius = (CORNER_RADIUS_HANDLE_SIZE * handleSize) / HANDLE_SIZE / 2;
+        ctx.fillStyle = "#ffffff";
+        ctx.strokeStyle = ACCENT;
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.arc(control.x, control.y, controlRadius, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+      }
     }
   }
 

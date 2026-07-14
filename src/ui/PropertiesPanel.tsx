@@ -33,6 +33,7 @@ import {
   selectionUnits,
 } from "../model/groups";
 import type { Paint } from "../model/paint";
+import { effectiveRectCornerRadius, maxRectCornerRadius } from "../model/roundedRect";
 import { defaultEffect } from "../model/effects";
 import {
   BLEND_MODES,
@@ -1057,6 +1058,7 @@ function TextSection({ shape }: { shape: TextShape }) {
 
 function Geometry({ shape }: { shape: Shape }) {
   const setShapeGeometry = useEditor((s) => s.setShapeGeometry);
+  const setRectCornerRadius = useEditor((s) => s.setRectCornerRadius);
   const b = shapeBounds(shape);
   // A locked image keeps its ratio when either dimension is typed in.
   const lockRatio =
@@ -1091,12 +1093,40 @@ function Geometry({ shape }: { shape: Shape }) {
     );
   };
 
+  const radiusField = () => {
+    if (shape.type !== "rect") return null;
+    const radius = Math.round(effectiveRectCornerRadius(shape));
+    return (
+      <label className="geo-field">
+        <span>R</span>
+        <input
+          type="number"
+          min={0}
+          max={maxRectCornerRadius(shape)}
+          step={1}
+          key={`radius:${radius}`}
+          defaultValue={radius}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") e.currentTarget.blur();
+          }}
+          onBlur={(e) => {
+            const value = Number(e.currentTarget.value);
+            if (e.currentTarget.value !== "" && Number.isFinite(value)) {
+              setRectCornerRadius(shape.id, value);
+            }
+          }}
+        />
+      </label>
+    );
+  };
+
   return (
     <div className="geometry-grid">
       {field("x", "X")}
       {field("y", "Y")}
       {shape.type !== "text" && field("width", "W")}
       {shape.type !== "text" && field("height", "H")}
+      {radiusField()}
     </div>
   );
 }

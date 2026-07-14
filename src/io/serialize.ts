@@ -10,7 +10,7 @@ import {
   type ShapeType,
 } from "../model/types";
 
-export const CURRENT_FILE_VERSION = 17 as const;
+export const CURRENT_FILE_VERSION = 18 as const;
 
 /**
  * v8 lacked `symbols` (added as an empty registry). v8 and v9 stored fill/
@@ -20,10 +20,11 @@ export const CURRENT_FILE_VERSION = 17 as const;
  * `pattern` fills/strokes (raster fill via doc.assets). v14 adds single-style
  * text leaves with persisted measured bounds. v15 adds the optional `clip`
  * marker to groups. v16 adds the optional `effects` stack to every node. v17
- * adds optional dash/cap/join/alignment fields to shapes. v8-v16 nodes migrate
- * unchanged; absent optional fields retain their historical behavior.
+ * adds optional dash/cap/join/alignment fields to shapes. v18 adds the optional
+ * shared `cornerRadius` to rectangles. v8-v17 nodes migrate unchanged; absent
+ * optional fields retain their historical behavior.
  */
-const MIGRATABLE_VERSIONS = new Set<unknown>([8, 9, 10, 11, 12, 13, 14, 15, 16]);
+const MIGRATABLE_VERSIONS = new Set<unknown>([8, 9, 10, 11, 12, 13, 14, 15, 16, 17]);
 
 export interface VinegarFile {
   app: "vinegar";
@@ -130,7 +131,10 @@ const isNode = (id: string, node: unknown): boolean => {
       (node.strokeJoin === undefined || STROKE_JOINS.includes(node.strokeJoin as never)) &&
       (node.strokeAlignment === undefined || STROKE_ALIGNMENTS.includes(node.strokeAlignment as never)))) return false;
   switch (node.type) {
-    case "rect": case "ellipse":
+    case "rect":
+      return isNumber(node.x) && isNumber(node.y) && isNumber(node.width) && isNumber(node.height) &&
+        (node.cornerRadius === undefined || (isNumber(node.cornerRadius) && node.cornerRadius >= 0));
+    case "ellipse":
       return isNumber(node.x) && isNumber(node.y) && isNumber(node.width) && isNumber(node.height);
     case "image":
       return typeof node.assetId === "string" &&

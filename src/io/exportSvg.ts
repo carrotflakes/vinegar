@@ -10,6 +10,7 @@ import { hasEffects, SHADOW_BLUR_TO_STDDEV } from "../model/effects";
 import { applyMatrix, isIdentity } from "../model/matrix";
 import { gradientToSvg, paintToSvgAttrs, type Paint } from "../model/paint";
 import { isGroup, isShape } from "../model/scene";
+import { effectiveRectCornerRadius, roundedRectSubpath } from "../model/roundedRect";
 import {
   effectiveStrokeAlignment,
   normalizeStrokeDash,
@@ -269,9 +270,10 @@ function shapeGeometryToSvg(shape: Shape, attrs: string): string {
     }
     case "rect": {
       const b = shapeBounds(shape);
+      const radius = effectiveRectCornerRadius(shape);
       return `<rect x="${num(b.x)}" y="${num(b.y)}" width="${num(
         b.width
-      )}" height="${num(b.height)}" ${attrs} />`;
+      )}" height="${num(b.height)}"${radius > 0 ? ` rx="${num(radius)}" ry="${num(radius)}"` : ""} ${attrs} />`;
     }
     case "ellipse": {
       const b = shapeBounds(shape);
@@ -322,6 +324,16 @@ function primitivePathData(shape: PrimitiveShape, matrix: Matrix): string {
       : "";
   switch (shape.type) {
     case "rect": {
+      if (effectiveRectCornerRadius(shape) > 0) {
+        const subpath = roundedRectSubpath(shape);
+        const segments = subpathSegments(subpath);
+        if (!segments.length) return "";
+        return `M ${point(segments[0].p0)} ${segments
+          .map((segment) =>
+            `C ${point(segment.c1)} ${point(segment.c2)} ${point(segment.p1)}`
+          )
+          .join(" ")} Z`;
+      }
       const b = shapeBounds(shape);
       return polygon([
         { x: b.x, y: b.y },

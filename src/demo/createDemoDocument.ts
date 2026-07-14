@@ -60,7 +60,7 @@ export function createDemoDocument() {
       transformOrigin: { x: 410, y: 55 }, opacity: 1,
     },
     demo_header_panel: {
-      id: "demo_header_panel", type: "rect", ...shapeBase("Rectangle · drop shadow effect", "#fffdf8", "#28344f"),
+      id: "demo_header_panel", type: "rect", ...shapeBase("Rounded rectangle · drop shadow effect", "#fffdf8", "#28344f"),
       x: 0, y: 0, width: 820, height: 112,
       effects: [
         { type: "drop-shadow", color: "#28344f", alpha: 0.24, blur: 0, offsetX: 7, offsetY: 11 },
@@ -184,16 +184,16 @@ export function createDemoDocument() {
       transform: [...IDENTITY], transformOrigin: null, opacity: 1,
     },
     demo_card_a: {
-      id: "demo_card_a", type: "rect", ...shapeBase("Card A · linear gradient", null, "#52617a"),
+      id: "demo_card_a", type: "rect", ...shapeBase("Card A · gradient · radius 24", null, "#52617a"),
       fill: linearGradient(
         [{ offset: 0, color: "#dbe7ff", alpha: 1 }, { offset: 1, color: "#6f8ff7", alpha: 1 }],
         0.62
       ),
-      x: 0, y: 0, width: 248, height: 174,
+      x: 0, y: 0, width: 248, height: 174, cornerRadius: 24,
     },
     demo_skew_rect: {
-      id: "demo_skew_rect", type: "rect", ...shapeBase("Skewed rectangle · explicit pivot", "#6f8ff7", null),
-      x: 28, y: 34, width: 108, height: 70,
+      id: "demo_skew_rect", type: "rect", ...shapeBase("Skewed rounded rectangle · explicit pivot", "#6f8ff7", null),
+      x: 28, y: 34, width: 108, height: 70, cornerRadius: 14,
       transform: [1, 0.16, 0.22, 1, 0, 0], transformOrigin: { x: 150, y: 68 },
     },
     demo_circle_a: {
@@ -298,9 +298,9 @@ export function createDemoDocument() {
       x: 0, y: 0, width: 818, height: 172,
     },
     demo_rotated_rect: {
-      id: "demo_rotated_rect", type: "rect", ...shapeBase("Rotated rectangle · pattern fill + pivot", null, "#fff8e8"),
+      id: "demo_rotated_rect", type: "rect", ...shapeBase("Rotated pill rectangle · pattern fill + pivot", null, "#fff8e8"),
       fill: pattern("demo_texture", { scale: 1.6, rotation: 0.35 }),
-      x: 56, y: 48, width: 170, height: 72,
+      x: 56, y: 48, width: 170, height: 72, cornerRadius: 36,
       transform: multiply(translation(18, -8), rotation(-0.22)), transformOrigin: { x: 40, y: 138 },
     },
     demo_dash_line: {

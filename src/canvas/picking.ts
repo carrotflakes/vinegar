@@ -27,6 +27,10 @@ import {
   type SelectionLeaf,
 } from "./frame";
 import { HANDLE_IDS, HANDLE_SIZE } from "./handles";
+import {
+  cornerRadiusControl,
+  CORNER_RADIUS_HANDLE_SIZE,
+} from "./cornerRadiusHandle";
 import type { FrameHit, ToolContext } from "./interaction";
 
 export function selectedBezier(state: EditorState): BezierShape | null {
@@ -79,9 +83,24 @@ export function selectionFrame(): SelectionFrame | null {
 
 /** Hit-test the resize handles and rotation handle of the selection frame. */
 export function hitFrameHandle(ctx: ToolContext, screen: Vec2): FrameHit {
-  const { viewport } = useEditor.getState();
+  const { doc, selection, viewport } = useEditor.getState();
   const frame = selectionFrame();
   if (!frame) return null;
+  const radiusControl = cornerRadiusControl(
+    doc,
+    selection,
+    viewport,
+    ctx.hitScale()
+  );
+  if (
+    radiusControl &&
+    Math.hypot(
+      radiusControl.point.x - screen.x,
+      radiusControl.point.y - screen.y
+    ) <= CORNER_RADIUS_HANDLE_SIZE * ctx.hitScale()
+  ) {
+    return { type: "corner-radius", control: radiusControl };
+  }
   const tol = HANDLE_SIZE * ctx.hitScale();
   const pivot = worldToScreen(viewport, frame.pivot);
   if (
