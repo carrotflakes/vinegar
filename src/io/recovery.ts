@@ -151,6 +151,29 @@ export interface RecoveryRestoreResult {
   error?: string;
 }
 
+export interface RecoveryClearResult {
+  cleared: boolean;
+  error?: string;
+}
+
+/** Clear browser recovery data when recovery autosave is disabled. */
+export async function clearDocumentRecovery(options: {
+  storage?: RecoveryStorage;
+  onStatus?: StatusSink;
+} = {}): Promise<RecoveryClearResult> {
+  const storage = options.storage ?? createIndexedDbRecoveryStorage();
+  const onStatus = options.onStatus ?? setRecoveryStatus;
+  try {
+    await storage.clear();
+    onStatus({ phase: "ready" });
+    return { cleared: true };
+  } catch (error) {
+    const message = `Recovery snapshot could not be cleared: ${errorMessage(error)}`;
+    onStatus({ phase: "error", error: message });
+    return { cleared: false, error: message };
+  }
+}
+
 /** Ask the user whether to restore a snapshot; OK restores, Cancel discards. */
 function defaultRestorePrompt(snapshot: RecoverySnapshot): boolean {
   if (typeof window === "undefined") return true;
@@ -348,6 +371,7 @@ export function startDocumentAutosave(options: AutosaveOptions = {}): AutosaveCo
     stop() {
       if (stopped) return;
       stopped = true;
+      generation += 1;
       clearTimer();
       unsubscribe();
       if (typeof document !== "undefined") {

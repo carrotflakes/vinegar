@@ -3,6 +3,7 @@ import { after, afterEach, before, mock, test } from "node:test";
 import { createServer } from "vite";
 
 let server;
+let clearDocumentRecovery;
 let startDocumentAutosave;
 let restoreRecoveryAtStartup;
 let createEmptyDocument;
@@ -11,7 +12,7 @@ let useEditor;
 
 before(async () => {
   server = await createServer({ server: { middlewareMode: true } });
-  ({ startDocumentAutosave, restoreRecoveryAtStartup } =
+  ({ clearDocumentRecovery, startDocumentAutosave, restoreRecoveryAtStartup } =
     await server.ssrLoadModule("/src/io/recovery.ts"));
   ({ createEmptyDocument } = await server.ssrLoadModule("/src/model/types.ts"));
   ({ serializeDocument } = await server.ssrLoadModule("/src/io/serialize.ts"));
@@ -161,6 +162,37 @@ test("returning to a clean state cancels the pending write and clears storage", 
   assert.deepEqual(only(storage.calls, "write"), [], "no stale write after returning to clean");
   assert.deepEqual(only(storage.calls, "clear"), ["clear"]);
   assert.equal(statuses.at(-1).phase, "ready");
+});
+
+test("disabling recovery clears the browser snapshot", async () => {
+  const storage = makeStorage();
+  const statuses = [];
+
+  const result = await clearDocumentRecovery({
+    storage,
+    onStatus: (status) => statuses.push(status),
+  });
+
+  assert.deepEqual(result, { cleared: true });
+  assert.deepEqual(storage.calls, ["clear"]);
+  assert.deepEqual(statuses, [{ phase: "ready" }]);
+});
+
+test("a failed recovery clear reports an error", async () => {
+  const statuses = [];
+  const result = await clearDocumentRecovery({
+    storage: {
+      async clear() {
+        throw new Error("blocked");
+      },
+    },
+    onStatus: (status) => statuses.push(status),
+  });
+
+  assert.equal(result.cleared, false);
+  assert.match(result.error, /blocked/);
+  assert.equal(statuses.at(-1).phase, "error");
+  assert.match(statuses.at(-1).error, /blocked/);
 });
 
 test("startup restore loads the snapshot and keeps it dirty", async () => {

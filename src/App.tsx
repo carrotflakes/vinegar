@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { LuMinus, LuPlus, LuUndo2, LuRedo2, LuPanelRight, LuCommand } from "react-icons/lu";
 import CanvasView from "./canvas/CanvasView";
 import {
@@ -17,9 +17,15 @@ import CommandPalette from "./ui/CommandPalette";
 import FullscreenButton from "./ui/FullscreenButton";
 import ContextMenuHost from "./ui/ContextMenu";
 import ZoomMenu from "./ui/ZoomMenu";
+import PreferencesDialog from "./ui/PreferencesDialog";
 import { scopeLeafIds } from "./model/scene";
-import { startDocumentAutosave } from "./io/recovery";
+import {
+  clearDocumentRecovery,
+  startDocumentAutosave,
+} from "./io/recovery";
 import { useRecoveryStatus } from "./store/recoveryStore";
+import { usePreferences } from "./store/preferencesStore";
+import { useUi } from "./store/uiStore";
 import { usePreventBrowserZoom } from "./ui/usePreventBrowserZoom";
 import "./App.css";
 import { barButton } from "./ui/AppBar.css";
@@ -114,8 +120,17 @@ const AUTOSAVE_TITLE: Record<string, string> = {
 /** Browser recovery status; deliberately distinct from manual file saving. */
 function AutosaveInfo() {
   const status = useRecoveryStatus((s) => s.status);
+  const enabled = usePreferences((s) => s.recovery.enabled);
   const time = recoveryTime(status.at);
   const showTime = status.phase === "saved" || status.phase === "recovered";
+  if (!enabled && status.phase !== "error") {
+    return (
+      <span className="autosave ready" title="Browser recovery snapshots are disabled">
+        <span className="autosave-dot" aria-hidden />
+        <span className="autosave-label">Autosave off</span>
+      </span>
+    );
+  }
   return (
     <span
       className={`autosave ${status.phase}`}
@@ -138,6 +153,12 @@ export default function App() {
   const toggleGridSnap = useEditor((s) => s.toggleGridSnap);
   const gridSize = useEditor((s) => s.gridSize);
   const setGridSize = useEditor((s) => s.setGridSize);
+  const recoveryEnabled = usePreferences((s) => s.recovery.enabled);
+  const recoveryMaxWaitMs = usePreferences((s) => s.recovery.maxWaitMs);
+  const previousRecoveryEnabled = useRef(recoveryEnabled);
+  const showPreferences = useUi((s) => s.preferencesOpen);
+  const openPreferences = useUi((s) => s.openPreferences);
+  const closePreferences = useUi((s) => s.closePreferences);
   const [showScript, setShowScript] = useState(false);
   const [showInspector, setShowInspector] = useState(false);
   const [showPanel, setShowPanel] = useState(false);
@@ -146,9 +167,17 @@ export default function App() {
   usePreventBrowserZoom();
 
   useEffect(() => {
-    const autosave = startDocumentAutosave();
+    if (!recoveryEnabled) return;
+    const autosave = startDocumentAutosave({ maxWaitMs: recoveryMaxWaitMs });
     return () => autosave.stop();
-  }, []);
+  }, [recoveryEnabled, recoveryMaxWaitMs]);
+
+  useEffect(() => {
+    if (previousRecoveryEnabled.current && !recoveryEnabled) {
+      void clearDocumentRecovery();
+    }
+    previousRecoveryEnabled.current = recoveryEnabled;
+  }, [recoveryEnabled]);
 
   // Global keyboard shortcuts — dispatched through the command registry so the
   // bindings stay in sync with the menus and palette. Escape stays bespoke: it
@@ -216,7 +245,7 @@ export default function App() {
             <span className="brand-word">Vinegar</span>
           </div>
           <span className="appbar-sep" />
-          <FileMenu />
+          <FileMenu onOpenPreferences={openPreferences} />
           <button className={barButton()} onClick={() => setShowScript(true)}>
             Script
           </button>
@@ -301,6 +330,7 @@ export default function App() {
       <ScriptPanel open={showScript} onClose={() => setShowScript(false)} />
       <Inspector open={showInspector} onClose={() => setShowInspector(false)} />
       <CommandPalette open={showPalette} onClose={() => setShowPalette(false)} />
+      <PreferencesDialog open={showPreferences} onClose={closePreferences} />
       <ContextMenuHost />
 
       <footer className="statusbar">

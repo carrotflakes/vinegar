@@ -10,6 +10,7 @@ import "./menus.css";
 type MenuNode =
   | { kind: "item"; id: string }
   | { kind: "separator" }
+  | { kind: "preferences"; label: string }
   | { kind: "submenu"; label: string; items: string[] };
 
 const MENU: MenuNode[] = [
@@ -31,6 +32,8 @@ const MENU: MenuNode[] = [
   },
   { kind: "separator" },
   { kind: "item", id: "file.demo" },
+  { kind: "separator" },
+  { kind: "preferences", label: "Preferences…" },
 ];
 
 // Inside the Export submenu the "Export " prefix is redundant with the parent.
@@ -38,7 +41,11 @@ function subLabel(label: string): string {
   return label.replace(/^Export /, "");
 }
 
-export default function FileMenu() {
+export default function FileMenu({
+  onOpenPreferences,
+}: {
+  onOpenPreferences: () => void;
+}) {
   const [open, setOpen] = useState(false);
   const [submenu, setSubmenu] = useState<string | null>(null);
   const rootRef = useRef<HTMLDivElement>(null);
@@ -110,6 +117,21 @@ export default function FileMenu() {
             }
             if (node.kind === "item") {
               return leaf(node.id);
+            }
+            if (node.kind === "preferences") {
+              return (
+                <button
+                  key="preferences"
+                  role="menuitem"
+                  className="menu-item"
+                  onClick={() => {
+                    close();
+                    onOpenPreferences();
+                  }}
+                >
+                  {node.label}
+                </button>
+              );
             }
             const isOpen = submenu === node.label;
             return (

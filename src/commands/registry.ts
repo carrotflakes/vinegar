@@ -44,6 +44,7 @@ import { exportPng } from "../io/exportPng";
 import { exportSvg } from "../io/exportSvg";
 import { parseDocument, serializeDocument } from "../io/serialize";
 import { currentSymbolScope, useEditor } from "../store/editorStore";
+import { useUi } from "../store/uiStore";
 import type { EditorState } from "../store/state";
 import { toggleFullscreen } from "../ui/fullscreen";
 
@@ -570,6 +571,14 @@ export const COMMANDS: Command[] = [
       s.loadDocument(createDemoDocument());
       s.setViewport({ scale: 0.85, offset: { x: 12, y: 12 } });
     },
+  },
+
+  // App ---------------------------------------------------------------------
+  {
+    id: "app.preferences",
+    label: "Preferences…",
+    group: "App",
+    run: () => useUi.getState().openPreferences(),
   },
 ];
 

@@ -10,7 +10,8 @@ import { IDENTITY } from "../model/matrix";
 import { createEmptyDocument, type Shape } from "../model/types";
 import { createArtboardActions } from "./artboardSlice";
 import { createClipboardActions } from "./clipboardSlice";
-import { createHistory } from "./historySlice";
+import { createHistory, trimHistoryToLimit } from "./historySlice";
+import { usePreferences } from "./preferencesStore";
 import { createPrefsActions, initialPrefs } from "./prefsSlice";
 import { createSelectionActions } from "./selectionSlice";
 import { createShapeActions } from "./shapeSlice";
@@ -67,6 +68,14 @@ export const useEditor = create<EditorState>((set, get) => {
     ...createClipboardActions(ctx),
     ...createSymbolActions(ctx),
   };
+});
+
+usePreferences.subscribe((state, previous) => {
+  if (state.history.limit === previous.history.limit) return;
+  useEditor.setState((editor) => {
+    const history = trimHistoryToLimit(editor.history, state.history.limit);
+    return history === editor.history ? editor : { history };
+  });
 });
 
 /** Whether the document has changes since the last new / open / save. */

@@ -158,7 +158,7 @@ Ordered by agreed priority. These are the biggest gaps toward a "real" vector ed
 - [ ] Update scripting examples/docs for matrix-based `shape.transform`; direct `shape.rotation` no longer exists
 
 ## User ideas / wishlist
-- [ ] Rectangleの角丸
+- [x] Rectangleの角丸
 - [ ] 塗り機能
 - [x] テクスチャ（パターン塗り／fill・stroke、SVG出力は後回し）
 - [ ] スクリプティングの拡充
@@ -188,3 +188,8 @@ Ordered by agreed priority. These are the biggest gaps toward a "real" vector ed
 - [ ] テキストのパス化
 - [ ] 保存形式の検討 zip化?
 - [ ] タッチ操作、ちょっと選択するだけで移動となってしまう問題
+- [x] キャンバスじゃないところズームする問題
+- [x] Preference
+- [x] App.cssデカすぎ問題
+- [ ] パフォーマンス改善
+- [x] ライトモード対応
