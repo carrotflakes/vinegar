@@ -21,6 +21,7 @@ import "./App.css";
 import { scopeLeafIds } from "./model/scene";
 import { startDocumentAutosave } from "./io/recovery";
 import { useRecoveryStatus } from "./store/recoveryStore";
+import { usePreventBrowserZoom } from "./ui/usePreventBrowserZoom";
 
 /**
  * Live pointer position in world coordinates. While an interaction is in
@@ -140,6 +141,8 @@ export default function App() {
   const [showInspector, setShowInspector] = useState(false);
   const [showPanel, setShowPanel] = useState(false);
   const [showPalette, setShowPalette] = useState(false);
+
+  usePreventBrowserZoom();
 
   useEffect(() => {
     const autosave = startDocumentAutosave();

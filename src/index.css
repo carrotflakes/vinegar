@@ -73,6 +73,10 @@ body,
    * outside the canvas (or overshoots it). */
   overflow: hidden;
   overscroll-behavior: none;
+  /* Keep one-finger panning available to scrollable panels, but do not let a
+   * pinch or double-tap turn into browser page zoom. The canvas overrides this
+   * with `touch-action: none` and implements its own viewport gestures. */
+  touch-action: pan-x pan-y;
 }
 
 body {
