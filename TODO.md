@@ -103,6 +103,11 @@ Ordered by agreed priority. These are the biggest gaps toward a "real" vector ed
    share the same appearance fields.
 
 ## Next (candidates)
+The 1.0 productization order is: interoperability (SVG import + system
+clipboard) → document save workflow → faithful/configurable export → quality
+and performance work. Treat these as release gates ahead of animation, MCP,
+additional effects, or other feature expansion.
+
 - [ ] Alignment guides during resize and rotate (currently move only)
 - [ ] **SVG import / placement** — open or place existing vector artwork while
   preserving paths, transforms, groups, fills/strokes and gradients where possible
@@ -156,6 +161,35 @@ Ordered by agreed priority. These are the biggest gaps toward a "real" vector ed
 - [ ] Boolean operations across different parent groups (currently limited to shapes sharing one immediate parent)
 - [ ] Script API: create and restructure groups (currently exposes a flat leaf-shape snapshot)
 - [ ] Update scripting examples/docs for matrix-based `shape.transform`; direct `shape.rotation` no longer exists
+
+## Quality / scale / accessibility
+- [ ] **Browser E2E coverage** — automate the critical editing journeys with a
+  real browser: draw → select → move/resize/rotate → node edit → undo/redo →
+  save/reopen → PNG/SVG export. Include nested rotated groups, text editing,
+  clipping masks, images, effects, symbols, drag/drop and touch gestures.
+- [ ] **Visual regression coverage** — keep representative Canvas, PNG and SVG
+  golden outputs and compare them for rendering parity. Run the suite in at
+  least Chromium, Firefox and WebKit for blend modes, filters, fonts and nested
+  group compositing.
+- [ ] **Define performance budgets and representative stress documents** —
+  measure interaction FPS, redraw time, hit-testing, save/load, export time and
+  memory at 1k / 10k nodes plus image/effect-heavy scenes.
+  - [ ] Replace full-document undo/interaction clones with patches or structural
+    sharing once profiling confirms the memory/latency cost.
+  - [ ] Add spatial indexing and viewport culling for picking, snapping and
+    rendering instead of scanning every paintable leaf.
+  - [ ] Reuse or bound offscreen effect/compositing layers instead of allocating
+    full-canvas buffers for every affected node/group.
+- [ ] **Accessibility pass** — provide accessible names for icon-only controls,
+  focus management for every modal/menu/popover, arrow-key menu navigation,
+  keyboard alternatives for layer reordering, and a usable non-canvas scene
+  representation for assistive technology.
+- [ ] **Localization infrastructure** — move user-facing strings out of
+  components and add Japanese UI before enabling the language preference; the
+  current preference intentionally exposes English only.
+- [ ] **Documentation parity audit** — keep README claims aligned with actual
+  interaction behavior and known limitations (especially snapping, export
+  fidelity and browser/touch support).
 
 ## User ideas / wishlist
 - [x] Rectangleの角丸

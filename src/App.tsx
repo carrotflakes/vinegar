@@ -6,7 +6,7 @@ import {
   matchKeydown,
   runCommand,
 } from "./commands/registry";
-import { currentSymbolScope, useEditor, type ToolId } from "./store/editorStore";
+import { currentSymbolScope, hasUnsavedChanges, useEditor, type ToolId } from "./store/editorStore";
 import { usePointer } from "./store/pointerStore";
 import Toolbar from "./ui/Toolbar";
 import RightSidebar from "./ui/RightSidebar";
@@ -226,7 +226,7 @@ export default function App() {
   useEffect(() => {
     const onBeforeUnload = (e: BeforeUnloadEvent) => {
       const s = useEditor.getState();
-      if (s.doc === s.savedDoc) return;
+      if (!hasUnsavedChanges(s)) return;
       e.preventDefault();
       // Legacy browsers require a returnValue to trigger the prompt.
       e.returnValue = "";

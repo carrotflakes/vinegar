@@ -17,7 +17,7 @@ import {
   type StoreCtx,
 } from "./state";
 
-export function createShapeActions({ set, get, transact }: StoreCtx): ShapeActions {
+export function createShapeActions({ set, get, transact, replaceDocumentWithoutHistory }: StoreCtx): ShapeActions {
   return {
     addShape: (shape, select = true) => { const s = get(); const doc = { ...s.doc, nodes: { ...s.doc.nodes, [shape.id]: shape } }; transact(appendToScope(doc, currentSymbolScope(s), [shape.id])); if (select) set({ selection: [shape.id], ...clearTransient }); },
     addShapes: (shapes, select = true) => { if (!shapes.length) return; const s = get(); const doc = { ...s.doc, nodes: { ...s.doc.nodes, ...Object.fromEntries(shapes.map((sh) => [sh.id, sh])) } }; transact(appendToScope(doc, currentSymbolScope(s), shapes.map((sh) => sh.id))); if (select) set({ selection: shapes.map((sh) => sh.id), ...clearTransient }); },
@@ -40,7 +40,7 @@ export function createShapeActions({ set, get, transact }: StoreCtx): ShapeActio
           nodes[id] = next; changed = true;
         }
       }
-      if (changed) set({ doc: { ...doc, nodes } });
+      if (changed) replaceDocumentWithoutHistory({ ...doc, nodes });
     },
     toggleNodeSmooth: (id, sub, index) => { const doc = get().doc; const shape = doc.nodes[id]; if (!isShape(shape) || shape.type !== "bezier") return; transact({ ...doc, nodes: { ...doc.nodes, [id]: toggleAnchorSmooth(shape, sub, index) } }); },
     deleteEditNode: () => {
@@ -116,11 +116,12 @@ export function createShapeActions({ set, get, transact }: StoreCtx): ShapeActio
     },
     updateSelectedStyle: (patch) => {
       const doc = get().doc; const nodes = { ...doc.nodes }; let changed = false;
-      for (const root of selectionRoots(doc, get().selection)) {
+      const roots = selectionRoots(doc, get().selection);
+      for (const root of roots) {
         const ids = isShape(nodes[root]) ? [root] : descendantShapeIds(doc, root);
         for (const id of ids) { nodes[id] = { ...(nodes[id] as Shape), ...patch } as Shape; changed = true; }
       }
-      if (changed) transact({ ...doc, nodes }, "style:" + Object.keys(patch).sort().join(","));
+      if (changed) transact({ ...doc, nodes }, `style:${roots.join(",")}:${Object.keys(patch).sort().join(",")}`);
     },
     setShapeGeometry: (id, patch) => { const doc = get().doc; const shape = doc.nodes[id]; if (!isShape(shape)) return; const b = shapeBounds(shape); if (shape.type === "text") { const moved = translateShape(shape, (patch.x ?? b.x) - b.x, (patch.y ?? b.y) - b.y); if (moved.type !== "text") return; const next = measureTextShape({ ...moved, width: shape.textMode === "area" ? Math.max(1, patch.width ?? shape.width) : shape.width }); transact({ ...doc, nodes: { ...doc.nodes, [id]: next } }, "geom:" + id); return; } let next = resizeShapeToBounds(shape, b, { x: b.x, y: b.y, width: Math.max(1, patch.width ?? b.width), height: Math.max(1, patch.height ?? b.height) }); next = translateShape(next, (patch.x ?? b.x) - b.x, (patch.y ?? b.y) - b.y); transact({ ...doc, nodes: { ...doc.nodes, [id]: next } }, "geom:" + id); },
     setRectCornerRadius: (id, radius) => {

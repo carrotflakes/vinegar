@@ -23,6 +23,7 @@ import type {
 } from "../model/types";
 import type { Viewport } from "../model/viewport";
 import type { ClipboardPayload } from "./docOps";
+import type { DocumentPatch } from "./documentPatches";
 
 export type ToolId = "select" | "node" | "rect" | "ellipse" | "line" | "pen" | "pencil" | "text" | "artboard";
 export interface EditNode { shapeId: string; sub: number; index: number }
@@ -37,7 +38,10 @@ export interface StyleDefaults {
   strokeJoin: StrokeJoin;
   strokeAlignment: StrokeAlignment;
 }
-export interface HistoryState { past: Document[]; future: Document[] }
+
+export interface HistoryEntry { patches: DocumentPatch[]; inversePatches: DocumentPatch[]; beforeRevision: number; afterRevision: number }
+export interface HistoryState { past: HistoryEntry[]; future: HistoryEntry[] }
+export interface DocumentRevision { history: number; maintenance: number }
 
 export interface StyleStylableFields {
   fill: Paint | null;
@@ -57,12 +61,10 @@ export interface StyleStylableFields {
 /** Plain state fields (everything that is not an action). */
 export interface EditorData {
   doc: Document;
-  /**
-   * The document as it was at the last new / open / save. Since every edit
-   * produces a fresh `doc` object (immutable updates), `doc !== savedDoc` is a
-   * precise "unsaved changes" signal (see `useIsDirty`).
-   */
+  /** The document as it was at the last new / open / save. */
   savedDoc: Document;
+  _revision: DocumentRevision;
+  _savedRevision: DocumentRevision | null;
   selection: string[];
   selectionPivot: Vec2 | null;
   selectionTransform: Matrix | null;
@@ -87,8 +89,15 @@ export interface EditorData {
   recentColors: string[];
   savedSwatches: string[];
   clipboard: ClipboardPayload | null;
-  _pending: Document | null;
-  _dirty: boolean;
+  /** Internal undo boundary for the active pointer interaction. */
+  _interaction: {
+    /** Immutable document before the interaction started. */
+    before: Document;
+    beforeRevision: number;
+    afterRevision: number | null;
+    /** Whether an intermediate document has been published. */
+    dirty: boolean;
+  } | null;
 }
 
 /** Tool, viewport and persisted user preferences. */
@@ -128,6 +137,7 @@ export interface HistoryActions {
   markSaved: () => void;
   beginInteraction: () => void;
   applyShapes: (next: Record<string, SceneNode>) => void;
+  /** Replace the document during an active interaction; committed by endInteraction. */
   setDoc: (doc: Document) => void;
   endInteraction: () => void;
   /** Discard an in-progress interaction, rolling back to its snapshot. */
@@ -240,6 +250,11 @@ export interface StoreCtx {
   get: StoreGet;
   /** Commit a document change as one undo step (optionally coalesced). */
   transact: (next: Document, coalesceKey?: string) => void;
+  /** Publish a deliberate non-undoable document replacement. */
+  replaceDocumentWithoutHistory: (
+    next: Document,
+    additionalState?: Partial<Pick<EditorData, "gridSize">>
+  ) => void;
   resetCoalesce: () => void;
 }
 

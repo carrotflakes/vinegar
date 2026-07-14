@@ -52,14 +52,14 @@ export function initialPrefs(): PrefsData {
   };
 }
 
-export function createPrefsActions({ set, get }: StoreCtx): PrefsActions {
+export function createPrefsActions({ set, get, replaceDocumentWithoutHistory }: StoreCtx): PrefsActions {
   return {
     setTool: (tool) => set({ tool, selection: tool === "select" || tool === "node" ? get().selection : [], ...(tool === "select" || tool === "node" ? {} : clearTransient), editNode: null }),
     setViewport: (viewport) => set({ viewport }),
     toggleSnap: () => set({ snapEnabled: !get().snapEnabled }),
     toggleGridSnap: () => set({ gridSnap: !get().gridSnap }),
     // The document grid travels with the file but is not an undoable edit.
-    setGridSize: (size) => { const gridSize = Math.max(1, Math.round(size)); const doc = get().doc; set({ gridSize, doc: { ...doc, settings: { ...doc.settings, gridSize } } }); },
+    setGridSize: (size) => { const gridSize = Math.max(1, Math.round(size)); const doc = get().doc; replaceDocumentWithoutHistory({ ...doc, settings: { ...doc.settings, gridSize } }, { gridSize }); },
     addRecentColor: (hex) => { const c = hex.toLowerCase(); const recentColors = [c, ...get().recentColors.filter((x) => x !== c)].slice(0, RECENT_COLORS_MAX); saveColorList(RECENT_COLORS_KEY, recentColors); set({ recentColors }); },
     addSwatch: (hex) => { const c = hex.toLowerCase(); if (get().savedSwatches.includes(c)) return; const savedSwatches = [...get().savedSwatches, c]; saveColorList(SAVED_SWATCHES_KEY, savedSwatches); set({ savedSwatches }); },
     removeSwatch: (hex) => { const savedSwatches = get().savedSwatches.filter((x) => x !== hex.toLowerCase()); saveColorList(SAVED_SWATCHES_KEY, savedSwatches); set({ savedSwatches }); },

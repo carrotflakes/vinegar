@@ -1,9 +1,10 @@
 import type { Document } from "../model/types";
-import { useEditor } from "../store/editorStore";
+import { hasUnsavedChanges, useEditor } from "../store/editorStore";
 import {
   setRecoveryStatus,
   type RecoveryStatus,
 } from "../store/recoveryStore";
+import type { DocumentRevision } from "../store/state";
 import {
   CURRENT_FILE_VERSION,
   parseDocument,
@@ -238,6 +239,8 @@ export async function restoreRecoveryAtStartup(options: {
 interface AutosaveState {
   doc: Document;
   savedDoc: Document;
+  _revision: DocumentRevision;
+  _savedRevision: DocumentRevision | null;
 }
 
 interface AutosaveSource {
@@ -300,7 +303,7 @@ export function startDocumentAutosave(options: AutosaveOptions = {}): AutosaveCo
 
   const enqueueSave = () => {
     const state = source.getState();
-    if (state.doc === state.savedDoc) return;
+    if (!hasUnsavedChanges(state)) return;
     const doc = state.doc;
     const operationGeneration = generation;
     enqueue(async () => {
@@ -309,7 +312,7 @@ export function startDocumentAutosave(options: AutosaveOptions = {}): AutosaveCo
       const snapshot = await storage.write(doc);
       const current = source.getState();
       if (!stopped && operationGeneration === generation &&
-          current.doc === doc && current.doc !== current.savedDoc) {
+          current.doc === doc && hasUnsavedChanges(current)) {
         onStatus({ phase: "saved", at: snapshot.savedAt });
       }
     }, operationGeneration);
@@ -333,9 +336,9 @@ export function startDocumentAutosave(options: AutosaveOptions = {}): AutosaveCo
   };
 
   const handleState = (state: AutosaveState, previous: AutosaveState) => {
-    if (state.doc === previous.doc && state.savedDoc === previous.savedDoc) return;
+    if (state.doc === previous.doc && state.savedDoc === previous.savedDoc && state._revision === previous._revision && state._savedRevision === previous._savedRevision) return;
     generation += 1;
-    if (state.doc === state.savedDoc) {
+    if (!hasUnsavedChanges(state)) {
       clearTimer();
       firstChangeAt = null;
       const operationGeneration = generation;
@@ -352,7 +355,7 @@ export function startDocumentAutosave(options: AutosaveOptions = {}): AutosaveCo
 
   const unsubscribe = source.subscribe(handleState);
   const initial = source.getState();
-  if (initial.doc !== initial.savedDoc) {
+  if (hasUnsavedChanges(initial)) {
     // Preserve the startup "Recovered" message until the first write lands.
     schedule(false);
   }

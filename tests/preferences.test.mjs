@@ -210,9 +210,9 @@ test("lowering the undo limit immediately trims both history stacks", () => {
   usePreferences.getState().setUndoHistoryLimit(50);
 
   assert.equal(useEditor.getState().history.past.length, 50);
-  assert.equal(useEditor.getState().history.past[0].id, 25);
+  assert.equal(useEditor.getState().history.past[0], past[25]);
   assert.equal(useEditor.getState().history.future.length, 50);
-  assert.equal(useEditor.getState().history.future[0].id, 0);
+  assert.equal(useEditor.getState().history.future[0], future[0]);
 
   usePreferences.getState().resetPreferences();
   useEditor.setState({ history: { past: [], future: [] } });

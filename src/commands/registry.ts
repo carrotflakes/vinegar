@@ -43,7 +43,7 @@ import { pickImageFiles } from "../io/importImage";
 import { exportPng } from "../io/exportPng";
 import { exportSvg } from "../io/exportSvg";
 import { parseDocument, serializeDocument } from "../io/serialize";
-import { currentSymbolScope, useEditor } from "../store/editorStore";
+import { currentSymbolScope, hasUnsavedChanges, useEditor } from "../store/editorStore";
 import { useUi } from "../store/uiStore";
 import type { EditorState } from "../store/state";
 import { toggleFullscreen } from "../ui/fullscreen";
@@ -59,7 +59,7 @@ export const MOD = isMac ? "⌘" : "Ctrl";
  * Prompts only when there are unsaved changes; returns whether to proceed.
  */
 function confirmDiscard(s: EditorState): boolean {
-  if (s.doc === s.savedDoc) return true;
+  if (!hasUnsavedChanges(s)) return true;
   return window.confirm("Discard unsaved changes to the current drawing?");
 }
 

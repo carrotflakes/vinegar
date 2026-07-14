@@ -40,12 +40,16 @@ export const useEditor = create<EditorState>((set, get) => {
     set,
     get,
     transact: history.transact,
+    replaceDocumentWithoutHistory: history.replaceDocumentWithoutHistory,
     resetCoalesce: history.resetCoalesce,
   };
   const initialDoc = createEmptyDocument();
+  const initialRevision = { history: 0, maintenance: 0 };
   return {
     doc: initialDoc,
     savedDoc: initialDoc,
+    _revision: initialRevision,
+    _savedRevision: initialRevision,
     selection: [],
     selectionPivot: null,
     selectionTransform: null,
@@ -55,8 +59,7 @@ export const useEditor = create<EditorState>((set, get) => {
     history: { past: [], future: [] },
     editNode: null,
     clipboard: null,
-    _pending: null,
-    _dirty: false,
+    _interaction: null,
     ...initialPrefs(),
 
     ...history.actions,
@@ -79,8 +82,14 @@ usePreferences.subscribe((state, previous) => {
 });
 
 /** Whether the document has changes since the last new / open / save. */
+export function hasUnsavedChanges(
+  state: Pick<EditorState, "_revision" | "_savedRevision">
+): boolean {
+  return !state._savedRevision || state._revision.history !== state._savedRevision.history || state._revision.maintenance !== state._savedRevision.maintenance;
+}
+
 export function useIsDirty() {
-  return useEditor((s) => s.doc !== s.savedDoc);
+  return useEditor(hasUnsavedChanges);
 }
 
 export function styleFromDefaults(style: StyleDefaults) {

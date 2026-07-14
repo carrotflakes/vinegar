@@ -7,6 +7,7 @@ let clearDocumentRecovery;
 let startDocumentAutosave;
 let restoreRecoveryAtStartup;
 let createEmptyDocument;
+let hasUnsavedChanges;
 let serializeDocument;
 let useEditor;
 
@@ -16,7 +17,7 @@ before(async () => {
     await server.ssrLoadModule("/src/io/recovery.ts"));
   ({ createEmptyDocument } = await server.ssrLoadModule("/src/model/types.ts"));
   ({ serializeDocument } = await server.ssrLoadModule("/src/io/serialize.ts"));
-  ({ useEditor } = await server.ssrLoadModule("/src/store/editorStore.ts"));
+  ({ hasUnsavedChanges, useEditor } = await server.ssrLoadModule("/src/store/editorStore.ts"));
 });
 
 after(async () => server.close());
@@ -31,7 +32,9 @@ afterEach(() => {
 // A fake store exposing just the fields autosave reads, plus a `set` that
 // notifies subscribers with (state, previous) like zustand does.
 function makeSource(doc) {
-  let state = { doc, savedDoc: doc };
+  let revision = 0;
+  const initialRevision = { history: revision, maintenance: 0 };
+  let state = { doc, savedDoc: doc, _revision: initialRevision, _savedRevision: initialRevision };
   const listeners = new Set();
   return {
     getState: () => state,
@@ -42,6 +45,8 @@ function makeSource(doc) {
     set(next) {
       const previous = state;
       state = { ...state, ...next };
+      if (next.doc !== undefined && next.doc !== previous.doc && next._revision === undefined) state._revision = { history: ++revision, maintenance: 0 };
+      if (next.savedDoc !== undefined && next.savedDoc === state.doc && next._savedRevision === undefined) state._savedRevision = state._revision;
       for (const fn of listeners) fn(state, previous);
     },
   };
@@ -164,6 +169,23 @@ test("returning to a clean state cancels the pending write and clears storage", 
   assert.equal(statuses.at(-1).phase, "ready");
 });
 
+test("a saved revision change clears recovery without changing document identity", async () => {
+  mock.timers.enable({ apis: ["setTimeout", "Date"] });
+  const doc = { v: 0 };
+  const source = makeSource(doc);
+  const storage = makeStorage();
+  running = startDocumentAutosave({ source, storage, onStatus() {}, debounceMs: 1000, maxWaitMs: 5000 });
+
+  source.set({ _savedRevision: null });
+  mock.timers.tick(500);
+  source.set({ _savedRevision: source.getState()._revision });
+  mock.timers.tick(1000);
+  await settle();
+
+  assert.deepEqual(only(storage.calls, "write"), []);
+  assert.deepEqual(only(storage.calls, "clear"), ["clear"]);
+});
+
 test("disabling recovery clears the browser snapshot", async () => {
   const storage = makeStorage();
   const statuses = [];
@@ -229,7 +251,7 @@ test("startup restore loads the snapshot and keeps it dirty", async () => {
   assert.deepEqual(statuses.at(-1), { phase: "recovered", at: savedAt });
   const state = useEditor.getState();
   assert.deepEqual(state.doc.rootIds, [id], "recovered document is in the store");
-  assert.notEqual(state.doc, state.savedDoc, "recovered work stays dirty for beforeunload/autosave");
+  assert.equal(hasUnsavedChanges(state), true, "recovered work stays dirty for beforeunload/autosave");
 });
 
 test("declining the restore prompt discards the snapshot without touching the store", async () => {
