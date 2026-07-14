@@ -22,6 +22,8 @@ import {
 } from "../model/paint";
 import { pickImageFiles } from "../io/importImage";
 import { useEditor } from "../store/editorStore";
+import "./Panel.css";
+import "./ColorField.css";
 
 /** A curated default palette (grayscale + a hue wheel + tints). */
 const PALETTE = [

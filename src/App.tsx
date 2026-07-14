@@ -17,11 +17,12 @@ import CommandPalette from "./ui/CommandPalette";
 import FullscreenButton from "./ui/FullscreenButton";
 import ContextMenuHost from "./ui/ContextMenu";
 import ZoomMenu from "./ui/ZoomMenu";
-import "./App.css";
 import { scopeLeafIds } from "./model/scene";
 import { startDocumentAutosave } from "./io/recovery";
 import { useRecoveryStatus } from "./store/recoveryStore";
 import { usePreventBrowserZoom } from "./ui/usePreventBrowserZoom";
+import "./App.css";
+import { barButton } from "./ui/AppBar.css";
 
 /**
  * Live pointer position in world coordinates. While an interaction is in
@@ -216,10 +217,10 @@ export default function App() {
           </div>
           <span className="appbar-sep" />
           <FileMenu />
-          <button className="bar-btn" onClick={() => setShowScript(true)}>
+          <button className={barButton()} onClick={() => setShowScript(true)}>
             Script
           </button>
-          <button className="bar-btn" onClick={() => setShowInspector(true)}>
+          <button className={barButton()} onClick={() => setShowInspector(true)}>
             Inspect
           </button>
         </div>
@@ -230,7 +231,7 @@ export default function App() {
         {/* Right zone — history · view · global. */}
         <div className="appbar-zone">
           <button
-            className="bar-btn icon"
+            className={barButton({ icon: true })}
             disabled={!canUndo}
             onClick={() => runCommand("edit.undo")}
             title="Undo (Ctrl+Z)"
@@ -238,7 +239,7 @@ export default function App() {
             <LuUndo2 aria-hidden />
           </button>
           <button
-            className="bar-btn icon"
+            className={barButton({ icon: true })}
             disabled={!canRedo}
             onClick={() => runCommand("edit.redo")}
             title="Redo (Ctrl+Shift+Z)"
@@ -247,7 +248,7 @@ export default function App() {
           </button>
           <span className="appbar-sep" />
           <button
-            className="bar-btn icon"
+            className={barButton({ icon: true })}
             onClick={() => runCommand("view.zoomOut")}
             title="Zoom out"
           >
@@ -255,7 +256,7 @@ export default function App() {
           </button>
           <ZoomMenu />
           <button
-            className="bar-btn icon"
+            className={barButton({ icon: true })}
             onClick={() => runCommand("view.zoomIn")}
             title="Zoom in"
           >
@@ -263,7 +264,7 @@ export default function App() {
           </button>
           <span className="appbar-sep" />
           <button
-            className="bar-btn icon"
+            className={barButton({ icon: true })}
             onClick={() => setShowPalette(true)}
             title="Command palette (Ctrl+K)"
           >
@@ -271,7 +272,7 @@ export default function App() {
           </button>
           <FullscreenButton />
           <button
-            className="bar-btn icon panel-toggle"
+            className={barButton({ icon: true, panelToggle: true })}
             onClick={() => setShowPanel((v) => !v)}
             aria-pressed={showPanel}
             title="Toggle panel"

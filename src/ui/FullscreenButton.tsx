@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { LuMaximize, LuMinimize } from "react-icons/lu";
 import { runCommand } from "../commands/registry";
 import { isFullscreen } from "./fullscreen";
+import { barButton } from "./AppBar.css";
 
 /** Header toggle that mirrors the browser's fullscreen state. */
 export default function FullscreenButton() {
@@ -19,7 +20,7 @@ export default function FullscreenButton() {
 
   return (
     <button
-      className="bar-btn icon"
+      className={barButton({ icon: true })}
       onClick={() => runCommand("view.fullscreen")}
       aria-pressed={full}
       title={full ? "Exit fullscreen" : "Enter fullscreen"}

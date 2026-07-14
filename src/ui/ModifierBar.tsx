@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { useInput } from "../store/inputStore";
+import "./ModifierBar.css";
 
 /** True when the primary pointer is coarse (touch/pen), tracked live. */
 function useCoarsePointer(): boolean {

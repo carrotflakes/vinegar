@@ -3,6 +3,8 @@ import { LuX } from "react-icons/lu";
 import { runScript } from "../script/runScript";
 import { useEditor } from "../store/editorStore";
 import { shapesInPaintOrder } from "../model/scene";
+import "./Modal.css";
+import "./ScriptPanel.css";
 
 const STORAGE_KEY = "vinegar.script";
 

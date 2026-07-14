@@ -78,6 +78,7 @@ import {
 } from "./tools/shapeTools";
 import { isTypingTarget } from "./util";
 import TextEditor from "./TextEditor";
+import "./CanvasView.css";
 import { measureTextShape } from "./textLayout";
 import {
   finishTextCreate,

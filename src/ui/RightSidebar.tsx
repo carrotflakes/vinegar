@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import LayersPanel from "./LayersPanel";
 import PropertiesPanel from "./PropertiesPanel";
+import "./RightSidebar.css";
 
 const STORAGE_KEY = "vinegar.propsHeight";
 const MIN_PANE = 120;

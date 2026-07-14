@@ -7,6 +7,8 @@ import {
   runCommand,
 } from "../commands/registry";
 import { useEditor } from "../store/editorStore";
+import { barButton } from "./AppBar.css";
+import "./menus.css";
 
 const ITEMS = [
   "view.reset",
@@ -48,7 +50,7 @@ export default function ZoomMenu() {
   return (
     <div className="menu-root" ref={rootRef}>
       <button
-        className={"bar-btn zoom-readout zoom-menu-trigger" + (open ? " active" : "")}
+        className={`${barButton({ active: open })} zoom-readout zoom-menu-trigger`}
         onClick={() => setOpen((value) => !value)}
         title="Zoom and fit options"
         aria-label={`Zoom ${Math.round(scale * 100)}%. Open zoom and fit options`}

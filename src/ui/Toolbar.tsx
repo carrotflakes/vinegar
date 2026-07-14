@@ -11,6 +11,7 @@ import {
   LuType,
 } from "react-icons/lu";
 import { useEditor, type ToolId } from "../store/editorStore";
+import "./Toolbar.css";
 
 interface ToolDef {
   id: ToolId;

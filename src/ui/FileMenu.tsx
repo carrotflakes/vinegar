@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import { LuChevronDown, LuChevronRight } from "react-icons/lu";
 import { commandEnabled, getCommand, runCommand } from "../commands/registry";
+import { barButton } from "./AppBar.css";
+import "./menus.css";
 
 // Menu layout, defined explicitly so the File menu can be organised into
 // groups and submenus rather than mirroring registry order. Leaves reference
@@ -93,7 +95,7 @@ export default function FileMenu() {
   return (
     <div className="menu-root" ref={rootRef}>
       <button
-        className={"bar-btn" + (open ? " active" : "")}
+        className={barButton({ active: open })}
         onClick={() => (open ? close() : setOpen(true))}
         aria-haspopup="menu"
         aria-expanded={open}

@@ -7,6 +7,8 @@ import {
   type Command,
 } from "../commands/registry";
 import { useEditor } from "../store/editorStore";
+import "./Modal.css";
+import "./CommandPalette.css";
 
 interface Props {
   open: boolean;

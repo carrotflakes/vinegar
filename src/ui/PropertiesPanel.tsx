@@ -64,6 +64,8 @@ import { getAssetImage, subscribeImageCache } from "../canvas/imageCache";
 import { useEffect, useReducer, useState } from "react";
 import type { DocumentAsset, ImageShape } from "../model/types";
 import { FONT_OPTIONS } from "./fonts";
+import "./Panel.css";
+import "./PropertiesPanel.css";
 
 export default function PropertiesPanel() {
   const doc = useEditor((s) => s.doc);

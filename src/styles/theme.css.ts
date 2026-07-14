@@ -1,0 +1,90 @@
+import {
+  createGlobalTheme,
+  createGlobalThemeContract,
+  globalStyle,
+} from "@vanilla-extract/css";
+
+export const vars = createGlobalThemeContract({
+  bg: "bg",
+  panel: "panel",
+  panel2: "panel-2",
+  field: "field",
+  border: "border",
+  borderStrong: "border-strong",
+  hover: "hover",
+  text: "text",
+  muted: "muted",
+  accent: "accent",
+  accentWeak: "accent-weak",
+  accentSoft: "accent-soft",
+  accentBorder: "accent-border",
+  danger: "danger",
+  dangerWeak: "danger-weak",
+  dangerBorder: "danger-border",
+  ok: "ok",
+  codeBg: "code-bg",
+  shadow: "shadow",
+  track: "track",
+  thumb: "thumb",
+  thumbBorder: "thumb-border",
+});
+
+createGlobalTheme(":root", vars, {
+  bg: "#1c1e22",
+  panel: "#26292e",
+  panel2: "#2f333a",
+  field: "#1f2125",
+  border: "#3a3f47",
+  borderStrong: "#4a505a",
+  hover: "#343941",
+  text: "#e6e8ec",
+  muted: "#9aa1ab",
+  accent: "#5b9bff",
+  accentWeak: "#26314a",
+  accentSoft: "#2b3956",
+  accentBorder: "#40567f",
+  danger: "#f0616a",
+  dangerWeak: "#3a2528",
+  dangerBorder: "#6b3339",
+  ok: "#4ec77a",
+  codeBg: "#1d1f23",
+  shadow: "rgba(0, 0, 0, 0.5)",
+  track: "#3a3f47",
+  thumb: "#d7dbe1",
+  thumbBorder: "#22252a",
+});
+
+createGlobalTheme(":root[data-theme=\"light\"]", vars, {
+  bg: "#f4f5f7",
+  panel: "#ffffff",
+  panel2: "#ffffff",
+  field: "#ffffff",
+  border: "#e3e6ea",
+  borderStrong: "#cfd4db",
+  hover: "#eef1f5",
+  text: "#1f2329",
+  muted: "#6b7280",
+  accent: "#3b82f6",
+  accentWeak: "#eaf1fe",
+  accentSoft: "#e8effc",
+  accentBorder: "#cfe0fd",
+  danger: "#e5484d",
+  dangerWeak: "#fdecec",
+  dangerBorder: "#f3c6c8",
+  ok: "#1f9d55",
+  codeBg: "#fbfcfe",
+  shadow: "rgba(20, 26, 36, 0.18)",
+  track: "#dfe3e8",
+  thumb: "#ffffff",
+  thumbBorder: "#c2c8d0",
+});
+
+globalStyle(":root", {
+  fontFamily:
+    "system-ui, -apple-system, \"Segoe UI\", Roboto, \"Helvetica Neue\", Arial, \"Noto Sans JP\", sans-serif",
+  colorScheme: "dark",
+});
+
+globalStyle(":root[data-theme=\"light\"]", {
+  colorScheme: "light",
+});

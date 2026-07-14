@@ -1,6 +1,9 @@
 import { useState } from "react";
 import { LuX } from "react-icons/lu";
 import { useEditor } from "../store/editorStore";
+import "./Modal.css";
+import "./Panel.css";
+import "./Inspector.css";
 
 // ===========================================================================
 // Debug project inspector. Reflectively walks the whole editor store as a

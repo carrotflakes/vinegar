@@ -2,7 +2,7 @@ import React from "react";
 import ReactDOM from "react-dom/client";
 import App from "./App";
 import { restoreRecoveryAtStartup } from "./io/recovery";
-import "./index.css";
+import "./styles/index";
 
 async function main() {
   // Recovery is resolved before the first paint so the user never sees an

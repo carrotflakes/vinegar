@@ -1,5 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useMenu, type MenuEntry } from "../store/menuStore";
+import "./ContextMenu.css";
 
 /** Renders the app-wide context menu; mount once at the App root. */
 export default function ContextMenuHost() {
