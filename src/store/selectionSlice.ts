@@ -18,12 +18,12 @@ import {
 
 export function createSelectionActions({ set, get }: StoreCtx): SelectionActions {
   return {
-    setSelection: (selection) => set({ selection: [...new Set(selection)].filter((id) => !!get().doc.nodes[id]), selectedArtboardId: null, ...clearTransient }),
+    setSelection: (selection) => set({ selection: [...new Set(selection)].filter((id) => !!get().doc.nodes[id]), ...clearTransient }),
     setSelectionPivot: (selectionPivot) => set({ selectionPivot }),
     setSelectionTransform: (selectionTransform) => set({ selectionTransform }),
-    toggleSelection: (id) => set({ selection: get().selection.includes(id) ? get().selection.filter((x) => x !== id) : [...get().selection, id], selectedArtboardId: null, ...clearTransient }),
+    toggleSelection: (id) => set({ selection: get().selection.includes(id) ? get().selection.filter((x) => x !== id) : [...get().selection, id], ...clearTransient }),
     clearSelection: () => set({ selection: [], editNode: null, ...clearTransient }),
-    selectAll: () => { const s = get(); const roots = scopeRootIds(s.doc, currentSymbolScope(s)); set({ selection: roots.filter((id) => !isNodeHidden(s.doc, id) && !isNodeLocked(s.doc, id)), selectedArtboardId: null, ...clearTransient }); },
+    selectAll: () => { const s = get(); const roots = scopeRootIds(s.doc, currentSymbolScope(s)); set({ selection: roots.filter((id) => !isNodeHidden(s.doc, id) && !isNodeLocked(s.doc, id)), ...clearTransient }); },
     setEditNode: (editNode) => set({ editNode }),
     setActiveGroup: (activeGroupId) => set({ activeGroupId }),
     exitGroup: () => {
@@ -38,7 +38,6 @@ export function createSelectionActions({ set, get }: StoreCtx): SelectionActions
       set({
         activeGroupId: next,
         selection: s.doc.nodes[id] ? [id] : [],
-        selectedArtboardId: null,
         ...clearTransient,
       });
     },

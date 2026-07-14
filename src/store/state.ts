@@ -243,8 +243,18 @@ export interface StoreCtx {
   resetCoalesce: () => void;
 }
 
-/** Per-selection transient state, reset by selection/document changes. */
-export const clearTransient = { selectionPivot: null, selectionTransform: null };
+/**
+ * Per-selection transient state, reset by selection/document changes. Node
+ * selection and artboard selection are mutually exclusive, so setting a node
+ * selection also drops the selected artboard. The few callers that roll back an
+ * interaction while keeping the artboard selected (undo/redo, cancelInteraction)
+ * restore `selectedArtboardId` explicitly.
+ */
+export const clearTransient = {
+  selectionPivot: null,
+  selectionTransform: null,
+  selectedArtboardId: null,
+};
 
 /** The symbol whose definition is being edited, or null for the scene. */
 export function currentSymbolScope(
