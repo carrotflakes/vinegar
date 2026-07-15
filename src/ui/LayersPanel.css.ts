@@ -15,6 +15,17 @@ globalStyle(".layers", {
 
 globalStyle(".layers-title", {
   padding: "12px 14px 6px",
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "space-between",
+  gap: "8px",
+});
+
+/* Trailing header action (e.g. Artboards' "add"): don't let the 22px button
+   inflate the title row past its plain-text height in other panels. */
+globalStyle(".title-add", {
+  flex: "none",
+  marginBlock: "-6px",
 });
 
 globalStyle(".layers-list", {

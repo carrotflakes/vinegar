@@ -11,44 +11,6 @@ globalStyle(".right", {
   overflow: "hidden",
 });
 
-globalStyle(".props-pane", {
-  flex: "none",
-  overflowY: "auto",
-});
-
-globalStyle(".layers-pane", {
-  flex: "1 1 0",
-  minHeight: "0",
-  display: "flex",
-  flexDirection: "column",
-});
-
-globalStyle(".pane-divider", {
-  flex: "none",
-  height: "7px",
-  cursor: "ns-resize",
-  background: vars.bg,
-  borderTop: `1px solid ${vars.border}`,
-  borderBottom: `1px solid ${vars.border}`,
-  position: "relative",
-});
-
-globalStyle(".pane-divider::after", {
-  content: "\"\"",
-  position: "absolute",
-  left: "50%",
-  top: "50%",
-  transform: "translate(-50%, -50%)",
-  width: "26px",
-  height: "2px",
-  borderRadius: "2px",
-  background: vars.border,
-});
-
-globalStyle(".pane-divider:hover::after", {
-  background: vars.accent,
-});
-
 globalStyle(".right", {
   "@media": {
     "(max-width: 720px)": {

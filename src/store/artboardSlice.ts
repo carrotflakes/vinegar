@@ -48,5 +48,16 @@ export function createArtboardActions({ set, get, transact }: StoreCtx): Artboar
     selectArtboard: (id) => {
       set({ selectedArtboardId: id, ...(id ? { selection: [] } : {}) });
     },
+    reorderArtboard: (id, toIndex) => {
+      const { doc } = get();
+      const from = doc.artboards.findIndex((ab) => ab.id === id);
+      if (from < 0) return;
+      const artboards = [...doc.artboards];
+      const [moved] = artboards.splice(from, 1);
+      const clamped = Math.max(0, Math.min(toIndex, artboards.length));
+      if (clamped === from) return;
+      artboards.splice(clamped, 0, moved);
+      transact({ ...doc, artboards }, `artboard:${id}:reorder`);
+    },
   };
 }

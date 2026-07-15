@@ -16,23 +16,18 @@ import {
   LuChevronLeft,
   LuCombine,
   LuComponent,
-  LuPencil,
-  LuPlus,
-  LuTrash2,
   LuType,
 } from "react-icons/lu";
 import type { Group, Shape, SymbolInstance } from "../model/types";
 import { isClippingGroup, isClippingMaskNode } from "../model/clippingMask";
 import {
   descendantNodeIds,
-  instanceIdsOf,
   isGroup,
   isInstance,
   isShape,
   scopeRootGroupId,
   scopeRootIds,
 } from "../model/scene";
-import { screenToWorld } from "../model/viewport";
 import { currentSymbolScope, useEditor } from "../store/editorStore";
 import { openContextMenu } from "../store/menuStore";
 import { selectionMenu } from "./menus";
@@ -69,17 +64,6 @@ function toDisplayTree(doc: ReturnType<typeof useEditor.getState>["doc"], ids: s
     else if (isShape(node)) result.push({ key: id, shape: node });
   }
   return result.reverse();
-}
-
-/** World point at the center of the canvas, for placing new instances. */
-function canvasCenterWorld() {
-  const state = useEditor.getState();
-  const el = document.querySelector(".canvas-wrap");
-  const r = el?.getBoundingClientRect();
-  const screen = r
-    ? { x: r.width / 2, y: r.height / 2 }
-    : { x: window.innerWidth / 2, y: window.innerHeight / 2 };
-  return screenToWorld(state.viewport, screen);
 }
 
 /** All descendant shape ids, in display order. */
@@ -127,9 +111,6 @@ export default function LayersPanel() {
   const scope = useEditor((s) => currentSymbolScope(s));
   const exitSymbolEdit = useEditor((s) => s.exitSymbolEdit);
   const enterSymbolEdit = useEditor((s) => s.enterSymbolEdit);
-  const placeSymbolInstance = useEditor((s) => s.placeSymbolInstance);
-  const renameSymbol = useEditor((s) => s.renameSymbol);
-  const deleteSymbol = useEditor((s) => s.deleteSymbol);
   const detachSelectedInstances = useEditor((s) => s.detachSelectedInstances);
 
   const [editing, setEditing] = useState<string | null>(null);
@@ -141,7 +122,6 @@ export default function LayersPanel() {
   // at the panel root then targets the definition root group, not the scene.
   const scopeParent = scopeRootGroupId(doc, scope);
   const roots = toDisplayTree(doc, scopeRootIds(doc, scope));
-  const symbols = Object.values(doc.symbols);
 
   const toggleCollapsed = (gid: string) => {
     setCollapsed((prev) => {
@@ -576,59 +556,6 @@ export default function LayersPanel() {
         {roots.length === 0 && <div className="layers-empty">No shapes yet</div>}
         {renderList(roots, null, 0, [], false)}
       </div>
-      {symbols.length > 0 && (
-        <div className="symbols">
-          <div className="panel-title">Symbols</div>
-          <div className="symbols-list">
-            {symbols.map((def) => {
-              const count = instanceIdsOf(doc, def.id).length;
-              return (
-                <div
-                  key={def.id}
-                  className={"symbol-row" + (scope === def.id ? " selected" : "")}
-                >
-                  <span className="layer-type" aria-hidden>
-                    <LuComponent />
-                  </span>
-                  {editing === def.id ? (
-                    nameEditor(def.name, (name) => renameSymbol(def.id, name))
-                  ) : (
-                    <span
-                      className="layer-name"
-                      onDoubleClick={() => setEditing(def.id)}
-                    >
-                      {def.name}
-                    </span>
-                  )}
-                  <span className="layer-count">{count}</span>
-                  <button
-                    className="layer-icon-btn"
-                    title="Place instance"
-                    onClick={() => placeSymbolInstance(def.id, canvasCenterWorld())}
-                  >
-                    <LuPlus />
-                  </button>
-                  <button
-                    className="layer-icon-btn"
-                    title="Edit symbol"
-                    onClick={() => enterSymbolEdit(def.id)}
-                  >
-                    <LuPencil />
-                  </button>
-                  <button
-                    className="layer-icon-btn"
-                    title={count > 0 ? "Delete (remove instances first)" : "Delete symbol"}
-                    disabled={count > 0 || scope === def.id}
-                    onClick={() => deleteSymbol(def.id)}
-                  >
-                    <LuTrash2 />
-                  </button>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      )}
     </div>
   );
 }

@@ -210,6 +210,8 @@ export interface ArtboardActions {
   updateArtboard: (id: string, patch: Partial<Omit<Artboard, "id">>) => void;
   deleteArtboard: (id: string) => void;
   selectArtboard: (id: string | null) => void;
+  /** Move artboard `id` to `toIndex` in the list (= export order). */
+  reorderArtboard: (id: string, toIndex: number) => void;
 }
 
 export interface ClipboardActions {

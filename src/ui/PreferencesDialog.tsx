@@ -9,6 +9,7 @@ import {
   type UiLocale,
 } from "../preferences/model";
 import { usePreferences } from "../store/preferencesStore";
+import { useDock } from "./dock/dockStore";
 import "./Modal.css";
 import "./PreferencesDialog.css";
 
@@ -82,6 +83,7 @@ export default function PreferencesDialog({ open, onClose }: Props) {
     (state) => state.setUndoHistoryLimit
   );
   const resetPreferences = usePreferences((state) => state.resetPreferences);
+  const resetLayout = useDock((state) => state.resetLayout);
 
   useEffect(() => {
     if (!open) return;
@@ -251,6 +253,23 @@ export default function PreferencesDialog({ open, onClose }: Props) {
                     </option>
                   ))}
                 </select>
+              }
+            />
+          </section>
+
+          <section className="pref-section">
+            <h3 className="pref-section-title">Workspace</h3>
+            <Row
+              title="Panel layout"
+              description="Restore the default arrangement of the docked panels."
+              control={
+                <button
+                  type="button"
+                  className="preferences-button"
+                  onClick={resetLayout}
+                >
+                  Reset layout
+                </button>
               }
             />
           </section>
