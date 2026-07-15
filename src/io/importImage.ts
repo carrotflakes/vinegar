@@ -10,6 +10,19 @@ export function isImageFile(file: File): boolean {
   return IMAGE_ACCEPT.split(",").includes(file.type);
 }
 
+/**
+ * Pull decodable image files out of a clipboard (or drag) payload. Pasted
+ * screenshots arrive as a `file` item with a synthetic name; `placeImageFiles`
+ * supplies a fallback name for those.
+ */
+export function imageFilesFromData(data: DataTransfer | null): File[] {
+  if (!data) return [];
+  return [...data.items]
+    .filter((it) => it.kind === "file")
+    .map((it) => it.getAsFile())
+    .filter((f): f is File => f != null && isImageFile(f));
+}
+
 /** Open a native file picker and resolve with the selected image files. */
 export function pickImageFiles(): Promise<File[]> {
   return new Promise((resolve) => {

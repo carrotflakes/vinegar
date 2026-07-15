@@ -134,6 +134,22 @@ export function canvasCenter(): Vec2 {
   return { x: size.width / 2, y: size.height / 2 };
 }
 
+/**
+ * Place already-obtained image files, fitting oversized ones into ~80% of the
+ * visible plane. `at` (world coords) overrides the default viewport center —
+ * used by drop/context-menu placement.
+ */
+export async function placeImagesFitted(files: File[], at?: Vec2): Promise<void> {
+  const s = useEditor.getState();
+  const center = canvasCenter();
+  const target = at ?? screenToWorld(s.viewport, center);
+  const fitWithin = {
+    width: ((center.x * 2) / s.viewport.scale) * 0.8,
+    height: ((center.y * 2) / s.viewport.scale) * 0.8,
+  };
+  await s.placeImageFiles(files, target, fitWithin);
+}
+
 /** Size of the drawable canvas area in CSS pixels. */
 function canvasViewportSize(): ViewportSize {
   const el = document.querySelector(".canvas-wrap");
@@ -465,17 +481,10 @@ export const COMMANDS: Command[] = [
     id: "file.placeImage",
     label: "Place image…",
     group: "File",
-    run: async (s, ctx) => {
+    run: async (_s, ctx) => {
       const files = await pickImageFiles();
       if (!files.length) return;
-      const center = canvasCenter();
-      const at = ctx?.at ?? screenToWorld(s.viewport, center);
-      // Fit oversized images into ~80% of the visible plane.
-      const fitWithin = {
-        width: ((center.x * 2) / s.viewport.scale) * 0.8,
-        height: ((center.y * 2) / s.viewport.scale) * 0.8,
-      };
-      await s.placeImageFiles(files, at, fitWithin);
+      await placeImagesFitted(files, ctx?.at);
     },
   },
   {

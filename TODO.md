@@ -26,7 +26,8 @@ Ordered by agreed priority. These are the biggest gaps toward a "real" vector ed
      - [ ] Deferred by design: rotated boards, on-canvas clip-to-artboard view toggle
 2. [x] **Raster image placement** — shipped (`image` node + `DocumentAsset` store,
    file v12; decode cache in `canvas/imageCache.ts`). Follow-ups:
-   - [ ] Paste an image from the system clipboard
+   - [x] Paste an image from the system clipboard (⌘V routes through the native
+     `paste` event; images become image nodes, else in-memory vector paste)
    - [x] Image-specific properties — Image panel section with "Reset to natural
      size" + "Reset aspect ratio" buttons (read natural size from the decoded
      asset) and a persistent "Lock aspect ratio" toggle (`ImageShape.lockAspect`,
@@ -215,7 +216,7 @@ additional effects, or other feature expansion.
   - [ ] Script API: expose instances (currently scene shapes only)
   - [ ] Export bounds: include stroke extents of instance content
 - [ ] MCPサーバー化
-- [ ] ロゴ / ファビコン
+- [x] ロゴ / ファビコン
 - [x] ユーザ選択不要な部分に select-none
 - [x] Fileメニューの階層化（Export submenu）
 - [ ] assetを確認できるビュー
@@ -227,3 +228,4 @@ additional effects, or other feature expansion.
 - [x] App.cssデカすぎ問題
 - [ ] パフォーマンス改善
 - [x] ライトモード対応
+- [ ] 単純図形生成　多角形、星など

@@ -4,8 +4,10 @@ import CanvasView from "./canvas/CanvasView";
 import {
   commandEnabled,
   matchKeydown,
+  placeImagesFitted,
   runCommand,
 } from "./commands/registry";
+import { imageFilesFromData } from "./io/importImage";
 import { currentSymbolScope, hasUnsavedChanges, useEditor, type ToolId } from "./store/editorStore";
 import { usePointer } from "./store/pointerStore";
 import Toolbar from "./ui/Toolbar";
@@ -211,6 +213,10 @@ export default function App() {
 
       const match = matchKeydown(e);
       if (match) {
+        // Paste runs off the native `paste` event instead so it can read
+        // system-clipboard images; let ⌘V through (don't preventDefault) so
+        // that event fires. The paste listener below also does the vector paste.
+        if (match.cmd.id === "edit.paste") return;
         // Swallow the browser default for any modifier chord (e.g. ⌘D bookmark)
         // and for command keys we actually act on.
         const enabled = commandEnabled(match.cmd, s);
@@ -220,6 +226,35 @@ export default function App() {
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
+  }, []);
+
+  // Paste: system-clipboard images land as image nodes; otherwise fall back to
+  // the in-memory vector clipboard. Skipped while typing so field pastes work.
+  useEffect(() => {
+    const onPaste = (e: ClipboardEvent) => {
+      const target = e.target as HTMLElement | null;
+      if (
+        target &&
+        (target.tagName === "INPUT" ||
+          target.tagName === "TEXTAREA" ||
+          target.isContentEditable)
+      ) {
+        return;
+      }
+      const images = imageFilesFromData(e.clipboardData);
+      if (images.length) {
+        e.preventDefault();
+        void placeImagesFitted(images);
+        return;
+      }
+      const s = useEditor.getState();
+      if (s.clipboard) {
+        e.preventDefault();
+        s.paste();
+      }
+    };
+    window.addEventListener("paste", onPaste);
+    return () => window.removeEventListener("paste", onPaste);
   }, []);
 
   // Warn before leaving (close / reload / navigate away) with unsaved changes.
