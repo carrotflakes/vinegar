@@ -13,6 +13,12 @@ export interface PreferencesV1 {
     theme: ThemePreference;
     locale: UiLocale;
   };
+  canvas: {
+    /** Whether two-finger twist / the zoom-menu control can rotate the canvas. */
+    rotationEnabled: boolean;
+    /** Snap canvas rotation to the nearest quarter turn while twisting. */
+    rotationSnap: boolean;
+  };
   recovery: {
     enabled: boolean;
     maxWaitMs: number;
@@ -54,6 +60,10 @@ export function createDefaultPreferences(): PreferencesV1 {
       theme: "system",
       locale: "en",
     },
+    canvas: {
+      rotationEnabled: true,
+      rotationSnap: true,
+    },
     recovery: {
       enabled: true,
       maxWaitMs: 5000,
@@ -67,6 +77,7 @@ export function createDefaultPreferences(): PreferencesV1 {
 function validateV1(value: Record<string, unknown>): PreferencesV1 {
   const defaults = createDefaultPreferences();
   const general = isObject(value.general) ? value.general : {};
+  const canvas = isObject(value.canvas) ? value.canvas : {};
   const recovery = isObject(value.recovery) ? value.recovery : {};
   const history = isObject(value.history) ? value.history : {};
 
@@ -79,6 +90,14 @@ function validateV1(value: Record<string, unknown>): PreferencesV1 {
       locale: isUiLocale(general.locale)
         ? general.locale
         : defaults.general.locale,
+    },
+    canvas: {
+      rotationEnabled: typeof canvas.rotationEnabled === "boolean"
+        ? canvas.rotationEnabled
+        : defaults.canvas.rotationEnabled,
+      rotationSnap: typeof canvas.rotationSnap === "boolean"
+        ? canvas.rotationSnap
+        : defaults.canvas.rotationSnap,
     },
     recovery: {
       enabled: typeof recovery.enabled === "boolean"

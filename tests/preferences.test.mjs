@@ -72,6 +72,7 @@ test("valid v1 preferences load while unknown fields are ignored", () => {
   assert.deepEqual(loaded, {
     version: 1,
     general: { theme: "light", locale: "en" },
+    canvas: { rotationEnabled: true, rotationSnap: true },
     recovery: { enabled: false, maxWaitMs: 12345 },
     history: { limit: 75 },
   });
@@ -99,8 +100,41 @@ test("invalid fields fall back independently", () => {
   assert.deepEqual(loaded, {
     version: 1,
     general: { theme: "dark", locale: "en" },
+    canvas: { rotationEnabled: true, rotationSnap: true },
     recovery: { enabled: true, maxWaitMs: 5000 },
     history: { limit: 100 },
+  });
+});
+
+test("canvas rotation preferences load and fall back per field", () => {
+  const loaded = parsePreferences(JSON.stringify({
+    version: 1,
+    general: { theme: "dark", locale: "en" },
+    canvas: { rotationEnabled: false, rotationSnap: "nope" },
+    recovery: { enabled: true, maxWaitMs: 5000 },
+    history: { limit: 100 },
+  }));
+
+  assert.deepEqual(loaded.canvas, {
+    rotationEnabled: false,
+    rotationSnap: true,
+  });
+});
+
+test("the preference store updates canvas rotation toggles", () => {
+  const fake = makeStorage();
+  const store = createPreferencesStore(fake.storage);
+
+  store.getState().setCanvasRotationEnabled(false);
+  store.getState().setCanvasRotationSnap(false);
+
+  assert.deepEqual(store.getState().canvas, {
+    rotationEnabled: false,
+    rotationSnap: false,
+  });
+  assert.deepEqual(JSON.parse(fake.value).canvas, {
+    rotationEnabled: false,
+    rotationSnap: false,
   });
 });
 
@@ -139,6 +173,7 @@ test("the preference store persists complete updates and resets", () => {
   assert.deepEqual(JSON.parse(fake.value), {
     version: 1,
     general: { theme: "light", locale: "en" },
+    canvas: { rotationEnabled: true, rotationSnap: true },
     recovery: { enabled: false, maxWaitMs: 12345 },
     history: { limit: 75 },
   });
@@ -149,6 +184,7 @@ test("the preference store persists complete updates and resets", () => {
   assert.deepEqual({
     version: store.getState().version,
     general: store.getState().general,
+    canvas: store.getState().canvas,
     recovery: store.getState().recovery,
     history: store.getState().history,
   }, createDefaultPreferences());
@@ -167,6 +203,7 @@ test("storage failures do not prevent in-memory preference changes", () => {
   assert.deepEqual({
     version: store.getState().version,
     general: store.getState().general,
+    canvas: store.getState().canvas,
     recovery: store.getState().recovery,
     history: store.getState().history,
   }, createDefaultPreferences());

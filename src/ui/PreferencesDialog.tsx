@@ -63,10 +63,17 @@ function Row({
 
 export default function PreferencesDialog({ open, onClose }: Props) {
   const general = usePreferences((state) => state.general);
+  const canvas = usePreferences((state) => state.canvas);
   const recovery = usePreferences((state) => state.recovery);
   const undoHistoryLimit = usePreferences((state) => state.history.limit);
   const setTheme = usePreferences((state) => state.setTheme);
   const setLocale = usePreferences((state) => state.setLocale);
+  const setCanvasRotationEnabled = usePreferences(
+    (state) => state.setCanvasRotationEnabled
+  );
+  const setCanvasRotationSnap = usePreferences(
+    (state) => state.setCanvasRotationSnap
+  );
   const setRecoveryEnabled = usePreferences((state) => state.setRecoveryEnabled);
   const setRecoveryMaxWaitMs = usePreferences(
     (state) => state.setRecoveryMaxWaitMs
@@ -154,6 +161,45 @@ export default function PreferencesDialog({ open, onClose }: Props) {
                     </option>
                   ))}
                 </select>
+              }
+            />
+          </section>
+
+          <section className="pref-section">
+            <h3 className="pref-section-title">Canvas</h3>
+            <Row
+              title="Canvas rotation"
+              description="Rotate the view with a two-finger twist or the zoom menu."
+              control={
+                <button
+                  type="button"
+                  role="switch"
+                  aria-checked={canvas.rotationEnabled}
+                  className={
+                    "pref-switch" + (canvas.rotationEnabled ? " on" : "")
+                  }
+                  onClick={() =>
+                    setCanvasRotationEnabled(!canvas.rotationEnabled)
+                  }
+                >
+                  <span className="pref-switch-knob" aria-hidden />
+                </button>
+              }
+            />
+            <Row
+              title="Snap rotation to 90°"
+              description="Snap the canvas to quarter turns while rotating."
+              control={
+                <button
+                  type="button"
+                  role="switch"
+                  aria-checked={canvas.rotationSnap}
+                  disabled={!canvas.rotationEnabled}
+                  className={"pref-switch" + (canvas.rotationSnap ? " on" : "")}
+                  onClick={() => setCanvasRotationSnap(!canvas.rotationSnap)}
+                >
+                  <span className="pref-switch-knob" aria-hidden />
+                </button>
               }
             />
           </section>

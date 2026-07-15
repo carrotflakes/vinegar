@@ -9,7 +9,14 @@ import {
 import { shapeWorldMatrix } from "../model/matrix";
 import { type Guide, type Spacing } from "../model/snap";
 import type { BezierShape, Bounds, Shape, TextShape, Vec2 } from "../model/types";
-import { rotateAt, screenToWorld, zoomAt, type Viewport } from "../model/viewport";
+import {
+  rotateAt,
+  screenToWorld,
+  snapAngleToQuarter,
+  zoomAt,
+  type Viewport,
+} from "../model/viewport";
+import { usePreferences } from "../store/preferencesStore";
 import { isGroup, scopeRootGroupId } from "../model/scene";
 import { currentSymbolScope, useEditor } from "../store/editorStore";
 import { openContextMenu } from "../store/menuStore";
@@ -446,7 +453,14 @@ export default function CanvasView() {
     const m = twoPointerMetrics();
     if (!g || !m) return;
     const factor = m.dist > 0 && g.startDist > 0 ? m.dist / g.startDist : 1;
-    const delta = m.angle - g.startAngle;
+    // Twist rotation is opt-in; when enabled it can snap to quarter turns. The
+    // snap targets the absolute orientation, so derive the delta from that.
+    const canvas = usePreferences.getState().canvas;
+    let delta = canvas.rotationEnabled ? m.angle - g.startAngle : 0;
+    if (canvas.rotationEnabled && canvas.rotationSnap) {
+      const target = snapAngleToQuarter(g.startViewport.rotation + delta);
+      delta = target - g.startViewport.rotation;
+    }
     // Zoom and twist around the initial centroid (both keep it fixed), then pan
     // so that world point stays pinned under the current, moving centroid.
     const zoomed = zoomAt(g.startViewport, g.startCenter, factor);

@@ -9,6 +9,7 @@ import {
 } from "../commands/registry";
 import { rotateAt } from "../model/viewport";
 import { useEditor } from "../store/editorStore";
+import { usePreferences } from "../store/preferencesStore";
 import { barButton } from "./AppBar.css";
 import "./menus.css";
 
@@ -30,6 +31,7 @@ export default function ZoomMenu() {
   const scale = useEditor((s) => s.viewport.scale);
   const angle = useEditor((s) => rotationDegrees(s.viewport.rotation));
   const setViewport = useEditor((s) => s.setViewport);
+  const rotationEnabled = usePreferences((s) => s.canvas.rotationEnabled);
   const [open, setOpen] = useState(false);
 
   // The slider's own position, kept separate from the normalized store angle so
@@ -87,43 +89,47 @@ export default function ZoomMenu() {
         aria-expanded={open}
       >
         <span>{Math.round(scale * 100)}%</span>
-        <svg
-          className={`zoom-menu-knob${angle !== 0 ? " is-rotated" : ""}`}
-          width="14"
-          height="14"
-          viewBox="0 0 14 14"
-          aria-hidden
-        >
-          <circle cx="7" cy="7" r="5.5" />
-          <line x1="7" y1="7" x2="7" y2="2" transform={`rotate(${angle} 7 7)`} />
-        </svg>
+        {rotationEnabled && (
+          <svg
+            className={`zoom-menu-knob${angle !== 0 ? " is-rotated" : ""}`}
+            width="14"
+            height="14"
+            viewBox="0 0 14 14"
+            aria-hidden
+          >
+            <circle cx="7" cy="7" r="5.5" />
+            <line x1="7" y1="7" x2="7" y2="2" transform={`rotate(${angle} 7 7)`} />
+          </svg>
+        )}
         <LuChevronDown className="menu-caret" aria-hidden />
       </button>
       {open && (
         <div className="menu-popover zoom-menu-popover" role="menu">
-          <div className="zoom-menu-rotation">
-            <span className="zoom-menu-rotation-label">Rotate</span>
-            <input
-              className="zoom-menu-rotation-slider"
-              type="range"
-              min={-180}
-              max={180}
-              step={1}
-              value={sliderAngle}
-              aria-label="Canvas rotation"
-              onChange={(e) => rotateTo(Number(e.target.value))}
-            />
-            <span className="zoom-menu-rotation-value">{sliderAngle}°</span>
-            <button
-              className="zoom-menu-rotation-reset"
-              title="Reset rotation"
-              aria-label="Reset rotation"
-              disabled={sliderAngle === 0}
-              onClick={() => rotateTo(0)}
-            >
-              <LuRotateCcw aria-hidden />
-            </button>
-          </div>
+          {rotationEnabled && (
+            <div className="zoom-menu-rotation">
+              <span className="zoom-menu-rotation-label">Rotate</span>
+              <input
+                className="zoom-menu-rotation-slider"
+                type="range"
+                min={-180}
+                max={180}
+                step={1}
+                value={sliderAngle}
+                aria-label="Canvas rotation"
+                onChange={(e) => rotateTo(Number(e.target.value))}
+              />
+              <span className="zoom-menu-rotation-value">{sliderAngle}°</span>
+              <button
+                className="zoom-menu-rotation-reset"
+                title="Reset rotation"
+                aria-label="Reset rotation"
+                disabled={sliderAngle === 0}
+                onClick={() => rotateTo(0)}
+              >
+                <LuRotateCcw aria-hidden />
+              </button>
+            </div>
+          )}
           {ITEMS.map((id) => {
             const command = getCommand(id);
             if (!command) return null;

@@ -13,6 +13,8 @@ import {
 export interface PreferencesActions {
   setTheme: (theme: ThemePreference) => void;
   setLocale: (locale: UiLocale) => void;
+  setCanvasRotationEnabled: (enabled: boolean) => void;
+  setCanvasRotationSnap: (snap: boolean) => void;
   setRecoveryEnabled: (enabled: boolean) => void;
   setRecoveryMaxWaitMs: (maxWaitMs: number) => void;
   setUndoHistoryLimit: (limit: number) => void;
@@ -26,6 +28,7 @@ function snapshot(state: PreferencesState): PreferencesV1 {
   return {
     version: state.version,
     general: state.general,
+    canvas: state.canvas,
     recovery: state.recovery,
     history: state.history,
   };
@@ -51,6 +54,10 @@ export function createPreferencesStore(storage?: PreferencesStorage) {
       ...readPreferences(storage),
       setTheme: (theme) => patch("general", { ...get().general, theme }),
       setLocale: (locale) => patch("general", { ...get().general, locale }),
+      setCanvasRotationEnabled: (enabled) =>
+        patch("canvas", { ...get().canvas, rotationEnabled: enabled }),
+      setCanvasRotationSnap: (snap) =>
+        patch("canvas", { ...get().canvas, rotationSnap: snap }),
       setRecoveryEnabled: (enabled) =>
         patch("recovery", { ...get().recovery, enabled }),
       setRecoveryMaxWaitMs: (maxWaitMs) => {

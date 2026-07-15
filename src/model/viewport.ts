@@ -62,6 +62,20 @@ export function zoomAt(v: Viewport, anchor: Vec2, factor: number): Viewport {
   };
 }
 
+/**
+ * Snap an angle (radians) to the nearest quarter turn when it is within
+ * `threshold` of one; otherwise return it unchanged. Used for canvas rotation
+ * so a free twist clicks into the cardinal orientations.
+ */
+export function snapAngleToQuarter(
+  angle: number,
+  threshold = (7 * Math.PI) / 180
+): number {
+  const step = Math.PI / 2;
+  const nearest = Math.round(angle / step) * step;
+  return Math.abs(angle - nearest) <= threshold ? nearest : angle;
+}
+
 /** Rotate the canvas around a fixed screen anchor point (keeps it stationary). */
 export function rotateAt(v: Viewport, anchor: Vec2, delta: number): Viewport {
   const cos = Math.cos(delta);

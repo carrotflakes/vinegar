@@ -8,6 +8,7 @@ let worldToScreen;
 let screenToWorld;
 let zoomAt;
 let rotateAt;
+let snapAngleToQuarter;
 
 const near = (a, b, eps = 1e-9) =>
   assert.ok(Math.abs(a - b) <= eps, `${a} != ${b}`);
@@ -18,8 +19,14 @@ const nearPoint = (a, b, eps = 1e-9) => {
 
 before(async () => {
   server = await createServer({ server: { middlewareMode: true } });
-  ({ fitBoundsInViewport, worldToScreen, screenToWorld, zoomAt, rotateAt } =
-    await server.ssrLoadModule("/src/model/viewport.ts"));
+  ({
+    fitBoundsInViewport,
+    worldToScreen,
+    screenToWorld,
+    zoomAt,
+    rotateAt,
+    snapAngleToQuarter,
+  } = await server.ssrLoadModule("/src/model/viewport.ts"));
 });
 
 after(async () => server.close());
@@ -81,6 +88,17 @@ test("zoomAt preserves rotation and pins the anchor", () => {
   near(zoomed.rotation, vp.rotation);
   near(zoomed.scale, 2);
   nearPoint(worldToScreen(zoomed, screenToWorld(vp, anchor)), anchor, 1e-8);
+});
+
+test("snapAngleToQuarter snaps near quarter turns and passes through the rest", () => {
+  const q = Math.PI / 2;
+  // Within the default ~7° threshold of a quarter turn -> snaps exactly.
+  near(snapAngleToQuarter(q + 0.05), q);
+  near(snapAngleToQuarter(-q - 0.05), -q);
+  near(snapAngleToQuarter(0.04), 0);
+  // Well away from any quarter turn -> unchanged.
+  const free = q * 0.5;
+  near(snapAngleToQuarter(free), free);
 });
 
 test("fit viewport respects the editor zoom limits", () => {

@@ -140,6 +140,11 @@ globalStyle(".pref-switch.on", {
   background: vars.accent,
 });
 
+globalStyle(".pref-switch:disabled", {
+  opacity: "0.4",
+  cursor: "default",
+});
+
 globalStyle(".pref-switch-knob", {
   position: "absolute",
   top: "50%",
