@@ -32,6 +32,7 @@ import {
 import {
   fitBoundsInViewport,
   initialViewport,
+  rotateAt,
   screenToWorld,
   zoomAt,
   type ViewportSize,
@@ -380,6 +381,14 @@ export const COMMANDS: Command[] = [
     run: (s) => s.setViewport(initialViewport),
   },
   {
+    id: "view.resetRotation",
+    label: "Reset rotation",
+    group: "View",
+    enabled: (s) => s.viewport.rotation !== 0,
+    run: (s) =>
+      s.setViewport(rotateAt(s.viewport, canvasCenter(), -s.viewport.rotation)),
+  },
+  {
     id: "view.fitSelection",
     label: "Fit selection",
     group: "View",
@@ -569,7 +578,7 @@ export const COMMANDS: Command[] = [
     run: (s) => {
       if (!confirmDiscard(s)) return;
       s.loadDocument(createDemoDocument());
-      s.setViewport({ scale: 0.85, offset: { x: 12, y: 12 } });
+      s.setViewport({ scale: 0.85, rotation: 0, offset: { x: 12, y: 12 } });
     },
   },
 

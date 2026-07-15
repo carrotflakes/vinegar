@@ -5,10 +5,20 @@ import { createServer } from "vite";
 let server;
 let fitBoundsInViewport;
 let worldToScreen;
+let screenToWorld;
+let zoomAt;
+let rotateAt;
+
+const near = (a, b, eps = 1e-9) =>
+  assert.ok(Math.abs(a - b) <= eps, `${a} != ${b}`);
+const nearPoint = (a, b, eps = 1e-9) => {
+  near(a.x, b.x, eps);
+  near(a.y, b.y, eps);
+};
 
 before(async () => {
   server = await createServer({ server: { middlewareMode: true } });
-  ({ fitBoundsInViewport, worldToScreen } =
+  ({ fitBoundsInViewport, worldToScreen, screenToWorld, zoomAt, rotateAt } =
     await server.ssrLoadModule("/src/model/viewport.ts"));
 });
 
@@ -42,6 +52,35 @@ test("fit viewport handles lines and points without infinite zoom", () => {
   );
   assert.equal(point.scale, 1);
   assert.deepEqual(worldToScreen(point, { x: -20, y: 30 }), { x: 250, y: 150 });
+});
+
+test("screenToWorld inverts worldToScreen under rotation", () => {
+  const vp = { scale: 1.5, rotation: Math.PI / 5, offset: { x: 40, y: -20 } };
+  const world = { x: 12, y: 34 };
+  nearPoint(screenToWorld(vp, worldToScreen(vp, world)), world);
+});
+
+test("rotateAt keeps the anchor point fixed on screen", () => {
+  const vp = { scale: 2, rotation: 0.2, offset: { x: 30, y: 15 } };
+  const anchor = { x: 120, y: 80 };
+  const rotated = rotateAt(vp, anchor, Math.PI / 3);
+  near(rotated.rotation, vp.rotation + Math.PI / 3);
+  near(rotated.scale, vp.scale);
+  // The world point under the anchor stays under it after the twist.
+  nearPoint(
+    worldToScreen(rotated, screenToWorld(vp, anchor)),
+    anchor,
+    1e-8
+  );
+});
+
+test("zoomAt preserves rotation and pins the anchor", () => {
+  const vp = { scale: 1, rotation: Math.PI / 4, offset: { x: 10, y: 10 } };
+  const anchor = { x: 200, y: 150 };
+  const zoomed = zoomAt(vp, anchor, 2);
+  near(zoomed.rotation, vp.rotation);
+  near(zoomed.scale, 2);
+  nearPoint(worldToScreen(zoomed, screenToWorld(vp, anchor)), anchor, 1e-8);
 });
 
 test("fit viewport respects the editor zoom limits", () => {

@@ -18,7 +18,7 @@ import {
   strokeJoin,
 } from "../model/stroke";
 import type { Artboard, Bounds, Document, DocumentAsset, Effect, ImageShape, Shape } from "../model/types";
-import { worldToScreen, type Viewport } from "../model/viewport";
+import { screenToWorld, worldToScreen, type Viewport } from "../model/viewport";
 import { getAssetImage } from "./imageCache";
 import { layoutTextWithCanvas } from "./textLayout";
 
@@ -586,6 +586,7 @@ export function renderScene(
   // World-space drawing.
   ctx.save();
   ctx.translate(viewport.offset.x, viewport.offset.y);
+  ctx.rotate(viewport.rotation);
   ctx.scale(viewport.scale, viewport.scale);
 
   // Artboard backdrops and frames sit under the scene content.
@@ -622,13 +623,22 @@ function drawArtboards(
   ctx.restore();
 }
 
+/** World units between grid lines, doubled/halved to keep screen spacing readable. */
+function gridStep(opts: RenderOptions): number {
+  let step = opts.gridSize ?? 50;
+  const scale = opts.viewport.scale;
+  while (step * scale < 24) step *= 2;
+  while (step * scale > 120) step /= 2;
+  return step;
+}
+
 function drawGrid(ctx: CanvasRenderingContext2D, opts: RenderOptions): void {
+  if (opts.viewport.rotation !== 0) {
+    drawRotatedGrid(ctx, opts);
+    return;
+  }
   const { viewport, width, height } = opts;
-  const base = opts.gridSize ?? 50; // world units between major lines
-  let step = base * viewport.scale;
-  // Keep on-screen spacing readable across zoom levels.
-  while (step < 24) step *= 2;
-  while (step > 120) step /= 2;
+  const step = gridStep(opts) * viewport.scale;
 
   const origin = worldToScreen(viewport, { x: 0, y: 0 });
   const startX = origin.x - Math.ceil(origin.x / step) * step;
@@ -644,6 +654,43 @@ function drawGrid(ctx: CanvasRenderingContext2D, opts: RenderOptions): void {
   for (let y = startY; y <= height; y += step) {
     ctx.moveTo(0, Math.round(y) + 0.5);
     ctx.lineTo(width, Math.round(y) + 0.5);
+  }
+  ctx.stroke();
+}
+
+/**
+ * Grid drawn in world space so the lines rotate with the canvas. Lines span the
+ * world-space AABB of the visible screen rectangle, mapped back through the
+ * viewport; per-pixel rounding is dropped since rotated lines aren't axis-aligned.
+ */
+function drawRotatedGrid(ctx: CanvasRenderingContext2D, opts: RenderOptions): void {
+  const { viewport, width, height } = opts;
+  const step = gridStep(opts);
+  const corners = [
+    screenToWorld(viewport, { x: 0, y: 0 }),
+    screenToWorld(viewport, { x: width, y: 0 }),
+    screenToWorld(viewport, { x: width, y: height }),
+    screenToWorld(viewport, { x: 0, y: height }),
+  ];
+  const minX = Math.min(...corners.map((c) => c.x));
+  const maxX = Math.max(...corners.map((c) => c.x));
+  const minY = Math.min(...corners.map((c) => c.y));
+  const maxY = Math.max(...corners.map((c) => c.y));
+
+  ctx.strokeStyle = "#eceef1";
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  for (let x = Math.floor(minX / step) * step; x <= maxX; x += step) {
+    const a = worldToScreen(viewport, { x, y: minY });
+    const b = worldToScreen(viewport, { x, y: maxY });
+    ctx.moveTo(a.x, a.y);
+    ctx.lineTo(b.x, b.y);
+  }
+  for (let y = Math.floor(minY / step) * step; y <= maxY; y += step) {
+    const a = worldToScreen(viewport, { x: minX, y });
+    const b = worldToScreen(viewport, { x: maxX, y });
+    ctx.moveTo(a.x, a.y);
+    ctx.lineTo(b.x, b.y);
   }
   ctx.stroke();
 }

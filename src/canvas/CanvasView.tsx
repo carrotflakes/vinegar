@@ -9,7 +9,7 @@ import {
 import { shapeWorldMatrix } from "../model/matrix";
 import { type Guide, type Spacing } from "../model/snap";
 import type { BezierShape, Bounds, Shape, TextShape, Vec2 } from "../model/types";
-import { screenToWorld, zoomAt, type Viewport } from "../model/viewport";
+import { rotateAt, screenToWorld, zoomAt, type Viewport } from "../model/viewport";
 import { isGroup, scopeRootGroupId } from "../model/scene";
 import { currentSymbolScope, useEditor } from "../store/editorStore";
 import { openContextMenu } from "../store/menuStore";
@@ -120,6 +120,7 @@ export default function CanvasView() {
   // Two-finger pinch/pan gesture snapshot, or null when no gesture is active.
   const gestureRef = useRef<{
     startDist: number;
+    startAngle: number;
     startCenter: Vec2;
     startViewport: Viewport;
   } | null>(null);
@@ -374,14 +375,17 @@ export default function CanvasView() {
 
   // ---- multi-touch gestures (pinch-zoom / two-finger pan) ----------------
 
-  /** The centroid and spread of the first two active pointers. */
-  const twoPointerMetrics = (): { center: Vec2; dist: number } | null => {
+  /** The centroid, spread and angle of the first two active pointers. */
+  const twoPointerMetrics = ():
+    | { center: Vec2; dist: number; angle: number }
+    | null => {
     const pts = [...pointersRef.current.values()];
     if (pts.length < 2) return null;
     const [a, b] = pts;
     return {
       center: { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 },
       dist: Math.hypot(a.x - b.x, a.y - b.y),
+      angle: Math.atan2(b.y - a.y, b.x - a.x),
     };
   };
 
@@ -431,6 +435,7 @@ export default function CanvasView() {
     cancelActiveInteraction();
     gestureRef.current = {
       startDist: m.dist,
+      startAngle: m.angle,
       startCenter: m.center,
       startViewport: useEditor.getState().viewport,
     };
@@ -441,16 +446,16 @@ export default function CanvasView() {
     const m = twoPointerMetrics();
     if (!g || !m) return;
     const factor = m.dist > 0 && g.startDist > 0 ? m.dist / g.startDist : 1;
-    // Zoom around the moving centroid, and pan with it: keep the world point
-    // that was under the initial centroid pinned under the current centroid.
+    const delta = m.angle - g.startAngle;
+    // Zoom and twist around the initial centroid (both keep it fixed), then pan
+    // so that world point stays pinned under the current, moving centroid.
     const zoomed = zoomAt(g.startViewport, g.startCenter, factor);
-    const scale = zoomed.scale;
-    const world = screenToWorld(g.startViewport, g.startCenter);
+    const rotated = rotateAt(zoomed, g.startCenter, delta);
     useEditor.getState().setViewport({
-      scale,
+      ...rotated,
       offset: {
-        x: m.center.x - world.x * scale,
-        y: m.center.y - world.y * scale,
+        x: rotated.offset.x + (m.center.x - g.startCenter.x),
+        y: rotated.offset.y + (m.center.y - g.startCenter.y),
       },
     });
     scheduleDraw();

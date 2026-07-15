@@ -1,12 +1,14 @@
-import type { Bounds, Vec2 } from "./types";
+import type { Matrix, Bounds, Vec2 } from "./types";
 
 /**
  * Viewport maps world coordinates to screen pixels:
- *   screen = world * scale + offset
- * `offset` is in screen pixels, `scale` is uniform zoom.
+ *   screen = R(rotation) * scale * world + offset
+ * `offset` is in screen pixels, `scale` is uniform zoom and `rotation` is the
+ * canvas orientation in radians (clockwise, since screen y points down).
  */
 export interface Viewport {
   scale: number;
+  rotation: number;
   offset: Vec2;
 }
 
@@ -17,15 +19,33 @@ export interface ViewportSize {
 
 export const initialViewport: Viewport = {
   scale: 1,
+  rotation: 0,
   offset: { x: 0, y: 0 },
 };
 
 export function worldToScreen(v: Viewport, p: Vec2): Vec2 {
-  return { x: p.x * v.scale + v.offset.x, y: p.y * v.scale + v.offset.y };
+  const c = Math.cos(v.rotation) * v.scale;
+  const s = Math.sin(v.rotation) * v.scale;
+  return {
+    x: c * p.x - s * p.y + v.offset.x,
+    y: s * p.x + c * p.y + v.offset.y,
+  };
 }
 
 export function screenToWorld(v: Viewport, p: Vec2): Vec2 {
-  return { x: (p.x - v.offset.x) / v.scale, y: (p.y - v.offset.y) / v.scale };
+  const c = Math.cos(v.rotation) * v.scale;
+  const s = Math.sin(v.rotation) * v.scale;
+  const det = c * c + s * s || 1;
+  const dx = p.x - v.offset.x;
+  const dy = p.y - v.offset.y;
+  return { x: (c * dx + s * dy) / det, y: (-s * dx + c * dy) / det };
+}
+
+/** The world->screen affine as a [a,b,c,d,e,f] matrix (e.g. for CSS overlays). */
+export function viewportMatrix(v: Viewport): Matrix {
+  const c = Math.cos(v.rotation) * v.scale;
+  const s = Math.sin(v.rotation) * v.scale;
+  return [c, s, -s, c, v.offset.x, v.offset.y];
 }
 
 /** Zoom around a fixed screen anchor point (keeps that point stationary). */
@@ -34,9 +54,26 @@ export function zoomAt(v: Viewport, anchor: Vec2, factor: number): Viewport {
   const realFactor = newScale / v.scale;
   return {
     scale: newScale,
+    rotation: v.rotation,
     offset: {
       x: anchor.x - (anchor.x - v.offset.x) * realFactor,
       y: anchor.y - (anchor.y - v.offset.y) * realFactor,
+    },
+  };
+}
+
+/** Rotate the canvas around a fixed screen anchor point (keeps it stationary). */
+export function rotateAt(v: Viewport, anchor: Vec2, delta: number): Viewport {
+  const cos = Math.cos(delta);
+  const sin = Math.sin(delta);
+  const dx = v.offset.x - anchor.x;
+  const dy = v.offset.y - anchor.y;
+  return {
+    scale: v.scale,
+    rotation: v.rotation + delta,
+    offset: {
+      x: anchor.x + cos * dx - sin * dy,
+      y: anchor.y + sin * dx + cos * dy,
     },
   };
 }
@@ -70,6 +107,7 @@ export function fitBoundsInViewport(
 
   return {
     scale,
+    rotation: 0,
     offset: {
       x: screenWidth / 2 - (x + width / 2) * scale,
       y: screenHeight / 2 - (y + height / 2) * scale,

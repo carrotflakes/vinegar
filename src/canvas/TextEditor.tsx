@@ -1,6 +1,7 @@
 import { useEffect, useRef } from "react";
 import { multiply, shapeWorldMatrix, translation } from "../model/matrix";
-import type { Matrix, TextShape } from "../model/types";
+import type { TextShape } from "../model/types";
+import { viewportMatrix } from "../model/viewport";
 import { useEditor } from "../store/editorStore";
 import { fontStack } from "../ui/fonts";
 import "./TextEditor.css";
@@ -25,12 +26,8 @@ export default function TextEditor({ shape, onChange, onCommit, onCancel }: Prop
     input.setSelectionRange(input.value.length, input.value.length);
   }, []);
 
-  const view: Matrix = [
-    viewport.scale, 0, 0, viewport.scale,
-    viewport.offset.x, viewport.offset.y,
-  ];
   const localToScreen = multiply(
-    view,
+    viewportMatrix(viewport),
     multiply(shapeWorldMatrix(doc, shape), translation(shape.x, shape.y))
   );
 
