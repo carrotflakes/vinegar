@@ -22,6 +22,7 @@ import type {
   Vec2,
 } from "../model/types";
 import type { Viewport } from "../model/viewport";
+import type { ImportedSvg } from "../io/importSvg";
 import type { ClipboardPayload } from "./docOps";
 import type { DocumentPatch } from "./documentPatches";
 
@@ -156,6 +157,12 @@ export interface ShapeActions {
     at: Vec2,
     fitWithin?: { width: number; height: number }
   ) => Promise<void>;
+  /** Place converted SVG nodes centered on `at` as one undoable group. */
+  placeImportedSvg: (
+    imported: ImportedSvg,
+    at: Vec2,
+    fitWithin?: { width: number; height: number }
+  ) => void;
   /** Import one image file as a document asset (no scene node) for use as a
    *  pattern fill/stroke. Resolves the new asset id, or null on failure. */
   addPatternImage: (file: File) => Promise<string | null>;

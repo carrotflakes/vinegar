@@ -154,11 +154,9 @@ function filterAttr(node: SceneNode, defs: Defs): string {
 
 function commonAttrs(shape: Shape, defs: Defs): string {
   const parts: string[] = [];
-  const fillable = !(
-    shape.type === "line" ||
-    (shape.type === "path" && !shape.closed) ||
-    (shape.type === "bezier" && !shape.subpaths.some((sp) => sp.closed))
-  );
+  // SVG fills open subpaths by implicitly closing them while leaving their
+  // stroke geometry open.
+  const fillable = shape.type !== "line";
   if (fillable && shape.fill) parts.push(...defs.paintAttrs(shape.fill, "fill"));
   else parts.push(`fill="none"`);
   if (shape.stroke && shape.strokeWidth > 0) {
@@ -190,11 +188,7 @@ function strokeSvgAttrs(shape: Shape, defs: Defs, width: number): string[] {
 }
 
 function fillSvgAttrs(shape: Shape, defs: Defs): string[] {
-  const fillable = !(
-    shape.type === "line" ||
-    (shape.type === "path" && !shape.closed) ||
-    (shape.type === "bezier" && !shape.subpaths.some((sp) => sp.closed))
-  );
+  const fillable = shape.type !== "line";
   return fillable && shape.fill
     ? defs.paintAttrs(shape.fill, "fill")
     : [`fill="none"`];

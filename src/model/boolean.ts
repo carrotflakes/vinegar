@@ -91,14 +91,21 @@ function shapeToGeom(shape: Shape): paper.PathItem | null {
       break;
     }
     case "path":
-      if (!shape.closed || shape.points.length < 3) return null;
+      // Open paths are filled by implicitly closing them, so they enclose an
+      // area for boolean ops too. ringToPath already closes the ring.
+      if (shape.points.length < 3) return null;
       item = ringToPath(shape.points);
       break;
     case "bezier":
       item = compound(
         shape.subpaths
-          .filter((sp) => sp.closed && sp.anchors.length >= 2)
-          .map(subpathToPath)
+          .filter((sp) => sp.anchors.length >= 2)
+          .map((sp) => {
+            // Force the implicit fill close paper.js needs to see an area.
+            const path = subpathToPath(sp);
+            path.closed = true;
+            return path;
+          })
       );
       break;
     case "polygon":
@@ -138,9 +145,9 @@ export function isAreal(shape: Shape): boolean {
     case "compoundPath":
       return true;
     case "path":
-      return shape.closed;
+      return shape.points.length >= 3;
     case "bezier":
-      return shape.subpaths.some((sp) => sp.closed && sp.anchors.length >= 2);
+      return shape.subpaths.some((sp) => sp.anchors.length >= 2);
     case "line":
     case "image":
     case "text":

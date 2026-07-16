@@ -19,8 +19,15 @@ export function downloadText(
   downloadBlob(new Blob([text], { type: `${mime};charset=utf-8` }), filename);
 }
 
-/** Open a native file picker and resolve with the selected file's text. */
-export function pickTextFile(accept: string): Promise<string | null> {
+export interface PickedTextFile {
+  name: string;
+  text: string;
+}
+
+/** Open a native file picker and resolve with the selected file and its text. */
+export function pickTextFileWithName(
+  accept: string
+): Promise<PickedTextFile | null> {
   return new Promise((resolve) => {
     const input = document.createElement("input");
     input.type = "file";
@@ -32,10 +39,16 @@ export function pickTextFile(accept: string): Promise<string | null> {
         return;
       }
       const reader = new FileReader();
-      reader.onload = () => resolve(String(reader.result));
+      reader.onload = () =>
+        resolve({ name: file.name, text: String(reader.result) });
       reader.onerror = () => resolve(null);
       reader.readAsText(file);
     };
     input.click();
   });
+}
+
+/** Open a native file picker and resolve with the selected file's text. */
+export async function pickTextFile(accept: string): Promise<string | null> {
+  return (await pickTextFileWithName(accept))?.text ?? null;
 }

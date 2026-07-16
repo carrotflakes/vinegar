@@ -118,10 +118,14 @@ function containsGeometry(
       return nx * nx + ny * ny <= 1;
     }
     case "path":
-      return shape.closed && containsRings([shape.points], p, rule);
+      return shape.points.length >= 3 && containsRings([shape.points], p, rule);
     case "bezier":
       return containsRings(
-        shape.subpaths.filter((subpath) => subpath.closed).map(flattenSubpath),
+        shape.subpaths
+          .filter((subpath) => subpath.anchors.length >= 2)
+          // Wrap the call: `.map(flattenSubpath)` would leak the array index
+          // into `perSegment`, collapsing the first ring to a single point.
+          .map((subpath) => flattenSubpath(subpath)),
         p,
         rule
       );
@@ -276,13 +280,17 @@ export function hitTestShape(doc: Document, shape: Shape, p: Vec2, tol: number):
       );
     }
     case "path": {
-      const inside = shape.closed && pointInPolygon(p, shape.points);
+      const inside =
+        shape.points.length >= 3 && pointInPolygon(p, shape.points);
       if (hasFill && inside) return true;
       return hitsStroke(distToPolyline(p, shape.points, shape.closed), inside);
     }
     case "bezier": {
       const inside = shape.subpaths.reduce(
-        (acc, sp) => sp.closed ? acc !== pointInPolygon(p, flattenSubpath(sp)) : acc,
+        (acc, subpath) =>
+          subpath.anchors.length >= 2
+            ? acc !== pointInPolygon(p, flattenSubpath(subpath))
+            : acc,
         false
       );
       if (hasFill && inside) return true;
@@ -478,6 +486,8 @@ export function marqueeHitShape(
   // the inside/outside half. Exact side-aware marquee selection would require
   // intersecting the aligned stroke outline with the marquee.
   const edgeRegion = expandBounds(region, stroke);
+  const implicitFillClose =
+    shape.fill !== null && shape.type !== "line";
 
   for (const line of lines) {
     if (line.points.some((point) => pointInBounds(point, edgeRegion))) return true;
@@ -487,7 +497,7 @@ export function marqueeHitShape(
       }
     }
     if (
-      line.closed &&
+      (line.closed || implicitFillClose) &&
       line.points.length > 2 &&
       segmentIntersectsRect(
         line.points[line.points.length - 1],
@@ -501,9 +511,7 @@ export function marqueeHitShape(
 
   const fillable =
     (shape.fill !== null || shape.type === "image" || shape.type === "text") &&
-    shape.type !== "line" &&
-    !(shape.type === "path" && !shape.closed) &&
-    !(shape.type === "bezier" && !shape.subpaths.some((sp) => sp.closed));
+    shape.type !== "line";
   if (!fillable) return false;
   const corners = [
     { x: region.x, y: region.y },

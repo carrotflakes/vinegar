@@ -37,10 +37,16 @@ import {
   zoomAt,
   type ViewportSize,
 } from "../model/viewport";
-import { downloadBlob, downloadText, pickTextFile } from "../io/download";
+import {
+  downloadBlob,
+  downloadText,
+  pickTextFile,
+  pickTextFileWithName,
+} from "../io/download";
 import { contentBounds } from "../io/exportBounds";
 import { fileSlug, uniqueFileSlugs } from "../io/exportFilenames";
 import { pickImageFiles } from "../io/importImage";
+import { importSvg, type ImportedSvg } from "../io/importSvg";
 import { exportPng } from "../io/exportPng";
 import { exportSvg } from "../io/exportSvg";
 import { parseDocument, serializeDocument } from "../io/serialize";
@@ -148,6 +154,17 @@ export async function placeImagesFitted(files: File[], at?: Vec2): Promise<void>
     height: ((center.y * 2) / s.viewport.scale) * 0.8,
   };
   await s.placeImageFiles(files, target, fitWithin);
+}
+
+/** Place converted SVG content at the viewport center unless `at` is given. */
+export function placeSvgFitted(imported: ImportedSvg, at?: Vec2): void {
+  const s = useEditor.getState();
+  const center = canvasCenter();
+  const target = at ?? screenToWorld(s.viewport, center);
+  s.placeImportedSvg(imported, target, {
+    width: ((center.x * 2) / s.viewport.scale) * 0.8,
+    height: ((center.y * 2) / s.viewport.scale) * 0.8,
+  });
 }
 
 /** Size of the drawable canvas area in CSS pixels. */
@@ -472,6 +489,24 @@ export const COMMANDS: Command[] = [
       } catch (err) {
         window.alert(
           "Could not open file:\n" +
+            (err instanceof Error ? err.message : String(err))
+        );
+      }
+    },
+  },
+  {
+    id: "file.importSvg",
+    label: "Import SVG…",
+    group: "File",
+    run: async (_s, ctx) => {
+      const file = await pickTextFileWithName(".svg,image/svg+xml");
+      if (!file) return;
+      try {
+        const name = file.name.replace(/\.[^.]+$/, "") || "Imported SVG";
+        placeSvgFitted(importSvg(file.text, name), ctx?.at);
+      } catch (err) {
+        window.alert(
+          "Could not import SVG:\n" +
             (err instanceof Error ? err.message : String(err))
         );
       }

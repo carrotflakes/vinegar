@@ -296,12 +296,11 @@ export function paintShape(
   tracePath(ctx, shape);
   const bounds = shapeBounds(shape);
 
-  // Lines and open paths/curves are never filled.
+  // Canvas/SVG fill implicitly closes open subpaths without changing how
+  // their strokes are traced, so only a standalone line is never fillable.
   const fillable =
     shape.fill !== null &&
-    shape.type !== "line" &&
-    !(shape.type === "path" && !shape.closed) &&
-    !(shape.type === "bezier" && !shape.subpaths.some((sp) => sp.closed));
+    shape.type !== "line";
   if (fillable && shape.fill) {
     const style = resolveStyle(ctx, shape.fill, bounds, assets);
     // A null style is a pattern still decoding; skip until the cache repaints.

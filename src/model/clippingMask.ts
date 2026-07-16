@@ -28,7 +28,8 @@ export type ClippingMaskShape =
   | PolygonShape
   | CompoundPathShape;
 
-/** Whether a node has closed, area-bearing geometry suitable for clipping. */
+/** Whether a node has area-bearing geometry suitable for clipping. Open paths
+ * qualify because clipping implicitly closes them, just like fill. */
 export function isClippingMaskCandidate(
   node: SceneNode | null | undefined
 ): node is ClippingMaskShape {
@@ -45,13 +46,11 @@ export function isClippingMaskCandidate(
         node.components.every((component) => isClippingMaskCandidate(component))
       );
     case "path":
-      return node.closed && node.points.length >= 3;
+      return node.points.length >= 3;
     case "bezier":
       return (
         node.subpaths.length > 0 &&
-        node.subpaths.every(
-          (subpath) => subpath.closed && subpath.anchors.length >= 2
-        )
+        node.subpaths.every((subpath) => subpath.anchors.length >= 2)
       );
     case "line":
     case "image":

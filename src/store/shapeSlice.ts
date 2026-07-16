@@ -1,8 +1,9 @@
 // Creating and mutating individual shapes (geometry, style, bezier anchors).
 
 import { toggleAnchorSmooth } from "../model/bezier";
-import { shapeBounds } from "../model/bounds";
+import { shapeBounds, unionNodeWorldBounds } from "../model/bounds";
 import { hasValidClippingMasks } from "../model/clippingMask";
+import { multiply, translation } from "../model/matrix";
 import { descendantShapeIds, isShape, selectionRoots } from "../model/scene";
 import { clampRectCornerRadius } from "../model/roundedRect";
 import { resizeShapeToBounds, translateShape } from "../model/transforms";
@@ -94,6 +95,49 @@ export function createShapeActions({ set, get, transact, replaceDocumentWithoutH
       const doc = { ...s.doc, nodes, assets };
       transact(appendToScope(doc, currentSymbolScope(s), ids));
       set({ selection: ids, ...clearTransient });
+    },
+    placeImportedSvg: (imported, at, fitWithin) => {
+      const s = get();
+      const root = imported.nodes[imported.rootId];
+      if (!root) return;
+      const preview = {
+        ...s.doc,
+        nodes: { ...s.doc.nodes, ...imported.nodes },
+        rootIds: [imported.rootId],
+      };
+      const bounds = unionNodeWorldBounds(preview, [imported.rootId]);
+      if (!bounds) return;
+      const scale = fitWithin
+        ? Math.min(
+            1,
+            bounds.width > 0 ? fitWithin.width / bounds.width : 1,
+            bounds.height > 0 ? fitWithin.height / bounds.height : 1
+          )
+        : 1;
+      const centerX = bounds.x + bounds.width / 2;
+      const centerY = bounds.y + bounds.height / 2;
+      const placement = multiply(
+        translation(at.x, at.y),
+        multiply(
+          [scale, 0, 0, scale, 0, 0],
+          translation(-centerX, -centerY)
+        )
+      );
+      const nodes = {
+        ...s.doc.nodes,
+        ...imported.nodes,
+        [root.id]: {
+          ...root,
+          transform: multiply(placement, root.transform),
+        },
+      };
+      const doc = appendToScope(
+        { ...s.doc, nodes },
+        currentSymbolScope(s),
+        [root.id]
+      );
+      transact(doc);
+      set({ selection: [root.id], ...clearTransient });
     },
     addPatternImage: async (file) => {
       if (!isImageFile(file)) return null;

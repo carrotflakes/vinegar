@@ -162,6 +162,40 @@ test("clip bounds and point/marquee hits use the mask silhouette and holes", () 
   assert.equal(marqueeHitNode(doc, content, { x: 60, y: 60, width: 5, height: 5 }), false);
 });
 
+test("a bezier mask clips by its filled area (regression: flatten index leak)", () => {
+  // A bezier rectangle mask exercises containsGeometry's `bezier` branch. A
+  // `.map(flattenSubpath)` there leaked the array index into `perSegment`,
+  // collapsing the first ring to one point so the mask matched nothing and its
+  // whole clip group became unselectable. Polygon/rect masks never hit it.
+  const doc = createEmptyDocument();
+  doc.nodes.content = rect("content", 0, 0, 150, 150);
+  const anchor = (x, y) => ({ p: { x, y }, hIn: null, hOut: null });
+  doc.nodes.mask = {
+    ...rect("mask", 0, 0, 0, 0, { fill: null }),
+    type: "bezier",
+    subpaths: [
+      {
+        anchors: [anchor(20, 20), anchor(120, 20), anchor(120, 120), anchor(20, 120)],
+        closed: true,
+      },
+    ],
+  };
+  delete doc.nodes.mask.x;
+  delete doc.nodes.mask.y;
+  delete doc.nodes.mask.width;
+  delete doc.nodes.mask.height;
+  doc.nodes.clip = group("clip", ["content", "mask"], { clip: true });
+  doc.rootIds = ["clip"];
+
+  const content = doc.nodes.content;
+  assert.equal(clippingMask(doc, doc.nodes.clip)?.id, "mask");
+  // Inside the mask rectangle: content and the mask itself are hittable.
+  assert.equal(hitTestNode(doc, content, { x: 70, y: 70 }, 0), true);
+  assert.equal(hitTestNode(doc, doc.nodes.mask, { x: 70, y: 70 }, 0), true);
+  // Outside the mask: clipped away.
+  assert.equal(hitTestNode(doc, content, { x: 5, y: 5 }, 0), false);
+});
+
 test("a broad marquee does not select content disjoint from its mask", () => {
   const doc = createEmptyDocument();
   doc.nodes.content = rect("content", 0, 0, 10, 10);

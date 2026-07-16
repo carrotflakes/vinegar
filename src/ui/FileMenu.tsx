@@ -16,6 +16,7 @@ type MenuNode =
 const MENU: MenuNode[] = [
   { kind: "item", id: "file.new" },
   { kind: "item", id: "file.open" },
+  { kind: "item", id: "file.importSvg" },
   { kind: "item", id: "file.placeImage" },
   { kind: "separator" },
   { kind: "item", id: "file.save" },
