@@ -17,12 +17,12 @@ Ordered by agreed priority. These are the biggest gaps toward a "real" vector ed
      - [ ] "Export all artboards" fires N sequential downloads (filenames are
        deduplicated); consider a zip
    - Follow-ups:
-     - [ ] Artboards list panel (list / rename / reorder = export order / select)
+     - [x] Artboards list panel (list / rename / reorder = export order / select)
      - [x] Fit / zoom to artboard navigation
      - [ ] Duplicate artboard (and copy/paste)
      - [ ] Background: transparent checkerboard indicator on canvas; don't hide grid;
        later gradient/image board backgrounds
-     - [ ] Export options dialog (scale / format / margin per board; PNG is 2x fixed)
+     - [x] Export options dialog (scale / format / margin per board; PNG is 2x fixed)
      - [ ] Deferred by design: rotated boards, on-canvas clip-to-artboard view toggle
 2. [x] **Raster image placement** — shipped (`image` node + `DocumentAsset` store,
    file v12; decode cache in `canvas/imageCache.ts`). Follow-ups:
@@ -110,7 +110,7 @@ and performance work. Treat these as release gates ahead of animation, MCP,
 additional effects, or other feature expansion.
 
 - [ ] Alignment guides during resize and rotate (currently move only)
-- [ ] **SVG import / placement** — open or place existing vector artwork while
+- [x] **SVG import / placement** — open or place existing vector artwork while
   preserving paths, transforms, groups, fills/strokes and gradients where possible
 - [ ] **Rulers and draggable guides** — horizontal/vertical rulers, persistent
   document guides, snapping, lock/hide/clear actions
@@ -193,9 +193,7 @@ additional effects, or other feature expansion.
   fidelity and browser/touch support).
 
 ## User ideas / wishlist
-- [x] Rectangleの角丸
 - [ ] 塗り機能
-- [x] テクスチャ（パターン塗り／fill・stroke、SVG出力は後回し）
 - [ ] スクリプティングの拡充
   - [ ] 実行後に生成物へビューを自動フィット
   - [ ] DSL に bezier() を追加
@@ -216,16 +214,9 @@ additional effects, or other feature expansion.
   - [ ] Script API: expose instances (currently scene shapes only)
   - [ ] Export bounds: include stroke extents of instance content
 - [ ] MCPサーバー化
-- [x] ロゴ / ファビコン
-- [x] ユーザ選択不要な部分に select-none
-- [x] Fileメニューの階層化（Export submenu）
 - [ ] assetを確認できるビュー
 - [ ] テキストのパス化
 - [ ] 保存形式の検討 zip化?
 - [ ] タッチ操作、ちょっと選択するだけで移動となってしまう問題
-- [x] キャンバスじゃないところズームする問題
-- [x] Preference
-- [x] App.cssデカすぎ問題
 - [ ] パフォーマンス改善
-- [x] ライトモード対応
 - [ ] 単純図形生成　多角形、星など
