@@ -59,6 +59,7 @@ import {
 import { descendantShapeIds, isInstance, isShape, selectionRoots } from "../model/scene";
 import { useEditor } from "../store/editorStore";
 import ColorField from "./ColorField";
+import ScrubbableNumber from "./ScrubbableNumber";
 import { getSelectionFrame } from "../canvas/frame";
 import { getAssetImage, subscribeImageCache } from "../canvas/imageCache";
 import { useEffect, useReducer, useState } from "react";
@@ -306,13 +307,13 @@ export default function PropertiesPanel() {
                   value={strokeWidth}
                   onChange={(e) => setStrokeWidth(Number(e.target.value))}
                 />
-                <input
-                  type="number"
+                <ScrubbableNumber
                   className="num"
                   min={0}
                   step={0.5}
                   value={strokeWidth}
-                  onChange={(e) => setStrokeWidth(Number(e.target.value))}
+                  onChange={setStrokeWidth}
+                  aria-label="Stroke width"
                 />
               </div>
             </div>
@@ -378,12 +379,12 @@ export default function PropertiesPanel() {
                 value={rotationDeg}
                 onChange={(e) => setRotation(Number(e.target.value))}
               />
-              <input
-                type="number"
+              <ScrubbableNumber
                 className="num"
                 step={1}
                 value={rotationDeg}
-                onChange={(e) => setRotation(Number(e.target.value))}
+                onChange={setRotation}
+                aria-label="Rotation"
               />
             </div>
             <button
@@ -439,12 +440,12 @@ export default function PropertiesPanel() {
                 value={groupRotationDeg}
                 onChange={(e) => setGroupRotation(Number(e.target.value))}
               />
-              <input
-                type="number"
+              <ScrubbableNumber
                 className="num"
                 step={1}
                 value={groupRotationDeg}
-                onChange={(e) => setGroupRotation(Number(e.target.value))}
+                onChange={setGroupRotation}
+                aria-label="Group rotation"
               />
             </div>
             <button
@@ -739,15 +740,12 @@ function StrokeDetailControls({
         </label>
         <label>
           <span>Dash offset</span>
-          <input
-            type="number"
+          <ScrubbableNumber
             className="num stroke-offset"
             step={0.5}
             value={value.dashOffset}
-            onChange={(e) => {
-              const next = Number(e.target.value);
-              if (Number.isFinite(next)) onChange({ dashOffset: next });
-            }}
+            onChange={(next) => onChange({ dashOffset: next })}
+            aria-label="Dash offset"
           />
         </label>
       </div>
@@ -811,28 +809,16 @@ function ArtboardPanel({
 }) {
   const transparent = artboard.background === null;
 
-  const field = (key: "x" | "y" | "width" | "height", label: string) => {
-    const v = Math.round(artboard[key]);
-    return (
-      <label className="geo-field">
-        <span>{label}</span>
-        <input
-          type="number"
-          key={`${key}:${v}`}
-          defaultValue={v}
-          onKeyDown={(e) => {
-            if (e.key === "Enter") e.currentTarget.blur();
-          }}
-          onBlur={(e) => {
-            const n = Number(e.target.value);
-            if (e.target.value !== "" && !Number.isNaN(n)) {
-              update(artboard.id, { [key]: n });
-            }
-          }}
-        />
-      </label>
-    );
-  };
+  const field = (key: "x" | "y" | "width" | "height", label: string) => (
+    <label className="geo-field">
+      <span>{label}</span>
+      <ScrubbableNumber
+        value={Math.round(artboard[key])}
+        aria-label={label}
+        onChange={(n) => update(artboard.id, { [key]: n })}
+      />
+    </label>
+  );
 
   return (
     <div className="panel">
@@ -991,13 +977,13 @@ function TextSection({ shape }: { shape: TextShape }) {
       <div className="field">
         <label>Size</label>
         <div className="field-row">
-          <input
-            type="number"
+          <ScrubbableNumber
             className="num"
             min={1}
             step={1}
             value={shape.fontSize}
-            onChange={(event) => update(shape.id, { fontSize: Math.max(1, Number(event.target.value)) })}
+            onChange={(v) => update(shape.id, { fontSize: v })}
+            aria-label="Font size"
           />
           <select
             className="blend-select"
@@ -1020,13 +1006,13 @@ function TextSection({ shape }: { shape: TextShape }) {
       </div>
       <div className="field">
         <label>Line height</label>
-        <input
-          type="number"
+        <ScrubbableNumber
           className="num"
           min={0.5}
           step={0.1}
           value={shape.lineHeight}
-          onChange={(event) => update(shape.id, { lineHeight: Math.max(0.5, Number(event.target.value)) })}
+          onChange={(v) => update(shape.id, { lineHeight: v })}
+          aria-label="Line height"
         />
       </div>
       <div className="field">
@@ -1044,13 +1030,13 @@ function TextSection({ shape }: { shape: TextShape }) {
       {shape.textMode === "area" && (
         <div className="field">
           <label>Wrapping width</label>
-          <input
-            type="number"
+          <ScrubbableNumber
             className="num"
             min={1}
             step={1}
             value={Math.round(shape.width)}
-            onChange={(event) => update(shape.id, { width: Math.max(1, Number(event.target.value)) })}
+            onChange={(v) => update(shape.id, { width: v })}
+            aria-label="Wrapping width"
           />
         </div>
       )}
@@ -1068,32 +1054,22 @@ function Geometry({ shape }: { shape: Shape }) {
       ? b.width / b.height
       : null;
 
-  const field = (key: "x" | "y" | "width" | "height", label: string) => {
-    const v = Math.round(b[key]);
-    return (
-      <label className="geo-field">
-        <span>{label}</span>
-        <input
-          type="number"
-          key={`${key}:${v}`}
-          defaultValue={v}
-          onKeyDown={(e) => {
-            if (e.key === "Enter") e.currentTarget.blur();
-          }}
-          onBlur={(e) => {
-            const n = Number(e.target.value);
-            if (e.target.value !== "" && !Number.isNaN(n)) {
-              const patch: Partial<Record<"x" | "y" | "width" | "height", number>> =
-                { [key]: n };
-              if (lockRatio && key === "width") patch.height = n / lockRatio;
-              else if (lockRatio && key === "height") patch.width = n * lockRatio;
-              setShapeGeometry(shape.id, patch);
-            }
-          }}
-        />
-      </label>
-    );
-  };
+  const field = (key: "x" | "y" | "width" | "height", label: string) => (
+    <label className="geo-field">
+      <span>{label}</span>
+      <ScrubbableNumber
+        value={Math.round(b[key])}
+        aria-label={label}
+        onChange={(n) => {
+          const patch: Partial<Record<"x" | "y" | "width" | "height", number>> =
+            { [key]: n };
+          if (lockRatio && key === "width") patch.height = n / lockRatio;
+          else if (lockRatio && key === "height") patch.width = n * lockRatio;
+          setShapeGeometry(shape.id, patch);
+        }}
+      />
+    </label>
+  );
 
   const radiusField = () => {
     if (shape.type !== "rect") return null;
@@ -1101,22 +1077,13 @@ function Geometry({ shape }: { shape: Shape }) {
     return (
       <label className="geo-field">
         <span>R</span>
-        <input
-          type="number"
+        <ScrubbableNumber
           min={0}
           max={maxRectCornerRadius(shape)}
           step={1}
-          key={`radius:${radius}`}
-          defaultValue={radius}
-          onKeyDown={(e) => {
-            if (e.key === "Enter") e.currentTarget.blur();
-          }}
-          onBlur={(e) => {
-            const value = Number(e.currentTarget.value);
-            if (e.currentTarget.value !== "" && Number.isFinite(value)) {
-              setRectCornerRadius(shape.id, value);
-            }
-          }}
+          value={radius}
+          aria-label="Corner radius"
+          onChange={(value) => setRectCornerRadius(shape.id, value)}
         />
       </label>
     );
@@ -1163,16 +1130,13 @@ function EffectsSection({ node }: { node: SceneNode }) {
   ) => (
     <label className="geo-field">
       <span>{label}</span>
-      <input
-        type="number"
+      <ScrubbableNumber
         className="num"
         min={opts.min}
         step={opts.step ?? 1}
         value={Math.round(value * 100) / 100}
-        onChange={(e) => {
-          const n = Number(e.target.value);
-          if (!Number.isNaN(n)) onChange(n);
-        }}
+        onChange={onChange}
+        aria-label={label}
       />
     </label>
   );
