@@ -98,7 +98,12 @@ interface Drop {
 }
 
 export default function LayersPanel() {
-  const doc = useEditor((s) => s.doc);
+  // Freeze the tree during a canvas drag: `_interaction.before` is the stable
+  // pre-drag document, so this selector keeps returning the same reference while
+  // a move/resize/etc. is live. The panel only shows structure (which a drag
+  // never changes), so it stays correct and skips re-rendering thousands of rows
+  // every frame; it repaints once when the interaction commits.
+  const doc = useEditor((s) => s._interaction?.before ?? s.doc);
   const selection = useEditor((s) => s.selection);
   const setSelection = useEditor((s) => s.setSelection);
   const toggleHidden = useEditor((s) => s.toggleHidden);

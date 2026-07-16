@@ -71,6 +71,7 @@ function mockContext() {
     transform(...matrix) { calls.push(["transform", ...matrix]); },
     getTransform() { return { a: 1, b: 0, c: 0, d: 1, e: 0, f: 0 }; },
     setTransform(...matrix) { calls.push(["setTransform", ...matrix]); },
+    clearRect(...args) { calls.push(["clearRect", ...args]); },
     drawImage(...args) { calls.push(["drawImage", ...args]); },
     beginPath() { calls.push(["beginPath"]); },
     rect(x, y, width, height) { calls.push(["rect", x, y, width, height]); },

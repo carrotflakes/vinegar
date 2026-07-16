@@ -46,9 +46,9 @@ export function paintNode(
     }
     // Effects need the shape composited as a layer, so its own opacity/blend is
     // deferred to the final draw (content -> effects -> opacity/blend).
-    const layer = makeLayer(ctx);
-    const lctx = layer?.getContext("2d");
-    if (!layer || !lctx) return;
+    const acq = acquireLayer(ctx);
+    if (!acq) return;
+    const { canvas: layer, lctx } = acq;
     lctx.setTransform(ctx.getTransform());
     paintShape(lctx, { ...shape, opacity: 1, blendMode: undefined }, doc.assets);
     compositeEffects(ctx, layer, deviceScale(ctx), shape.effects, shape.opacity, shape.blendMode);
@@ -92,13 +92,13 @@ export function paintNode(
     if (symbolId) activeSymbols.delete(symbolId);
     return;
   }
-  const layer = makeLayer(ctx);
-  const lctx = layer?.getContext("2d");
-  if (!layer || !lctx) {
+  const acq = acquireLayer(ctx);
+  if (!acq) {
     ctx.restore();
     if (symbolId) activeSymbols.delete(symbolId);
     return;
   }
+  const { canvas: layer, lctx } = acq;
   lctx.setTransform(ctx.getTransform());
   const scale = deviceScale(ctx);
   applyMask(lctx);
@@ -108,12 +108,56 @@ export function paintNode(
   if (symbolId) activeSymbols.delete(symbolId);
 }
 
-/** A fresh offscreen canvas matching the target's pixel dimensions. */
-function makeLayer(ctx: CanvasRenderingContext2D): HTMLCanvasElement | null {
-  const layer = document.createElement("canvas");
-  layer.width = ctx.canvas.width;
-  layer.height = ctx.canvas.height;
-  return layer;
+/**
+ * Pool of full-size offscreen canvases reused across frames. Compositing an
+ * opacity group, effect, mask or isolated stroke needs a target-sized layer;
+ * allocating one per node per frame churns the GC during drags. Layers are
+ * acquired and released in a balanced (stack-like) fashion within a frame, so a
+ * simple free-list bounded by the deepest nesting suffices.
+ */
+const freeLayers: HTMLCanvasElement[] = [];
+let poolWidth = 0;
+let poolHeight = 0;
+
+/** A cleared, default-state offscreen canvas matching the target's pixels. */
+function acquireLayer(
+  ctx: CanvasRenderingContext2D
+): { canvas: HTMLCanvasElement; lctx: CanvasRenderingContext2D } | null {
+  const width = ctx.canvas.width;
+  const height = ctx.canvas.height;
+  if (width !== poolWidth || height !== poolHeight) {
+    // A resize/DPR change invalidates every pooled layer's dimensions.
+    freeLayers.length = 0;
+    poolWidth = width;
+    poolHeight = height;
+  }
+  let canvas = freeLayers.pop();
+  if (!canvas) {
+    canvas = document.createElement("canvas");
+    canvas.width = width;
+    canvas.height = height;
+  }
+  const lctx = canvas.getContext("2d");
+  if (!lctx) return null;
+  // A pooled canvas carries its previous pixels and context state; reset both
+  // to the same clean slate a freshly created canvas would provide.
+  lctx.setTransform(1, 0, 0, 1, 0, 0);
+  lctx.globalAlpha = 1;
+  lctx.globalCompositeOperation = "source-over";
+  lctx.filter = "none";
+  lctx.shadowColor = "rgba(0, 0, 0, 0)";
+  lctx.shadowBlur = 0;
+  lctx.shadowOffsetX = 0;
+  lctx.shadowOffsetY = 0;
+  lctx.clearRect(0, 0, width, height);
+  return { canvas, lctx };
+}
+
+/** Return a layer to the pool once its pixels have been composited out. */
+function releaseLayer(canvas: HTMLCanvasElement): void {
+  if (canvas.width === poolWidth && canvas.height === poolHeight) {
+    freeLayers.push(canvas);
+  }
 }
 
 /** World->device length scale of the current transform (for local-space effects). */
@@ -146,10 +190,11 @@ function compositeEffects(
   blendMode: string | undefined
 ): void {
   let src = layer;
+  const intermediates: HTMLCanvasElement[] = [];
   for (const effect of effects ?? []) {
-    const next = makeLayer(ctx);
-    const nctx = next?.getContext("2d");
-    if (!next || !nctx) break;
+    const next = acquireLayer(ctx);
+    if (!next) break;
+    const nctx = next.lctx;
     if (effect.type === "blur") {
       nctx.filter = `blur(${effect.radius * scale}px)`;
       nctx.drawImage(src, 0, 0);
@@ -160,7 +205,8 @@ function compositeEffects(
       nctx.shadowOffsetY = effect.offsetY * scale;
       nctx.drawImage(src, 0, 0);
     }
-    src = next;
+    intermediates.push(next.canvas);
+    src = next.canvas;
   }
   ctx.save();
   ctx.setTransform(1, 0, 0, 1, 0, 0);
@@ -170,6 +216,10 @@ function compositeEffects(
   }
   ctx.drawImage(src, 0, 0);
   ctx.restore();
+  // The pixels now live on `ctx`; the caller's content layer and every effect
+  // stage can go back to the pool.
+  releaseLayer(layer);
+  for (const canvas of intermediates) releaseLayer(canvas);
 }
 
 /** Build the geometry of a shape onto the current canvas path. */
@@ -380,16 +430,19 @@ function paintVectorStroke(
   if (!shape.stroke) return;
   const alignment = effectiveStrokeAlignment(shape);
   if (alignment === "outside") {
-    // PERF: this allocates a target-sized layer per outside-stroked shape on
-    // every frame. If documents commonly contain many such shapes, replace it
-    // with a tight device-space layer (including miter/effect padding) or cache
-    // the isolated stroke until the shape/viewport changes.
-    const layer = makeLayer(ctx);
-    const lctx = layer?.getContext("2d");
-    if (!layer || !lctx) return;
+    // PERF: this borrows a target-sized layer per outside-stroked shape on
+    // every frame. The layer pool avoids the allocation churn; a tighter
+    // device-space layer (including miter/effect padding) or caching the
+    // isolated stroke until the shape/viewport changes would cut fill cost too.
+    const acq = acquireLayer(ctx);
+    if (!acq) return;
+    const { canvas: layer, lctx } = acq;
     lctx.setTransform(ctx.getTransform());
     const style = resolveStyle(lctx, shape.stroke, bounds, assets);
-    if (!style) return;
+    if (!style) {
+      releaseLayer(layer);
+      return;
+    }
     lctx.strokeStyle = style;
     applyStrokeStyle(lctx, shape, shape.strokeWidth * 2);
     tracePath(lctx, shape);
@@ -400,6 +453,7 @@ function paintVectorStroke(
     tracePath(lctx, shape);
     lctx.fill(shapeFillRule(shape));
     withPaintAlpha(ctx, shape.opacity, shape.stroke, () => drawLayerInDeviceSpace(ctx, layer));
+    releaseLayer(layer);
     return;
   }
 
@@ -446,16 +500,19 @@ function paintTextStroke(
   }
 
   // PERF: live text has no Canvas path we can clip directly, so both inside
-  // and outside alignment currently use a full target-sized alpha layer. A
-  // tight glyph-bounds layer is the likely optimization if this becomes hot.
-  const layer = makeLayer(ctx);
-  const lctx = layer?.getContext("2d");
-  if (!layer || !lctx) return;
+  // and outside alignment currently borrow a full target-sized alpha layer from
+  // the pool. A tight glyph-bounds layer is the likely optimization if hot.
+  const acq = acquireLayer(ctx);
+  if (!acq) return;
+  const { canvas: layer, lctx } = acq;
   lctx.setTransform(ctx.getTransform());
   lctx.font = ctx.font;
   lctx.textBaseline = "alphabetic";
   const style = resolveStyle(lctx, shape.stroke, bounds, assets);
-  if (!style) return;
+  if (!style) {
+    releaseLayer(layer);
+    return;
+  }
   lctx.strokeStyle = style;
   applyStrokeStyle(lctx, shape, shape.strokeWidth * 2);
   for (const line of lines) {
@@ -468,6 +525,7 @@ function paintTextStroke(
     if (line.text) lctx.fillText(line.text, shape.x + line.x, shape.y + line.baseline);
   }
   withPaintAlpha(ctx, shape.opacity, shape.stroke, () => drawLayerInDeviceSpace(ctx, layer));
+  releaseLayer(layer);
 }
 
 /**
