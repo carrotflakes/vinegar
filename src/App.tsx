@@ -19,6 +19,7 @@ import CommandPalette from "./ui/CommandPalette";
 import FullscreenButton from "./ui/FullscreenButton";
 import ContextMenuHost from "./ui/ContextMenu";
 import ZoomMenu from "./ui/ZoomMenu";
+import SnapMenu from "./ui/SnapMenu";
 import PreferencesDialog from "./ui/PreferencesDialog";
 import { scopeLeafIds } from "./model/scene";
 import {
@@ -149,12 +150,6 @@ function AutosaveInfo() {
 export default function App() {
   const canUndo = useEditor((s) => s.history.past.length > 0);
   const canRedo = useEditor((s) => s.history.future.length > 0);
-  const snapEnabled = useEditor((s) => s.snapEnabled);
-  const toggleSnap = useEditor((s) => s.toggleSnap);
-  const gridSnap = useEditor((s) => s.gridSnap);
-  const toggleGridSnap = useEditor((s) => s.toggleGridSnap);
-  const gridSize = useEditor((s) => s.gridSize);
-  const setGridSize = useEditor((s) => s.setGridSize);
   const recoveryEnabled = usePreferences((s) => s.recovery.enabled);
   const recoveryMaxWaitMs = usePreferences((s) => s.recovery.maxWaitMs);
   const previousRecoveryEnabled = useRef(recoveryEnabled);
@@ -377,36 +372,7 @@ export default function App() {
         <span className="status-spacer" />
         <AutosaveInfo />
         <span className="status-sep" />
-        <label className="snap-toggle">
-          <input
-            type="checkbox"
-            checked={snapEnabled}
-            onChange={toggleSnap}
-          />
-          Snap
-        </label>
-        <label className="snap-toggle">
-          <input
-            type="checkbox"
-            checked={gridSnap}
-            onChange={toggleGridSnap}
-          />
-          Grid
-        </label>
-        <label className="snap-toggle">
-          Size
-          <input
-            type="number"
-            min={1}
-            step={1}
-            value={gridSize}
-            onChange={(e) => {
-              const v = Number(e.target.value);
-              if (Number.isFinite(v) && v >= 1) setGridSize(v);
-            }}
-            className="grid-size-input"
-          />
-        </label>
+        <SnapMenu />
       </footer>
     </div>
   );

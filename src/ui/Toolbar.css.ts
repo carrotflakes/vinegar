@@ -28,7 +28,6 @@ globalStyle(".tool-btn:hover", {
 
 globalStyle(".tool-btn.active", {
   background: vars.accentWeak,
-  borderColor: vars.accentBorder,
   color: vars.accent,
 });
 

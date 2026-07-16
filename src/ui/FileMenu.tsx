@@ -32,8 +32,6 @@ const MENU: MenuNode[] = [
     ],
   },
   { kind: "separator" },
-  { kind: "item", id: "file.demo" },
-  { kind: "separator" },
   { kind: "preferences", label: "Preferences…" },
 ];
 

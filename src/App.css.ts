@@ -198,20 +198,12 @@ globalStyle(".status-sep", {
   background: vars.border,
 });
 
-globalStyle(".snap-toggle", {
-  display: "flex",
-  alignItems: "center",
-  gap: "5px",
-  cursor: "pointer",
-  userSelect: "none",
-});
-
-globalStyle(".snap-toggle input", {
-  cursor: "pointer",
-});
-
 globalStyle(".grid-size-input", {
   width: "52px",
+  padding: "5px 7px",
+  border: `1px solid ${vars.border}`,
+  borderRadius: "6px",
+  fontSize: "12px",
   cursor: "text",
 });
 
