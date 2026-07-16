@@ -97,12 +97,16 @@ export default function Dock() {
     <div className="dock">
       {layout.map((group, i) => {
         const nextId = layout[i + 1]?.id ?? null;
-        const splitTop =
-          dropTarget?.kind === "split" && dropTarget.beforeGroupId === group.id;
+        // A split inserts a new group "before beforeGroupId". Mark the boundary
+        // the cursor is actually over: the bottom edge of this group when the
+        // insertion falls just after it (before `nextId`, or an append when
+        // `nextId` is null), and the very top only for the first group.
         const splitBottom =
+          dropTarget?.kind === "split" && dropTarget.beforeGroupId === nextId;
+        const splitTop =
           dropTarget?.kind === "split" &&
-          dropTarget.beforeGroupId === null &&
-          i === layout.length - 1;
+          i === 0 &&
+          dropTarget.beforeGroupId === group.id;
         return (
           <Fragment key={group.id}>
             {i > 0 && (
@@ -124,6 +128,8 @@ export default function Dock() {
                 else groupEls.current.delete(group.id);
               }}
             >
+              {splitTop && <div className="dock-split-drop top" />}
+              {splitBottom && <div className="dock-split-drop bottom" />}
               <div
                 className="dock-tabs"
                 onDragOver={(e) => {
@@ -219,8 +225,6 @@ export default function Dock() {
                   commitDrop();
                 }}
               >
-                {splitTop && <div className="dock-split-drop top" />}
-                {splitBottom && <div className="dock-split-drop bottom" />}
                 {PANEL_MAP[group.active]?.render()}
               </div>
             </div>

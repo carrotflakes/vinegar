@@ -10,6 +10,7 @@ globalStyle(".dock", {
 });
 
 globalStyle(".dock-group", {
+  position: "relative",
   minHeight: "0",
   display: "flex",
   flexDirection: "column",
