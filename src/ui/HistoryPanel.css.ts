@@ -42,4 +42,5 @@ globalStyle(".history-label", {
   overflow: "hidden",
   textOverflow: "ellipsis",
   whiteSpace: "nowrap",
+  fontSize: "12px",
 });
