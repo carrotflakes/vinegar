@@ -27,6 +27,12 @@ export const vars = createGlobalThemeContract({
   track: "track",
   thumb: "thumb",
   thumbBorder: "thumb-border",
+  // Canvas surface (2D-context colors, read at render time via getComputedStyle).
+  canvasBg: "canvas-bg",
+  canvasScopeBg: "canvas-scope-bg",
+  gridMinor: "grid-minor",
+  gridMajor: "grid-major",
+  gridAxis: "grid-axis",
 });
 
 createGlobalTheme(":root", vars, {
@@ -52,6 +58,11 @@ createGlobalTheme(":root", vars, {
   track: "#3a3f47",
   thumb: "#d7dbe1",
   thumbBorder: "#22252a",
+  canvasBg: "#17181b",
+  canvasScopeBg: "#211e2a",
+  gridMinor: "#26282d",
+  gridMajor: "#31343b",
+  gridAxis: "#41454e",
 });
 
 createGlobalTheme(":root[data-theme=\"light\"]", vars, {
@@ -77,6 +88,11 @@ createGlobalTheme(":root[data-theme=\"light\"]", vars, {
   track: "#dfe3e8",
   thumb: "#ffffff",
   thumbBorder: "#c2c8d0",
+  canvasBg: "#f4f5f7",
+  canvasScopeBg: "#f5f3fb",
+  gridMinor: "#e6e8ec",
+  gridMajor: "#d5dae1",
+  gridAxis: "#b4bac4",
 });
 
 globalStyle(":root", {

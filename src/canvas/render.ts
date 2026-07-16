@@ -561,6 +561,8 @@ export interface RenderOptions {
   showGrid?: boolean;
   /** World units between grid lines (defaults to 50). */
   gridSize?: number;
+  /** Grid line colors per tier; falls back to light-theme defaults. */
+  gridColors?: { minor: string; major: string; axis: string };
   /** Paint these roots instead of `doc.rootIds` (symbol local view). */
   rootIds?: string[];
   /** Artboard frames/backdrops to draw under the scene (omit in symbol view). */
@@ -631,30 +633,61 @@ function gridStep(opts: RenderOptions): number {
   return step;
 }
 
+/** Every Nth grid line is drawn heavier to give a readable sense of scale. */
+const GRID_MAJOR_EVERY = 5;
+const GRID_MINOR_COLOR = "#eceef1";
+const GRID_MAJOR_COLOR = "#d7dbe1";
+const GRID_AXIS_COLOR = "#b4bac4";
+
+/** Classify a world-grid line by its index from the origin. */
+function gridTier(index: number): "axis" | "major" | "minor" {
+  if (index === 0) return "axis";
+  return index % GRID_MAJOR_EVERY === 0 ? "major" : "minor";
+}
+
 function drawGrid(ctx: CanvasRenderingContext2D, opts: RenderOptions): void {
   if (opts.viewport.rotation !== 0) {
     drawRotatedGrid(ctx, opts);
     return;
   }
   const { viewport, width, height } = opts;
-  const step = gridStep(opts) * viewport.scale;
-
+  const worldStep = gridStep(opts);
+  const step = worldStep * viewport.scale;
   const origin = worldToScreen(viewport, { x: 0, y: 0 });
-  const startX = origin.x - Math.ceil(origin.x / step) * step;
-  const startY = origin.y - Math.ceil(origin.y / step) * step;
 
-  ctx.strokeStyle = "#eceef1";
+  // Screen position of a line is origin + index * step; solve for the visible
+  // index range so each line's tier can be derived from its distance to origin.
+  const minor = new Path2D();
+  const major = new Path2D();
+  const axis = new Path2D();
+  const pathFor = (tier: "axis" | "major" | "minor") =>
+    tier === "axis" ? axis : tier === "major" ? major : minor;
+
+  const kx0 = Math.ceil((0 - origin.x) / step);
+  const kx1 = Math.floor((width - origin.x) / step);
+  for (let k = kx0; k <= kx1; k++) {
+    const x = Math.round(origin.x + k * step) + 0.5;
+    const p = pathFor(gridTier(k));
+    p.moveTo(x, 0);
+    p.lineTo(x, height);
+  }
+  const ky0 = Math.ceil((0 - origin.y) / step);
+  const ky1 = Math.floor((height - origin.y) / step);
+  for (let k = ky0; k <= ky1; k++) {
+    const y = Math.round(origin.y + k * step) + 0.5;
+    const p = pathFor(gridTier(k));
+    p.moveTo(0, y);
+    p.lineTo(width, y);
+  }
+
+  const colors = opts.gridColors;
   ctx.lineWidth = 1;
-  ctx.beginPath();
-  for (let x = startX; x <= width; x += step) {
-    ctx.moveTo(Math.round(x) + 0.5, 0);
-    ctx.lineTo(Math.round(x) + 0.5, height);
-  }
-  for (let y = startY; y <= height; y += step) {
-    ctx.moveTo(0, Math.round(y) + 0.5);
-    ctx.lineTo(width, Math.round(y) + 0.5);
-  }
-  ctx.stroke();
+  ctx.strokeStyle = colors?.minor ?? GRID_MINOR_COLOR;
+  ctx.stroke(minor);
+  ctx.strokeStyle = colors?.major ?? GRID_MAJOR_COLOR;
+  ctx.stroke(major);
+  ctx.strokeStyle = colors?.axis ?? GRID_AXIS_COLOR;
+  ctx.stroke(axis);
 }
 
 /**
@@ -676,20 +709,35 @@ function drawRotatedGrid(ctx: CanvasRenderingContext2D, opts: RenderOptions): vo
   const minY = Math.min(...corners.map((c) => c.y));
   const maxY = Math.max(...corners.map((c) => c.y));
 
-  ctx.strokeStyle = "#eceef1";
-  ctx.lineWidth = 1;
-  ctx.beginPath();
-  for (let x = Math.floor(minX / step) * step; x <= maxX; x += step) {
+  const minor = new Path2D();
+  const major = new Path2D();
+  const axis = new Path2D();
+  const pathFor = (tier: "axis" | "major" | "minor") =>
+    tier === "axis" ? axis : tier === "major" ? major : minor;
+
+  for (let k = Math.floor(minX / step); k * step <= maxX; k++) {
+    const x = k * step;
     const a = worldToScreen(viewport, { x, y: minY });
     const b = worldToScreen(viewport, { x, y: maxY });
-    ctx.moveTo(a.x, a.y);
-    ctx.lineTo(b.x, b.y);
+    const p = pathFor(gridTier(k));
+    p.moveTo(a.x, a.y);
+    p.lineTo(b.x, b.y);
   }
-  for (let y = Math.floor(minY / step) * step; y <= maxY; y += step) {
+  for (let k = Math.floor(minY / step); k * step <= maxY; k++) {
+    const y = k * step;
     const a = worldToScreen(viewport, { x: minX, y });
     const b = worldToScreen(viewport, { x: maxX, y });
-    ctx.moveTo(a.x, a.y);
-    ctx.lineTo(b.x, b.y);
+    const p = pathFor(gridTier(k));
+    p.moveTo(a.x, a.y);
+    p.lineTo(b.x, b.y);
   }
-  ctx.stroke();
+
+  const colors = opts.gridColors;
+  ctx.lineWidth = 1;
+  ctx.strokeStyle = colors?.minor ?? GRID_MINOR_COLOR;
+  ctx.stroke(minor);
+  ctx.strokeStyle = colors?.major ?? GRID_MAJOR_COLOR;
+  ctx.stroke(major);
+  ctx.strokeStyle = colors?.axis ?? GRID_AXIS_COLOR;
+  ctx.stroke(axis);
 }

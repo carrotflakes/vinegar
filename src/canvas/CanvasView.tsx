@@ -51,6 +51,7 @@ import {
   onArtboardMove,
 } from "./tools/artboardTool";
 import { subscribeImageCache } from "./imageCache";
+import { vars } from "../styles/theme.css";
 import { pickShape, selectedBezier, selectedShapes } from "./picking";
 import { renderScene } from "./render";
 import {
@@ -99,6 +100,33 @@ interface TextEditSession {
   previousSelection: string[];
 }
 
+interface CanvasTheme {
+  bg: string;
+  scopeBg: string;
+  grid: { minor: string; major: string; axis: string };
+}
+
+/** Extract the custom-property name from a vanilla-extract `var(--x)` reference. */
+function cssVarName(ref: string): string {
+  const match = ref.match(/^var\((--[^,)]+)/);
+  return match ? match[1] : ref;
+}
+
+/** Resolve the canvas 2D colors from the active theme's CSS variables. */
+function readCanvasTheme(): CanvasTheme {
+  const style = getComputedStyle(document.documentElement);
+  const read = (ref: string) => style.getPropertyValue(cssVarName(ref)).trim();
+  return {
+    bg: read(vars.canvasBg),
+    scopeBg: read(vars.canvasScopeBg),
+    grid: {
+      minor: read(vars.gridMinor),
+      major: read(vars.gridMajor),
+      axis: read(vars.gridAxis),
+    },
+  };
+}
+
 export default function CanvasView() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const wrapRef = useRef<HTMLDivElement>(null);
@@ -121,6 +149,7 @@ export default function CanvasView() {
   const guidesRef = useRef<Guide[]>([]);
   const spacingsRef = useRef<Spacing[]>([]);
   const rafRef = useRef<number | null>(null);
+  const themeRef = useRef<CanvasTheme>(readCanvasTheme());
   const spaceRef = useRef(false);
   // Active pointers (screen coords, canvas-relative) for multi-touch gestures.
   const pointersRef = useRef<Map<number, Vec2>>(new Map());
@@ -155,9 +184,10 @@ export default function CanvasView() {
       viewport,
       doc,
       preview: previewRef.current,
-      background: scope ? "#f5f3fb" : "#ffffff",
+      background: scope ? themeRef.current.scopeBg : themeRef.current.bg,
       showGrid: true,
       gridSize: state.gridSize,
+      gridColors: themeRef.current.grid,
       rootIds: scopeRoot !== null ? [scopeRoot] : undefined,
       artboards: scope ? undefined : doc.artboards,
       hiddenShapeId: textEditRef.current?.original?.id ?? null,
@@ -331,6 +361,19 @@ export default function CanvasView() {
 
   // Repaint when an image asset finishes decoding.
   useEffect(() => subscribeImageCache(scheduleDraw), [scheduleDraw]);
+
+  // Re-resolve canvas colors whenever the active theme (data-theme) changes.
+  useEffect(() => {
+    const observer = new MutationObserver(() => {
+      themeRef.current = readCanvasTheme();
+      scheduleDraw();
+    });
+    observer.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ["data-theme"],
+    });
+    return () => observer.disconnect();
+  }, [scheduleDraw]);
 
   // Font metrics can change after the document first paints. Refresh the
   // persisted text bounds without creating an undo entry.
