@@ -3,6 +3,7 @@ import LayersPanel from "../LayersPanel";
 import PropertiesPanel from "../PropertiesPanel";
 import SymbolsPanel from "../SymbolsPanel";
 import ArtboardsPanel from "../ArtboardsPanel";
+import HistoryPanel from "../HistoryPanel";
 
 /** A dockable panel: a stable id, a tab label, and how to render its body. */
 export interface PanelDef {
@@ -17,6 +18,7 @@ export const PANELS: PanelDef[] = [
   { id: "layers", title: "Layers", render: () => <LayersPanel /> },
   { id: "symbols", title: "Symbols", render: () => <SymbolsPanel /> },
   { id: "artboards", title: "Artboards", render: () => <ArtboardsPanel /> },
+  { id: "history", title: "History", render: () => <HistoryPanel /> },
 ];
 
 export const PANEL_MAP: Record<string, PanelDef> = Object.fromEntries(
