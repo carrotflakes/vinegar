@@ -8,10 +8,16 @@ export interface UiState {
   preferencesOpen: boolean;
   openPreferences: () => void;
   closePreferences: () => void;
+  exportOpen: boolean;
+  openExport: () => void;
+  closeExport: () => void;
 }
 
 export const useUi = create<UiState>((set) => ({
   preferencesOpen: false,
   openPreferences: () => set({ preferencesOpen: true }),
   closePreferences: () => set({ preferencesOpen: false }),
+  exportOpen: false,
+  openExport: () => set({ exportOpen: true }),
+  closeExport: () => set({ exportOpen: false }),
 }));

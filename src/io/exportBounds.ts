@@ -9,10 +9,12 @@ import { matrixScale, nodeWorldMatrix, shapeWorldMatrix } from "../model/matrix"
 import { strokeOutset } from "../model/stroke";
 import {
   ancestorIds,
+  descendantNodeIds,
   isGroup,
   isNodeHidden,
   isShape,
   scopeLeafIds,
+  selectionRoots,
 } from "../model/scene";
 import type { Bounds, Document } from "../model/types";
 
@@ -27,13 +29,47 @@ export function contentBounds(
   margin = 8,
   symbolId: string | null = null
 ): Bounds | null {
+  return leavesBounds(doc, scopeLeafIds(doc, symbolId), margin);
+}
+
+/**
+ * Content bounds of a selection, expanded exactly like {@link contentBounds}
+ * so an exported selection never clips its own stroke extents or effects.
+ * Returns null when the selection has no visible leaves.
+ */
+export function selectionContentBounds(
+  doc: Document,
+  selection: string[],
+  margin = 8
+): Bounds | null {
+  const leaves = new Set<string>();
+  for (const rootId of selectionRoots(doc, selection)) {
+    const node = doc.nodes[rootId];
+    if (!node) continue;
+    // A leaf is any non-group node (shape or symbol instance).
+    if (!isGroup(node)) leaves.add(rootId);
+    else {
+      for (const id of descendantNodeIds(doc, rootId)) {
+        if (!isGroup(doc.nodes[id])) leaves.add(id);
+      }
+    }
+  }
+  return leavesBounds(doc, [...leaves], margin);
+}
+
+/** Shared bounds computation for a set of leaf ids (shapes / instances). */
+function leavesBounds(
+  doc: Document,
+  leafIds: string[],
+  margin: number
+): Bounds | null {
   const masks = new Set(
     Object.values(doc.nodes)
       .filter(isGroup)
       .map((group) => clippingMask(doc, group)?.id)
       .filter((id): id is string => !!id)
   );
-  const ids = scopeLeafIds(doc, symbolId).filter((id) => {
+  const ids = leafIds.filter((id) => {
     if (!masks.has(id)) return !isNodeHidden(doc, id);
     // A mask's own hidden flag is ignored by clipping. Hidden ancestors still
     // suppress the entire group, so do not let such a mask create bounds.

@@ -533,6 +533,12 @@ export const COMMANDS: Command[] = [
     },
   },
   {
+    id: "file.exportImage",
+    label: "Export image…",
+    group: "File",
+    run: () => useUi.getState().openExport(),
+  },
+  {
     id: "file.exportPng",
     label: "Export PNG",
     group: "File",

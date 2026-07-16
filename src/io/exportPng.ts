@@ -11,14 +11,18 @@ export interface PngOptions {
   margin?: number;
   /** Explicit crop region (e.g. an artboard). Overrides content bounds. */
   bounds?: Bounds;
+  /** Encoded image MIME type. Defaults to `image/png`. */
+  mimeType?: string;
+  /** Lossy quality (0–1) for `image/jpeg` and `image/webp`. */
+  quality?: number;
 }
 
-/** Render a document's shapes to a PNG Blob, cropped to content or explicit bounds. */
+/** Render a document's shapes to a raster Blob, cropped to content or explicit bounds. */
 export async function exportPng(
   doc: Document,
   opts: PngOptions = {}
 ): Promise<Blob> {
-  const { scale = 2, background, margin = 8 } = opts;
+  const { scale = 2, background, margin = 8, mimeType = "image/png", quality } = opts;
   const bounds = opts.bounds ?? contentBounds(doc, margin);
   if (!bounds) throw new Error("Nothing to export.");
 
@@ -50,9 +54,13 @@ export async function exportPng(
   for (const nodeId of doc.rootIds) paintNode(ctx, doc, nodeId);
 
   return await new Promise<Blob>((resolve, reject) => {
-    canvas.toBlob((blob) => {
-      if (blob) resolve(blob);
-      else reject(new Error("PNG encoding failed."));
-    }, "image/png");
+    canvas.toBlob(
+      (blob) => {
+        if (blob) resolve(blob);
+        else reject(new Error("Image encoding failed."));
+      },
+      mimeType,
+      quality
+    );
   });
 }

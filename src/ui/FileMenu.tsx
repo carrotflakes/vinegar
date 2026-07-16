@@ -24,9 +24,8 @@ const MENU: MenuNode[] = [
     kind: "submenu",
     label: "Export",
     items: [
-      "file.exportPng",
+      "file.exportImage",
       "file.exportSvg",
-      "file.exportArtboardPng",
       "file.exportArtboardSvg",
       "file.exportAllArtboardsPng",
     ],

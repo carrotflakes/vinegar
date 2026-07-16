@@ -21,6 +21,7 @@ import ContextMenuHost from "./ui/ContextMenu";
 import ZoomMenu from "./ui/ZoomMenu";
 import SnapMenu from "./ui/SnapMenu";
 import PreferencesDialog from "./ui/PreferencesDialog";
+import ExportDialog from "./ui/ExportDialog";
 import { scopeLeafIds } from "./model/scene";
 import {
   clearDocumentRecovery,
@@ -156,6 +157,8 @@ export default function App() {
   const showPreferences = useUi((s) => s.preferencesOpen);
   const openPreferences = useUi((s) => s.openPreferences);
   const closePreferences = useUi((s) => s.closePreferences);
+  const showExport = useUi((s) => s.exportOpen);
+  const closeExport = useUi((s) => s.closeExport);
   const [showScript, setShowScript] = useState(false);
   const [showInspector, setShowInspector] = useState(false);
   const [showPanel, setShowPanel] = useState(false);
@@ -361,6 +364,7 @@ export default function App() {
       <Inspector open={showInspector} onClose={() => setShowInspector(false)} />
       <CommandPalette open={showPalette} onClose={() => setShowPalette(false)} />
       <PreferencesDialog open={showPreferences} onClose={closePreferences} />
+      <ExportDialog open={showExport} onClose={closeExport} />
       <ContextMenuHost />
 
       <footer className="statusbar">
