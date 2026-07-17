@@ -687,7 +687,7 @@ export function renderScene(
   ctx.save();
   ctx.translate(viewport.offset.x, viewport.offset.y);
   ctx.rotate(viewport.rotation);
-  ctx.scale(viewport.scale, viewport.scale);
+  ctx.scale(viewport.flipX ? -viewport.scale : viewport.scale, viewport.scale);
 
   // Artboard backdrops and frames sit under the scene content.
   if (opts.artboards?.length) drawArtboards(ctx, opts.artboards, viewport.scale);

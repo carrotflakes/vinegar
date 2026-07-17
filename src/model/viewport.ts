@@ -2,14 +2,17 @@ import type { Matrix, Bounds, Vec2 } from "./types";
 
 /**
  * Viewport maps world coordinates to screen pixels:
- *   screen = R(rotation) * scale * world + offset
+ *   screen = R(rotation) * scale * F * world + offset
  * `offset` is in screen pixels, `scale` is uniform zoom and `rotation` is the
  * canvas orientation in radians (clockwise, since screen y points down).
+ * `flipX` mirrors the view horizontally (F = diag(-1, 1)) without touching the
+ * document — a display-only left/right flip.
  */
 export interface Viewport {
   scale: number;
   rotation: number;
   offset: Vec2;
+  flipX?: boolean;
 }
 
 export interface ViewportSize {
@@ -24,28 +27,31 @@ export const initialViewport: Viewport = {
 };
 
 export function worldToScreen(v: Viewport, p: Vec2): Vec2 {
+  const sx = v.flipX ? -1 : 1;
   const c = Math.cos(v.rotation) * v.scale;
   const s = Math.sin(v.rotation) * v.scale;
   return {
-    x: c * p.x - s * p.y + v.offset.x,
-    y: s * p.x + c * p.y + v.offset.y,
+    x: c * sx * p.x - s * p.y + v.offset.x,
+    y: s * sx * p.x + c * p.y + v.offset.y,
   };
 }
 
 export function screenToWorld(v: Viewport, p: Vec2): Vec2 {
+  const sx = v.flipX ? -1 : 1;
   const c = Math.cos(v.rotation) * v.scale;
   const s = Math.sin(v.rotation) * v.scale;
   const det = c * c + s * s || 1;
   const dx = p.x - v.offset.x;
   const dy = p.y - v.offset.y;
-  return { x: (c * dx + s * dy) / det, y: (-s * dx + c * dy) / det };
+  return { x: (sx * (c * dx + s * dy)) / det, y: (-s * dx + c * dy) / det };
 }
 
 /** The world->screen affine as a [a,b,c,d,e,f] matrix (e.g. for CSS overlays). */
 export function viewportMatrix(v: Viewport): Matrix {
+  const sx = v.flipX ? -1 : 1;
   const c = Math.cos(v.rotation) * v.scale;
   const s = Math.sin(v.rotation) * v.scale;
-  return [c, s, -s, c, v.offset.x, v.offset.y];
+  return [c * sx, s * sx, -s, c, v.offset.x, v.offset.y];
 }
 
 /** Zoom around a fixed screen anchor point (keeps that point stationary). */
@@ -55,10 +61,27 @@ export function zoomAt(v: Viewport, anchor: Vec2, factor: number): Viewport {
   return {
     scale: newScale,
     rotation: v.rotation,
+    flipX: v.flipX,
     offset: {
       x: anchor.x - (anchor.x - v.offset.x) * realFactor,
       y: anchor.y - (anchor.y - v.offset.y) * realFactor,
     },
+  };
+}
+
+/**
+ * Mirror the displayed image left/right around a vertical screen line through
+ * `anchor` (which stays fixed). A display-only flip; the document is untouched.
+ * A screen-space horizontal mirror decomposes into toggling `flipX`, negating
+ * the rotation and reflecting `offset.x`, so it stays exact under any canvas
+ * rotation.
+ */
+export function flipAt(v: Viewport, anchor: Vec2): Viewport {
+  return {
+    scale: v.scale,
+    rotation: -v.rotation,
+    flipX: !v.flipX,
+    offset: { x: 2 * anchor.x - v.offset.x, y: v.offset.y },
   };
 }
 
@@ -85,6 +108,7 @@ export function rotateAt(v: Viewport, anchor: Vec2, delta: number): Viewport {
   return {
     scale: v.scale,
     rotation: v.rotation + delta,
+    flipX: v.flipX,
     offset: {
       x: anchor.x + cos * dx - sin * dy,
       y: anchor.y + sin * dx + cos * dy,

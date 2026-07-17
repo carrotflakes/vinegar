@@ -87,7 +87,7 @@ globalStyle(".zoom-menu-knob line", {
 globalStyle(".menu-popover.zoom-menu-popover", {
   right: "0",
   left: "auto",
-  minWidth: "200px",
+  minWidth: "260px",
 });
 
 globalStyle(".zoom-menu-item", {

@@ -31,6 +31,7 @@ import {
 } from "../model/types";
 import {
   fitBoundsInViewport,
+  flipAt,
   initialViewport,
   rotateAt,
   screenToWorld,
@@ -422,6 +423,13 @@ export const COMMANDS: Command[] = [
     enabled: (s) => s.viewport.rotation !== 0,
     run: (s) =>
       s.setViewport(rotateAt(s.viewport, canvasCenter(), -s.viewport.rotation)),
+  },
+  {
+    id: "view.flipHorizontal",
+    label: "Flip view horizontally",
+    group: "View",
+    keys: [{ key: "F", shift: true }],
+    run: (s) => s.setViewport(flipAt(s.viewport, canvasCenter())),
   },
   {
     id: "view.fitSelection",
