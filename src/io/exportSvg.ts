@@ -1,5 +1,6 @@
 import { subpathSegments } from "../model/bezier";
 import { shapeBounds } from "../model/bounds";
+import { cachedBrushEnvelope } from "../model/brushOutline";
 import {
   clippingContentIds,
   clippingMask,
@@ -215,6 +216,17 @@ function shapeToSvg(doc: Document, shape: Shape, defs: Defs): string {
       asset.source.data
     }"${attrs ? " " + attrs : ""} />`;
   }
+  if (shape.type === "brush") {
+    // The envelope is a plain filled polygon painted with the stroke paint;
+    // there is no SVG stroke to position, so bypass the alignment machinery.
+    const parts: string[] = [];
+    if (shape.stroke) parts.push(...defs.paintAttrs(shape.stroke, "fill"));
+    else parts.push(`fill="none"`);
+    parts.push(...baseAttrs(shape));
+    const fx = filterAttr(shape, defs);
+    if (fx) parts.push(fx);
+    return shapeGeometryToSvg(shape, parts.join(" "));
+  }
   const alignment = effectiveStrokeAlignment(shape);
   if (!shape.stroke || shape.strokeWidth <= 0 || alignment === "center") {
     return shapeGeometryToSvg(shape, commonAttrs(shape, defs));
@@ -286,6 +298,13 @@ function shapeGeometryToSvg(shape: Shape, attrs: string): string {
     }
     case "bezier":
       return `<path d="${bezierPathData(shape)}" ${attrs} />`;
+    case "brush": {
+      const ring = cachedBrushEnvelope(shape);
+      if (ring.length < 3) return "";
+      const d =
+        "M " + ring.map((p) => `${num(p.x)} ${num(p.y)}`).join(" L ") + " Z";
+      return `<path d="${d}" fill-rule="nonzero" ${attrs} />`;
+    }
     case "polygon": {
       const d = shape.polys
         .flat()

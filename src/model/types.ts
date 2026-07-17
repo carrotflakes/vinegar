@@ -28,7 +28,8 @@ export type ShapeType =
   | "polygon"
   | "compoundPath"
   | "image"
-  | "text";
+  | "text"
+  | "brush";
 
 /**
  * Blend modes shared verbatim by Canvas 2D (`globalCompositeOperation`) and
@@ -228,6 +229,31 @@ export interface ImageShape extends BaseShape {
   lockAspect?: boolean;
 }
 
+/**
+ * One anchor of a brush centerline: a cubic Bézier anchor (absolute handles in
+ * local space, `null` = sharp corner, matching {@link BezierAnchor}) carrying a
+ * width multiplier.
+ */
+export interface BrushAnchor {
+  p: Vec2;
+  hIn: Vec2 | null;
+  hOut: Vec2 | null;
+  /** Width multiplier at this anchor, `>= 0`; `1` = the full `strokeWidth`. */
+  w: number;
+}
+
+/**
+ * A pressure-profiled freehand stroke. The centerline is an open cubic Bézier
+ * (`anchors`); the rendered shape is the variable-width envelope of that line,
+ * filled with the `stroke` paint using the nonzero winding rule. `strokeWidth`
+ * is the base width that every anchor's `w` scales. Fill and the stroke detail
+ * fields (dash/cap/join/alignment) are unused in v1 — ends are round caps.
+ */
+export interface BrushShape extends BaseShape {
+  type: "brush";
+  anchors: BrushAnchor[];
+}
+
 export type TextMode = "point" | "area";
 export type TextAlign = "left" | "center" | "right";
 
@@ -294,7 +320,12 @@ export type PrimitiveShape =
   | BezierShape
   | PolygonShape;
 
-export type Shape = PrimitiveShape | CompoundPathShape | ImageShape | TextShape;
+export type Shape =
+  | PrimitiveShape
+  | CompoundPathShape
+  | ImageShape
+  | TextShape
+  | BrushShape;
 
 export type SceneNode = Shape | Group | SymbolInstance;
 

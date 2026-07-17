@@ -85,6 +85,12 @@ import {
   startPencil,
   startShape,
 } from "./tools/shapeTools";
+import {
+  cancelBrush,
+  finishBrush,
+  onBrushMove,
+  startBrush,
+} from "./tools/brushTool";
 import { isTypingTarget } from "./util";
 import TextEditor from "./TextEditor";
 import "./CanvasView.css";
@@ -470,6 +476,10 @@ export default function CanvasView() {
         // Drag-time changes live only in the preview shape.
         previewRef.current = null;
         break;
+      case "brush":
+        // Also clear the brush tool's transient capture state.
+        cancelBrush(ctx);
+        break;
       case "text-create":
         break;
       case "marquee":
@@ -523,6 +533,9 @@ export default function CanvasView() {
   const onPointerDown = (e: React.PointerEvent<HTMLCanvasElement>) => {
     // Right button is reserved for the context menu (see onContextMenu).
     if (e.button === 2) return;
+    // Palm rejection: while a pen brush stroke is live, ignore touch contacts
+    // so a resting palm/finger cannot hijack it into a two-finger gesture.
+    if (interactionRef.current.kind === "brush" && e.pointerType === "touch") return;
     const activeTextId = textEditRef.current?.shape.id;
     if (activeTextId) commitTextEdit(activeTextId);
     const canvas = canvasRef.current!;
@@ -568,6 +581,16 @@ export default function CanvasView() {
       startPencil(ctx, state, world);
       return;
     }
+    if (tool === "brush") {
+      startBrush(
+        ctx,
+        state,
+        world,
+        e.pointerType === "pen" ? e.pressure : 1,
+        e.pointerId
+      );
+      return;
+    }
     if (tool === "artboard") {
       onArtboardDown(ctx, state, screen, world);
       return;
@@ -598,6 +621,10 @@ export default function CanvasView() {
     }
 
     const inter = interactionRef.current;
+    // A touch contact ignored by the brush's pointerdown handler can still
+    // deliver move events through implicit pointer capture. Only the pointer
+    // that started the stroke may contribute samples.
+    if (inter.kind === "brush" && e.pointerId !== inter.pointerId) return;
     const state = useEditor.getState();
     const world = screenToWorld(state.viewport, screen);
     const mod = readModifiers(e);
@@ -638,6 +665,25 @@ export default function CanvasView() {
       case "pencil":
         onPencilMove(ctx, world);
         break;
+      case "brush": {
+        // Drain coalesced moves so fast strokes keep their full sample density.
+        const native = e.nativeEvent;
+        const isPen = e.pointerType === "pen";
+        const coalesced =
+          typeof native.getCoalescedEvents === "function"
+            ? native.getCoalescedEvents()
+            : [];
+        const events = coalesced.length ? coalesced : [native];
+        onBrushMove(
+          ctx,
+          state,
+          events.map((ev) => ({
+            world: screenToWorld(state.viewport, screenPoint(ev)),
+            pressure: isPen ? ev.pressure : 1,
+          }))
+        );
+        break;
+      }
       case "pen-anchor":
         onPenAnchorMove(ctx, state, inter.index, world, mod.shift);
         break;
@@ -667,6 +713,8 @@ export default function CanvasView() {
     }
 
     const inter = interactionRef.current;
+    // Do not let an ignored palm/finger end the active pen stroke.
+    if (inter.kind === "brush" && e.pointerId !== inter.pointerId) return;
     interactionRef.current = { kind: "none" };
     const state = useEditor.getState();
     guidesRef.current = [];
@@ -696,6 +744,9 @@ export default function CanvasView() {
       case "pencil":
         finishPencil(ctx, state);
         break;
+      case "brush":
+        finishBrush(ctx, state);
+        break;
       case "pen-anchor":
         // Keep the draft alive for the next click; the curve preview persists.
         break;
@@ -724,7 +775,11 @@ export default function CanvasView() {
       if (pointersRef.current.size < 2) gestureRef.current = null;
       return;
     }
-    if (interactionRef.current.kind !== "none") cancelActiveInteraction();
+    const inter = interactionRef.current;
+    // Likewise, cancellation of an unrelated touch pointer must not cancel
+    // the pen pointer that owns the brush interaction.
+    if (inter.kind === "brush" && e.pointerId !== inter.pointerId) return;
+    if (inter.kind !== "none") cancelActiveInteraction();
   };
 
   const onDoubleClick = (e: React.MouseEvent<HTMLCanvasElement>) => {
@@ -844,6 +899,10 @@ export default function CanvasView() {
     }
     if (state.tool === "text") {
       canvas.style.cursor = "text";
+      return;
+    }
+    if (state.tool === "brush") {
+      canvas.style.cursor = "crosshair";
       return;
     }
     canvas.style.cursor = selectCursor(ctx, screen, world);

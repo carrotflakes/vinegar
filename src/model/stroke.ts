@@ -44,6 +44,7 @@ export function supportsStrokeAlignment(shape: Shape): boolean {
       return shape.subpaths.length > 0 && shape.subpaths.every((subpath) => subpath.closed);
     case "line":
     case "image":
+    case "brush":
       return false;
   }
 }
@@ -58,6 +59,9 @@ export function effectiveStrokeAlignment(shape: Shape): StrokeAlignment {
  * sharp corners.
  */
 export function strokeOutset(shape: Shape): number {
+  // Brush strokes bake their width into the envelope geometry, so bounds are
+  // already outset; a second stroke reach would double-count.
+  if (shape.type === "brush") return 0;
   if (!shape.stroke || shape.strokeWidth <= 0) return 0;
   const alignment = effectiveStrokeAlignment(shape);
   let outset = alignment === "inside"

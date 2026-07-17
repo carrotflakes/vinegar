@@ -129,6 +129,7 @@ function shapeToGeom(shape: Shape): paper.PathItem | null {
     case "line":
     case "image":
     case "text":
+    case "brush":
       return null;
   }
   if (!item) return null;
@@ -151,6 +152,7 @@ export function isAreal(shape: Shape): boolean {
     case "line":
     case "image":
     case "text":
+    case "brush":
       return false;
   }
 }

@@ -78,6 +78,10 @@ function centerlines(shape: Shape): Polyline[] {
     case "text":
       // Images never stroke.
       return [];
+    case "brush":
+      // Brush width lives in the filled envelope, not a stroked centerline;
+      // outlining a brush into a polygon is deferred (see docs/brush-strokes.md).
+      return [];
   }
 }
 

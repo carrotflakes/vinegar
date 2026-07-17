@@ -1,4 +1,5 @@
 import { flattenSubpath } from "./bezier";
+import { cachedBrushEnvelope } from "./brushOutline";
 import {
   expandBounds,
   instanceWorldBounds,
@@ -131,6 +132,9 @@ function containsGeometry(
       );
     case "polygon":
       return containsRings(shape.polys.flat(), p, rule);
+    case "brush":
+      // The envelope fills with nonzero winding regardless of the caller's rule.
+      return containsRings([cachedBrushEnvelope(shape)], p, "nonzero");
     case "compoundPath":
       return shape.components.reduce(
         (inside, component) =>
@@ -306,6 +310,14 @@ export function hitTestShape(doc: Document, shape: Shape, p: Vec2, tol: number):
         if (hitsStroke(distToPolyline(p, ring, true), inside)) return true;
       }
       return false;
+    }
+    case "brush": {
+      // The whole nonzero-filled envelope is the visible mark; `tol` adds a
+      // pick band. Width is already baked into the ring, so ignore strokeReach.
+      const ring = cachedBrushEnvelope(shape);
+      if (ring.length < 3) return false;
+      if (containsRings([ring], p, "nonzero")) return true;
+      return distToPolyline(p, ring, true) <= tol;
     }
     case "compoundPath": {
       const inside = shape.components.reduce(
@@ -510,7 +522,10 @@ export function marqueeHitShape(
   }
 
   const fillable =
-    (shape.fill !== null || shape.type === "image" || shape.type === "text") &&
+    (shape.fill !== null ||
+      shape.type === "image" ||
+      shape.type === "text" ||
+      shape.type === "brush") &&
     shape.type !== "line";
   if (!fillable) return false;
   const corners = [
@@ -580,6 +595,8 @@ function localPolylines(shape: Shape): WorldPolyline[] {
         points: flattenSubpath(sp),
         closed: sp.closed,
       }));
+    case "brush":
+      return [{ points: cachedBrushEnvelope(shape), closed: true }];
     case "polygon":
       return shape.polys.flat().map((points) => ({ points, closed: true }));
     case "compoundPath":

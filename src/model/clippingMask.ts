@@ -55,6 +55,7 @@ export function isClippingMaskCandidate(
     case "line":
     case "image":
     case "text":
+    case "brush":
     case "group":
     case "instance":
       return false;

@@ -10,7 +10,7 @@ import {
   type ShapeType,
 } from "../model/types";
 
-export const CURRENT_FILE_VERSION = 18 as const;
+export const CURRENT_FILE_VERSION = 19 as const;
 
 /**
  * v8 lacked `symbols` (added as an empty registry). v8 and v9 stored fill/
@@ -21,10 +21,11 @@ export const CURRENT_FILE_VERSION = 18 as const;
  * text leaves with persisted measured bounds. v15 adds the optional `clip`
  * marker to groups. v16 adds the optional `effects` stack to every node. v17
  * adds optional dash/cap/join/alignment fields to shapes. v18 adds the optional
- * shared `cornerRadius` to rectangles. v8-v17 nodes migrate unchanged; absent
- * optional fields retain their historical behavior.
+ * shared `cornerRadius` to rectangles. v19 adds the `brush` leaf shape
+ * (pressure-profiled variable-width strokes). v8-v18 nodes migrate unchanged;
+ * absent optional fields retain their historical behavior.
  */
-const MIGRATABLE_VERSIONS = new Set<unknown>([8, 9, 10, 11, 12, 13, 14, 15, 16, 17]);
+const MIGRATABLE_VERSIONS = new Set<unknown>([8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18]);
 
 export interface VinegarFile {
   app: "vinegar";
@@ -54,7 +55,10 @@ function usedAssets(doc: Document): Document["assets"] {
 }
 
 const NODE_TYPES = new Set<ShapeType | "group" | "instance">([
-  "group", "rect", "ellipse", "line", "path", "bezier", "polygon", "compoundPath", "instance", "image", "text",
+  "group", "rect", "ellipse", "line", "path", "bezier", "polygon", "compoundPath", "instance", "image", "text", "brush",
+]);
+const COMPOUND_COMPONENT_TYPES = new Set<ShapeType>([
+  "rect", "ellipse", "path", "bezier", "polygon",
 ]);
 const isObject = (value: unknown): value is Record<string, unknown> =>
   !!value && typeof value === "object" && !Array.isArray(value);
@@ -157,6 +161,12 @@ const isNode = (id: string, node: unknown): boolean => {
       return isNumber(node.x1) && isNumber(node.y1) && isNumber(node.x2) && isNumber(node.y2);
     case "path":
       return isPoints(node.points) && typeof node.closed === "boolean";
+    case "brush":
+      return Array.isArray(node.anchors) &&
+        node.anchors.every((anchor: unknown) => isObject(anchor) && isPoint(anchor.p) &&
+          (anchor.hIn === null || isPoint(anchor.hIn)) &&
+          (anchor.hOut === null || isPoint(anchor.hOut)) &&
+          isNumber(anchor.w) && anchor.w >= 0);
     case "bezier":
       return Array.isArray(node.subpaths) && node.subpaths.every((sp) =>
         isObject(sp) && typeof sp.closed === "boolean" &&
@@ -171,8 +181,8 @@ const isNode = (id: string, node: unknown): boolean => {
       return node.fillRule === "evenodd" &&
         Array.isArray(node.components) && node.components.length > 0 &&
         node.components.every((component: unknown) =>
-          isObject(component) && component.type !== "compoundPath" &&
-          component.type !== "line" && component.type !== "image" && component.type !== "text" &&
+          isObject(component) &&
+          COMPOUND_COMPONENT_TYPES.has(component.type as ShapeType) &&
           typeof component.id === "string" &&
           isNode(component.id, component) &&
           (component.type !== "path" || component.closed === true) &&

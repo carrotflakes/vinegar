@@ -200,8 +200,12 @@ additional effects, or other feature expansion.
   - [ ] エディタの行番号・簡易ハイライト・エラー行表示
   - [ ] サンプル/スニペット集
   - [ ] パラメトリック生成（パラメータ変更で再生成）
-- [ ] ペン入力最適化
-  - [ ] 筆圧対応（線幅・不透明度）
+- [ ] ペン入力最適化 — `docs/brush-strokes.md` (brush shape, file v19)
+  - [x] 筆圧対応（線幅）— Brush tool (B): variable-width envelope stroke with
+    pressure→width curve, coalesced sampling, EMA stabilizer, taper, palm
+    rejection. Strokes collect into an active drawing group (reuses
+    `activeGroupId`). Deferred: pressure→opacity; node-tool width editing;
+    Outline Stroke → polygon; incremental preview envelope
   - [ ] 傾き対応（線幅・不透明度）
 - [ ] アニメーション機能　パラメトリックに動かす
 - [ ] コンテキストメニューの拡充

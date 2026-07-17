@@ -42,7 +42,7 @@ function retainedComponents(shape: Shape): PrimitiveShape[] {
     }));
   }
   // Non-path leaves never pass canCompoundShape; this branch is unreachable.
-  if (shape.type === "image" || shape.type === "text") return [];
+  if (shape.type === "image" || shape.type === "text" || shape.type === "brush") return [];
   return [structuredClone(shape)];
 }
 

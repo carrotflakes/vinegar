@@ -17,6 +17,7 @@ import {
   LuCombine,
   LuComponent,
   LuType,
+  LuBrush,
 } from "react-icons/lu";
 import type { Group, Shape, SymbolInstance } from "../model/types";
 import { isClippingGroup, isClippingMaskNode } from "../model/clippingMask";
@@ -44,6 +45,7 @@ const TYPE_ICON: Record<Shape["type"], ComponentType> = {
   compoundPath: LuCombine,
   image: LuImage,
   text: LuType,
+  brush: LuBrush,
 };
 
 /** Display node: the render tree with every level front-most first. */

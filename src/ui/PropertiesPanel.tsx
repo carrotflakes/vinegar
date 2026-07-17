@@ -58,6 +58,7 @@ import {
 } from "../model/stroke";
 import { descendantShapeIds, isInstance, isShape, selectionRoots } from "../model/scene";
 import { useEditor } from "../store/editorStore";
+import BrushPanel from "./BrushPanel";
 import ColorField from "./ColorField";
 import ScrubbableNumber from "./ScrubbableNumber";
 import { getSelectionFrame } from "../canvas/frame";
@@ -70,6 +71,7 @@ import "./PropertiesPanel.css";
 
 export default function PropertiesPanel() {
   const doc = useEditor((s) => s.doc);
+  const tool = useEditor((s) => s.tool);
   const selection = useEditor((s) => s.selection);
   const selectionPivot = useEditor((s) => s.selectionPivot);
   const style = useEditor((s) => s.style);
@@ -258,6 +260,7 @@ export default function PropertiesPanel() {
 
   return (
     <div className="panel">
+      {tool === "brush" && <BrushPanel />}
       {selectedInstance && (
         <div className="panel-section">
           <div className="panel-title">Symbol instance</div>
@@ -1228,5 +1231,7 @@ function typeName(shape: Shape): string {
       return "Image";
     case "text":
       return "Text";
+    case "brush":
+      return "Brush";
   }
 }

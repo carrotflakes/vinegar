@@ -81,6 +81,20 @@ export function transformShape(shape: Shape, fn: (p: Vec2) => Vec2): Shape {
         transformOrigin,
       };
     }
+    case "brush": {
+      // Map the centerline geometry; width multipliers (`w`) are unitless and
+      // ride along, while the base strokeWidth is scaled by the resize caller.
+      return {
+        ...shape,
+        anchors: shape.anchors.map((an) => ({
+          p: fn(an.p),
+          hIn: an.hIn ? fn(an.hIn) : null,
+          hOut: an.hOut ? fn(an.hOut) : null,
+          w: an.w,
+        })),
+        transformOrigin,
+      };
+    }
     case "compoundPath":
       return shape;
   }

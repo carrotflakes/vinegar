@@ -4,14 +4,14 @@ import { toggleAnchorSmooth } from "../model/bezier";
 import { shapeBounds, unionNodeWorldBounds } from "../model/bounds";
 import { hasValidClippingMasks } from "../model/clippingMask";
 import { multiply, translation } from "../model/matrix";
-import { descendantShapeIds, isShape, referencedAssetIds, selectionRoots } from "../model/scene";
+import { childIdsOf, descendantShapeIds, isGroup, isShape, referencedAssetIds, selectionRoots, withChildIds } from "../model/scene";
 import { clampRectCornerRadius } from "../model/roundedRect";
 import { resizeShapeToBounds, translateShape } from "../model/transforms";
 import { makeId, type ImageShape, type Shape } from "../model/types";
 import { importImageFile, isImageFile } from "../io/importImage";
 import { measureTextShape } from "../canvas/textLayout";
 import { loadAssetImage } from "../canvas/imageCache";
-import { appendToScope, removeRoots } from "./docOps";
+import { appendToScope, groupNode, removeRoots } from "./docOps";
 import {
   clearTransient,
   currentSymbolScope,
@@ -23,6 +23,24 @@ export function createShapeActions({ set, get, transact, replaceDocumentWithoutH
   return {
     addShape: (shape, select = true) => { const s = get(); const doc = { ...s.doc, nodes: { ...s.doc.nodes, [shape.id]: shape } }; transact(appendToScope(doc, currentSymbolScope(s), [shape.id])); if (select) set({ selection: [shape.id], ...clearTransient }); },
     addShapes: (shapes, select = true) => { if (!shapes.length) return; const s = get(); const doc = { ...s.doc, nodes: { ...s.doc.nodes, ...Object.fromEntries(shapes.map((sh) => [sh.id, sh])) } }; transact(appendToScope(doc, currentSymbolScope(s), shapes.map((sh) => sh.id))); if (select) set({ selection: shapes.map((sh) => sh.id), ...clearTransient }); },
+    addBrushStroke: (shape) => {
+      const s = get();
+      const doc = { ...s.doc, nodes: { ...s.doc.nodes, [shape.id]: shape } };
+      const active =
+        s.activeGroupId && isGroup(doc.nodes[s.activeGroupId]) ? s.activeGroupId : null;
+      if (active) {
+        transact(withChildIds(doc, active, [...childIdsOf(doc, active), shape.id]));
+        set({ selection: [shape.id], ...clearTransient });
+        return;
+      }
+      // Wrap the first stroke in a fresh drawing group and make it active so
+      // subsequent strokes collect into it until the user exits the group.
+      const groupId = makeId("group");
+      const group = { ...groupNode(groupId, [shape.id]), name: "Drawing" };
+      const withGroup = { ...doc, nodes: { ...doc.nodes, [groupId]: group } };
+      transact(appendToScope(withGroup, currentSymbolScope(s), [groupId]));
+      set({ selection: [shape.id], activeGroupId: groupId, ...clearTransient });
+    },
     updateShape: (shape, select = true) => { const doc = get().doc; if (!isShape(doc.nodes[shape.id])) return; const next = { ...doc, nodes: { ...doc.nodes, [shape.id]: shape } }; if (!hasValidClippingMasks(next)) return; transact(next); if (select) set({ selection: [shape.id], ...clearTransient }); },
     updateTextShape: (id, patch) => {
       const doc = get().doc; const shape = doc.nodes[id];

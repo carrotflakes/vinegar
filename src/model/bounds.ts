@@ -1,4 +1,5 @@
 import { flattenBezier } from "./bezier";
+import { cachedBrushEnvelope } from "./brushOutline";
 import { clippingMask } from "./clippingMask";
 import { nodeWorldMatrix, shapeWorldMatrix, transformBounds } from "./matrix";
 import { isGroup, isInstance, isShape } from "./scene";
@@ -53,6 +54,9 @@ export function shapeBounds(shape: Shape): Bounds {
       return pointsBounds(shape.points);
     case "bezier":
       return pointsBounds(flattenBezier(shape));
+    case "brush":
+      // The envelope already includes the stroke width and end caps.
+      return pointsBounds(cachedBrushEnvelope(shape));
     case "polygon":
       return pointsBounds(shape.polys.flat(2));
     case "compoundPath": {

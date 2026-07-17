@@ -85,6 +85,7 @@ const TOOL_HINTS: Record<ToolId, string> = {
   line: "Shift = 45°",
   pen: "Click/drag to add · click start to close · click an open end to continue · Shift = 45° · Enter finish · Esc cancel",
   pencil: "Drag to draw · end near start to close",
+  brush: "Draw with pen pressure · adjust size / pressure / smoothing / taper in the panel",
   text: "Click for auto width · drag for a wrapping area · double-click text to edit",
   artboard: "Drag to create a board · drag a board to move · drag handles to resize",
 };

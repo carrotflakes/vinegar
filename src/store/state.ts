@@ -26,7 +26,7 @@ import type { ImportedSvg } from "../io/importSvg";
 import type { ClipboardPayload } from "./docOps";
 import type { DocumentPatch } from "./documentPatches";
 
-export type ToolId = "select" | "node" | "rect" | "ellipse" | "line" | "pen" | "pencil" | "text" | "artboard";
+export type ToolId = "select" | "node" | "rect" | "ellipse" | "line" | "pen" | "pencil" | "brush" | "text" | "artboard";
 export interface EditNode { shapeId: string; sub: number; index: number }
 export type AlignType = "left" | "hcenter" | "right" | "top" | "vmiddle" | "bottom";
 export interface StyleDefaults {
@@ -151,6 +151,12 @@ export interface HistoryActions {
 export interface ShapeActions {
   addShape: (shape: Shape, select?: boolean) => void;
   addShapes: (shapes: Shape[], select?: boolean) => void;
+  /**
+   * Commit a brush stroke into the active drawing container: the drilled-into
+   * `activeGroupId` when set, else a fresh "Drawing" group that becomes active
+   * so consecutive strokes collect together (see docs/brush-strokes.md).
+   */
+  addBrushStroke: (shape: Shape) => void;
   /** Import image files as assets and place them centered on `at`. */
   placeImageFiles: (
     files: File[],

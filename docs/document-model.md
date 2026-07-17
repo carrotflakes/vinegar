@@ -37,13 +37,21 @@ active tool, selection, viewport and undo history does not belong in the file.
   clipping mask and paints only the preceding children. The mask must be an
   area-bearing vector shape; its paint and visibility fields are preserved but
   ignored while it supplies clip geometry.
+- A brush shape is a pressure-profiled variable-width stroke. It stores an open
+  cubic-Bézier centerline as `anchors` (same anchor convention as `bezier`: an
+  absolute-handle point, `null` handles for corners) where each anchor also
+  carries a width multiplier `w >= 0`. The rendered shape is the filled envelope
+  of that centerline (`strokeWidth * w` wide, round end caps), painted with the
+  `stroke` paint using the nonzero winding rule. `fill` and the stroke detail
+  fields (dash/cap/join/alignment) are unused; bounds and hit-testing derive
+  from the envelope, so `strokeOutset` is zero.
 - Text is a leaf shape, not compound-path geometry. Point text stores its
   measured width; area text stores its fixed wrapping width; both store the
   measured auto-height so bounds and hit-testing never need a live font.
   Typography is one style per node (`fontFamily`, size, weight, italic,
   line-height and alignment); line layout is derived from the text at render.
 
-The file wrapper version is deliberately strict. The current version is v18;
+The file wrapper version is deliberately strict. The current version is v19;
 supported older versions are migrated before validation. Changing the
 persisted shape of `Document` requires bumping `CURRENT_FILE_VERSION`.
 

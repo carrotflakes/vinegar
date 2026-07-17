@@ -7,6 +7,7 @@ import {
   LuSlash,
   LuPenTool,
   LuPencil,
+  LuBrush,
   LuFrame,
   LuType,
 } from "react-icons/lu";
@@ -29,7 +30,8 @@ const TOOLS: ToolDef[] = [
   { id: "ellipse", label: "Ellipse", hint: "O", icon: LuCircle },
   { id: "line", label: "Line", hint: "L", icon: LuSlash },
   { id: "pen", label: "Pen", hint: "P", icon: LuPenTool, groupBefore: true },
-  { id: "pencil", label: "Pencil", hint: "B", icon: LuPencil },
+  { id: "brush", label: "Brush", hint: "B", icon: LuBrush },
+  { id: "pencil", label: "Pencil", hint: "⇧B", icon: LuPencil },
   { id: "text", label: "Text", hint: "T", icon: LuType },
   { id: "artboard", label: "Artboard", hint: "A", icon: LuFrame, groupBefore: true },
 ];

@@ -1,5 +1,6 @@
 import { subpathSegments } from "../model/bezier";
 import { shapeBounds } from "../model/bounds";
+import { cachedBrushEnvelope } from "../model/brushOutline";
 import {
   clippingContentIds,
   clippingMask,
@@ -315,6 +316,15 @@ function tracePath(ctx: CanvasRenderingContext2D, shape: Shape, begin = true): v
       }
       break;
     }
+    case "brush": {
+      const ring = cachedBrushEnvelope(shape);
+      if (ring.length >= 2) {
+        ctx.moveTo(ring[0].x, ring[0].y);
+        for (let i = 1; i < ring.length; i++) ctx.lineTo(ring[i].x, ring[i].y);
+        ctx.closePath();
+      }
+      break;
+    }
     case "image":
     case "text":
       break;
@@ -340,6 +350,11 @@ export function paintShape(
   }
   if (shape.type === "text") {
     paintText(ctx, shape, assets);
+    ctx.restore();
+    return;
+  }
+  if (shape.type === "brush") {
+    paintBrush(ctx, shape, assets);
     ctx.restore();
     return;
   }
@@ -369,6 +384,32 @@ export function paintShape(
     paintVectorStroke(ctx, shape, bounds, assets);
   }
   ctx.restore();
+}
+
+/**
+ * Paint a brush stroke: its variable-width envelope is filled (nonzero winding)
+ * with the shape's `stroke` paint. There is no separate stroke pass — the
+ * width lives in the geometry.
+ */
+function paintBrush(
+  ctx: CanvasRenderingContext2D,
+  shape: Extract<Shape, { type: "brush" }>,
+  assets: Record<string, DocumentAsset>
+): void {
+  if (shape.stroke === null) return;
+  const ring = cachedBrushEnvelope(shape);
+  if (ring.length < 3) return;
+  const style = resolveStyle(ctx, shape.stroke, shapeBounds(shape), assets);
+  // A null style is a pattern still decoding; skip until the cache repaints.
+  if (!style) return;
+  ctx.beginPath();
+  ctx.moveTo(ring[0].x, ring[0].y);
+  for (let i = 1; i < ring.length; i++) ctx.lineTo(ring[i].x, ring[i].y);
+  ctx.closePath();
+  withPaintAlpha(ctx, shape.opacity, shape.stroke, () => {
+    ctx.fillStyle = style;
+    ctx.fill("nonzero");
+  });
 }
 
 function paintText(
