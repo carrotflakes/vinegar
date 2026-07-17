@@ -10,6 +10,7 @@ import { resizeShapeToBounds, translateShape } from "../model/transforms";
 import { makeId, type ImageShape, type Shape } from "../model/types";
 import { importImageFile, isImageFile } from "../io/importImage";
 import { measureTextShape } from "../canvas/textLayout";
+import { loadAssetImage } from "../canvas/imageCache";
 import { appendToScope, removeRoots } from "./docOps";
 import {
   clearTransient,
@@ -146,6 +147,40 @@ export function createShapeActions({ set, get, transact, replaceDocumentWithoutH
       const s = get();
       transact({ ...s.doc, assets: { ...s.doc.assets, [img.asset.id]: img.asset } });
       return img.asset.id;
+    },
+    placeAssetImage: async (assetId, at, fitWithin) => {
+      const asset = get().doc.assets[assetId];
+      if (!asset) return;
+      // Natural size drives the placed box; await a decode so it isn't guessed.
+      const img = await loadAssetImage(asset);
+      const natW = img && img.naturalWidth > 0 ? img.naturalWidth : 100;
+      const natH = img && img.naturalHeight > 0 ? img.naturalHeight : 100;
+      const scale = fitWithin
+        ? Math.min(1, fitWithin.width / natW, fitWithin.height / natH)
+        : 1;
+      const width = natW * scale;
+      const height = natH * scale;
+      const s = get();
+      if (!s.doc.assets[assetId]) return; // deleted while decoding
+      const shape: ImageShape = {
+        id: makeId("image"),
+        name: asset.name?.replace(/\.[^.]+$/, "") || "Image",
+        type: "image",
+        assetId,
+        x: at.x - width / 2,
+        y: at.y - height / 2,
+        width,
+        height,
+        transform: [1, 0, 0, 1, 0, 0],
+        transformOrigin: null,
+        opacity: 1,
+        fill: null,
+        stroke: null,
+        strokeWidth: 0,
+      };
+      const doc = { ...s.doc, nodes: { ...s.doc.nodes, [shape.id]: shape } };
+      transact(appendToScope(doc, currentSymbolScope(s), [shape.id]));
+      set({ selection: [shape.id], ...clearTransient });
     },
     deleteAsset: (assetId) => {
       const doc = get().doc;

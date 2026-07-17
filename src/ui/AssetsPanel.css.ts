@@ -28,6 +28,7 @@ globalStyle(".asset-row", {
   gap: "8px",
   padding: "4px 6px",
   borderRadius: "7px",
+  cursor: "grab",
 });
 
 globalStyle(".asset-row:hover", {

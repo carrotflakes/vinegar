@@ -166,6 +166,13 @@ export interface ShapeActions {
   /** Import one image file as a document asset (no scene node) for use as a
    *  pattern fill/stroke. Resolves the new asset id, or null on failure. */
   addPatternImage: (file: File) => Promise<string | null>;
+  /** Place a new image node referencing an existing asset (no re-import),
+   *  centered on `at`. Used by the Assets panel's place/drag. */
+  placeAssetImage: (
+    assetId: string,
+    at: Vec2,
+    fitWithin?: { width: number; height: number }
+  ) => Promise<void>;
   /** Remove one asset; ignored if any shape still references it. */
   deleteAsset: (assetId: string) => void;
   /** Remove every asset no shape references. Resolves the number removed. */

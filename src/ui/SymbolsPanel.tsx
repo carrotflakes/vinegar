@@ -1,21 +1,10 @@
 import { useMemo, useState } from "react";
 import { LuComponent, LuPlus, LuPencil, LuTrash2 } from "react-icons/lu";
 import { instanceCountsBySymbol } from "../model/scene";
-import { screenToWorld } from "../model/viewport";
 import { currentSymbolScope, useEditor } from "../store/editorStore";
+import { DRAG_SYMBOL, canvasCenterPlacement } from "./canvasDrag";
 import "./Panel.css";
 import "./LayersPanel.css";
-
-/** World point at the center of the canvas, for placing new instances. */
-function canvasCenterWorld() {
-  const state = useEditor.getState();
-  const el = document.querySelector(".canvas-wrap");
-  const r = el?.getBoundingClientRect();
-  const screen = r
-    ? { x: r.width / 2, y: r.height / 2 }
-    : { x: window.innerWidth / 2, y: window.innerHeight / 2 };
-  return screenToWorld(state.viewport, screen);
-}
 
 /**
  * The document's reusable symbols: rename, place an instance, jump into local
@@ -48,6 +37,11 @@ export default function SymbolsPanel() {
               <div
                 key={def.id}
                 className={"symbol-row" + (scope === def.id ? " selected" : "")}
+                draggable={editing !== def.id}
+                onDragStart={(e) => {
+                  e.dataTransfer.setData(DRAG_SYMBOL, def.id);
+                  e.dataTransfer.effectAllowed = "copy";
+                }}
               >
                 <span className="layer-type" aria-hidden>
                   <LuComponent />
@@ -79,7 +73,7 @@ export default function SymbolsPanel() {
                   className="layer-icon-btn"
                   title="Place instance"
                   onClick={() =>
-                    placeSymbolInstance(def.id, canvasCenterWorld())
+                    placeSymbolInstance(def.id, canvasCenterPlacement().at)
                   }
                 >
                   <LuPlus />

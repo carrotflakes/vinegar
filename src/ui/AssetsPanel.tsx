@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useReducer } from "react";
-import { LuImage, LuTrash2 } from "react-icons/lu";
+import { LuImage, LuPlus, LuTrash2 } from "react-icons/lu";
 import { getAssetImage, subscribeImageCache } from "../canvas/imageCache";
 import { assetReferenceCounts } from "../model/scene";
 import { useEditor } from "../store/editorStore";
+import { DRAG_ASSET, canvasCenterPlacement } from "./canvasDrag";
 import "./Panel.css";
 import "./LayersPanel.css";
 import "./AssetsPanel.css";
@@ -16,6 +17,7 @@ export default function AssetsPanel() {
   const doc = useEditor((s) => s.doc);
   const deleteAsset = useEditor((s) => s.deleteAsset);
   const deleteUnusedAssets = useEditor((s) => s.deleteUnusedAssets);
+  const placeAssetImage = useEditor((s) => s.placeAssetImage);
   // Thumbnails decode asynchronously; repaint when any asset's pixels arrive.
   const [, bump] = useReducer((n) => n + 1, 0);
   useEffect(() => subscribeImageCache(bump), []);
@@ -57,10 +59,20 @@ export default function AssetsPanel() {
                 : "";
             const unused = !counts.has(asset.id);
             return (
-              <div key={asset.id} className="asset-row">
+              <div
+                key={asset.id}
+                className="asset-row"
+                draggable
+                onDragStart={(e) => {
+                  e.dataTransfer.setData(DRAG_ASSET, asset.id);
+                  e.dataTransfer.effectAllowed = "copy";
+                }}
+              >
                 <span className="asset-thumb" aria-hidden>
                   {img ? (
-                    <img src={asset.source.data} alt="" />
+                    // Let the row be the drag source; a bare <img> is draggable
+                    // by default and would hijack the drag with its own data.
+                    <img src={asset.source.data} alt="" draggable={false} />
                   ) : (
                     <LuImage />
                   )}
@@ -79,6 +91,16 @@ export default function AssetsPanel() {
                 >
                   {unused ? "unused" : count}
                 </span>
+                <button
+                  className="layer-icon-btn"
+                  title="Place on canvas"
+                  onClick={() => {
+                    const { at, fitWithin } = canvasCenterPlacement();
+                    void placeAssetImage(asset.id, at, fitWithin);
+                  }}
+                >
+                  <LuPlus />
+                </button>
                 <button
                   className="layer-icon-btn"
                   title={

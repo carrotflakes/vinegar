@@ -190,6 +190,7 @@ globalStyle(".symbol-row", {
   gap: "4px",
   padding: "4px 6px",
   borderRadius: "7px",
+  cursor: "grab",
 });
 
 globalStyle(".symbol-row:hover", {

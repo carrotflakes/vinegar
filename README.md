@@ -65,15 +65,17 @@ pnpm test       # node --test (serialization, clipping masks, symbols, text, vie
   after content but before opacity/blend, scaling with the transform and zoom;
   rendered on Canvas, exported to SVG (`<filter>`) and PNG, with export bounds
   grown so shadows/blur aren't cropped
-- **Symbols** (reusable components): create from a selection, place instances,
-  edit in an isolated view (double-click an instance), detach / rename / delete
+- **Symbols** (reusable components): create from a selection, place instances
+  (the panel's + button or drag a row onto the canvas), edit in an isolated view
+  (double-click an instance), detach / rename / delete
 - **Artboards**: non-owning frames on the infinite plane — create/move/resize
   with the Artboard tool, per-board (or all-board) PNG/SVG export
 - **Raster images**: place via File ▸ Place image…, the canvas context menu, or
   drag & drop; images select/move/resize/rotate and take opacity/blend like any
   shape; embedded in the file as document assets. The **Assets panel** (hidden
   by default; add it from the dock's panel menu) lists embedded assets with a
-  thumbnail and reference count, and can delete unused ones
+  thumbnail and reference count, places an asset back onto the canvas without
+  re-importing (+ button or drag a row), and can delete unused ones
 - **Text**: click for auto-width point text or drag for fixed-width wrapping
   text; in-place editing supports newlines, CJK wrapping, rotation, font/style
   controls, saved measured bounds, and Canvas/SVG/PNG output

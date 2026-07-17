@@ -23,6 +23,7 @@ import { openContextMenu } from "../store/menuStore";
 import { setPointer, setReadout } from "../store/pointerStore";
 import { readModifiers, useInput } from "../store/inputStore";
 import { canvasMenu, selectionMenu } from "../ui/menus";
+import { DRAG_ASSET, DRAG_SYMBOL } from "../ui/canvasDrag";
 import ModifierBar from "../ui/ModifierBar";
 import { getSelectionFrame } from "./frame";
 import { HANDLE_SIZE } from "./handles";
@@ -764,18 +765,32 @@ export default function CanvasView() {
     }
   };
 
-  // Dropping image files onto the canvas places them at the drop point.
+  // Dropping onto the canvas places items at the drop point: image files, or an
+  // existing asset / symbol dragged out of the library panels.
   const onDrop = (e: React.DragEvent<HTMLCanvasElement>) => {
     e.preventDefault();
-    const files = [...(e.dataTransfer?.files ?? [])];
-    if (!files.length) return;
     const state = useEditor.getState();
     const world = screenToWorld(state.viewport, screenPoint(e));
+    const dt = e.dataTransfer;
     const { width, height } = sizeRef.current;
-    void state.placeImageFiles(files, world, {
+    const fitWithin = {
       width: (width / state.viewport.scale) * 0.8,
       height: (height / state.viewport.scale) * 0.8,
-    });
+    };
+
+    const assetId = dt?.getData(DRAG_ASSET);
+    if (assetId) {
+      void state.placeAssetImage(assetId, world, fitWithin);
+      return;
+    }
+    const symbolId = dt?.getData(DRAG_SYMBOL);
+    if (symbolId) {
+      state.placeSymbolInstance(symbolId, world);
+      return;
+    }
+    const files = [...(dt?.files ?? [])];
+    if (!files.length) return;
+    void state.placeImageFiles(files, world, fitWithin);
   };
 
   const onContextMenu = (e: React.MouseEvent<HTMLCanvasElement>) => {
@@ -926,7 +941,10 @@ export default function CanvasView() {
         onPointerLeave={() => setPointer(null)}
         onDoubleClick={onDoubleClick}
         onContextMenu={onContextMenu}
-        onDragOver={(e) => e.preventDefault()}
+        onDragOver={(e) => {
+          e.preventDefault();
+          if (e.dataTransfer) e.dataTransfer.dropEffect = "copy";
+        }}
         onDrop={onDrop}
       />
       {textEdit && (
