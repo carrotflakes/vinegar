@@ -639,10 +639,14 @@ export default function CanvasView() {
     }
 
     const inter = interactionRef.current;
-    // A touch contact ignored by the brush's pointerdown handler can still
-    // deliver move events through implicit pointer capture. Only the pointer
-    // that started the stroke may contribute samples.
-    if (inter.kind === "brush" && e.pointerId !== inter.pointerId) return;
+    // A touch contact ignored by a drawing tool's pointerdown handler can
+    // still deliver events through implicit pointer capture. Only the pointer
+    // that started the interaction may contribute samples.
+    if (
+      (inter.kind === "brush" || inter.kind === "eraser") &&
+      e.pointerId !== inter.pointerId
+    )
+      return;
     const state = useEditor.getState();
     const world = screenToWorld(state.viewport, screen);
     const mod = readModifiers(e);
@@ -734,8 +738,12 @@ export default function CanvasView() {
     }
 
     const inter = interactionRef.current;
-    // Do not let an ignored palm/finger end the active pen stroke.
-    if (inter.kind === "brush" && e.pointerId !== inter.pointerId) return;
+    // Do not let an ignored palm/finger end the active drawing interaction.
+    if (
+      (inter.kind === "brush" || inter.kind === "eraser") &&
+      e.pointerId !== inter.pointerId
+    )
+      return;
     interactionRef.current = { kind: "none" };
     const state = useEditor.getState();
     guidesRef.current = [];
@@ -801,8 +809,12 @@ export default function CanvasView() {
     }
     const inter = interactionRef.current;
     // Likewise, cancellation of an unrelated touch pointer must not cancel
-    // the pen pointer that owns the brush interaction.
-    if (inter.kind === "brush" && e.pointerId !== inter.pointerId) return;
+    // the pointer that owns the drawing interaction.
+    if (
+      (inter.kind === "brush" || inter.kind === "eraser") &&
+      e.pointerId !== inter.pointerId
+    )
+      return;
     if (inter.kind !== "none") cancelActiveInteraction();
   };
 

@@ -4,8 +4,8 @@ import { toggleAnchorSmooth } from "../model/bezier";
 import { expandBounds, intersectBounds, shapeBounds, unionNodeWorldBounds, worldShapeBounds } from "../model/bounds";
 import { hasValidClippingMasks } from "../model/clippingMask";
 import { eraseBrush } from "../model/eraser";
-import { applyMatrix, invertMatrix, matrixScale, multiply, shapeWorldMatrix, translation } from "../model/matrix";
-import { childIdsOf, descendantShapeIds, isGroup, isShape, parentIdOf, referencedAssetIds, selectionRoots, withChildIds } from "../model/scene";
+import { multiply, shapeWorldMatrix, translation } from "../model/matrix";
+import { childIdsOf, descendantShapeIds, isGroup, isNodeHidden, isNodeLocked, isShape, parentIdOf, referencedAssetIds, scopeLeafIds, selectionRoots, withChildIds } from "../model/scene";
 import { clampRectCornerRadius } from "../model/roundedRect";
 import { resizeShapeToBounds, translateShape } from "../model/transforms";
 import { makeId, type Bounds, type ImageShape, type SceneNode, type Shape, type Vec2 } from "../model/types";
@@ -56,20 +56,26 @@ export function createShapeActions({ set, get, transact, replaceDocumentWithoutH
     },
     eraseBrushStrokes: (pathWorld, radiusWorld) => {
       if (pathWorld.length === 0 || radiusWorld <= 0) return;
-      const doc = get().doc;
+      const state = get();
+      const doc = state.doc;
       const eraserBounds = expandBounds(pathBounds(pathWorld), radiusWorld);
       const replacements = new Map<string, string[]>();
       const newNodes: Record<string, SceneNode> = {};
       const removeIds = new Set<string>();
-      for (const node of Object.values(doc.nodes)) {
-        if (!isShape(node) || node.type !== "brush") continue;
+      for (const id of scopeLeafIds(doc, currentSymbolScope(state))) {
+        const node = doc.nodes[id];
+        if (
+          !isShape(node) ||
+          node.type !== "brush" ||
+          node.stroke === null ||
+          node.strokeWidth <= 0 ||
+          isNodeHidden(doc, id) ||
+          isNodeLocked(doc, id)
+        )
+          continue;
         if (!intersectBounds(worldShapeBounds(doc, node), eraserBounds)) continue;
         const wm = shapeWorldMatrix(doc, node);
-        const inv = invertMatrix(wm);
-        if (!inv) continue;
-        const pathLocal = pathWorld.map((p) => applyMatrix(inv, p));
-        const radiusLocal = radiusWorld / matrixScale(wm);
-        const pieces = eraseBrush(node, pathLocal, radiusLocal);
+        const pieces = eraseBrush(node, pathWorld, radiusWorld, wm);
         if (pieces === null) continue; // untouched by the eraser
         removeIds.add(node.id);
         const ids = pieces.map((pc) => {

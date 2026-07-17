@@ -204,15 +204,17 @@ scope for v1.
   boolean/compound-path inputs.
 - **Vector eraser** (Eraser tool, `E`): a centerline-split eraser. The drag is
   a world-space path of radius `eraserSize / 2`; `eraseBrush` (`model/eraser.ts`)
-  samples each overlapped brush's centerline, drops samples within the radius,
-  and re-fits every surviving run of ≥ 2 samples into a new brush that keeps the
-  original style/transform — so erased strokes stay variable-width brushes, not
-  polygons. `eraseBrushStrokes` (store) maps the path into each brush's local
-  space, substitutes the pieces in place within the parent, and commits one undo
-  step. A brush the eraser never touches is returned unchanged (`null`); a fully
-  covered one is removed. Deferred: erasing plain paths/beziers, an area
-  (boolean-subtract) hard-eraser mode, and cutting by the brush's own width
-  rather than the bare centerline (grazing a thick stroke's edge does not cut).
+  samples each overlapped centerline adaptively to locate entry/exit parameters,
+  then splits the original cubic segments at those boundaries with de Casteljau
+  subdivision. Surviving spans retain their exact control points and linearly
+  interpolated width profile instead of being re-fitted, so repeated erasing
+  does not accumulate shape error. The pieces keep the original style/transform
+  and remain variable-width brushes, not polygons. `eraseBrushStrokes` (store)
+  substitutes them in place within the parent and commits one undo step. A brush
+  the eraser never touches is returned unchanged (`null`); a fully covered one
+  is removed. Deferred: erasing plain paths/beziers, an area (boolean-subtract)
+  hard-eraser mode, and cutting by the brush's own width rather than the bare
+  centerline (grazing a thick stroke's edge does not cut).
 - Closed brush loops, speed-simulated pressure, tilt, and the scripting API for
   brush nodes are all deferred.
 
