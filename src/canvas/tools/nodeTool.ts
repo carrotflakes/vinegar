@@ -2,6 +2,7 @@ import {
   closestPointOnBezier,
   insertAnchorOnSegment,
 } from "../../model/bezier";
+import { closestPointOnBrush, insertBrushAnchor } from "../../model/brushEdit";
 import {
   applyMatrix,
   invertMatrix,
@@ -17,7 +18,6 @@ import {
   pickShape,
   pickTolerance,
   pointSnap,
-  selectedBezier,
   selectedNodeShape,
 } from "../picking";
 import { constrain45 } from "../util";
@@ -65,35 +65,41 @@ export function onNodeDown(
       return;
     }
     // Clicking the path itself (not a node) inserts an anchor there and starts
-    // dragging it, all as one undo step. Brush insertion is not supported yet.
+    // dragging it, all as one undo step.
+    const inverse = invertMatrix(shapeWorldMatrix(state.doc, sel));
+    const local = inverse ? applyMatrix(inverse, world) : world;
+    const localScale = matrixScale(shapeWorldMatrix(state.doc, sel));
+    const withinPath = (distance: number) =>
+      distance * localScale <= pickTolerance(ctx);
+
+    let insert: { next: typeof sel; sub: number; index: number } | null = null;
     if (sel.type === "bezier") {
-      const inverse = invertMatrix(shapeWorldMatrix(state.doc, sel));
-      const local = inverse ? applyMatrix(inverse, world) : world;
       const loc = closestPointOnBezier(sel, local);
-      const localScale = matrixScale(shapeWorldMatrix(state.doc, sel));
-      if (loc && loc.distance * localScale <= pickTolerance(ctx)) {
+      if (loc && withinPath(loc.distance)) {
         const next = insertAnchorOnSegment(sel, loc.sub, loc.segIndex, loc.t);
-        if (next !== sel) {
-          const index = loc.segIndex + 1;
-          state.beginInteraction();
-          state.applyShapes({ [sel.id]: next });
-          state.setEditNode({ shapeId: sel.id, sub: loc.sub, index });
-          ctx.lastInsert.current = {
-            shapeId: sel.id,
-            sub: loc.sub,
-            index,
-            time: Date.now(),
-          };
-          ctx.interaction.current = {
-            kind: "node-anchor",
-            shapeId: sel.id,
-            sub: loc.sub,
-            index,
-            orig: next,
-          };
-        }
-        return;
+        if (next !== sel) insert = { next, sub: loc.sub, index: loc.segIndex + 1 };
       }
+    } else {
+      const loc = closestPointOnBrush(sel, local);
+      if (loc && withinPath(loc.distance)) {
+        const next = insertBrushAnchor(sel, loc.segIndex, loc.t);
+        if (next !== sel) insert = { next, sub: 0, index: loc.segIndex + 1 };
+      }
+    }
+    if (insert) {
+      const { next, sub, index } = insert;
+      state.beginInteraction();
+      state.applyShapes({ [sel.id]: next });
+      state.setEditNode({ shapeId: sel.id, sub, index });
+      ctx.lastInsert.current = { shapeId: sel.id, sub, index, time: Date.now() };
+      ctx.interaction.current = {
+        kind: "node-anchor",
+        shapeId: sel.id,
+        sub,
+        index,
+        orig: next,
+      };
+      return;
     }
   }
   // Select another node-editable shape (bezier or brush), or clear.
@@ -157,8 +163,7 @@ export function onNodeDoubleClick(
   state: EditorState,
   screen: Vec2
 ) {
-  // Smoothing/corner toggling is bezier-only for now (brush is deferred).
-  const sel = selectedBezier(state);
+  const sel = selectedNodeShape(state);
   if (!sel) return;
   const hit = hitNodes(
     sel,

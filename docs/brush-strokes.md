@@ -5,10 +5,10 @@ bounds/hit-testing, serialization, SVG export and the Brush tool (coalesced
 sampling, pressure curve, EMA stabilizer, taper, width-aware fit, minimal palm
 rejection) all landed, plus stroke collection into an active drawing group
 (see "Stroke container" below), the vector eraser, and node-tool editing of
-brush anchors (move anchor/handle with the width preserved; a brush is treated
-as one open subpath). Phase 3 remainder: per-anchor width editing, anchor
-insert/delete and smooth-toggle for brushes, Outline Stroke conversion, and an
-incremental preview envelope. Deviations from the original draft below: brush
+brush anchors (move/insert/delete/smooth-toggle with the width preserved; a
+brush is treated as one open subpath). Phase 3 remainder: per-anchor width
+editing (a width tool), Outline Stroke conversion, and an incremental preview
+envelope. Deviations from the original draft below: brush
 size lives in a dedicated persisted `brushStore` (not the shared style
 `strokeWidth`); the Brush tool binds `B` and Pencil moved to `Shift+B`.
 
@@ -201,9 +201,14 @@ scope for v1.
   (`nodeSubpaths` presents a brush as one open subpath); `hitNodes` /
   `moveAnchor` / `moveHandle` and the `drawNodes` overlay all operate on it, and
   `picking.selectedNodeShape` lets the node tool pick a brush. Moves preserve
-  each anchor's `w` (spread through). Deferred for brushes: anchor
-  insert/delete, corner/smooth toggle (double-click), and per-anchor width
-  editing (an Illustrator-style width tool).
+  each anchor's `w` (spread through). Structural edits live in
+  `model/brushEdit.ts` (`closestPointOnBrush`, `insertBrushAnchor`,
+  `deleteBrushAnchor`, `toggleBrushAnchorSmooth`), mirroring the bezier ops but
+  carrying `w`: clicking the path inserts an anchor (width linearly
+  interpolated; de Casteljau split keeps the curve exact), Delete removes the
+  active anchor (or the whole brush below two), and double-click toggles
+  corner/smooth. Per-anchor width editing (an Illustrator-style width tool) is
+  still deferred.
 - **Outline Stroke** on a brush: Clipper-union the envelope into a
   `PolygonShape` (extends the existing command), which also unlocks boolean
   ops — brush shapes themselves stay out of `PrimitiveShape` and out of

@@ -1,6 +1,7 @@
 // Creating and mutating individual shapes (geometry, style, bezier anchors).
 
 import { toggleAnchorSmooth } from "../model/bezier";
+import { deleteBrushAnchor, toggleBrushAnchorSmooth } from "../model/brushEdit";
 import { expandBounds, intersectBounds, shapeBounds, unionNodeWorldBounds, worldShapeBounds } from "../model/bounds";
 import { hasValidClippingMasks } from "../model/clippingMask";
 import { eraseBrush } from "../model/eraser";
@@ -120,10 +121,31 @@ export function createShapeActions({ set, get, transact, replaceDocumentWithoutH
       }
       if (changed) replaceDocumentWithoutHistory({ ...doc, nodes });
     },
-    toggleNodeSmooth: (id, sub, index) => { const doc = get().doc; const shape = doc.nodes[id]; if (!isShape(shape) || shape.type !== "bezier") return; transact({ ...doc, nodes: { ...doc.nodes, [id]: toggleAnchorSmooth(shape, sub, index) } }); },
+    toggleNodeSmooth: (id, sub, index) => {
+      const doc = get().doc; const shape = doc.nodes[id]; if (!isShape(shape)) return;
+      const next = shape.type === "bezier"
+        ? toggleAnchorSmooth(shape, sub, index)
+        : shape.type === "brush"
+          ? toggleBrushAnchorSmooth(shape, index)
+          : null;
+      if (!next) return;
+      transact({ ...doc, nodes: { ...doc.nodes, [id]: next } });
+    },
     deleteEditNode: () => {
       const { doc, editNode } = get(); if (!editNode) return;
-      const shape = doc.nodes[editNode.shapeId]; if (!isShape(shape) || shape.type !== "bezier") return;
+      const shape = doc.nodes[editNode.shapeId]; if (!isShape(shape)) return;
+      if (shape.type === "brush") {
+        const next = deleteBrushAnchor(shape, editNode.index);
+        if (next === null) {
+          const removed = removeRoots(doc, [shape.id]);
+          if (!hasValidClippingMasks(removed)) return;
+          transact(removed); set({ selection: [], editNode: null, ...clearTransient });
+        } else {
+          transact({ ...doc, nodes: { ...doc.nodes, [shape.id]: next } }); set({ editNode: null });
+        }
+        return;
+      }
+      if (shape.type !== "bezier") return;
       const sp = shape.subpaths[editNode.sub]; if (!sp) return;
       const anchors = sp.anchors.filter((_, i) => i !== editNode.index);
       // A subpath that can no longer form a segment disappears with its anchor.
