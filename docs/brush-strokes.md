@@ -4,11 +4,13 @@ Status: Phases 1 & 2 shipped (file v19). The `brush` leaf, envelope renderer,
 bounds/hit-testing, serialization, SVG export and the Brush tool (coalesced
 sampling, pressure curve, EMA stabilizer, taper, width-aware fit, minimal palm
 rejection) all landed, plus stroke collection into an active drawing group
-(see "Stroke container" below). Phase 3 polish (node-tool width editing, Outline
-Stroke conversion, incremental preview envelope) remains open. Deviations from the
-original draft below: brush size lives in a dedicated persisted `brushStore`
-(not the shared style `strokeWidth`); the Brush tool binds `B` and Pencil moved
-to `Shift+B`.
+(see "Stroke container" below), the vector eraser, and node-tool editing of
+brush anchors (move anchor/handle with the width preserved; a brush is treated
+as one open subpath). Phase 3 remainder: per-anchor width editing, anchor
+insert/delete and smooth-toggle for brushes, Outline Stroke conversion, and an
+incremental preview envelope. Deviations from the original draft below: brush
+size lives in a dedicated persisted `brushStore` (not the shared style
+`strokeWidth`); the Brush tool binds `B` and Pencil moved to `Shift+B`.
 
 The goal is drawing-tablet freehand strokes whose width follows pen pressure,
 kept **non-destructive and vector**: the document stores an editable centerline
@@ -194,10 +196,14 @@ scope for v1.
   fold (`soloLeaf`) folds uniform scale into anchor geometry and multiplies
   `strokeWidth` like other stroked leaves; non-uniform scale stays in
   `transform` (widths cannot shear).
-- **Node tool**: brush anchors reuse the bezier anchor/handle editing
-  (`moveAnchor` / `moveHandle` generalize over `{p, hIn, hOut}`); `w` rides
-  along untouched. Per-anchor width editing (an Illustrator-style width tool)
-  is deferred.
+- **Node tool** (shipped): brush anchors reuse the bezier anchor/handle
+  editing. `nodes.ts` exposes a `NodeEditShape = BezierShape | BrushShape` view
+  (`nodeSubpaths` presents a brush as one open subpath); `hitNodes` /
+  `moveAnchor` / `moveHandle` and the `drawNodes` overlay all operate on it, and
+  `picking.selectedNodeShape` lets the node tool pick a brush. Moves preserve
+  each anchor's `w` (spread through). Deferred for brushes: anchor
+  insert/delete, corner/smooth toggle (double-click), and per-anchor width
+  editing (an Illustrator-style width tool).
 - **Outline Stroke** on a brush: Clipper-union the envelope into a
   `PolygonShape` (extends the existing command), which also unlocks boolean
   ops — brush shapes themselves stay out of `PrimitiveShape` and out of

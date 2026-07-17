@@ -32,11 +32,19 @@ import {
   CORNER_RADIUS_HANDLE_SIZE,
 } from "./cornerRadiusHandle";
 import type { FrameHit, ToolContext } from "./interaction";
+import type { NodeEditShape } from "./nodes";
 
 export function selectedBezier(state: EditorState): BezierShape | null {
   if (state.selection.length !== 1) return null;
   const s = state.doc.nodes[state.selection[0]];
   return s && s.type === "bezier" ? s : null;
+}
+
+/** The single selected shape the node tool can edit (bezier or brush). */
+export function selectedNodeShape(state: EditorState): NodeEditShape | null {
+  if (state.selection.length !== 1) return null;
+  const s = state.doc.nodes[state.selection[0]];
+  return s && (s.type === "bezier" || s.type === "brush") ? s : null;
 }
 
 const isLeaf = (node: EditorState["doc"]["nodes"][string] | undefined): node is SelectionLeaf =>

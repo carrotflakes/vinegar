@@ -2,6 +2,7 @@ import type { Guide, SnapTargets, Spacing } from "../model/snap";
 import type {
   BezierShape,
   Bounds,
+  BrushShape,
   Matrix,
   SceneNode,
   Shape,
@@ -78,7 +79,7 @@ export type Interaction =
       shapeId: string;
       sub: number;
       index: number;
-      orig: BezierShape;
+      orig: BezierShape | BrushShape;
     }
   | {
       kind: "node-handle";
@@ -86,7 +87,7 @@ export type Interaction =
       sub: number;
       index: number;
       part: "in" | "out";
-      orig: BezierShape;
+      orig: BezierShape | BrushShape;
     }
   | { kind: "marquee"; start: Vec2; additive: boolean }
   | { kind: "artboard-create"; id: string; start: Vec2 }

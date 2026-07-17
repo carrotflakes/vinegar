@@ -53,7 +53,7 @@ import {
 } from "./tools/artboardTool";
 import { subscribeImageCache } from "./imageCache";
 import { vars } from "../styles/theme.css";
-import { pickShape, selectedBezier, selectedShapes } from "./picking";
+import { pickShape, selectedNodeShape, selectedShapes } from "./picking";
 import { renderScene } from "./render";
 import {
   nodeCursor,
@@ -246,7 +246,7 @@ export default function CanvasView() {
     }
 
     if (tool === "node") {
-      const sel = selectedBezier(state);
+      const sel = selectedNodeShape(state);
       if (sel) {
         const active =
           state.editNode && state.editNode.shapeId === sel.id

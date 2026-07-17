@@ -210,6 +210,9 @@ additional effects, or other feature expansion.
     strokes at their centerline into new brush pieces (stays variable-width
     editable), one undo step. Deferred: erasing plain paths/beziers; area
     (boolean) erase; brush-radius-aware cut instead of pure centerline
+  - [x] 頂点編集 — node tool (N) edits brush anchors/handles (width preserved);
+    a brush is treated as one open subpath (`NodeEditShape` in `canvas/nodes.ts`).
+    Deferred for brushes: anchor insert/delete, smooth toggle, per-anchor width
   - [ ] 傾き対応（線幅・不透明度）
 - [ ] アニメーション機能　パラメトリックに動かす
 - [ ] コンテキストメニューの拡充

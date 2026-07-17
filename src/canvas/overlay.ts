@@ -9,7 +9,7 @@ import {
   frameRotationPoint,
   type SelectionFrame,
 } from "./frame";
-import { ANCHOR_SIZE, HANDLE_DOT } from "./nodes";
+import { ANCHOR_SIZE, HANDLE_DOT, nodeSubpaths, type NodeEditShape } from "./nodes";
 import { CORNER_RADIUS_HANDLE_SIZE } from "./cornerRadiusHandle";
 
 const ACCENT = "#3b82f6";
@@ -280,7 +280,7 @@ export function drawNodes(
   ctx: CanvasRenderingContext2D,
   dpr: number,
   viewport: Viewport,
-  shape: BezierShape,
+  shape: NodeEditShape,
   transform: Matrix,
   active: { sub: number; index: number } | null,
   anchorSize = ANCHOR_SIZE,
@@ -288,12 +288,13 @@ export function drawNodes(
 ): void {
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   const toS = (w: Vec2) => worldToScreen(viewport, applyMatrix(transform, w));
+  const subpaths = nodeSubpaths(shape);
 
   // Handle lines + dots.
   ctx.strokeStyle = "#9bbcf6";
   ctx.fillStyle = "#ffffff";
   ctx.lineWidth = 1;
-  for (const subpath of shape.subpaths) {
+  for (const subpath of subpaths) {
     for (const a of subpath.anchors) {
       const sp = toS(a.p);
       for (const h of [a.hIn, a.hOut]) {
@@ -314,7 +315,7 @@ export function drawNodes(
 
   // Anchor squares.
   ctx.lineWidth = 1.5;
-  shape.subpaths.forEach((subpath, sub) => {
+  subpaths.forEach((subpath, sub) => {
     subpath.anchors.forEach((a, i) => {
       const sp = toS(a.p);
       square(ctx, sp, anchorSize);

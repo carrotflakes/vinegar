@@ -12,8 +12,14 @@ import { isShape } from "../../model/scene";
 import type { Vec2 } from "../../model/types";
 import { useEditor, type EditorState } from "../../store/editorStore";
 import { NODE_GRAB, type Interaction, type ToolContext } from "../interaction";
-import { hitBezierNodes, moveAnchor, moveHandle } from "../nodes";
-import { pickShape, pickTolerance, pointSnap, selectedBezier } from "../picking";
+import { hitNodes, moveAnchor, moveHandle, nodeSubpaths } from "../nodes";
+import {
+  pickShape,
+  pickTolerance,
+  pointSnap,
+  selectedBezier,
+  selectedNodeShape,
+} from "../picking";
 import { constrain45 } from "../util";
 
 export type NodeInteraction = Extract<
@@ -27,9 +33,9 @@ export function onNodeDown(
   screen: Vec2,
   world: Vec2
 ) {
-  const sel = selectedBezier(state);
+  const sel = selectedNodeShape(state);
   if (sel) {
-    const hit = hitBezierNodes(
+    const hit = hitNodes(
       sel,
       shapeWorldMatrix(state.doc, sel),
       screen,
@@ -58,40 +64,43 @@ export function onNodeDown(
             };
       return;
     }
-    // Clicking the path itself (not a node) inserts an anchor there and
-    // starts dragging it, all as one undo step.
-    const inverse = invertMatrix(shapeWorldMatrix(state.doc, sel));
-    const local = inverse ? applyMatrix(inverse, world) : world;
-    const loc = closestPointOnBezier(sel, local);
-    const localScale = matrixScale(shapeWorldMatrix(state.doc, sel));
-    if (loc && loc.distance * localScale <= pickTolerance(ctx)) {
-      const next = insertAnchorOnSegment(sel, loc.sub, loc.segIndex, loc.t);
-      if (next !== sel) {
-        const index = loc.segIndex + 1;
-        state.beginInteraction();
-        state.applyShapes({ [sel.id]: next });
-        state.setEditNode({ shapeId: sel.id, sub: loc.sub, index });
-        ctx.lastInsert.current = {
-          shapeId: sel.id,
-          sub: loc.sub,
-          index,
-          time: Date.now(),
-        };
-        ctx.interaction.current = {
-          kind: "node-anchor",
-          shapeId: sel.id,
-          sub: loc.sub,
-          index,
-          orig: next,
-        };
+    // Clicking the path itself (not a node) inserts an anchor there and starts
+    // dragging it, all as one undo step. Brush insertion is not supported yet.
+    if (sel.type === "bezier") {
+      const inverse = invertMatrix(shapeWorldMatrix(state.doc, sel));
+      const local = inverse ? applyMatrix(inverse, world) : world;
+      const loc = closestPointOnBezier(sel, local);
+      const localScale = matrixScale(shapeWorldMatrix(state.doc, sel));
+      if (loc && loc.distance * localScale <= pickTolerance(ctx)) {
+        const next = insertAnchorOnSegment(sel, loc.sub, loc.segIndex, loc.t);
+        if (next !== sel) {
+          const index = loc.segIndex + 1;
+          state.beginInteraction();
+          state.applyShapes({ [sel.id]: next });
+          state.setEditNode({ shapeId: sel.id, sub: loc.sub, index });
+          ctx.lastInsert.current = {
+            shapeId: sel.id,
+            sub: loc.sub,
+            index,
+            time: Date.now(),
+          };
+          ctx.interaction.current = {
+            kind: "node-anchor",
+            shapeId: sel.id,
+            sub: loc.sub,
+            index,
+            orig: next,
+          };
+        }
+        return;
       }
-      return;
     }
   }
-  // Select another Bézier shape, or clear.
+  // Select another node-editable shape (bezier or brush), or clear.
   const id = pickShape(ctx, world);
-  if (id && state.doc.nodes[id]?.type === "bezier") {
-    state.setSelection([id]);
+  const picked = id ? state.doc.nodes[id] : null;
+  if (picked && (picked.type === "bezier" || picked.type === "brush")) {
+    state.setSelection([id!]);
     state.setEditNode(null);
   } else {
     state.clearSelection();
@@ -117,7 +126,7 @@ export function onNodeMove(
     if (shiftKey) {
       // Constrain to 45° rays from the anchor's original position.
       const origP =
-        inter.orig.subpaths[inter.sub]?.anchors[inter.index]?.p ?? localWorld;
+        nodeSubpaths(inter.orig)[inter.sub]?.anchors[inter.index]?.p ?? localWorld;
       target = constrain45(origP, localWorld);
       ctx.guides.current = [];
       ctx.spacings.current = [];
@@ -148,9 +157,10 @@ export function onNodeDoubleClick(
   state: EditorState,
   screen: Vec2
 ) {
+  // Smoothing/corner toggling is bezier-only for now (brush is deferred).
   const sel = selectedBezier(state);
   if (!sel) return;
-  const hit = hitBezierNodes(
+  const hit = hitNodes(
     sel,
     shapeWorldMatrix(state.doc, sel),
     screen,
@@ -179,10 +189,10 @@ export function nodeCursor(
   world: Vec2
 ): string {
   const state = useEditor.getState();
-  const sel = selectedBezier(state);
+  const sel = selectedNodeShape(state);
   if (
     sel &&
-    hitBezierNodes(
+    hitNodes(
       sel,
       shapeWorldMatrix(state.doc, sel),
       screen,
@@ -192,14 +202,12 @@ export function nodeCursor(
   ) {
     return "move";
   }
-  // "copy" (arrow + plus) over the path itself: a click inserts a point.
-  const inverse = sel
-    ? invertMatrix(shapeWorldMatrix(state.doc, sel))
-    : null;
-  const loc = sel
-    ? closestPointOnBezier(sel, inverse ? applyMatrix(inverse, world) : world)
-    : null;
-  const localScale = sel ? matrixScale(shapeWorldMatrix(state.doc, sel)) : 1;
+  // "copy" (arrow + plus) over the path itself: a click inserts a point. Only
+  // bezier paths support inserting anchors for now.
+  if (!sel || sel.type !== "bezier") return "default";
+  const inverse = invertMatrix(shapeWorldMatrix(state.doc, sel));
+  const loc = closestPointOnBezier(sel, inverse ? applyMatrix(inverse, world) : world);
+  const localScale = matrixScale(shapeWorldMatrix(state.doc, sel));
   return loc && loc.distance * localScale <= pickTolerance(ctx)
     ? "copy"
     : "default";
