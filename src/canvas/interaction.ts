@@ -71,6 +71,7 @@ export type Interaction =
   | { kind: "text-create"; start: Vec2; current: Vec2 }
   | { kind: "pencil" }
   | { kind: "brush"; pointerId: number }
+  | { kind: "eraser"; pointerId: number }
   | { kind: "pen-anchor"; index: number }
   | {
       kind: "node-anchor";

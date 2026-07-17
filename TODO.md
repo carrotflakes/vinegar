@@ -206,6 +206,10 @@ additional effects, or other feature expansion.
     rejection. Strokes collect into an active drawing group (reuses
     `activeGroupId`). Deferred: pressure→opacity; node-tool width editing;
     Outline Stroke → polygon; incremental preview envelope
+  - [x] ベクター消しゴム（E）— centerline-split eraser: drag splits/trims brush
+    strokes at their centerline into new brush pieces (stays variable-width
+    editable), one undo step. Deferred: erasing plain paths/beziers; area
+    (boolean) erase; brush-radius-aware cut instead of pure centerline
   - [ ] 傾き対応（線幅・不透明度）
 - [ ] アニメーション機能　パラメトリックに動かす
 - [ ] コンテキストメニューの拡充

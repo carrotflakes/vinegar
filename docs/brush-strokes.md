@@ -202,8 +202,19 @@ scope for v1.
   `PolygonShape` (extends the existing command), which also unlocks boolean
   ops — brush shapes themselves stay out of `PrimitiveShape` and out of
   boolean/compound-path inputs.
-- Eraser, closed brush loops, speed-simulated pressure, tilt, and the
-  scripting API for brush nodes are all deferred.
+- **Vector eraser** (Eraser tool, `E`): a centerline-split eraser. The drag is
+  a world-space path of radius `eraserSize / 2`; `eraseBrush` (`model/eraser.ts`)
+  samples each overlapped brush's centerline, drops samples within the radius,
+  and re-fits every surviving run of ≥ 2 samples into a new brush that keeps the
+  original style/transform — so erased strokes stay variable-width brushes, not
+  polygons. `eraseBrushStrokes` (store) maps the path into each brush's local
+  space, substitutes the pieces in place within the parent, and commits one undo
+  step. A brush the eraser never touches is returned unchanged (`null`); a fully
+  covered one is removed. Deferred: erasing plain paths/beziers, an area
+  (boolean-subtract) hard-eraser mode, and cutting by the brush's own width
+  rather than the bare centerline (grazing a thick stroke's edge does not cut).
+- Closed brush loops, speed-simulated pressure, tilt, and the scripting API for
+  brush nodes are all deferred.
 
 ## Testing (ask before writing, per AGENTS.md)
 

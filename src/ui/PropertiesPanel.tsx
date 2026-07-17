@@ -58,7 +58,7 @@ import {
 } from "../model/stroke";
 import { descendantShapeIds, isInstance, isShape, selectionRoots } from "../model/scene";
 import { useEditor } from "../store/editorStore";
-import BrushPanel from "./BrushPanel";
+import BrushPanel, { EraserPanel } from "./BrushPanel";
 import ColorField from "./ColorField";
 import ScrubbableNumber from "./ScrubbableNumber";
 import { getSelectionFrame } from "../canvas/frame";
@@ -261,6 +261,7 @@ export default function PropertiesPanel() {
   return (
     <div className="panel">
       {tool === "brush" && <BrushPanel />}
+      {tool === "eraser" && <EraserPanel />}
       {selectedInstance && (
         <div className="panel-section">
           <div className="panel-title">Symbol instance</div>

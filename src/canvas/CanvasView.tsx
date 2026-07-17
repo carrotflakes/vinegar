@@ -91,6 +91,12 @@ import {
   onBrushMove,
   startBrush,
 } from "./tools/brushTool";
+import {
+  cancelEraser,
+  finishEraser,
+  onEraserMove,
+  startEraser,
+} from "./tools/eraserTool";
 import { isTypingTarget } from "./util";
 import TextEditor from "./TextEditor";
 import "./CanvasView.css";
@@ -480,6 +486,9 @@ export default function CanvasView() {
         // Also clear the brush tool's transient capture state.
         cancelBrush(ctx);
         break;
+      case "eraser":
+        cancelEraser(ctx);
+        break;
       case "text-create":
         break;
       case "marquee":
@@ -533,9 +542,14 @@ export default function CanvasView() {
   const onPointerDown = (e: React.PointerEvent<HTMLCanvasElement>) => {
     // Right button is reserved for the context menu (see onContextMenu).
     if (e.button === 2) return;
-    // Palm rejection: while a pen brush stroke is live, ignore touch contacts
-    // so a resting palm/finger cannot hijack it into a two-finger gesture.
-    if (interactionRef.current.kind === "brush" && e.pointerType === "touch") return;
+    // Palm rejection: while a pen brush/eraser stroke is live, ignore touch
+    // contacts so a resting palm/finger cannot hijack it into a gesture.
+    if (
+      (interactionRef.current.kind === "brush" ||
+        interactionRef.current.kind === "eraser") &&
+      e.pointerType === "touch"
+    )
+      return;
     const activeTextId = textEditRef.current?.shape.id;
     if (activeTextId) commitTextEdit(activeTextId);
     const canvas = canvasRef.current!;
@@ -589,6 +603,10 @@ export default function CanvasView() {
         e.pointerType === "pen" ? e.pressure : 1,
         e.pointerId
       );
+      return;
+    }
+    if (tool === "eraser") {
+      startEraser(ctx, world, e.pointerId);
       return;
     }
     if (tool === "artboard") {
@@ -684,6 +702,9 @@ export default function CanvasView() {
         );
         break;
       }
+      case "eraser":
+        onEraserMove(ctx, state, world);
+        break;
       case "pen-anchor":
         onPenAnchorMove(ctx, state, inter.index, world, mod.shift);
         break;
@@ -746,6 +767,9 @@ export default function CanvasView() {
         break;
       case "brush":
         finishBrush(ctx, state);
+        break;
+      case "eraser":
+        finishEraser(ctx, state);
         break;
       case "pen-anchor":
         // Keep the draft alive for the next click; the curve preview persists.
@@ -901,7 +925,7 @@ export default function CanvasView() {
       canvas.style.cursor = "text";
       return;
     }
-    if (state.tool === "brush") {
+    if (state.tool === "brush" || state.tool === "eraser") {
       canvas.style.cursor = "crosshair";
       return;
     }

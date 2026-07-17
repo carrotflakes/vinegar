@@ -1,13 +1,14 @@
 // Creating and mutating individual shapes (geometry, style, bezier anchors).
 
 import { toggleAnchorSmooth } from "../model/bezier";
-import { shapeBounds, unionNodeWorldBounds } from "../model/bounds";
+import { expandBounds, intersectBounds, shapeBounds, unionNodeWorldBounds, worldShapeBounds } from "../model/bounds";
 import { hasValidClippingMasks } from "../model/clippingMask";
-import { multiply, translation } from "../model/matrix";
-import { childIdsOf, descendantShapeIds, isGroup, isShape, referencedAssetIds, selectionRoots, withChildIds } from "../model/scene";
+import { eraseBrush } from "../model/eraser";
+import { applyMatrix, invertMatrix, matrixScale, multiply, shapeWorldMatrix, translation } from "../model/matrix";
+import { childIdsOf, descendantShapeIds, isGroup, isShape, parentIdOf, referencedAssetIds, selectionRoots, withChildIds } from "../model/scene";
 import { clampRectCornerRadius } from "../model/roundedRect";
 import { resizeShapeToBounds, translateShape } from "../model/transforms";
-import { makeId, type ImageShape, type Shape } from "../model/types";
+import { makeId, type Bounds, type ImageShape, type SceneNode, type Shape, type Vec2 } from "../model/types";
 import { importImageFile, isImageFile } from "../io/importImage";
 import { measureTextShape } from "../canvas/textLayout";
 import { loadAssetImage } from "../canvas/imageCache";
@@ -18,6 +19,18 @@ import {
   type ShapeActions,
   type StoreCtx,
 } from "./state";
+
+/** Axis-aligned bounds of a point list (eraser path). */
+function pathBounds(pts: Vec2[]): Bounds {
+  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+  for (const p of pts) {
+    if (p.x < minX) minX = p.x;
+    if (p.y < minY) minY = p.y;
+    if (p.x > maxX) maxX = p.x;
+    if (p.y > maxY) maxY = p.y;
+  }
+  return { x: minX, y: minY, width: maxX - minX, height: maxY - minY };
+}
 
 export function createShapeActions({ set, get, transact, replaceDocumentWithoutHistory }: StoreCtx): ShapeActions {
   return {
@@ -40,6 +53,45 @@ export function createShapeActions({ set, get, transact, replaceDocumentWithoutH
       const withGroup = { ...doc, nodes: { ...doc.nodes, [groupId]: group } };
       transact(appendToScope(withGroup, currentSymbolScope(s), [groupId]));
       set({ selection: [shape.id], activeGroupId: groupId, ...clearTransient });
+    },
+    eraseBrushStrokes: (pathWorld, radiusWorld) => {
+      if (pathWorld.length === 0 || radiusWorld <= 0) return;
+      const doc = get().doc;
+      const eraserBounds = expandBounds(pathBounds(pathWorld), radiusWorld);
+      const replacements = new Map<string, string[]>();
+      const newNodes: Record<string, SceneNode> = {};
+      const removeIds = new Set<string>();
+      for (const node of Object.values(doc.nodes)) {
+        if (!isShape(node) || node.type !== "brush") continue;
+        if (!intersectBounds(worldShapeBounds(doc, node), eraserBounds)) continue;
+        const wm = shapeWorldMatrix(doc, node);
+        const inv = invertMatrix(wm);
+        if (!inv) continue;
+        const pathLocal = pathWorld.map((p) => applyMatrix(inv, p));
+        const radiusLocal = radiusWorld / matrixScale(wm);
+        const pieces = eraseBrush(node, pathLocal, radiusLocal);
+        if (pieces === null) continue; // untouched by the eraser
+        removeIds.add(node.id);
+        const ids = pieces.map((pc) => {
+          newNodes[pc.id] = pc;
+          return pc.id;
+        });
+        replacements.set(node.id, ids);
+      }
+      if (replacements.size === 0) return;
+      let next = { ...doc, nodes: { ...doc.nodes, ...newNodes } };
+      for (const id of removeIds) delete next.nodes[id];
+      // Substitute each erased brush's pieces in place within its parent.
+      const parents = new Set<string | null>();
+      for (const id of replacements.keys()) parents.add(parentIdOf(doc, id));
+      for (const parent of parents) {
+        const children = childIdsOf(doc, parent).flatMap((id) =>
+          replacements.has(id) ? replacements.get(id)! : [id]
+        );
+        next = withChildIds(next, parent, children);
+      }
+      transact(next);
+      set({ selection: get().selection.filter((id) => next.nodes[id]), ...clearTransient });
     },
     updateShape: (shape, select = true) => { const doc = get().doc; if (!isShape(doc.nodes[shape.id])) return; const next = { ...doc, nodes: { ...doc.nodes, [shape.id]: shape } }; if (!hasValidClippingMasks(next)) return; transact(next); if (select) set({ selection: [shape.id], ...clearTransient }); },
     updateTextShape: (id, patch) => {

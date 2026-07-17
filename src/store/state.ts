@@ -26,7 +26,7 @@ import type { ImportedSvg } from "../io/importSvg";
 import type { ClipboardPayload } from "./docOps";
 import type { DocumentPatch } from "./documentPatches";
 
-export type ToolId = "select" | "node" | "rect" | "ellipse" | "line" | "pen" | "pencil" | "brush" | "text" | "artboard";
+export type ToolId = "select" | "node" | "rect" | "ellipse" | "line" | "pen" | "pencil" | "brush" | "eraser" | "text" | "artboard";
 export interface EditNode { shapeId: string; sub: number; index: number }
 export type AlignType = "left" | "hcenter" | "right" | "top" | "vmiddle" | "bottom";
 export interface StyleDefaults {
@@ -157,6 +157,12 @@ export interface ShapeActions {
    * so consecutive strokes collect together (see docs/brush-strokes.md).
    */
   addBrushStroke: (shape: Shape) => void;
+  /**
+   * Erase along a world-space path of the given radius: brush strokes it
+   * crosses are split at their centerline into new brush pieces (or removed
+   * when fully erased). One undoable step; see docs/brush-strokes.md.
+   */
+  eraseBrushStrokes: (pathWorld: Vec2[], radiusWorld: number) => void;
   /** Import image files as assets and place them centered on `at`. */
   placeImageFiles: (
     files: File[],

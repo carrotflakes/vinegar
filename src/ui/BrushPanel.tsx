@@ -110,3 +110,34 @@ export default function BrushPanel() {
     </div>
   );
 }
+
+/** Tool options for the Eraser tool. Shown while the eraser tool is active. */
+export function EraserPanel() {
+  const { eraserSize, setBrush } = useBrush();
+  return (
+    <div className="panel-section">
+      <div className="panel-title">Eraser</div>
+      <div className="field">
+        <label>Size</label>
+        <div className="field-row">
+          <input
+            type="range"
+            min={1}
+            max={120}
+            step={1}
+            value={eraserSize}
+            onChange={(e) => setBrush({ eraserSize: Number(e.target.value) })}
+          />
+          <ScrubbableNumber
+            className="num"
+            min={1}
+            step={1}
+            value={eraserSize}
+            onChange={(v) => setBrush({ eraserSize: v })}
+            aria-label="Eraser size"
+          />
+        </div>
+      </div>
+    </div>
+  );
+}

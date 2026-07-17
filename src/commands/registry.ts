@@ -370,6 +370,7 @@ export const COMMANDS: Command[] = [
   { id: "tool.line", label: "Line tool", group: "Tools", keys: [{ key: "l" }], run: (s) => s.setTool("line") },
   { id: "tool.pen", label: "Pen tool", group: "Tools", keys: [{ key: "p" }], run: (s) => s.setTool("pen") },
   { id: "tool.brush", label: "Brush tool", group: "Tools", keys: [{ key: "b" }], run: (s) => s.setTool("brush") },
+  { id: "tool.eraser", label: "Eraser tool", group: "Tools", keys: [{ key: "e" }], run: (s) => s.setTool("eraser") },
   { id: "tool.pencil", label: "Pencil tool", group: "Tools", keys: [{ key: "b", shift: true }], run: (s) => s.setTool("pencil") },
   { id: "tool.text", label: "Text tool", group: "Tools", keys: [{ key: "t" }], run: (s) => s.setTool("text") },
   { id: "tool.artboard", label: "Artboard tool", group: "Tools", keys: [{ key: "a" }], run: (s) => s.setTool("artboard") },

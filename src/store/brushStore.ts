@@ -17,6 +17,8 @@ export interface BrushOptions {
   stabilizer: number;
   /** Taper each end to a point over this arc length in world units; 0 = off. */
   taper: number;
+  /** Eraser tool disk diameter in world units. */
+  eraserSize: number;
 }
 
 const DEFAULTS: BrushOptions = {
@@ -25,6 +27,7 @@ const DEFAULTS: BrushOptions = {
   minWidth: 0.15,
   stabilizer: 0.4,
   taper: 0,
+  eraserSize: 16,
 };
 
 const clamp = (v: number, lo: number, hi: number) =>
@@ -39,6 +42,7 @@ function sanitize(o: Partial<BrushOptions>): BrushOptions {
     minWidth: clamp(num(o.minWidth, DEFAULTS.minWidth), 0, 1),
     stabilizer: clamp(num(o.stabilizer, DEFAULTS.stabilizer), 0, 0.95),
     taper: clamp(num(o.taper, DEFAULTS.taper), 0, 500),
+    eraserSize: clamp(num(o.eraserSize, DEFAULTS.eraserSize), 1, 500),
   };
 }
 

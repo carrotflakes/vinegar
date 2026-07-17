@@ -1,4 +1,9 @@
-import { brushAnchor } from "../../model/brushOutline";
+import {
+  brushAnchor,
+  fitBrushAnchors,
+  simplifyWidthSamples,
+  type WidthSample,
+} from "../../model/brushOutline";
 import {
   makeId,
   type BrushAnchor,
@@ -10,10 +15,7 @@ import { useBrush, pressureToWidth, type BrushOptions } from "../../store/brushS
 import type { ToolContext } from "../interaction";
 
 /** One captured input sample: smoothed position + width multiplier. */
-interface Sample {
-  p: Vec2;
-  w: number;
-}
+type Sample = WidthSample;
 
 /**
  * Transient capture state for the in-progress stroke. Only one brush stroke can
@@ -114,7 +116,7 @@ export function finishBrush(ctx: ToolContext, state: EditorState) {
     return;
   }
   applyTaper(raw, opts.taper);
-  const simplified = simplifyBrush(raw, 2 / state.viewport.scale, 0.05);
+  const simplified = simplifyWidthSamples(raw, 2 / state.viewport.scale, 0.05);
   const anchors = fitBrushAnchors(simplified.length >= 2 ? simplified : raw);
   state.addBrushStroke(makeBrushShape(state, anchors, opts.size));
   ctx.scheduleDraw();
@@ -166,72 +168,4 @@ function applyTaper(raw: Sample[], taper: number): void {
     );
     raw[i].w *= factor;
   }
-}
-
-/** Perpendicular distance from p to the infinite line through a, b. */
-function perpDistance(p: Vec2, a: Vec2, b: Vec2): number {
-  const dx = b.x - a.x;
-  const dy = b.y - a.y;
-  const len = Math.hypot(dx, dy);
-  if (len === 0) return Math.hypot(p.x - a.x, p.y - a.y);
-  return Math.abs((p.x - a.x) * dy - (p.y - a.y) * dx) / len;
-}
-
-/**
- * Ramer–Douglas–Peucker on position, but the split metric also counts width
- * deviation (scaled so a `wEps` error equals a `posEps` position error), so a
- * mid-stroke pressure peak survives even on a straight run.
- */
-function simplifyBrush(samples: Sample[], posEps: number, wEps: number): Sample[] {
-  const n = samples.length;
-  if (n <= 2) return samples.slice();
-  const keep = new Array<boolean>(n).fill(false);
-  keep[0] = true;
-  keep[n - 1] = true;
-  const stack: [number, number][] = [[0, n - 1]];
-  const wScale = posEps / Math.max(wEps, 1e-6);
-  while (stack.length) {
-    const [start, end] = stack.pop()!;
-    let maxErr = 0;
-    let index = -1;
-    for (let i = start + 1; i < end; i++) {
-      const t = (i - start) / (end - start);
-      const perp = perpDistance(samples[i].p, samples[start].p, samples[end].p);
-      const wInterp = samples[start].w + (samples[end].w - samples[start].w) * t;
-      const wErr = Math.abs(samples[i].w - wInterp) * wScale;
-      const err = Math.max(perp, wErr);
-      if (err > maxErr) {
-        maxErr = err;
-        index = i;
-      }
-    }
-    if (maxErr > posEps && index !== -1) {
-      keep[index] = true;
-      stack.push([start, index], [index, end]);
-    }
-  }
-  return samples.filter((_, i) => keep[i]);
-}
-
-/**
- * Smooth open Catmull-Rom fit (handles = ±(next − prev) / 6), carrying each
- * sample's width. Mirrors `pointsToAnchors` in `model/freehand.ts`.
- */
-function fitBrushAnchors(samples: Sample[]): BrushAnchor[] {
-  const n = samples.length;
-  const anchors: BrushAnchor[] = [];
-  for (let i = 0; i < n; i++) {
-    const p = samples[i].p;
-    const prev = samples[i - 1]?.p ?? p;
-    const next = samples[i + 1]?.p ?? p;
-    const tx = (next.x - prev.x) / 6;
-    const ty = (next.y - prev.y) / 6;
-    anchors.push({
-      p,
-      hIn: { x: p.x - tx, y: p.y - ty },
-      hOut: { x: p.x + tx, y: p.y + ty },
-      w: samples[i].w,
-    });
-  }
-  return anchors;
 }
