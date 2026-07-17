@@ -214,7 +214,8 @@ additional effects, or other feature expansion.
   - [ ] Script API: expose instances (currently scene shapes only)
   - [ ] Export bounds: include stroke extents of instance content
 - [ ] MCPサーバー化
-- [ ] assetを確認できるビュー
+- [x] assetを確認できるビュー — Assets dock panel (`AssetsPanel`, hidden by
+  default; thumbnail + name + format/size + reference count)
 - [ ] テキストのパス化
 - [ ] 保存形式の検討 zip化?
 - [ ] タッチ操作、ちょっと選択するだけで移動となってしまう問題

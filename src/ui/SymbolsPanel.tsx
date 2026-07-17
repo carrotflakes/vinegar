@@ -1,6 +1,6 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { LuComponent, LuPlus, LuPencil, LuTrash2 } from "react-icons/lu";
-import { instanceIdsOf } from "../model/scene";
+import { instanceCountsBySymbol } from "../model/scene";
 import { screenToWorld } from "../model/viewport";
 import { currentSymbolScope, useEditor } from "../store/editorStore";
 import "./Panel.css";
@@ -32,6 +32,8 @@ export default function SymbolsPanel() {
   const [editing, setEditing] = useState<string | null>(null);
 
   const symbols = Object.values(doc.symbols);
+  // One scan for every row's instance count, recomputed only when `doc` changes.
+  const instanceCounts = useMemo(() => instanceCountsBySymbol(doc), [doc]);
 
   return (
     <div className="symbols-panel">
@@ -41,7 +43,7 @@ export default function SymbolsPanel() {
           <div className="layers-empty">No symbols yet</div>
         ) : (
           symbols.map((def) => {
-            const count = instanceIdsOf(doc, def.id).length;
+            const count = instanceCounts.get(def.id) ?? 0;
             return (
               <div
                 key={def.id}

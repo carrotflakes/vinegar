@@ -166,6 +166,10 @@ export interface ShapeActions {
   /** Import one image file as a document asset (no scene node) for use as a
    *  pattern fill/stroke. Resolves the new asset id, or null on failure. */
   addPatternImage: (file: File) => Promise<string | null>;
+  /** Remove one asset; ignored if any shape still references it. */
+  deleteAsset: (assetId: string) => void;
+  /** Remove every asset no shape references. Resolves the number removed. */
+  deleteUnusedAssets: () => number;
   updateShape: (shape: Shape, select?: boolean) => void;
   updateTextShape: (
     id: string,

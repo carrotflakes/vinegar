@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import LayersPanel from "../LayersPanel";
 import PropertiesPanel from "../PropertiesPanel";
 import SymbolsPanel from "../SymbolsPanel";
+import AssetsPanel from "../AssetsPanel";
 import ArtboardsPanel from "../ArtboardsPanel";
 import HistoryPanel from "../HistoryPanel";
 
@@ -17,6 +18,7 @@ export const PANELS: PanelDef[] = [
   { id: "properties", title: "Properties", render: () => <PropertiesPanel /> },
   { id: "layers", title: "Layers", render: () => <LayersPanel /> },
   { id: "symbols", title: "Symbols", render: () => <SymbolsPanel /> },
+  { id: "assets", title: "Assets", render: () => <AssetsPanel /> },
   { id: "artboards", title: "Artboards", render: () => <ArtboardsPanel /> },
   { id: "history", title: "History", render: () => <HistoryPanel /> },
 ];

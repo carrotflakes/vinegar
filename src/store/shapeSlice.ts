@@ -4,7 +4,7 @@ import { toggleAnchorSmooth } from "../model/bezier";
 import { shapeBounds, unionNodeWorldBounds } from "../model/bounds";
 import { hasValidClippingMasks } from "../model/clippingMask";
 import { multiply, translation } from "../model/matrix";
-import { descendantShapeIds, isShape, selectionRoots } from "../model/scene";
+import { descendantShapeIds, isShape, referencedAssetIds, selectionRoots } from "../model/scene";
 import { clampRectCornerRadius } from "../model/roundedRect";
 import { resizeShapeToBounds, translateShape } from "../model/transforms";
 import { makeId, type ImageShape, type Shape } from "../model/types";
@@ -146,6 +146,21 @@ export function createShapeActions({ set, get, transact, replaceDocumentWithoutH
       const s = get();
       transact({ ...s.doc, assets: { ...s.doc.assets, [img.asset.id]: img.asset } });
       return img.asset.id;
+    },
+    deleteAsset: (assetId) => {
+      const doc = get().doc;
+      if (!doc.assets[assetId] || referencedAssetIds(doc).has(assetId)) return;
+      const assets = { ...doc.assets }; delete assets[assetId];
+      transact({ ...doc, assets });
+    },
+    deleteUnusedAssets: () => {
+      const doc = get().doc;
+      const used = referencedAssetIds(doc);
+      const assets = { ...doc.assets };
+      let removed = 0;
+      for (const id of Object.keys(assets)) if (!used.has(id)) { delete assets[id]; removed++; }
+      if (removed) transact({ ...doc, assets });
+      return removed;
     },
     // Scripts operate on the scene scope; created shapes join the scene roots.
     applyScriptChanges: ({ created, updated, deleted }) => {

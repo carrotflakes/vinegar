@@ -175,6 +175,20 @@ export function instanceIdsOf(doc: Document, symbolId: string): string[] {
     .map((node) => node.id);
 }
 
+/**
+ * Instance count per symbol id, in one pass over the scene. Lets the Symbols
+ * panel show every row's count without an O(nodes) scan per symbol.
+ */
+export function instanceCountsBySymbol(doc: Document): Map<string, number> {
+  const counts = new Map<string, number>();
+  for (const node of Object.values(doc.nodes)) {
+    if (isInstance(node)) {
+      counts.set(node.symbolId, (counts.get(node.symbolId) ?? 0) + 1);
+    }
+  }
+  return counts;
+}
+
 export function parentIdOf(doc: Document, id: string): string | null {
   return sceneIndex(doc).parent.get(id) ?? null;
 }
@@ -275,16 +289,26 @@ const paintAssetId = (paint: Paint | null): string | null =>
  * when no image node uses it.
  */
 export function referencedAssetIds(doc: Document): Set<string> {
-  const ids = new Set<string>();
+  return new Set(assetReferenceCounts(doc).keys());
+}
+
+/**
+ * How many shapes reference each asset (image nodes + pattern fill/stroke,
+ * recursing into compound-path components). The single source of truth behind
+ * {@link referencedAssetIds}; the Assets panel uses the counts directly.
+ */
+export function assetReferenceCounts(doc: Document): Map<string, number> {
+  const counts = new Map<string, number>();
+  const bump = (id: string) => counts.set(id, (counts.get(id) ?? 0) + 1);
   const addShape = (shape: Shape) => {
-    if (shape.type === "image") ids.add(shape.assetId);
+    if (shape.type === "image") bump(shape.assetId);
     for (const id of [paintAssetId(shape.fill), paintAssetId(shape.stroke)]) {
-      if (id) ids.add(id);
+      if (id) bump(id);
     }
     if (shape.type === "compoundPath") shape.components.forEach(addShape);
   };
   for (const node of Object.values(doc.nodes)) if (isShape(node)) addShape(node);
-  return ids;
+  return counts;
 }
 
 export function isNodeHidden(doc: Document, id: string): boolean {
