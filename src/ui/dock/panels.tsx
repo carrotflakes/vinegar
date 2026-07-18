@@ -1,10 +1,10 @@
 import type { ReactNode } from "react";
-import LayersPanel from "../LayersPanel";
-import PropertiesPanel from "../PropertiesPanel";
-import SymbolsPanel from "../SymbolsPanel";
-import AssetsPanel from "../AssetsPanel";
-import ArtboardsPanel from "../ArtboardsPanel";
-import HistoryPanel from "../HistoryPanel";
+import ArtboardsPanel from "../panels/artboards/ArtboardsPanel";
+import AssetsPanel from "../panels/assets/AssetsPanel";
+import HistoryPanel from "../panels/history/HistoryPanel";
+import LayersPanel from "../panels/layers/LayersPanel";
+import PropertiesPanel from "../panels/properties/PropertiesPanel";
+import SymbolsPanel from "../panels/symbols/SymbolsPanel";
 
 /** A dockable panel: a stable id, a tab label, and how to render its body. */
 export interface PanelDef {

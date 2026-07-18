@@ -7,10 +7,10 @@ import {
   THEME_PREFERENCES,
   type ThemePreference,
   type UiLocale,
-} from "../preferences/model";
-import { usePreferences } from "../store/preferencesStore";
-import { useDock } from "./dock/dockStore";
-import "./Modal.css";
+} from "../../preferences/model";
+import { usePreferences } from "../../store/preferencesStore";
+import { useDock } from "../dock/dockStore";
+import "../Modal.css";
 import "./PreferencesDialog.css";
 
 interface Props {

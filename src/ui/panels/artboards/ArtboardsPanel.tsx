@@ -1,8 +1,8 @@
 import { useState } from "react";
 import { LuFrame, LuPlus, LuTrash2 } from "react-icons/lu";
-import { useEditor } from "../store/editorStore";
-import "./Panel.css";
-import "./LayersPanel.css";
+import { useEditor } from "../../../store/editorStore";
+import "../../Panel.css";
+import "../layers/LayersPanel.css";
 
 /**
  * The document's artboards: select, rename, reorder (= export order), add, and

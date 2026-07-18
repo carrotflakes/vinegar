@@ -1,11 +1,11 @@
-import { defaultEffect } from "../../model/effects";
+import { defaultEffect } from "../../../model/effects";
 import type {
   DropShadowEffect,
   Effect,
   SceneNode,
-} from "../../model/types";
-import { useEditor } from "../../store/editorStore";
-import ScrubbableNumber from "../ScrubbableNumber";
+} from "../../../model/types";
+import { useEditor } from "../../../store/editorStore";
+import ScrubbableNumber from "../../ScrubbableNumber";
 
 function effectLabel(type: Effect["type"]): string {
   return type === "blur" ? "Blur" : "Drop Shadow";

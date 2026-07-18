@@ -1,5 +1,5 @@
 import { globalStyle } from "@vanilla-extract/css";
-import { vars } from "../styles/theme.css";
+import { vars } from "../../../styles/theme.css";
 
 globalStyle(".history-row", {
   display: "flex",

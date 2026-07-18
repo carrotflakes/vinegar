@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
-import { LuMinus, LuPlus, LuUndo2, LuRedo2, LuPanelRight, LuCommand } from "react-icons/lu";
+import { LuCommand, LuMinus, LuPanelRight, LuPlus, LuRedo2, LuUndo2 } from "react-icons/lu";
+import "./App.css";
 import CanvasView from "./canvas/CanvasView";
 import {
   commandEnabled,
@@ -8,31 +9,30 @@ import {
   runCommand,
 } from "./commands/registry";
 import { imageFilesFromData } from "./io/importImage";
-import { currentSymbolScope, hasUnsavedChanges, useEditor, type ToolId } from "./store/editorStore";
-import { usePointer } from "./store/pointerStore";
-import Toolbar from "./ui/Toolbar";
-import RightSidebar from "./ui/RightSidebar";
-import FileMenu from "./ui/FileMenu";
-import ScriptPanel from "./ui/ScriptPanel";
-import Inspector from "./ui/Inspector";
-import CommandPalette from "./ui/CommandPalette";
-import FullscreenButton from "./ui/FullscreenButton";
-import ContextMenuHost from "./ui/ContextMenu";
-import ZoomMenu from "./ui/ZoomMenu";
-import SnapMenu from "./ui/SnapMenu";
-import PreferencesDialog from "./ui/PreferencesDialog";
-import ExportDialog from "./ui/ExportDialog";
-import { scopeLeafIds } from "./model/scene";
 import {
   clearDocumentRecovery,
   startDocumentAutosave,
 } from "./io/recovery";
-import { useRecoveryStatus } from "./store/recoveryStore";
+import { scopeLeafIds } from "./model/scene";
+import { currentSymbolScope, hasUnsavedChanges, useEditor, type ToolId } from "./store/editorStore";
+import { usePointer } from "./store/pointerStore";
 import { usePreferences } from "./store/preferencesStore";
+import { useRecoveryStatus } from "./store/recoveryStore";
 import { useUi } from "./store/uiStore";
-import { usePreventBrowserZoom } from "./ui/usePreventBrowserZoom";
-import "./App.css";
 import { barButton } from "./ui/AppBar.css";
+import CommandPalette from "./ui/CommandPalette";
+import ContextMenuHost from "./ui/ContextMenu";
+import FileMenu from "./ui/FileMenu";
+import FullscreenButton from "./ui/FullscreenButton";
+import RightSidebar from "./ui/RightSidebar";
+import SnapMenu from "./ui/SnapMenu";
+import Toolbar from "./ui/Toolbar";
+import ZoomMenu from "./ui/ZoomMenu";
+import ExportDialog from "./ui/dialogs/ExportDialog";
+import Inspector from "./ui/dialogs/Inspector";
+import PreferencesDialog from "./ui/dialogs/PreferencesDialog";
+import ScriptPanel from "./ui/dialogs/ScriptPanel";
+import { usePreventBrowserZoom } from "./ui/usePreventBrowserZoom";
 
 /**
  * Live pointer position in world coordinates. While an interaction is in

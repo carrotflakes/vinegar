@@ -8,25 +8,25 @@ import {
   LuAlignStartVertical,
   LuAlignVerticalDistributeCenter,
 } from "react-icons/lu";
-import { isAreal } from "../../model/boolean";
+import { isAreal } from "../../../model/boolean";
 import {
   canMakeClippingMaskSelection,
   canReleaseClippingMaskSelection,
-} from "../../model/clippingMask";
+} from "../../../model/clippingMask";
 import {
   canMakeCompoundPathSelection,
   canReleaseCompoundPathSelection,
-} from "../../model/compoundPath";
+} from "../../../model/compoundPath";
 import {
   canGroupSelection,
   selectionUnits,
-} from "../../model/groups";
+} from "../../../model/groups";
 import type {
   Document,
   Group,
   Shape,
-} from "../../model/types";
-import { useEditor } from "../../store/editorStore";
+} from "../../../model/types";
+import { useEditor } from "../../../store/editorStore";
 import { Geometry } from "./ShapeSections";
 
 export default function SelectionActionsSection({

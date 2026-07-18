@@ -1,29 +1,29 @@
-import { shapeBounds } from "../../model/bounds";
+import { shapeBounds } from "../../../model/bounds";
 import {
   applyMatrix,
   applyWorldTransformToNode,
   matrixAngle,
   rotationAbout,
   shapeWorldMatrix,
-} from "../../model/matrix";
-import type { Paint } from "../../model/paint";
+} from "../../../model/matrix";
+import type { Paint } from "../../../model/paint";
 import {
   effectiveStrokeAlignment,
   normalizeStrokeDash,
   strokeCap as resolvedStrokeCap,
   strokeJoin as resolvedStrokeJoin,
   supportsStrokeAlignment,
-} from "../../model/stroke";
+} from "../../../model/stroke";
 import {
   BLEND_MODES,
   type BlendMode,
   type Document,
   type Group,
   type Shape,
-} from "../../model/types";
-import { useEditor } from "../../store/editorStore";
-import ColorField from "../ColorField";
-import ScrubbableNumber from "../ScrubbableNumber";
+} from "../../../model/types";
+import { useEditor } from "../../../store/editorStore";
+import ColorField from "../../ColorField";
+import ScrubbableNumber from "../../ScrubbableNumber";
 import StrokeDetailControls, {
   type StrokeDetailsValue,
 } from "./StrokeDetailControls";

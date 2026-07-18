@@ -1,4 +1,4 @@
-import { vars } from "../styles/theme.css";
+import { vars } from "../../styles/theme.css";
 import { globalStyle } from "@vanilla-extract/css";
 
 globalStyle(".ins-null,\n.ins-circular", {

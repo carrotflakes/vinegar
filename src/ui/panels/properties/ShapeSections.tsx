@@ -2,21 +2,21 @@ import { useEffect, useReducer } from "react";
 import {
   getAssetImage,
   subscribeImageCache,
-} from "../../canvas/imageCache";
-import { shapeBounds } from "../../model/bounds";
+} from "../../../canvas/imageCache";
+import { shapeBounds } from "../../../model/bounds";
 import {
   effectiveRectCornerRadius,
   maxRectCornerRadius,
-} from "../../model/roundedRect";
+} from "../../../model/roundedRect";
 import type {
   DocumentAsset,
   ImageShape,
   Shape,
   TextShape,
-} from "../../model/types";
-import { useEditor } from "../../store/editorStore";
-import { FONT_OPTIONS } from "../fonts";
-import ScrubbableNumber from "../ScrubbableNumber";
+} from "../../../model/types";
+import { useEditor } from "../../../store/editorStore";
+import { FONT_OPTIONS } from "../../fonts";
+import ScrubbableNumber from "../../ScrubbableNumber";
 
 const FONT_WEIGHTS = [100, 200, 300, 400, 500, 600, 700, 800, 900];
 

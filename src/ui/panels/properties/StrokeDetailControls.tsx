@@ -1,13 +1,13 @@
 import { useEffect, useState } from "react";
 import {
   normalizeStrokeDash,
-} from "../../model/stroke";
+} from "../../../model/stroke";
 import type {
   StrokeAlignment,
   StrokeCap,
   StrokeJoin,
-} from "../../model/types";
-import ScrubbableNumber from "../ScrubbableNumber";
+} from "../../../model/types";
+import ScrubbableNumber from "../../ScrubbableNumber";
 
 export interface StrokeDetailsValue {
   dash: number[];

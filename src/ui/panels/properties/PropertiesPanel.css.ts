@@ -1,4 +1,4 @@
-import { vars } from "../styles/theme.css";
+import { vars } from "../../../styles/theme.css";
 import { globalStyle } from "@vanilla-extract/css";
 
 globalStyle(".stroke-detail-grid select,\n.stroke-offset", {

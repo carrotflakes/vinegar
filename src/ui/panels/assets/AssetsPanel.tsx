@@ -1,11 +1,11 @@
 import { useEffect, useMemo, useReducer } from "react";
 import { LuImage, LuPlus, LuTrash2 } from "react-icons/lu";
-import { getAssetImage, subscribeImageCache } from "../canvas/imageCache";
-import { assetReferenceCounts } from "../model/scene";
-import { useEditor } from "../store/editorStore";
-import { DRAG_ASSET, canvasCenterPlacement } from "./canvasDrag";
-import "./Panel.css";
-import "./LayersPanel.css";
+import { getAssetImage, subscribeImageCache } from "../../../canvas/imageCache";
+import { assetReferenceCounts } from "../../../model/scene";
+import { useEditor } from "../../../store/editorStore";
+import { DRAG_ASSET, canvasCenterPlacement } from "../../canvasDrag";
+import "../../Panel.css";
+import "../layers/LayersPanel.css";
 import "./AssetsPanel.css";
 
 /**

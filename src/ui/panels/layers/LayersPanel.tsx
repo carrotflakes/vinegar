@@ -19,8 +19,8 @@ import {
   LuType,
   LuBrush,
 } from "react-icons/lu";
-import type { Group, Shape, SymbolInstance } from "../model/types";
-import { isClippingGroup, isClippingMaskNode } from "../model/clippingMask";
+import type { Group, Shape, SymbolInstance } from "../../../model/types";
+import { isClippingGroup, isClippingMaskNode } from "../../../model/clippingMask";
 import {
   descendantNodeIds,
   isGroup,
@@ -28,11 +28,11 @@ import {
   isShape,
   scopeRootGroupId,
   scopeRootIds,
-} from "../model/scene";
-import { currentSymbolScope, useEditor } from "../store/editorStore";
-import { openContextMenu } from "../store/menuStore";
-import { selectionMenu } from "./menus";
-import "./Panel.css";
+} from "../../../model/scene";
+import { currentSymbolScope, useEditor } from "../../../store/editorStore";
+import { openContextMenu } from "../../../store/menuStore";
+import { selectionMenu } from "../../menus";
+import "../../Panel.css";
 import "./LayersPanel.css";
 
 const TYPE_ICON: Record<Shape["type"], ComponentType> = {

@@ -1,21 +1,21 @@
-import { getSelectionFrame } from "../../canvas/frame";
-import { clippingMask } from "../../model/clippingMask";
+import { getSelectionFrame } from "../../../canvas/frame";
+import { clippingMask } from "../../../model/clippingMask";
 import {
   applyMatrix,
   applyWorldTransformToNode,
   matrixAngle,
   nodeWorldMatrix,
   rotationAbout,
-} from "../../model/matrix";
+} from "../../../model/matrix";
 import {
   BLEND_MODES,
   type BlendMode,
   type Document,
   type Group,
   type Shape,
-} from "../../model/types";
-import { useEditor } from "../../store/editorStore";
-import ScrubbableNumber from "../ScrubbableNumber";
+} from "../../../model/types";
+import { useEditor } from "../../../store/editorStore";
+import ScrubbableNumber from "../../ScrubbableNumber";
 
 function blendLabel(mode: BlendMode): string {
   const words = mode.replace(/-/g, " ");

@@ -1,6 +1,6 @@
-import { useBrush } from "../store/brushStore";
-import ScrubbableNumber from "./ScrubbableNumber";
-import "./Panel.css";
+import { useBrush } from "../../../store/brushStore";
+import ScrubbableNumber from "../../ScrubbableNumber";
+import "../../Panel.css";
 
 /** Tool options for the Brush tool. Shown while the brush tool is active. */
 export default function BrushPanel() {

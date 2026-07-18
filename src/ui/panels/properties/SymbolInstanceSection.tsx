@@ -1,5 +1,5 @@
-import type { SymbolInstance } from "../../model/types";
-import { useEditor } from "../../store/editorStore";
+import type { SymbolInstance } from "../../../model/types";
+import { useEditor } from "../../../store/editorStore";
 
 export default function SymbolInstanceSection({
   instance,

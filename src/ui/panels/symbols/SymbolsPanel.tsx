@@ -1,10 +1,10 @@
 import { useMemo, useState } from "react";
 import { LuComponent, LuPlus, LuPencil, LuTrash2 } from "react-icons/lu";
-import { instanceCountsBySymbol } from "../model/scene";
-import { currentSymbolScope, useEditor } from "../store/editorStore";
-import { DRAG_SYMBOL, canvasCenterPlacement } from "./canvasDrag";
-import "./Panel.css";
-import "./LayersPanel.css";
+import { instanceCountsBySymbol } from "../../../model/scene";
+import { currentSymbolScope, useEditor } from "../../../store/editorStore";
+import { DRAG_SYMBOL, canvasCenterPlacement } from "../../canvasDrag";
+import "../../Panel.css";
+import "../layers/LayersPanel.css";
 
 /**
  * The document's reusable symbols: rename, place an instance, jump into local

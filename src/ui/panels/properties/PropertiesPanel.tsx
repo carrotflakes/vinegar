@@ -1,30 +1,30 @@
 import {
   exactlySelectedGroup,
-} from "../model/groups";
+} from "../../../model/groups";
 import {
   descendantShapeIds,
   isInstance,
   isShape,
   selectionRoots,
-} from "../model/scene";
+} from "../../../model/scene";
 import type {
   SceneNode,
   Shape,
   SymbolInstance,
-} from "../model/types";
-import { useEditor } from "../store/editorStore";
+} from "../../../model/types";
+import { useEditor } from "../../../store/editorStore";
 import BrushPanel, { EraserPanel } from "./BrushPanel";
-import ArtboardPanel from "./properties/ArtboardPanel";
-import AppearanceSection from "./properties/AppearanceSection";
-import EffectsSection from "./properties/EffectsSection";
-import GroupSection from "./properties/GroupSection";
-import SelectionActionsSection from "./properties/SelectionActionsSection";
+import ArtboardPanel from "./ArtboardPanel";
+import AppearanceSection from "./AppearanceSection";
+import EffectsSection from "./EffectsSection";
+import GroupSection from "./GroupSection";
+import SelectionActionsSection from "./SelectionActionsSection";
 import {
   ImageSection,
   TextSection,
-} from "./properties/ShapeSections";
-import SymbolInstanceSection from "./properties/SymbolInstanceSection";
-import "./Panel.css";
+} from "./ShapeSections";
+import SymbolInstanceSection from "./SymbolInstanceSection";
+import "../../Panel.css";
 import "./PropertiesPanel.css";
 
 export default function PropertiesPanel() {

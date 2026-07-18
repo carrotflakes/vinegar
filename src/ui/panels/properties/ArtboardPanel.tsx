@@ -1,6 +1,6 @@
-import type { Artboard } from "../../model/types";
-import { useEditor } from "../../store/editorStore";
-import ScrubbableNumber from "../ScrubbableNumber";
+import type { Artboard } from "../../../model/types";
+import { useEditor } from "../../../store/editorStore";
+import ScrubbableNumber from "../../ScrubbableNumber";
 
 const ARTBOARD_PRESETS: { label: string; w: number; h: number }[] = [
   { label: "Square", w: 1080, h: 1080 },

@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { LuX } from "react-icons/lu";
-import { downloadBlob } from "../io/download";
-import { fileSlug } from "../io/exportFilenames";
+import { downloadBlob } from "../../io/download";
+import { selectionContentBounds } from "../../io/exportBounds";
+import { fileSlug } from "../../io/exportFilenames";
 import {
   effectiveScale,
   exceedsPixelLimit,
@@ -21,13 +22,12 @@ import {
   type ExportRegionContext,
   type ExportScope,
   type ExportSizeMode,
-} from "../io/exportImage";
-import { selectionContentBounds } from "../io/exportBounds";
-import { exportPng } from "../io/exportPng";
-import { useEditor } from "../store/editorStore";
-import ScrubbableNumber from "./ScrubbableNumber";
-import "./Modal.css";
+} from "../../io/exportImage";
+import { exportPng } from "../../io/exportPng";
+import { useEditor } from "../../store/editorStore";
+import "../Modal.css";
 import "./PreferencesDialog.css";
+import ScrubbableNumber from "../ScrubbableNumber";
 import "./ExportDialog.css";
 
 interface Props {
