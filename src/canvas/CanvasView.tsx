@@ -8,6 +8,7 @@ import {
   isWithinGroup,
 } from "../model/groups";
 import { shapeWorldMatrix } from "../model/matrix";
+import { isDocumentFile, openDocumentFile } from "../io/openDocument";
 import { isGroup, scopeRootGroupId } from "../model/scene";
 import { type Guide, type Spacing } from "../model/snap";
 import type { BezierShape, Bounds, Shape, TextShape, Vec2 } from "../model/types";
@@ -881,6 +882,12 @@ export default function CanvasView() {
     }
     const files = [...(dt?.files ?? [])];
     if (!files.length) return;
+    // A dropped .vinegar.json opens as the document; image files get placed.
+    const docFile = files.find(isDocumentFile);
+    if (docFile) {
+      void openDocumentFile(docFile);
+      return;
+    }
     void state.placeImageFiles(files, world, fitWithin);
   };
 

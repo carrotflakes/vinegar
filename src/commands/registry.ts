@@ -50,7 +50,8 @@ import { pickImageFiles } from "../io/importImage";
 import { importSvg, type ImportedSvg } from "../io/importSvg";
 import { exportPng } from "../io/exportPng";
 import { exportSvg } from "../io/exportSvg";
-import { parseDocument, serializeDocument } from "../io/serialize";
+import { loadDocumentText } from "../io/openDocument";
+import { serializeDocument } from "../io/serialize";
 import { currentSymbolScope, hasUnsavedChanges, useEditor } from "../store/editorStore";
 import { useUi } from "../store/uiStore";
 import type { EditorState } from "../store/state";
@@ -494,14 +495,7 @@ export const COMMANDS: Command[] = [
       if (!confirmDiscard(s)) return;
       const text = await pickTextFile(".json,application/json");
       if (text == null) return;
-      try {
-        s.loadDocument(parseDocument(text));
-      } catch (err) {
-        window.alert(
-          "Could not open file:\n" +
-            (err instanceof Error ? err.message : String(err))
-        );
-      }
+      loadDocumentText(text);
     },
   },
   {
