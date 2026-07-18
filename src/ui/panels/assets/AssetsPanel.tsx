@@ -5,7 +5,7 @@ import { assetReferenceCounts } from "../../../model/scene";
 import { useEditor } from "../../../store/editorStore";
 import { DRAG_ASSET, canvasCenterPlacement } from "../../../canvas/canvasDrag";
 import "../../Panel.css";
-import "../layers/LayersPanel.css";
+import "../PanelList.css";
 import "./AssetsPanel.css";
 
 /**

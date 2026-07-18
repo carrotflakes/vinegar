@@ -4,7 +4,7 @@ import { instanceCountsBySymbol } from "../../../model/scene";
 import { currentSymbolScope, useEditor } from "../../../store/editorStore";
 import { DRAG_SYMBOL, canvasCenterPlacement } from "../../../canvas/canvasDrag";
 import "../../Panel.css";
-import "../layers/LayersPanel.css";
+import "../PanelList.css";
 
 /**
  * The document's reusable symbols: rename, place an instance, jump into local

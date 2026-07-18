@@ -11,6 +11,7 @@ import {
 import { usePreferences } from "../../store/preferencesStore";
 import { useDock } from "../dock/dockStore";
 import "../Modal.css";
+import "./DialogForm.css";
 import "./PreferencesDialog.css";
 
 interface Props {

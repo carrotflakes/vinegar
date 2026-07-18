@@ -26,7 +26,7 @@ import {
 import { exportPng } from "../../io/exportPng";
 import { useEditor } from "../../store/editorStore";
 import "../Modal.css";
-import "./PreferencesDialog.css";
+import "./DialogForm.css";
 import ScrubbableNumber from "../ScrubbableNumber";
 import "./ExportDialog.css";
 

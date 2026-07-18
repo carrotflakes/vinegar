@@ -1,4 +1,4 @@
-import { vars } from "../../../styles/theme.css";
+import { vars } from "../../styles/theme.css";
 import { globalStyle } from "@vanilla-extract/css";
 
 globalStyle(".layer-row.hidden .layer-name,\n.layer-row.hidden .layer-type", {

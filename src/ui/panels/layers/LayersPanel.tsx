@@ -33,7 +33,7 @@ import { currentSymbolScope, useEditor } from "../../../store/editorStore";
 import { openContextMenu } from "../../../store/menuStore";
 import { selectionMenu } from "../../menus";
 import "../../Panel.css";
-import "./LayersPanel.css";
+import "../PanelList.css";
 
 const TYPE_ICON: Record<Shape["type"], ComponentType> = {
   rect: LuSquare,

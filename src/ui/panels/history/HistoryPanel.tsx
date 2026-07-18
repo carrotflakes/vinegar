@@ -3,7 +3,7 @@ import { useEditor } from "../../../store/editorStore";
 import type { DocumentPatch } from "../../../store/documentPatches";
 import type { HistoryEntry } from "../../../store/state";
 import "../../Panel.css";
-import "../layers/LayersPanel.css";
+import "../PanelList.css";
 import "./HistoryPanel.css";
 
 function plural(n: number, word: string): string {
