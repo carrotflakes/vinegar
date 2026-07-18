@@ -95,6 +95,46 @@ test("Paper paths retain curves, transforms, and solid stroke styling", () => {
   assert.deepEqual(node.subpaths[0].anchors[1].hIn, { x: 10, y: 20 });
 });
 
+test("Paper gradients retain stops, alpha, angle, and radial type", () => {
+  const scope = makeScope();
+  const path = new scope.Path.Rectangle({
+    point: [0, 0],
+    size: [100, 100],
+    insert: false,
+  });
+  const linear = new scope.Gradient([
+    new scope.GradientStop(new scope.Color(1, 0, 0, 0.5), 0),
+    new scope.GradientStop(new scope.Color("#0000ff"), 1),
+  ], false);
+  path.fillColor = new scope.Color(linear, [10, 20], [30, 40]);
+  path.fillColor.alpha = 0.8;
+  const radial = new scope.Gradient([
+    new scope.GradientStop(new scope.Color("#ffffff"), 0),
+    new scope.GradientStop(new scope.Color("#000000"), 1),
+  ], true);
+  path.strokeColor = new scope.Color(radial, [50, 50], [100, 50]);
+  path.strokeWidth = 4;
+
+  const imported = convertSvgItem(path);
+  const node = importedContent(imported);
+  assert.equal(node.type, "bezier");
+  assert.deepEqual(node.fill, {
+    type: "linear",
+    angle: Math.PI / 4,
+    stops: [
+      { offset: 0, color: "#ff0000", alpha: 0.4 },
+      { offset: 1, color: "#0000ff", alpha: 0.8 },
+    ],
+  });
+  assert.deepEqual(node.stroke, {
+    type: "radial",
+    stops: [
+      { offset: 0, color: "#ffffff", alpha: 1 },
+      { offset: 1, color: "#000000", alpha: 1 },
+    ],
+  });
+});
+
 test("open fill paths (no Z) keep their fill and enclose an implicit area", () => {
   // SVG fills paths without a closing Z by implicitly closing them, so import
   // must not drop the fill or force the path closed on the round trip.

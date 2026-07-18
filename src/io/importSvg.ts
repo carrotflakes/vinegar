@@ -3,7 +3,13 @@
 import * as paperNs from "paper";
 import { isClippingMaskCandidate } from "../model/clippingMask";
 import { applyMatrix, IDENTITY } from "../model/matrix";
-import { solid, type Paint } from "../model/paint";
+import {
+  linearGradient,
+  radialGradient,
+  solid,
+  type GradientStop,
+  type Paint,
+} from "../model/paint";
 import {
   BLEND_MODES,
   makeId,
@@ -81,8 +87,35 @@ function colorHex(color: paper.Color): string {
   return `#${byte(rgb.red)}${byte(rgb.green)}${byte(rgb.blue)}`;
 }
 
+function gradientStopsOf(color: paper.Color): GradientStop[] {
+  const paintAlpha = clamp01(finite(color.alpha, 1));
+  return color.gradient.stops.map((stop) => ({
+    offset: clamp01(finite(stop.offset)),
+    color: colorHex(stop.color),
+    alpha: clamp01(finite(stop.color.alpha, 1) * paintAlpha),
+  }));
+}
+
 function paintOf(color: paper.Color | null): Paint | null {
-  if (!color || color.type === "gradient") return null;
+  if (!color) return null;
+  if (color.type === "gradient") {
+    const stops = gradientStopsOf(color);
+    if (!stops.length) return null;
+    if (color.gradient.radial) return radialGradient(stops);
+    // Paper exposes these gradient components at runtime but omits them from
+    // its Color declaration (only `highlight` is declared).
+    const gradientColor = color as paper.Color & {
+      origin: paper.Point;
+      destination: paper.Point;
+    };
+    const origin = gradientColor.origin;
+    const destination = gradientColor.destination;
+    const angle = Math.atan2(
+      finite(destination.y - origin.y),
+      finite(destination.x - origin.x)
+    );
+    return linearGradient(stops, angle);
+  }
   return solid(colorHex(color), clamp01(finite(color.alpha, 1)));
 }
 
