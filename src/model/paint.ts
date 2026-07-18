@@ -190,11 +190,12 @@ export function paintToSvgAttrs(paint: SolidPaint, kind: "fill" | "stroke"): str
   return attrs;
 }
 
-/**
- * SVG `<linearGradient>`/`<radialGradient>` def element. Uses the default
- * objectBoundingBox units so 0..1 coordinates map to the referencing shape.
- */
-export function gradientToSvg(paint: GradientPaint, id: string): string {
+/** SVG `<linearGradient>`/`<radialGradient>` matching the Canvas resolver. */
+export function gradientToSvg(
+  paint: GradientPaint,
+  id: string,
+  bounds?: Bounds
+): string {
   const stops = sortedStops(paint.stops)
     .map(
       (s) =>
@@ -203,6 +204,28 @@ export function gradientToSvg(paint: GradientPaint, id: string): string {
         `/>`
     )
     .join("");
+  if (bounds) {
+    const cx = bounds.x + bounds.width / 2;
+    const cy = bounds.y + bounds.height / 2;
+    if (paint.type === "linear") {
+      const dx = Math.cos(paint.angle);
+      const dy = Math.sin(paint.angle);
+      const half =
+        (Math.abs(bounds.width * dx) + Math.abs(bounds.height * dy)) / 2;
+      return (
+        `<linearGradient id="${id}" gradientUnits="userSpaceOnUse" ` +
+        `x1="${round(cx - dx * half)}" y1="${round(cy - dy * half)}" ` +
+        `x2="${round(cx + dx * half)}" y2="${round(cy + dy * half)}">` +
+        `${stops}</linearGradient>`
+      );
+    }
+    const radius = Math.hypot(bounds.width, bounds.height) / 2;
+    return (
+      `<radialGradient id="${id}" gradientUnits="userSpaceOnUse" ` +
+      `cx="${round(cx)}" cy="${round(cy)}" r="${round(radius)}">` +
+      `${stops}</radialGradient>`
+    );
+  }
   if (paint.type === "linear") {
     const dx = Math.cos(paint.angle);
     const dy = Math.sin(paint.angle);

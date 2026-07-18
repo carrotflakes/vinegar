@@ -60,7 +60,11 @@ export interface SvgOptions {
  */
 interface Defs {
   items: string[];
-  paintAttrs(paint: Paint, kind: "fill" | "stroke"): string[];
+  paintAttrs(
+    paint: Paint,
+    kind: "fill" | "stroke",
+    bounds: Bounds
+  ): string[];
   clipPath(shape: ClippingMaskShape): string;
   strokeClip(markup: string): string;
   strokeMask(markup: string, bounds: Bounds): string;
@@ -87,7 +91,7 @@ function makeDefs(doc: Document): Defs {
   return {
     items,
     nextId,
-    paintAttrs(paint, kind) {
+    paintAttrs(paint, kind, bounds) {
       if (paint.type === "solid") return paintToSvgAttrs(paint, kind);
       if (paint.type === "pattern") {
         const asset = doc.assets[paint.assetId];
@@ -101,7 +105,7 @@ function makeDefs(doc: Document): Defs {
         ];
       }
       const gradientId = nextId("grad");
-      items.push(gradientToSvg(paint, gradientId));
+      items.push(gradientToSvg(paint, gradientId, bounds));
       return [`${kind}="url(#${gradientId})"`];
     },
     clipPath(shape) {
@@ -217,11 +221,15 @@ function filterAttr(node: SceneNode, defs: Defs): string {
 
 function commonAttrs(shape: Shape, defs: Defs): string {
   const parts: string[] = [];
+  const bounds = shapeBounds(shape);
   // SVG fills open subpaths by implicitly closing them while leaving their
   // stroke geometry open.
   const fillable = shape.type !== "line";
-  if (fillable && shape.fill) parts.push(...defs.paintAttrs(shape.fill, "fill"));
-  else parts.push(`fill="none"`);
+  if (fillable && shape.fill) {
+    parts.push(...defs.paintAttrs(shape.fill, "fill", bounds));
+  } else {
+    parts.push(`fill="none"`);
+  }
   if (shape.stroke && shape.strokeWidth > 0) {
     parts.push(...strokeSvgAttrs(shape, defs, shape.strokeWidth));
   }
@@ -234,7 +242,7 @@ function commonAttrs(shape: Shape, defs: Defs): string {
 function strokeSvgAttrs(shape: Shape, defs: Defs, width: number): string[] {
   if (!shape.stroke) return [];
   const parts = [
-    ...defs.paintAttrs(shape.stroke, "stroke"),
+    ...defs.paintAttrs(shape.stroke, "stroke", shapeBounds(shape)),
     `stroke-width="${num(width)}"`,
     `stroke-linecap="${strokeCap(shape)}"`,
     `stroke-linejoin="${strokeJoin(shape)}"`,
@@ -253,7 +261,7 @@ function strokeSvgAttrs(shape: Shape, defs: Defs, width: number): string[] {
 function fillSvgAttrs(shape: Shape, defs: Defs): string[] {
   const fillable = shape.type !== "line";
   return fillable && shape.fill
-    ? defs.paintAttrs(shape.fill, "fill")
+    ? defs.paintAttrs(shape.fill, "fill", shapeBounds(shape))
     : [`fill="none"`];
 }
 
@@ -282,8 +290,11 @@ function shapeToSvg(doc: Document, shape: Shape, defs: Defs): string {
     // The envelope is a plain filled polygon painted with the stroke paint;
     // there is no SVG stroke to position, so bypass the alignment machinery.
     const parts: string[] = [];
-    if (shape.stroke) parts.push(...defs.paintAttrs(shape.stroke, "fill"));
-    else parts.push(`fill="none"`);
+    if (shape.stroke) {
+      parts.push(...defs.paintAttrs(shape.stroke, "fill", shapeBounds(shape)));
+    } else {
+      parts.push(`fill="none"`);
+    }
     parts.push(...baseAttrs(shape));
     const fx = filterAttr(shape, defs);
     if (fx) parts.push(fx);

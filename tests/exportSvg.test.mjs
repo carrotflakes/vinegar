@@ -6,7 +6,9 @@ let server;
 let createEmptyDocument;
 let embeddedImageSize;
 let exportSvg;
+let linearGradient;
 let pattern;
+let radialGradient;
 
 before(async () => {
   server = await createServer({ server: { middlewareMode: true } });
@@ -14,7 +16,8 @@ before(async () => {
     await server.ssrLoadModule("/src/model/types.ts"));
   ({ embeddedImageSize } =
     await server.ssrLoadModule("/src/io/imageDimensions.ts"));
-  ({ pattern } = await server.ssrLoadModule("/src/model/paint.ts"));
+  ({ linearGradient, pattern, radialGradient } =
+    await server.ssrLoadModule("/src/model/paint.ts"));
   ({ exportSvg } = await server.ssrLoadModule("/src/io/exportSvg.ts"));
 });
 
@@ -144,4 +147,38 @@ test("SVG export embeds image patterns with their placement and alpha", () => {
   );
   assert.match(svg, /fill="url\(#pat0\)" fill-opacity="0.4"/);
   assert.doesNotMatch(svg, /#8a9099/);
+});
+
+test("SVG gradients use local coordinates without distorting their geometry", () => {
+  const doc = createEmptyDocument();
+  const stops = [
+    { offset: 0, color: "#ff0000", alpha: 1 },
+    { offset: 1, color: "#0000ff", alpha: 1 },
+  ];
+  doc.nodes.rect = {
+    id: "rect",
+    name: "Gradients",
+    type: "rect",
+    x: 0,
+    y: 0,
+    width: 200,
+    height: 100,
+    transform: [1, 0, 0, 1, 0, 0],
+    transformOrigin: null,
+    opacity: 1,
+    fill: linearGradient(stops, Math.PI / 4),
+    stroke: radialGradient(stops),
+    strokeWidth: 2,
+  };
+  doc.rootIds = ["rect"];
+
+  const svg = exportSvg(doc, { margin: 0 });
+  assert.match(
+    svg,
+    /<linearGradient id="grad0" gradientUnits="userSpaceOnUse" x1="25" y1="-25" x2="175" y2="125">/
+  );
+  assert.match(
+    svg,
+    /<radialGradient id="grad1" gradientUnits="userSpaceOnUse" cx="100" cy="50" r="111.803">/
+  );
 });
