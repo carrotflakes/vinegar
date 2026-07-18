@@ -105,7 +105,7 @@ test("embedded image dimensions cover the supported raster and SVG formats", () 
   );
 });
 
-test("SVG export embeds image patterns with their placement and alpha", () => {
+test("SVG export embeds and reuses image patterns with placement and alpha", () => {
   const doc = createEmptyDocument();
   const data = pngDataUrl(2, 3);
   doc.assets.texture = {
@@ -134,18 +134,27 @@ test("SVG export embeds image patterns with their placement and alpha", () => {
     stroke: null,
     strokeWidth: 0,
   };
-  doc.rootIds = ["rect"];
+  doc.nodes.rect2 = {
+    ...doc.nodes.rect,
+    id: "rect2",
+    name: "Pattern copy",
+    transform: [1, 0, 0, 1, 30, 0],
+  };
+  doc.rootIds = ["rect", "rect2"];
 
   const svg = exportSvg(doc, { margin: 0 });
-  assert.match(
-    svg,
-    /<pattern id="pat0" patternUnits="userSpaceOnUse" width="2" height="3" patternTransform="translate\(5 7\) rotate\(90\) scale\(2\)">/
+  assert.ok(
+    svg.includes(
+      `<image id="img0" width="2" height="3" preserveAspectRatio="none" href="${data}"/>`
+    )
   );
   assert.match(
     svg,
-    new RegExp(`<image width="2" height="3" preserveAspectRatio="none" href="${data}"/>`)
+    /<pattern id="pat1" patternUnits="userSpaceOnUse" width="2" height="3" patternTransform="translate\(5 7\) rotate\(90\) scale\(2\)"><use href="#img0"\/><\/pattern>/
   );
-  assert.match(svg, /fill="url\(#pat0\)" fill-opacity="0.4"/);
+  assert.equal(svg.split(data).length - 1, 1);
+  assert.equal(svg.split("<pattern ").length - 1, 1);
+  assert.equal(svg.split('fill="url(#pat1)" fill-opacity="0.4"').length - 1, 2);
   assert.doesNotMatch(svg, /#8a9099/);
 });
 

@@ -88,6 +88,39 @@ function makeDefs(doc: Document): Defs {
   const items: string[] = [];
   let id = 0;
   const nextId = (prefix: string) => `${prefix}${id++}`;
+  const imageIds = new Map<string, string>();
+  const patternIds = new Map<string, string>();
+  const imageId = (asset: DocumentAsset, size: ImageSize) => {
+    const key = asset.source.data;
+    const existing = imageIds.get(key);
+    if (existing) return existing;
+    const created = nextId("img");
+    imageIds.set(key, created);
+    items.push(imageToSvg(asset, size, created));
+    return created;
+  };
+  const patternId = (
+    paint: PatternPaint,
+    asset: DocumentAsset,
+    size: ImageSize
+  ) => {
+    const image = imageId(asset, size);
+    const key = JSON.stringify([
+      image,
+      size.width,
+      size.height,
+      paint.scale,
+      paint.rotation,
+      paint.offset.x,
+      paint.offset.y,
+    ]);
+    const existing = patternIds.get(key);
+    if (existing) return existing;
+    const created = nextId("pat");
+    patternIds.set(key, created);
+    items.push(patternToSvg(paint, size, created, image));
+    return created;
+  };
   return {
     items,
     nextId,
@@ -97,10 +130,9 @@ function makeDefs(doc: Document): Defs {
         const asset = doc.assets[paint.assetId];
         const size = asset ? intrinsicImageSize(asset) : null;
         if (!asset || !size) return [`${kind}="#8a9099"`];
-        const patternId = nextId("pat");
-        items.push(patternToSvg(paint, asset, size, patternId));
+        const id = patternId(paint, asset, size);
         return [
-          `${kind}="url(#${patternId})"`,
+          `${kind}="url(#${id})"`,
           ...(paint.alpha < 1 ? [`${kind}-opacity="${num(paint.alpha)}"`] : []),
         ];
       }
@@ -161,11 +193,23 @@ function intrinsicImageSize(asset: DocumentAsset): ImageSize | null {
   return embeddedImageSize(asset);
 }
 
-function patternToSvg(
-  paint: PatternPaint,
+function imageToSvg(
   asset: DocumentAsset,
   size: ImageSize,
   id: string
+): string {
+  return (
+    `<image id="${id}" width="${num(size.width)}" height="${num(
+      size.height
+    )}" preserveAspectRatio="none" href="${escapeXml(asset.source.data)}"/>`
+  );
+}
+
+function patternToSvg(
+  paint: PatternPaint,
+  size: ImageSize,
+  id: string,
+  imageId: string
 ): string {
   const transform = [
     `translate(${num(paint.offset.x)} ${num(paint.offset.y)})`,
@@ -176,9 +220,7 @@ function patternToSvg(
     `<pattern id="${id}" patternUnits="userSpaceOnUse" width="${num(
       size.width
     )}" height="${num(size.height)}" patternTransform="${transform}">` +
-    `<image width="${num(size.width)}" height="${num(
-      size.height
-    )}" preserveAspectRatio="none" href="${escapeXml(asset.source.data)}"/>` +
+    `<use href="#${imageId}"/>` +
     `</pattern>`
   );
 }
