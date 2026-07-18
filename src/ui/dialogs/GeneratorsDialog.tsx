@@ -1,10 +1,12 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { LuX } from "react-icons/lu";
 import { canvasCenter } from "../../commands/registry";
-import { compileGenerator } from "../../model/generatorClient";
-import { GENERATORS } from "../../model/generators";
+import { buildGenerator, compileGenerator } from "../../model/generatorClient";
+import { defaultArgs, GENERATORS } from "../../model/generators";
+import type { BezierSubpath } from "../../model/types";
 import { screenToWorld } from "../../model/viewport";
 import { useEditor } from "../../store/editorStore";
+import { drawGeometryPreview } from "./generatorPreview";
 import "../Modal.css";
 import "./ScriptPanel.css";
 import "./GeneratorsDialog.css";
@@ -63,6 +65,9 @@ export default function GeneratorsDialog({ open, focusId, onClose }: Props) {
   const [draft, setDraft] = useState<Draft | null>(null);
   // Live compile feedback for the draft, produced off the main thread (worker).
   const [draftError, setDraftError] = useState<string | undefined>(undefined);
+  // Geometry drawn in the live preview (default args of the selected generator).
+  const [preview, setPreview] = useState<BezierSubpath[] | null>(null);
+  const previewCanvas = useRef<HTMLCanvasElement>(null);
 
   // Preselect a script for editing when opened with a focus id (from the panel).
   useEffect(() => {
@@ -75,6 +80,18 @@ export default function GeneratorsDialog({ open, focusId, onClose }: Props) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, focusId]);
 
+  // Built-in preview: native + synchronous. (Scripts are handled below.)
+  useEffect(() => {
+    if (draft) return;
+    if (selected && selected in GENERATORS) {
+      const g = GENERATORS[selected];
+      setPreview(g.build(defaultArgs(g)) ?? null);
+    } else {
+      setPreview(null);
+    }
+  }, [selected, draft]);
+
+  // Draft preview + compile feedback: debounced, off the main thread.
   const draftSource = draft?.source;
   useEffect(() => {
     if (!trusted || draftSource === undefined) {
@@ -82,16 +99,30 @@ export default function GeneratorsDialog({ open, focusId, onClose }: Props) {
       return;
     }
     let cancelled = false;
-    const timer = setTimeout(() => {
-      compileGenerator(draftSource).then((res) => {
-        if (!cancelled) setDraftError(res.error);
-      });
+    const timer = setTimeout(async () => {
+      const compiled = await compileGenerator(draftSource);
+      if (cancelled) return;
+      setDraftError(compiled.error);
+      if (compiled.error) {
+        setPreview(null);
+        return;
+      }
+      const { subpaths } = await buildGenerator(
+        draftSource,
+        defaultArgs({ params: compiled.params })
+      );
+      if (!cancelled) setPreview(subpaths ?? null);
     }, 300);
     return () => {
       cancelled = true;
       clearTimeout(timer);
     };
   }, [trusted, draftSource]);
+
+  // Redraw the preview whenever its geometry (or visibility) changes.
+  useEffect(() => {
+    if (open) drawGeometryPreview(previewCanvas.current, preview);
+  }, [open, preview]);
 
   if (!open) return null;
 
@@ -179,6 +210,10 @@ export default function GeneratorsDialog({ open, focusId, onClose }: Props) {
               Enable generators for this document
             </button>
           </div>
+        )}
+
+        {selected && (
+          <canvas ref={previewCanvas} className="gen-preview" aria-hidden />
         )}
 
         {draft ? (

@@ -231,6 +231,16 @@ additional effects, or other feature expansion.
 - [ ] 保存形式の検討 zip化?
 - [ ] タッチ操作、ちょっと選択するだけで移動となってしまう問題
 - [ ] パフォーマンス改善
-- [ ] 単純図形生成　多角形、星など
+- [x] 単純図形生成　多角形、星など — パラメトリック生成器として実装（組み込み
+  `star` ＋ ユーザスクリプト `doc.scripts`、file v20、Workerサンドボックス＋同意
+  ゲート、Generators ダイアログ＆ドックパネル）。フォローアップ:
+  - [ ] パラメータ型の拡張（bool=チェックボックス、enum=セレクト。今は number のみ）
+  - [ ] プロパティの GeneratorSection に「Edit source」ボタン（インスタンス→ソースへ
+    ジャンプ、`openGenerators(scriptId)`）
+  - [ ] パネルからキャンバスへドラッグ配置（Symbols の `DRAG_SYMBOL` 相当。今は
+    Insert ボタン＝中央のみ）
+  - [ ] クリップボードが生成器スクリプトを持ち運ばない → 別ドキュメントへ貼ると
+    `generator.scriptId` が宙に浮く（形状は出るがパラメータ編集不可）。payload に
+    参照 `ScriptDef` を同梱してマージするか、貼り先に無ければ generator リンクを外す
 - [ ] グリッド表示オプション
 - [ ] 左右反転のUIリファイン

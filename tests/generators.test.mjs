@@ -8,6 +8,8 @@ let parseDocument;
 let serializeDocument;
 let resolveGenerator;
 let compileScript;
+let GENERATORS;
+let defaultArgs;
 let withSubpath;
 let useEditor;
 
@@ -15,12 +17,50 @@ before(async () => {
   server = await createServer({ server: { middlewareMode: true } });
   ({ createEmptyDocument } = await server.ssrLoadModule("/src/model/types.ts"));
   ({ parseDocument, serializeDocument } = await server.ssrLoadModule("/src/io/serialize.ts"));
-  ({ resolveGenerator, compileScript } = await server.ssrLoadModule("/src/model/generators.ts"));
+  ({ resolveGenerator, compileScript, GENERATORS, defaultArgs } = await server.ssrLoadModule("/src/model/generators.ts"));
   ({ withSubpath } = await server.ssrLoadModule("/src/model/bezier.ts"));
   ({ useEditor } = await server.ssrLoadModule("/src/store/editorStore.ts"));
 });
 
 after(async () => server.close());
+
+test("built-in generators build valid geometry (curves, open paths, holes)", () => {
+  const build = (id) => GENERATORS[id].build(defaultArgs(GENERATORS[id]));
+
+  // Gear: outer teeth + a reverse-wound center hole => two subpaths.
+  const gear = build("gear");
+  assert.equal(gear.length, 2);
+  assert.ok(gear.every((sp) => sp.closed));
+  const solidGear = GENERATORS.gear.build({ teeth: 8, radius: 80, toothDepth: 0.2, hole: 0 });
+  assert.equal(solidGear.length, 1); // no hole => single subpath
+
+  // Spiral: one OPEN subpath with Bézier handles.
+  const spiral = build("spiral");
+  assert.equal(spiral.length, 1);
+  assert.equal(spiral[0].closed, false);
+  assert.ok(spiral[0].anchors.some((a) => a.hIn || a.hOut));
+
+  // Flower: closed smooth curve (handles present).
+  const flower = build("flower");
+  assert.equal(flower[0].closed, true);
+  assert.ok(flower[0].anchors.every((a) => a.hIn && a.hOut));
+
+  // Moon: one closed 4-anchor outline; at full phase the terminator mirrors the
+  // limb (a full disc), at half the terminator collapses to the vertical axis.
+  const full = GENERATORS.moon.build({ phase: 0.5, radius: 80 });
+  assert.equal(full.length, 1);
+  assert.equal(full[0].anchors.length, 4);
+  assert.equal(full[0].anchors[1].p.x, -full[0].anchors[3].p.x); // limb vs terminator
+  const half = GENERATORS.moon.build({ phase: 0.25, radius: 80 });
+  assert.equal(half[0].anchors[3].p.x, 0); // straight terminator at quarter-phase
+
+  // Every generator's default args produce at least one non-empty subpath.
+  for (const id of Object.keys(GENERATORS)) {
+    const out = build(id);
+    assert.ok(Array.isArray(out) && out.length > 0, `${id} built nothing`);
+    assert.ok(out.every((sp) => sp.anchors.length >= 2), `${id} has a degenerate subpath`);
+  }
+});
 
 test("the built-in star generator inserts, retunes, and detaches on edit", () => {
   const editor = useEditor.getState();

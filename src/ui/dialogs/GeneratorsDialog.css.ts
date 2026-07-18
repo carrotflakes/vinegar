@@ -43,6 +43,15 @@ globalStyle(".gen-name-field input", {
   fontSize: "13px",
 });
 
+globalStyle(".gen-preview", {
+  display: "block",
+  width: "100%",
+  height: "150px",
+  flex: "none",
+  background: vars.codeBg,
+  borderBottom: `1px solid ${vars.border}`,
+});
+
 globalStyle(".gen-empty", {
   flex: "1",
   display: "flex",

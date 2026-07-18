@@ -62,6 +62,130 @@ function buildStar(args: Record<string, number>): BezierSubpath[] {
   return [{ anchors, closed: true }];
 }
 
+const TAU = Math.PI * 2;
+const polar = (angle: number, r: number): Vec2 => ({
+  x: Math.cos(angle) * r,
+  y: Math.sin(angle) * r,
+});
+const sharp = (p: Vec2): BezierAnchor => ({ p, hIn: null, hOut: null });
+
+/** A 4-anchor Bézier circle; `reverse` flips winding (for nonzero-fill holes). */
+function circleSubpath(r: number, reverse = false): BezierSubpath {
+  const k = r * 0.5522847498; // cubic-circle handle length
+  const anchors: BezierAnchor[] = [];
+  for (let i = 0; i < 4; i++) {
+    const a = (i * Math.PI) / 2;
+    const p = polar(a, r);
+    const tx = -Math.sin(a) * k;
+    const ty = Math.cos(a) * k;
+    anchors.push({ p, hIn: { x: p.x - tx, y: p.y - ty }, hOut: { x: p.x + tx, y: p.y + ty } });
+  }
+  if (!reverse) return { anchors, closed: true };
+  const rev = anchors
+    .slice()
+    .reverse()
+    .map((an) => ({ p: an.p, hIn: an.hOut, hOut: an.hIn }));
+  return { anchors: rev, closed: true };
+}
+
+/** Catmull-Rom → Bézier handles through `pts`; `closed` wraps the tangents. */
+function smoothAnchors(pts: Vec2[], closed: boolean): BezierAnchor[] {
+  const n = pts.length;
+  return pts.map((p, i) => {
+    const prev = i > 0 ? pts[i - 1] : closed ? pts[n - 1] : p;
+    const next = i < n - 1 ? pts[i + 1] : closed ? pts[0] : p;
+    const dx = (next.x - prev.x) / 6;
+    const dy = (next.y - prev.y) / 6;
+    return {
+      p,
+      hIn: closed || i > 0 ? { x: p.x - dx, y: p.y - dy } : null,
+      hOut: closed || i < n - 1 ? { x: p.x + dx, y: p.y + dy } : null,
+    };
+  });
+}
+
+/**
+ * Gear: trapezoidal teeth between the tip and root radii, with an optional
+ * round center hole — a second, reverse-wound subpath cut out by the nonzero
+ * fill. Demonstrates multiple subpaths.
+ */
+function buildGear(args: Record<string, number>): BezierSubpath[] {
+  const teeth = Math.round(clamp(args.teeth, 3, 60));
+  const radius = Math.max(1, args.radius ?? 80);
+  const root = radius * (1 - clamp(args.toothDepth, 0.02, 0.6));
+  const hole = clamp(args.hole, 0, 0.85);
+  const step = TAU / teeth;
+  const anchors: BezierAnchor[] = [];
+  for (let i = 0; i < teeth; i++) {
+    const a = -Math.PI / 2 + i * step;
+    anchors.push(sharp(polar(a, root)));
+    anchors.push(sharp(polar(a + step * 0.15, radius)));
+    anchors.push(sharp(polar(a + step * 0.35, radius)));
+    anchors.push(sharp(polar(a + step * 0.5, root)));
+  }
+  const subpaths: BezierSubpath[] = [{ anchors, closed: true }];
+  if (hole > 0.01) subpaths.push(circleSubpath(radius * hole, true));
+  return subpaths;
+}
+
+/**
+ * Archimedean spiral as an OPEN smooth path: `turns` revolutions out to
+ * `radius`. Demonstrates open subpaths and Bézier handles.
+ */
+function buildSpiral(args: Record<string, number>): BezierSubpath[] {
+  const turns = clamp(args.turns, 0.25, 12);
+  const radius = Math.max(1, args.radius ?? 80);
+  const n = Math.max(2, Math.round(turns * 16));
+  const pts: Vec2[] = [];
+  for (let i = 0; i <= n; i++) {
+    const t = i / n;
+    pts.push(polar(t * turns * TAU - Math.PI / 2, t * radius));
+  }
+  return [{ anchors: smoothAnchors(pts, false), closed: false }];
+}
+
+/**
+ * Flower: `petals` rounded lobes swinging between the inner and outer radius as
+ * one smooth closed curve. Demonstrates Bézier handles.
+ */
+function buildFlower(args: Record<string, number>): BezierSubpath[] {
+  const petals = Math.round(clamp(args.petals, 3, 24));
+  const radius = Math.max(1, args.radius ?? 80);
+  const inner = clamp(args.innerRatio, 0.05, 0.95) * radius;
+  const count = petals * 2;
+  const pts: Vec2[] = [];
+  for (let i = 0; i < count; i++) {
+    pts.push(polar(-Math.PI / 2 + (i * TAU) / count, i % 2 === 0 ? radius : inner));
+  }
+  return [{ anchors: smoothAnchors(pts, true), closed: true }];
+}
+
+/**
+ * Moon phase: the lit region bounded by the disc's limb (a semicircle) and the
+ * terminator (a semi-ellipse whose signed horizontal radius shrinks and crosses
+ * over as the phase advances). `phase` runs a full cycle — 0/1 new, 0.25 waxing
+ * crescent, 0.5 full, 0.75 waning gibbous — flipping the lit side at half. The
+ * two arcs meet in sharp cusps at the poles (the crescent's tips). Demonstrates
+ * Bézier handles and elliptical arcs.
+ */
+function buildMoon(args: Record<string, number>): BezierSubpath[] {
+  const R = Math.max(1, args.radius ?? 80);
+  const phase = clamp(args.phase, 0, 1);
+  const waxing = phase <= 0.5;
+  const illum = waxing ? phase * 2 : (1 - phase) * 2; // 0 (new) .. 1 (full)
+  const side = waxing ? 1 : -1; // lit limb on the right while waxing
+  const c = 0.5522847498; // cubic handle length for a quarter arc
+  const aLimb = side * R; // limb bulges a full radius
+  const aTerm = side * R * (1 - 2 * illum); // terminator: +R (new) .. -R (full)
+  const anchors: BezierAnchor[] = [
+    { p: { x: 0, y: -R }, hIn: { x: c * aTerm, y: -R }, hOut: { x: c * aLimb, y: -R } },
+    { p: { x: aLimb, y: 0 }, hIn: { x: aLimb, y: -c * R }, hOut: { x: aLimb, y: c * R } },
+    { p: { x: 0, y: R }, hIn: { x: c * aLimb, y: R }, hOut: { x: c * aTerm, y: R } },
+    { p: { x: aTerm, y: 0 }, hIn: { x: aTerm, y: c * R }, hOut: { x: aTerm, y: -c * R } },
+  ];
+  return [{ anchors, closed: true }];
+}
+
 export const GENERATORS: Record<string, GeneratorDef> = {
   star: {
     id: "star",
@@ -72,6 +196,45 @@ export const GENERATORS: Record<string, GeneratorDef> = {
       { key: "innerRatio", label: "Inner ratio", min: 0.05, max: 1, step: 0.01, default: 0.5 },
     ],
     build: buildStar,
+  },
+  gear: {
+    id: "gear",
+    name: "Gear",
+    params: [
+      { key: "teeth", label: "Teeth", min: 3, max: 60, step: 1, default: 10, integer: true },
+      { key: "radius", label: "Radius", min: 1, max: 1000, step: 1, default: 80 },
+      { key: "toothDepth", label: "Tooth depth", min: 0.02, max: 0.6, step: 0.01, default: 0.18 },
+      { key: "hole", label: "Center hole", min: 0, max: 0.85, step: 0.01, default: 0.35 },
+    ],
+    build: buildGear,
+  },
+  spiral: {
+    id: "spiral",
+    name: "Spiral",
+    params: [
+      { key: "turns", label: "Turns", min: 0.25, max: 12, step: 0.25, default: 3 },
+      { key: "radius", label: "Radius", min: 1, max: 1000, step: 1, default: 80 },
+    ],
+    build: buildSpiral,
+  },
+  flower: {
+    id: "flower",
+    name: "Flower",
+    params: [
+      { key: "petals", label: "Petals", min: 3, max: 24, step: 1, default: 6, integer: true },
+      { key: "radius", label: "Radius", min: 1, max: 1000, step: 1, default: 80 },
+      { key: "innerRatio", label: "Inner ratio", min: 0.05, max: 0.95, step: 0.01, default: 0.45 },
+    ],
+    build: buildFlower,
+  },
+  moon: {
+    id: "moon",
+    name: "Moon",
+    params: [
+      { key: "phase", label: "Phase", min: 0, max: 1, step: 0.01, default: 0.25 },
+      { key: "radius", label: "Radius", min: 1, max: 1000, step: 1, default: 80 },
+    ],
+    build: buildMoon,
   },
 };
 
