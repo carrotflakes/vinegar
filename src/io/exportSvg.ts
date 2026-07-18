@@ -1,6 +1,7 @@
 import { subpathSegments } from "../model/bezier";
 import { shapeBounds } from "../model/bounds";
 import { cachedBrushEnvelope } from "../model/brushOutline";
+import { getAssetImage } from "../imageCache";
 import {
   clippingContentIds,
   clippingMask,
@@ -9,7 +10,12 @@ import {
 } from "../model/clippingMask";
 import { hasEffects, SHADOW_BLUR_TO_STDDEV } from "../model/effects";
 import { applyMatrix, isIdentity } from "../model/matrix";
-import { gradientToSvg, paintToSvgAttrs, type Paint } from "../model/paint";
+import {
+  gradientToSvg,
+  paintToSvgAttrs,
+  type Paint,
+  type PatternPaint,
+} from "../model/paint";
 import { isGroup, isShape } from "../model/scene";
 import { effectiveRectCornerRadius, roundedRectSubpath } from "../model/roundedRect";
 import {
@@ -19,8 +25,23 @@ import {
   strokeCap,
   strokeJoin,
 } from "../model/stroke";
-import type { BezierShape, Bounds, Document, Effect, Matrix, PrimitiveShape, SceneNode, Shape } from "../model/types";
+import type {
+  BezierShape,
+  Bounds,
+  Document,
+  DocumentAsset,
+  Effect,
+  Matrix,
+  PrimitiveShape,
+  SceneNode,
+  Shape,
+} from "../model/types";
 import { contentBounds } from "./exportBounds";
+import {
+  embeddedImageSize,
+  validImageSize,
+  type ImageSize,
+} from "./imageDimensions";
 import { layoutTextInBrowser } from "../canvas/textLayout";
 import { fontStack } from "../fonts";
 
@@ -33,9 +54,9 @@ export interface SvgOptions {
 }
 
 /**
- * Collects gradient definitions referenced during serialization. Solids become
- * plain attributes; gradients register a `<*Gradient>` def and are referenced
- * by `url(#id)`.
+ * Collects paint and rendering definitions referenced during serialization.
+ * Solids become plain attributes; gradients and patterns register a def and
+ * are referenced by `url(#id)`.
  */
 interface Defs {
   items: string[];
@@ -59,7 +80,7 @@ function effectPrimitive(effect: Effect): string {
   }" flood-opacity="${num(effect.alpha)}" />`;
 }
 
-function makeDefs(): Defs {
+function makeDefs(doc: Document): Defs {
   const items: string[] = [];
   let id = 0;
   const nextId = (prefix: string) => `${prefix}${id++}`;
@@ -68,9 +89,17 @@ function makeDefs(): Defs {
     nextId,
     paintAttrs(paint, kind) {
       if (paint.type === "solid") return paintToSvgAttrs(paint, kind);
-      // SVG pattern export is not implemented yet; emit a neutral placeholder
-      // so the shape stays visible rather than crashing the exporter.
-      if (paint.type === "pattern") return [`${kind}="#8a9099"`];
+      if (paint.type === "pattern") {
+        const asset = doc.assets[paint.assetId];
+        const size = asset ? intrinsicImageSize(asset) : null;
+        if (!asset || !size) return [`${kind}="#8a9099"`];
+        const patternId = nextId("pat");
+        items.push(patternToSvg(paint, asset, size, patternId));
+        return [
+          `${kind}="url(#${patternId})"`,
+          ...(paint.alpha < 1 ? [`${kind}-opacity="${num(paint.alpha)}"`] : []),
+        ];
+      }
       const gradientId = nextId("grad");
       items.push(gradientToSvg(paint, gradientId));
       return [`${kind}="url(#${gradientId})"`];
@@ -115,6 +144,39 @@ function makeDefs(): Defs {
       return filterId;
     },
   };
+}
+
+function intrinsicImageSize(asset: DocumentAsset): ImageSize | null {
+  if (typeof Image !== "undefined") {
+    const image = getAssetImage(asset);
+    if (image) {
+      const cached = validImageSize(image.naturalWidth, image.naturalHeight);
+      if (cached) return cached;
+    }
+  }
+  return embeddedImageSize(asset);
+}
+
+function patternToSvg(
+  paint: PatternPaint,
+  asset: DocumentAsset,
+  size: ImageSize,
+  id: string
+): string {
+  const transform = [
+    `translate(${num(paint.offset.x)} ${num(paint.offset.y)})`,
+    `rotate(${num((paint.rotation * 180) / Math.PI)})`,
+    `scale(${num(paint.scale)})`,
+  ].join(" ");
+  return (
+    `<pattern id="${id}" patternUnits="userSpaceOnUse" width="${num(
+      size.width
+    )}" height="${num(size.height)}" patternTransform="${transform}">` +
+    `<image width="${num(size.width)}" height="${num(
+      size.height
+    )}" preserveAspectRatio="none" href="${escapeXml(asset.source.data)}"/>` +
+    `</pattern>`
+  );
 }
 
 function num(n: number): string {
@@ -529,7 +591,7 @@ export function exportSvg(doc: Document, opts: SvgOptions = {}): string {
   const bounds = opts.bounds ?? contentBounds(doc, margin);
   if (!bounds) throw new Error("Nothing to export.");
 
-  const defs = makeDefs();
+  const defs = makeDefs(doc);
   const roots = doc.rootIds.map((id) => doc.nodes[id]).filter(Boolean);
   const inner = roots.flatMap((n) => nodeToSvg(doc, n, "  ", defs)).join("\n");
   // Blend modes should composite against the drawing only, not the page the
