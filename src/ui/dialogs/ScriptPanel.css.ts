@@ -38,18 +38,3 @@ globalStyle(".script-status.ok", {
 globalStyle(".script-status.err", {
   color: vars.danger,
 });
-
-globalStyle(".run-btn", {
-  flex: "none",
-  padding: "7px 18px",
-  border: "none",
-  borderRadius: "7px",
-  background: vars.accent,
-  color: "#fff",
-  fontSize: "13px",
-  fontWeight: "600",
-});
-
-globalStyle(".run-btn:disabled", {
-  opacity: "0.6",
-});

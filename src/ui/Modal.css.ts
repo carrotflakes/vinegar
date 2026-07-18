@@ -55,3 +55,18 @@ globalStyle(".modal-close:hover", {
   background: vars.bg,
   color: vars.text,
 });
+
+globalStyle(".modal-primary-btn", {
+  flex: "none",
+  padding: "7px 18px",
+  border: "none",
+  borderRadius: "7px",
+  background: vars.accent,
+  color: "#fff",
+  fontSize: "13px",
+  fontWeight: "600",
+});
+
+globalStyle(".modal-primary-btn:disabled", {
+  opacity: "0.6",
+});

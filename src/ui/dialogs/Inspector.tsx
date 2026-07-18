@@ -2,7 +2,6 @@ import { useState } from "react";
 import { LuX } from "react-icons/lu";
 import { useEditor } from "../../store/editorStore";
 import "../Modal.css";
-import "../Panel.css";
 import "./Inspector.css";
 
 // ===========================================================================
@@ -50,7 +49,7 @@ export default function Inspector({ open, onClose }: Props) {
         </div>
         <div className="modal-foot">
           <span className="script-status">Read-only snapshot of the store</span>
-          <button className="ghost-btn" onClick={copy}>
+          <button className="modal-primary-btn" onClick={copy}>
             Copy JSON
           </button>
         </div>

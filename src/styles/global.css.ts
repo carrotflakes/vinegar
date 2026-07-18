@@ -177,6 +177,6 @@ globalStyle("input[type=\"color\"]::-moz-color-swatch", {
   borderRadius: "4px",
 });
 
-globalStyle(".ghost-btn,\n.tool-btn,\n.icon-btn,\n.menu-item,\n.layer-row,\n.symbol-row,\n.palette-item,\n.context-menu-item,\n.paint-type-btn,\n.none-btn,\n.layer-icon-btn,\n.run-btn,\n.mini-swatch", {
+globalStyle(".ghost-btn,\n.tool-btn,\n.icon-btn,\n.menu-item,\n.layer-row,\n.symbol-row,\n.palette-item,\n.context-menu-item,\n.paint-type-btn,\n.none-btn,\n.layer-icon-btn,\n.modal-primary-btn,\n.mini-swatch", {
   transition: "background-color 0.12s ease, color 0.12s ease,\n    border-color 0.12s ease",
 });

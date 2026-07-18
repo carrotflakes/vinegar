@@ -109,7 +109,7 @@ export default function ScriptPanel({ open, onClose }: Props) {
           >
             {status?.msg ?? "Ctrl/⌘ + Enter to run"}
           </span>
-          <button className="run-btn" onClick={run} disabled={running}>
+          <button className="modal-primary-btn" onClick={run} disabled={running}>
             {running ? "Running…" : "Run"}
           </button>
         </div>
