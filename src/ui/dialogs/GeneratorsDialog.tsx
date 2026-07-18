@@ -155,6 +155,7 @@ export default function GeneratorsDialog({ open, focusId, onClose }: Props) {
   };
 
   const isBuiltin = selected !== null && selected in GENERATORS;
+  const builtin = isBuiltin ? GENERATORS[selected] : null;
   const compileError = trusted ? draftError : undefined;
   // Inserting a document-script generator needs consent; built-ins always run.
   const insertBlocked = !selected || (!isBuiltin && !trusted);
@@ -233,11 +234,15 @@ export default function GeneratorsDialog({ open, focusId, onClose }: Props) {
               onChange={(e) => setDraft({ ...draft, source: e.target.value })}
             />
           </>
-        ) : isBuiltin ? (
-          <div className="gen-empty">
-            Built-in generator. Insert an instance, then tune its parameters in
-            the properties panel.
-          </div>
+        ) : builtin ? (
+          <textarea
+            key={builtin.id}
+            className="script-editor"
+            value={builtin.source}
+            aria-label={`${builtin.name} built-in generator source`}
+            spellCheck={false}
+            readOnly
+          />
         ) : (
           <div className="gen-empty">
             Select a generator to insert, or create your own with “+ New”.
@@ -246,7 +251,12 @@ export default function GeneratorsDialog({ open, focusId, onClose }: Props) {
 
         <div className="modal-foot">
           <span className={"script-status" + (compileError ? " err" : "")}>
-            {compileError ?? (draft ? "Edits apply on Save or Insert." : "")}
+            {compileError ??
+              (draft
+                ? "Edits apply on Save or Insert."
+                : builtin
+                  ? "Built-in generator source is read-only."
+                  : "")}
           </span>
           {draft && (
             <button

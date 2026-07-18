@@ -31,12 +31,15 @@ export interface GeneratorDef {
   id: string;
   name: string;
   params: GeneratorParam[];
+  /** Standalone document-generator source for viewing, copying, and editing. */
+  source: string;
   /** Pure: parameter values -> local-space subpaths centered on the origin. */
   build: (args: Record<string, number>) => BezierSubpath[];
 }
 
-const clamp = (n: number, lo: number, hi: number) =>
-  Math.max(lo, Math.min(hi, Number.isFinite(n) ? n : lo));
+function clamp(n: number, lo: number, hi: number) {
+  return Math.max(lo, Math.min(hi, Number.isFinite(n) ? n : lo));
+}
 
 /**
  * Star / regular polygon. With `innerRatio` at 1 the inner vertices vanish and
@@ -62,12 +65,16 @@ function buildStar(args: Record<string, number>): BezierSubpath[] {
   return [{ anchors, closed: true }];
 }
 
-const TAU = Math.PI * 2;
-const polar = (angle: number, r: number): Vec2 => ({
-  x: Math.cos(angle) * r,
-  y: Math.sin(angle) * r,
-});
-const sharp = (p: Vec2): BezierAnchor => ({ p, hIn: null, hOut: null });
+function polar(angle: number, r: number): Vec2 {
+  return {
+    x: Math.cos(angle) * r,
+    y: Math.sin(angle) * r,
+  };
+}
+
+function sharp(p: Vec2): BezierAnchor {
+  return { p, hIn: null, hOut: null };
+}
 
 /** A 4-anchor Bézier circle; `reverse` flips winding (for nonzero-fill holes). */
 function circleSubpath(r: number, reverse = false): BezierSubpath {
@@ -114,7 +121,7 @@ function buildGear(args: Record<string, number>): BezierSubpath[] {
   const radius = Math.max(1, args.radius ?? 80);
   const root = radius * (1 - clamp(args.toothDepth, 0.02, 0.6));
   const hole = clamp(args.hole, 0, 0.85);
-  const step = TAU / teeth;
+  const step = (Math.PI * 2) / teeth;
   const anchors: BezierAnchor[] = [];
   for (let i = 0; i < teeth; i++) {
     const a = -Math.PI / 2 + i * step;
@@ -139,7 +146,7 @@ function buildSpiral(args: Record<string, number>): BezierSubpath[] {
   const pts: Vec2[] = [];
   for (let i = 0; i <= n; i++) {
     const t = i / n;
-    pts.push(polar(t * turns * TAU - Math.PI / 2, t * radius));
+    pts.push(polar(t * turns * Math.PI * 2 - Math.PI / 2, t * radius));
   }
   return [{ anchors: smoothAnchors(pts, false), closed: false }];
 }
@@ -155,7 +162,7 @@ function buildFlower(args: Record<string, number>): BezierSubpath[] {
   const count = petals * 2;
   const pts: Vec2[] = [];
   for (let i = 0; i < count; i++) {
-    pts.push(polar(-Math.PI / 2 + (i * TAU) / count, i % 2 === 0 ? radius : inner));
+    pts.push(polar(-Math.PI / 2 + (i * Math.PI * 2) / count, i % 2 === 0 ? radius : inner));
   }
   return [{ anchors: smoothAnchors(pts, true), closed: true }];
 }
@@ -186,56 +193,91 @@ function buildMoon(args: Record<string, number>): BezierSubpath[] {
   return [{ anchors, closed: true }];
 }
 
+interface SourceHelper {
+  readonly name: string;
+  toString: () => string;
+}
+
+/**
+ * Build the complete document-script form of a native generator. Function
+ * source is captured at runtime so the displayed implementation cannot drift
+ * from the implementation used by the built-in.
+ */
+function defineGenerator(
+  id: string,
+  name: string,
+  params: GeneratorParam[],
+  build: GeneratorDef["build"],
+  helpers: SourceHelper[]
+): GeneratorDef {
+  const declarations = helpers.map(
+    (helper) => `const ${helper.name} = ${helper.toString()};`
+  );
+  const source = [
+    `const params = ${JSON.stringify(params, null, 2)};`,
+    ...declarations,
+    `const build = ${build.toString()};`,
+    "return { params, build };",
+    "",
+  ].join("\n\n");
+  return { id, name, params, source, build };
+}
+
 export const GENERATORS: Record<string, GeneratorDef> = {
-  star: {
-    id: "star",
-    name: "Star",
-    params: [
+  star: defineGenerator(
+    "star",
+    "Star",
+    [
       { key: "points", label: "Points", min: 3, max: 60, step: 1, default: 5, integer: true },
       { key: "radius", label: "Radius", min: 1, max: 1000, step: 1, default: 80 },
       { key: "innerRatio", label: "Inner ratio", min: 0.05, max: 1, step: 0.01, default: 0.5 },
     ],
-    build: buildStar,
-  },
-  gear: {
-    id: "gear",
-    name: "Gear",
-    params: [
+    buildStar,
+    [clamp]
+  ),
+  gear: defineGenerator(
+    "gear",
+    "Gear",
+    [
       { key: "teeth", label: "Teeth", min: 3, max: 60, step: 1, default: 10, integer: true },
       { key: "radius", label: "Radius", min: 1, max: 1000, step: 1, default: 80 },
       { key: "toothDepth", label: "Tooth depth", min: 0.02, max: 0.6, step: 0.01, default: 0.18 },
       { key: "hole", label: "Center hole", min: 0, max: 0.85, step: 0.01, default: 0.35 },
     ],
-    build: buildGear,
-  },
-  spiral: {
-    id: "spiral",
-    name: "Spiral",
-    params: [
+    buildGear,
+    [clamp, polar, sharp, circleSubpath]
+  ),
+  spiral: defineGenerator(
+    "spiral",
+    "Spiral",
+    [
       { key: "turns", label: "Turns", min: 0.25, max: 12, step: 0.25, default: 3 },
       { key: "radius", label: "Radius", min: 1, max: 1000, step: 1, default: 80 },
     ],
-    build: buildSpiral,
-  },
-  flower: {
-    id: "flower",
-    name: "Flower",
-    params: [
+    buildSpiral,
+    [clamp, polar, smoothAnchors]
+  ),
+  flower: defineGenerator(
+    "flower",
+    "Flower",
+    [
       { key: "petals", label: "Petals", min: 3, max: 24, step: 1, default: 6, integer: true },
       { key: "radius", label: "Radius", min: 1, max: 1000, step: 1, default: 80 },
       { key: "innerRatio", label: "Inner ratio", min: 0.05, max: 0.95, step: 0.01, default: 0.45 },
     ],
-    build: buildFlower,
-  },
-  moon: {
-    id: "moon",
-    name: "Moon",
-    params: [
+    buildFlower,
+    [clamp, polar, smoothAnchors]
+  ),
+  moon: defineGenerator(
+    "moon",
+    "Moon",
+    [
       { key: "phase", label: "Phase", min: 0, max: 1, step: 0.01, default: 0.25 },
       { key: "radius", label: "Radius", min: 1, max: 1000, step: 1, default: 80 },
     ],
-    build: buildMoon,
-  },
+    buildMoon,
+    [clamp]
+  ),
 };
 
 /** Lifecycle of a document script's worker-compiled metadata. */
