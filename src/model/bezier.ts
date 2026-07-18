@@ -166,7 +166,11 @@ export function insertAnchorOnSegment(
   return withSubpath(shape, sub, { ...sp, anchors });
 }
 
-/** Replace one subpath immutably. */
+/**
+ * Replace one subpath immutably. Directly editing a subpath's anchors/handles
+ * overrides any parametric geometry, so the generator link is dropped here —
+ * the single funnel for anchor/handle moves, inserts and smoothing toggles.
+ */
 export function withSubpath(
   shape: BezierShape,
   sub: number,
@@ -174,7 +178,7 @@ export function withSubpath(
 ): BezierShape {
   const subpaths = shape.subpaths.slice();
   subpaths[sub] = next;
-  return { ...shape, subpaths };
+  return { ...shape, subpaths, generator: undefined };
 }
 
 function reverseSubpath(sp: BezierSubpath): BezierSubpath {

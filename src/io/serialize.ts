@@ -10,7 +10,7 @@ import {
   type ShapeType,
 } from "../model/types";
 
-export const CURRENT_FILE_VERSION = 19 as const;
+export const CURRENT_FILE_VERSION = 20 as const;
 
 /**
  * v8 lacked `symbols` (added as an empty registry). v8 and v9 stored fill/
@@ -22,10 +22,12 @@ export const CURRENT_FILE_VERSION = 19 as const;
  * marker to groups. v16 adds the optional `effects` stack to every node. v17
  * adds optional dash/cap/join/alignment fields to shapes. v18 adds the optional
  * shared `cornerRadius` to rectangles. v19 adds the `brush` leaf shape
- * (pressure-profiled variable-width strokes). v8-v18 nodes migrate unchanged;
- * absent optional fields retain their historical behavior.
+ * (pressure-profiled variable-width strokes). v20 adds `doc.scripts` (user
+ * parametric generators, backfilled as empty) and the optional `generator`
+ * link on nodes. v8-v19 documents migrate unchanged; absent optional fields
+ * retain their historical behavior.
  */
-const MIGRATABLE_VERSIONS = new Set<unknown>([8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18]);
+const MIGRATABLE_VERSIONS = new Set<unknown>([8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19]);
 
 export interface VinegarFile {
   app: "vinegar";
@@ -110,6 +112,11 @@ const isStrokeDashOrUndefined = (value: unknown): boolean =>
   value === undefined || (Array.isArray(value) && value.every((entry) => isNumber(entry) && entry >= 0));
 const isPoints = (value: unknown): boolean =>
   Array.isArray(value) && value.every(isPoint);
+const isGeneratorOrUndefined = (value: unknown): boolean => {
+  if (value === undefined) return true;
+  if (!isObject(value) || typeof value.scriptId !== "string" || !isObject(value.args)) return false;
+  return Object.values(value.args).every(isNumber);
+};
 const isNode = (id: string, node: unknown): boolean => {
   if (!isObject(node) || node.id !== id || typeof node.name !== "string" ||
       !NODE_TYPES.has(node.type as ShapeType | "group" | "instance") ||
@@ -117,6 +124,7 @@ const isNode = (id: string, node: unknown): boolean => {
       !isNumber(node.opacity) || node.opacity < 0 || node.opacity > 1 ||
       (node.blendMode !== undefined && !BLEND_MODES.includes(node.blendMode as never)) ||
       !isEffectsOrUndefined(node.effects) ||
+      !isGeneratorOrUndefined(node.generator) ||
       (node.hidden !== undefined && typeof node.hidden !== "boolean") ||
       (node.locked !== undefined && typeof node.locked !== "boolean")) return false;
   if (node.type === "group") {
@@ -220,6 +228,13 @@ export function parseDocument(text: string): Document {
   ) {
     data.document.artboards = [];
   }
+  if (
+    data.version !== CURRENT_FILE_VERSION &&
+    isObject(data.document) &&
+    data.document.scripts === undefined
+  ) {
+    data.document.scripts = {};
+  }
   if (!isCurrentDocument(data.document)) {
     throw new Error("Document data is missing or malformed.");
   }
@@ -252,6 +267,10 @@ function isCurrentDocument(value: unknown): value is Document {
     Object.entries(value.symbols).every(([id, def]) =>
       isObject(def) && def.id === id &&
       typeof def.name === "string" && typeof def.rootNodeId === "string") &&
+    isObject(value.scripts) &&
+    Object.entries(value.scripts).every(([id, def]) =>
+      isObject(def) && def.id === id &&
+      typeof def.name === "string" && typeof def.source === "string") &&
     Array.isArray(value.artboards) &&
     value.artboards.every((ab) =>
       isObject(ab) && typeof ab.id === "string" && typeof ab.name === "string" &&

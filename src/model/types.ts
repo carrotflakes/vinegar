@@ -100,6 +100,34 @@ export interface BaseNode {
   effects?: Effect[];
   hidden?: boolean;
   locked?: boolean;
+  /**
+   * Links this node's geometry to a parametric generator. When present, the
+   * geometry is (re)produced from `args` and the node can be re-tuned via the
+   * generator's parameters. Editing vertices directly detaches the link (the
+   * field is dropped), leaving a plain hand-editable node. Absent by default,
+   * so nodes without it need no migration.
+   */
+  generator?: GeneratorRef;
+}
+
+/** A node's link to the generator that produced its geometry. */
+export interface GeneratorRef {
+  /** Id of a built-in generator or a document script (`doc.scripts`). */
+  scriptId: string;
+  /** Parameter values fed to the generator to build the geometry. */
+  args: Record<string, number>;
+}
+
+/**
+ * A user-authored parametric generator stored in the document. `source` is the
+ * generator's code; compiling it yields the parameter schema and a geometry
+ * builder (see model/generators.ts). Nodes reference it by `id` through their
+ * `generator` link, so the drawing stays self-contained and portable.
+ */
+export interface ScriptDef {
+  id: string;
+  name: string;
+  source: string;
 }
 
 /** Common paint fields shared by every shape. */
@@ -403,6 +431,8 @@ export interface Document {
   rootIds: string[];
   /** Symbol definitions; their content lives in `nodes` outside `rootIds`. */
   symbols: Record<string, SymbolDef>;
+  /** User-authored parametric generators referenced by node `generator` links. */
+  scripts: Record<string, ScriptDef>;
   /** Export/layout regions on the plane, in export order. */
   artboards: Artboard[];
   settings: DocumentSettings;
@@ -418,6 +448,7 @@ export function createEmptyDocument(): Document {
     nodes: {},
     rootIds: [],
     symbols: {},
+    scripts: {},
     artboards: [],
     settings: { unit: "px", dpi: 96, gridSize: 50 },
     metadata: { createdAt: now, modifiedAt: now },

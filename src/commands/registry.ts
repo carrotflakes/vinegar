@@ -194,6 +194,16 @@ function drawingBounds(s: EditorState): Bounds | null {
 // --- The commands --------------------------------------------------------
 
 export const COMMANDS: Command[] = [
+  // Insert ------------------------------------------------------------------
+  {
+    id: "insert.star",
+    label: "Insert star",
+    group: "Insert",
+    run: (s, ctx) => {
+      const at = ctx?.at ?? screenToWorld(s.viewport, canvasCenter());
+      s.insertGenerator("star", at);
+    },
+  },
   // History -----------------------------------------------------------------
   {
     id: "edit.undo",

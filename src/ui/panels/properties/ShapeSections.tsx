@@ -3,7 +3,7 @@ import {
   getAssetImage,
   subscribeImageCache,
 } from "../../../imageCache";
-import { shapeBounds } from "../../../model/bounds";
+import { shapeBounds, worldShapeBounds } from "../../../model/bounds";
 import {
   effectiveRectCornerRadius,
   maxRectCornerRadius,
@@ -212,7 +212,13 @@ export function Geometry({ shape }: { shape: Shape }) {
   const setRectCornerRadius = useEditor(
     (state) => state.setRectCornerRadius
   );
-  const bounds = shapeBounds(shape);
+  const doc = useEditor((state) => state.doc);
+  // Parametric shapes keep placement (position/scale) in their transform, so
+  // their panel fields report world bounds — setShapeGeometry maps edits back
+  // onto the transform rather than folding into the generated geometry.
+  const bounds = shape.generator
+    ? worldShapeBounds(doc, shape)
+    : shapeBounds(shape);
   const lockRatio =
     shape.type === "image" && shape.lockAspect && bounds.height > 0
       ? bounds.width / bounds.height

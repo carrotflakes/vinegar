@@ -1,6 +1,6 @@
 import type { Document } from "../model/types";
 
-export type DocumentMapField = "nodes" | "symbols" | "assets" | "extensions";
+export type DocumentMapField = "nodes" | "symbols" | "scripts" | "assets" | "extensions";
 export type DocumentArrayField = "rootIds" | "artboards";
 export type DocumentValueField = "settings" | "metadata";
 
@@ -17,7 +17,7 @@ export interface DocumentPatchPair {
   inversePatches: DocumentPatch[];
 }
 
-const MAP_FIELDS = ["nodes", "symbols", "assets", "extensions"] as const;
+const MAP_FIELDS = ["nodes", "symbols", "scripts", "assets", "extensions"] as const;
 const ARRAY_FIELDS = ["rootIds", "artboards"] as const;
 const VALUE_FIELDS = ["settings", "metadata"] as const;
 type PatchedDocumentField = (typeof MAP_FIELDS)[number] | (typeof ARRAY_FIELDS)[number] | (typeof VALUE_FIELDS)[number];
@@ -96,7 +96,7 @@ function replaceRange<T>(array: readonly T[], index: number, deleteCount: number
 
 export function applyDocumentPatches(doc: Document, patches: readonly DocumentPatch[]): Document {
   if (!patches.length) return doc;
-  let nodes: Document["nodes"] | null = null, symbols: Document["symbols"] | null = null, assets: Document["assets"] | null = null, extensions: Document["extensions"] | null = null;
+  let nodes: Document["nodes"] | null = null, symbols: Document["symbols"] | null = null, scripts: Document["scripts"] | null = null, assets: Document["assets"] | null = null, extensions: Document["extensions"] | null = null;
   let rootIds: Document["rootIds"] | null = null, artboards: Document["artboards"] | null = null;
   let settings: Document["settings"] | null = null, metadata: Document["metadata"] | null = null;
   for (const patch of patches) {
@@ -104,6 +104,7 @@ export function applyDocumentPatches(doc: Document, patches: readonly DocumentPa
       let target: Record<string, unknown>;
       if (patch.field === "nodes") { nodes ??= { ...doc.nodes }; target = nodes; }
       else if (patch.field === "symbols") { symbols ??= { ...doc.symbols }; target = symbols; }
+      else if (patch.field === "scripts") { scripts ??= { ...doc.scripts }; target = scripts; }
       else if (patch.field === "assets") { assets ??= { ...doc.assets }; target = assets; }
       else { extensions ??= { ...doc.extensions }; target = extensions; }
       for (const key of patch.remove) delete target[key];
@@ -118,6 +119,7 @@ export function applyDocumentPatches(doc: Document, patches: readonly DocumentPa
     ...doc,
     ...(nodes ? { nodes } : {}),
     ...(symbols ? { symbols } : {}),
+    ...(scripts ? { scripts } : {}),
     ...(assets ? { assets } : {}),
     ...(extensions ? { extensions } : {}),
     ...(rootIds ? { rootIds } : {}),

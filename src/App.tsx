@@ -32,6 +32,7 @@ import ExportDialog from "./ui/dialogs/ExportDialog";
 import Inspector from "./ui/dialogs/Inspector";
 import PreferencesDialog from "./ui/dialogs/PreferencesDialog";
 import ScriptPanel from "./ui/dialogs/ScriptPanel";
+import GeneratorsDialog from "./ui/dialogs/GeneratorsDialog";
 import { usePreventBrowserZoom } from "./ui/usePreventBrowserZoom";
 
 /**
@@ -162,6 +163,7 @@ export default function App() {
   const showExport = useUi((s) => s.exportOpen);
   const closeExport = useUi((s) => s.closeExport);
   const [showScript, setShowScript] = useState(false);
+  const [showGenerators, setShowGenerators] = useState(false);
   const [showInspector, setShowInspector] = useState(false);
   const [showPanel, setShowPanel] = useState(false);
   const [showPalette, setShowPalette] = useState(false);
@@ -284,6 +286,9 @@ export default function App() {
           <button className={barButton()} onClick={() => setShowScript(true)}>
             Script
           </button>
+          <button className={barButton()} onClick={() => setShowGenerators(true)}>
+            Generators
+          </button>
           <button className={barButton()} onClick={() => setShowInspector(true)}>
             Inspect
           </button>
@@ -363,6 +368,10 @@ export default function App() {
       </div>
 
       <ScriptPanel open={showScript} onClose={() => setShowScript(false)} />
+      <GeneratorsDialog
+        open={showGenerators}
+        onClose={() => setShowGenerators(false)}
+      />
       <Inspector open={showInspector} onClose={() => setShowInspector(false)} />
       <CommandPalette open={showPalette} onClose={() => setShowPalette(false)} />
       <PreferencesDialog open={showPreferences} onClose={closePreferences} />

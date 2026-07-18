@@ -144,8 +144,12 @@ export function onPenDown(
     // continues it; the commit then replaces the original shape.
     const pick = pickOpenEndpoint(ctx, state, screen);
     if (pick) {
-      const baseline =
+      const picked =
         pick.end === "start" ? reverseBezier(pick.shape) : pick.shape;
+      // Continuing a generated path by hand overrides its geometry, so drop the
+      // generator link (kept off both draft and baseline so a no-op pickup that
+      // changes nothing still compares equal and leaves the shape untouched).
+      const baseline = { ...picked, generator: undefined };
       ctx.penExtend.current = baseline;
       const shape = structuredClone(baseline);
       ctx.penDraft.current = shape;

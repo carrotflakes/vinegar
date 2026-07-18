@@ -5,6 +5,7 @@
 // ===========================================================================
 
 import type { BoolOp } from "../model/boolean";
+import type { ScriptMeta } from "../model/generators";
 import type { Paint } from "../model/paint";
 import type {
   Artboard,
@@ -14,6 +15,7 @@ import type {
   Group,
   Matrix,
   SceneNode,
+  ScriptDef,
   Shape,
   StrokeAlignment,
   StrokeCap,
@@ -84,6 +86,19 @@ export interface EditorData {
   style: StyleDefaults;
   history: HistoryState;
   editNode: EditNode | null;
+  /**
+   * Worker-compiled metadata (parameter schema / errors) for document scripts,
+   * keyed by script id. Session-only cache, rebuilt on demand; never persisted.
+   */
+  scriptMeta: Record<string, ScriptMeta>;
+  /**
+   * Whether the current document's generator scripts may run. Session-only
+   * (never persisted, so a file can't self-approve): a freshly opened document
+   * that carries scripts starts untrusted, so foreign code never compiles or
+   * runs until the user explicitly enables it. Parametric shapes still display
+   * from their saved geometry meanwhile.
+   */
+  scriptsTrusted: boolean;
   snapEnabled: boolean;
   gridSnap: boolean;
   gridSize: number;
@@ -204,6 +219,34 @@ export interface ShapeActions {
   updateSelectedStyle: (patch: Partial<StyleStylableFields>) => void;
   setShapeGeometry: (id: string, patch: Partial<{ x: number; y: number; width: number; height: number }>) => void;
   setRectCornerRadius: (id: string, radius: number) => void;
+  /**
+   * Insert a new parametric shape from a generator, centered on `at`. Built-ins
+   * resolve synchronously; document scripts build in a Worker, so this may
+   * return a Promise that settles once the node is placed.
+   */
+  insertGenerator: (generatorId: string, at: Vec2) => void | Promise<void>;
+  /**
+   * Retune a parametric node. Built-ins regenerate synchronously; document
+   * scripts commit the new args immediately and patch geometry asynchronously
+   * (Worker), so this may return a Promise that settles when geometry lands.
+   */
+  setGeneratorArgs: (id: string, args: Record<string, number>) => void | Promise<void>;
+  /** Drop the generator link, leaving the current geometry as a plain node. */
+  detachGenerator: (id: string) => void;
+  /** Create a document generator script; resolves its new id. */
+  addScript: (name: string, source: string) => string;
+  /** Rename or re-source an existing document generator script. */
+  updateScript: (id: string, patch: Partial<Pick<ScriptDef, "name" | "source">>) => void;
+  /** Remove a document generator script (referencing nodes keep last geometry). */
+  deleteScript: (id: string) => void;
+  /** Approve running this document's generator scripts (user consent gate). */
+  trustScripts: () => void;
+  /**
+   * Ensure a document script's parameter schema is compiled (in the worker) and
+   * cached in `scriptMeta`. No-op when untrusted or already current for the
+   * script's source. Resolves once the metadata has settled.
+   */
+  ensureScriptCompiled: (scriptId: string) => void | Promise<void>;
   setImageLockAspect: (id: string, lock: boolean) => void;
   setClosedSelected: (closed: boolean) => void;
 }

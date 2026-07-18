@@ -1,15 +1,18 @@
 // Creating and mutating individual shapes (geometry, style, bezier anchors).
 
 import { toggleAnchorSmooth } from "../model/bezier";
+import { buildGenerator, compileGenerator, type CompileResult } from "../model/generatorClient";
+import { GENERATORS, defaultArgs, type ScriptMeta } from "../model/generators";
+import { solid } from "../model/paint";
 import { deleteBrushAnchor, toggleBrushAnchorSmooth } from "../model/brushEdit";
 import { expandBounds, intersectBounds, shapeBounds, unionNodeWorldBounds, worldShapeBounds } from "../model/bounds";
 import { hasValidClippingMasks } from "../model/clippingMask";
 import { eraseBrush } from "../model/eraser";
-import { multiply, shapeWorldMatrix, translation } from "../model/matrix";
+import { applyWorldTransformToNode, boundsTransform, multiply, shapeWorldMatrix, translation } from "../model/matrix";
 import { childIdsOf, descendantShapeIds, isGroup, isNodeHidden, isNodeLocked, isShape, parentIdOf, referencedAssetIds, scopeLeafIds, selectionRoots, withChildIds } from "../model/scene";
 import { clampRectCornerRadius } from "../model/roundedRect";
 import { resizeShapeToBounds, translateShape } from "../model/transforms";
-import { makeId, type Bounds, type ImageShape, type SceneNode, type Shape, type Vec2 } from "../model/types";
+import { makeId, type BezierShape, type Bounds, type ImageShape, type SceneNode, type Shape, type Vec2 } from "../model/types";
 import { importImageFile, isImageFile } from "../io/importImage";
 import { measureTextShape } from "../canvas/textLayout";
 import { loadAssetImage } from "../imageCache";
@@ -33,7 +36,90 @@ function pathBounds(pts: Vec2[]): Bounds {
   return { x: minX, y: minY, width: maxX - minX, height: maxY - minY };
 }
 
+/** Shallow equality of a generator's numeric argument maps. */
+function argsEqual(a: Record<string, number>, b: Record<string, number>): boolean {
+  const keys = Object.keys(a);
+  return keys.length === Object.keys(b).length && keys.every((k) => a[k] === b[k]);
+}
+
 export function createShapeActions({ set, get, transact, replaceDocumentWithoutHistory }: StoreCtx): ShapeActions {
+  // Create and select a new parametric bezier node from built geometry.
+  const placeGeneratorNode = (
+    generatorId: string,
+    args: Record<string, number>,
+    subpaths: BezierShape["subpaths"],
+    at: Vec2,
+    name: string
+  ) => {
+    const s = get();
+    const shape: BezierShape = {
+      id: makeId("bezier"),
+      name,
+      type: "bezier",
+      subpaths,
+      transform: [1, 0, 0, 1, at.x, at.y],
+      transformOrigin: null,
+      opacity: 1,
+      fill: solid("#6b7cff"),
+      stroke: null,
+      strokeWidth: 1,
+      generator: { scriptId: generatorId, args },
+    };
+    const doc = { ...s.doc, nodes: { ...s.doc.nodes, [shape.id]: shape } };
+    transact(appendToScope(doc, currentSymbolScope(s), [shape.id]));
+    set({ selection: [shape.id], ...clearTransient });
+  };
+  // In-flight target args per node while its script build is running. Kept out
+  // of the document/history so an intermediate arg value never lands without
+  // its matching geometry (args + subpaths are committed together, on success).
+  const pendingArgs = new Map<string, Record<string, number>>();
+  // Atomically commit a script build's args + geometry, unless it was
+  // superseded by a newer edit, detached, or the document changed underneath.
+  const commitScriptBuild = (
+    id: string,
+    scriptId: string,
+    args: Record<string, number>,
+    subpaths: BezierShape["subpaths"]
+  ) => {
+    if (!argsEqual(pendingArgs.get(id) ?? {}, args)) return; // a newer edit won
+    const doc = get().doc; const cur = doc.nodes[id];
+    if (!isShape(cur) || cur.type !== "bezier" || !cur.generator) return;
+    if (cur.generator.scriptId !== scriptId) return; // detached or re-linked
+    pendingArgs.delete(id);
+    transact(
+      { ...doc, nodes: { ...doc.nodes, [id]: { ...cur, subpaths, generator: { ...cur.generator, args } } } },
+      `gen:${id}`
+    );
+  };
+
+  // De-duplicate concurrent compiles of the same script revision.
+  const inflightCompiles = new Map<string, Promise<CompileResult>>();
+  const setScriptMeta = (id: string, meta: ScriptMeta) =>
+    set((s) => ({ scriptMeta: { ...s.scriptMeta, [id]: meta } }));
+  // Compile a script's source in the worker and cache the result in scriptMeta.
+  const compileAndCache = (scriptId: string, source: string): Promise<CompileResult> => {
+    const key = `${JSON.stringify(scriptId)}${source}`;
+    const running = inflightCompiles.get(key);
+    if (running) return running;
+    const meta = get().scriptMeta[scriptId];
+    if (meta && meta.source === source && meta.status !== "compiling") {
+      return Promise.resolve({ params: meta.params, error: meta.error });
+    }
+    setScriptMeta(scriptId, { source, status: "compiling", params: meta?.params ?? [] });
+    const promise = compileGenerator(source).then((res) => {
+      inflightCompiles.delete(key);
+      setScriptMeta(scriptId, {
+        source,
+        status: res.error ? "error" : "ready",
+        params: res.params,
+        error: res.error,
+      });
+      return res;
+    });
+    inflightCompiles.set(key, promise);
+    return promise;
+  };
+
   return {
     addShape: (shape, select = true) => { const s = get(); const doc = { ...s.doc, nodes: { ...s.doc.nodes, [shape.id]: shape } }; transact(appendToScope(doc, currentSymbolScope(s), [shape.id])); if (select) set({ selection: [shape.id], ...clearTransient }); },
     addShapes: (shapes, select = true) => { if (!shapes.length) return; const s = get(); const doc = { ...s.doc, nodes: { ...s.doc.nodes, ...Object.fromEntries(shapes.map((sh) => [sh.id, sh])) } }; transact(appendToScope(doc, currentSymbolScope(s), shapes.map((sh) => sh.id))); if (select) set({ selection: shapes.map((sh) => sh.id), ...clearTransient }); },
@@ -153,7 +239,7 @@ export function createShapeActions({ set, get, transact, replaceDocumentWithoutH
         ? shape.subpaths.filter((_, i) => i !== editNode.sub)
         : shape.subpaths.map((s, i) => (i === editNode.sub ? { ...s, anchors } : s));
       if (subpaths.length === 0) { const next = removeRoots(doc, [shape.id]); if (!hasValidClippingMasks(next)) return; transact(next); set({ selection: [], editNode: null, ...clearTransient }); }
-      else { const next = { ...doc, nodes: { ...doc.nodes, [shape.id]: { ...shape, subpaths } } }; if (!hasValidClippingMasks(next)) return; transact(next); set({ editNode: null }); }
+      else { const next = { ...doc, nodes: { ...doc.nodes, [shape.id]: { ...shape, subpaths, generator: undefined } } }; if (!hasValidClippingMasks(next)) return; transact(next); set({ editNode: null }); }
     },
     placeImageFiles: async (files, at, fitWithin) => {
       const images = (
@@ -315,7 +401,91 @@ export function createShapeActions({ set, get, transact, replaceDocumentWithoutH
       }
       if (changed) transact({ ...doc, nodes }, `style:${roots.join(",")}:${Object.keys(patch).sort().join(",")}`);
     },
-    setShapeGeometry: (id, patch) => { const doc = get().doc; const shape = doc.nodes[id]; if (!isShape(shape)) return; const b = shapeBounds(shape); if (shape.type === "text") { const moved = translateShape(shape, (patch.x ?? b.x) - b.x, (patch.y ?? b.y) - b.y); if (moved.type !== "text") return; const next = measureTextShape({ ...moved, width: shape.textMode === "area" ? Math.max(1, patch.width ?? shape.width) : shape.width }); transact({ ...doc, nodes: { ...doc.nodes, [id]: next } }, "geom:" + id); return; } let next = resizeShapeToBounds(shape, b, { x: b.x, y: b.y, width: Math.max(1, patch.width ?? b.width), height: Math.max(1, patch.height ?? b.height) }); next = translateShape(next, (patch.x ?? b.x) - b.x, (patch.y ?? b.y) - b.y); transact({ ...doc, nodes: { ...doc.nodes, [id]: next } }, "geom:" + id); },
+    setShapeGeometry: (id, patch) => { const doc = get().doc; const shape = doc.nodes[id]; if (!isShape(shape)) return; if (shape.generator) { const wf = worldShapeBounds(doc, shape); const to = { x: patch.x ?? wf.x, y: patch.y ?? wf.y, width: Math.max(1, patch.width ?? wf.width), height: Math.max(1, patch.height ?? wf.height) }; const next = applyWorldTransformToNode(doc, shape, boundsTransform(wf, to)); transact({ ...doc, nodes: { ...doc.nodes, [id]: next } }, "geom:" + id); return; } const b = shapeBounds(shape); if (shape.type === "text") { const moved = translateShape(shape, (patch.x ?? b.x) - b.x, (patch.y ?? b.y) - b.y); if (moved.type !== "text") return; const next = measureTextShape({ ...moved, width: shape.textMode === "area" ? Math.max(1, patch.width ?? shape.width) : shape.width }); transact({ ...doc, nodes: { ...doc.nodes, [id]: next } }, "geom:" + id); return; } let next = resizeShapeToBounds(shape, b, { x: b.x, y: b.y, width: Math.max(1, patch.width ?? b.width), height: Math.max(1, patch.height ?? b.height) }); next = translateShape(next, (patch.x ?? b.x) - b.x, (patch.y ?? b.y) - b.y); transact({ ...doc, nodes: { ...doc.nodes, [id]: next } }, "geom:" + id); },
+    insertGenerator: (generatorId, at) => {
+      const s = get();
+      const builtin = GENERATORS[generatorId];
+      if (builtin) {
+        // Native generator: build synchronously so insertion is immediate.
+        const args = defaultArgs(builtin);
+        const subpaths = builtin.build(args);
+        if (subpaths) placeGeneratorNode(generatorId, args, subpaths, at, builtin.name);
+        return;
+      }
+      if (!s.scriptsTrusted) return;
+      const script = s.doc.scripts[generatorId];
+      if (!script) return;
+      // Document script: compile (for defaults) then build, both off the main
+      // thread, and place the node when the geometry returns.
+      return (async () => {
+        const compiled = await compileAndCache(generatorId, script.source);
+        if (compiled.error) return;
+        const args = defaultArgs({ params: compiled.params });
+        const { subpaths } = await buildGenerator(script.source, args);
+        if (!subpaths) return;
+        // The document may have been replaced (new/open) or the script edited
+        // while building; only place if this exact script is still present.
+        if (get().doc.scripts[generatorId] !== script) return;
+        placeGeneratorNode(generatorId, args, subpaths, at, script.name);
+      })();
+    },
+    ensureScriptCompiled: (scriptId) => {
+      const s = get();
+      if (!s.scriptsTrusted) return; // consent gate: never run untrusted code
+      const script = s.doc.scripts[scriptId];
+      if (!script) return;
+      const meta = s.scriptMeta[scriptId];
+      if (meta && meta.source === script.source) return; // current or in-flight
+      return compileAndCache(scriptId, script.source).then(() => {});
+    },
+    setGeneratorArgs: (id, args) => {
+      const doc = get().doc; const shape = doc.nodes[id];
+      if (!isShape(shape) || shape.type !== "bezier" || !shape.generator) return;
+      const scriptId = shape.generator.scriptId;
+      const merged = { ...shape.generator.args, ...args };
+      const builtin = GENERATORS[scriptId];
+      if (builtin) {
+        const subpaths = builtin.build(merged);
+        if (!subpaths) return;
+        transact({ ...doc, nodes: { ...doc.nodes, [id]: { ...shape, subpaths, generator: { ...shape.generator, args: merged } } } }, `gen:${id}`);
+        return;
+      }
+      if (!get().scriptsTrusted) return;
+      const script = doc.scripts[scriptId];
+      if (!script) return;
+      // Don't touch the document yet: record the target args and commit them
+      // together with the built geometry when the worker returns, so args and
+      // shape are never out of sync in the document or the undo history. A
+      // failed/timed-out build leaves the last consistent state untouched.
+      pendingArgs.set(id, merged);
+      return buildGenerator(script.source, merged).then(({ subpaths }) => {
+        if (subpaths) commitScriptBuild(id, scriptId, merged, subpaths);
+      });
+    },
+    detachGenerator: (id) => {
+      const doc = get().doc; const shape = doc.nodes[id];
+      if (!isShape(shape) || !shape.generator) return;
+      transact({ ...doc, nodes: { ...doc.nodes, [id]: { ...shape, generator: undefined } } });
+    },
+    addScript: (name, source) => {
+      const id = makeId("script");
+      const doc = get().doc;
+      transact({ ...doc, scripts: { ...doc.scripts, [id]: { id, name, source } } });
+      // Authoring a script implies trusting this document's generators.
+      set({ scriptsTrusted: true });
+      return id;
+    },
+    updateScript: (id, patch) => {
+      const doc = get().doc; const script = doc.scripts[id];
+      if (!script) return;
+      transact({ ...doc, scripts: { ...doc.scripts, [id]: { ...script, ...patch } } }, `script:${id}`);
+    },
+    deleteScript: (id) => {
+      const doc = get().doc; if (!doc.scripts[id]) return;
+      const scripts = { ...doc.scripts }; delete scripts[id];
+      transact({ ...doc, scripts });
+    },
+    trustScripts: () => set({ scriptsTrusted: true }),
     setRectCornerRadius: (id, radius) => {
       const doc = get().doc; const shape = doc.nodes[id];
       if (!isShape(shape) || shape.type !== "rect" || !Number.isFinite(radius)) return;
@@ -323,6 +493,6 @@ export function createShapeActions({ set, get, transact, replaceDocumentWithoutH
       transact({ ...doc, nodes: { ...doc.nodes, [id]: next } }, "radius:" + id);
     },
     setImageLockAspect: (id, lock) => { const doc = get().doc; const shape = doc.nodes[id]; if (!isShape(shape) || shape.type !== "image") return; const next = { ...shape, lockAspect: lock || undefined }; transact({ ...doc, nodes: { ...doc.nodes, [id]: next } }, "lockAspect:" + id); },
-    setClosedSelected: (closed) => { const doc = get().doc; const nodes = { ...doc.nodes }; let changed = false; for (const id of selectionRoots(doc, get().selection)) { const shape = nodes[id]; if (!isShape(shape)) continue; if (shape.type === "path" && shape.closed !== closed) { nodes[id] = { ...shape, closed }; changed = true; } else if (shape.type === "bezier" && shape.subpaths.some((sp) => sp.closed !== closed)) { nodes[id] = { ...shape, subpaths: shape.subpaths.map((sp) => ({ ...sp, closed })) }; changed = true; } } const next = { ...doc, nodes }; if (changed && hasValidClippingMasks(next)) transact(next); },
+    setClosedSelected: (closed) => { const doc = get().doc; const nodes = { ...doc.nodes }; let changed = false; for (const id of selectionRoots(doc, get().selection)) { const shape = nodes[id]; if (!isShape(shape)) continue; if (shape.type === "path" && shape.closed !== closed) { nodes[id] = { ...shape, closed }; changed = true; } else if (shape.type === "bezier" && shape.subpaths.some((sp) => sp.closed !== closed)) { nodes[id] = { ...shape, subpaths: shape.subpaths.map((sp) => ({ ...sp, closed })), generator: undefined }; changed = true; } } const next = { ...doc, nodes }; if (changed && hasValidClippingMasks(next)) transact(next); },
   };
 }

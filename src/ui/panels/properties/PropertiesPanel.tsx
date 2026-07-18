@@ -17,6 +17,7 @@ import BrushPanel, { EraserPanel } from "./BrushPanel";
 import ArtboardPanel from "./ArtboardPanel";
 import AppearanceSection from "./AppearanceSection";
 import EffectsSection from "./EffectsSection";
+import GeneratorSection from "./GeneratorSection";
 import GroupSection from "./GroupSection";
 import SelectionActionsSection from "./SelectionActionsSection";
 import {
@@ -94,6 +95,12 @@ export default function PropertiesPanel() {
       {selected.length === 1 && selected[0].type === "text" && (
         <TextSection shape={selected[0]} />
       )}
+
+      {selected.length === 1 &&
+        selected[0].type === "bezier" &&
+        selected[0].generator && (
+          <GeneratorSection shape={selected[0]} />
+        )}
 
       {selectedGroup && (
         <GroupSection

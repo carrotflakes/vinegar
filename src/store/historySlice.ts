@@ -90,6 +90,10 @@ function documentReset(doc: Document, saved: boolean) {
     _interaction: null,
     _revision: revision,
     _savedRevision: saved ? revision : null,
+    // A document that already carries scripts is untrusted until the user
+    // enables it; an empty registry (new/blank doc) needs no consent.
+    scriptsTrusted: !doc.scripts || Object.keys(doc.scripts).length === 0,
+    scriptMeta: {},
     ...clearTransient,
   };
 }
