@@ -12,14 +12,41 @@ globalStyle(".palette-modal", {
   overflow: "hidden",
 });
 
+globalStyle(".palette-header", {
+  display: "flex",
+  alignItems: "center",
+  gap: "8px",
+  paddingRight: "10px",
+  borderBottom: `1px solid ${vars.border}`,
+});
+
 globalStyle(".palette-input", {
+  flex: "1",
+  minWidth: "0",
   border: "none",
   outline: "none",
   padding: "14px 16px",
   fontSize: "15px",
   color: vars.text,
   background: "transparent",
-  borderBottom: `1px solid ${vars.border}`,
+});
+
+globalStyle(".palette-filter", {
+  flex: "none",
+  padding: "5px 10px",
+  borderRadius: "999px",
+  border: `1px solid ${vars.border}`,
+  background: "transparent",
+  color: vars.muted,
+  fontSize: "11px",
+  whiteSpace: "nowrap",
+  cursor: "pointer",
+});
+
+globalStyle(".palette-filter.active", {
+  borderColor: vars.accent,
+  background: vars.accentWeak,
+  color: vars.accent,
 });
 
 globalStyle(".palette-list", {

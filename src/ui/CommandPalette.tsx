@@ -34,9 +34,15 @@ function matches(query: string, text: string): boolean {
  * built entirely from the command registry, so new commands appear here for
  * free.
  */
+const ONLY_ENABLED_KEY = "vinegar.palette.onlyEnabled";
+
 export default function CommandPalette({ open, onClose }: Props) {
   const [query, setQuery] = useState("");
   const [active, setActive] = useState(0);
+  // Persist the "available only" preference so it survives across sessions.
+  const [onlyEnabled, setOnlyEnabled] = useState(
+    () => localStorage.getItem(ONLY_ENABLED_KEY) === "1"
+  );
   const inputRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
   // Subscribe to the store only while open, so enabled/disabled state reflects
@@ -46,12 +52,20 @@ export default function CommandPalette({ open, onClose }: Props) {
   const results = useMemo(() => {
     const list = COMMANDS.filter(
       (c) => !c.hidden && matches(query, `${c.group} ${c.label}`)
-    );
-    return list.map((cmd) => ({
+    ).map((cmd) => ({
       cmd,
       enabled: commandEnabled(cmd, state ?? undefined),
     }));
-  }, [query, state]);
+    return onlyEnabled ? list.filter((r) => r.enabled) : list;
+  }, [query, state, onlyEnabled]);
+
+  const toggleOnlyEnabled = () => {
+    setOnlyEnabled((v) => {
+      const next = !v;
+      localStorage.setItem(ONLY_ENABLED_KEY, next ? "1" : "0");
+      return next;
+    });
+  };
 
   useEffect(() => {
     if (open) {
@@ -103,17 +117,30 @@ export default function CommandPalette({ open, onClose }: Props) {
         className="modal palette-modal"
         onPointerDown={(e) => e.stopPropagation()}
       >
-        <input
-          ref={inputRef}
-          className="palette-input"
-          placeholder="Type a command…"
-          value={query}
-          onChange={(e) => {
-            setQuery(e.target.value);
-            setActive(0);
-          }}
-          onKeyDown={onKeyDown}
-        />
+        <div className="palette-header">
+          <input
+            ref={inputRef}
+            className="palette-input"
+            placeholder="Type a command…"
+            value={query}
+            onChange={(e) => {
+              setQuery(e.target.value);
+              setActive(0);
+            }}
+            onKeyDown={onKeyDown}
+          />
+          <button
+            type="button"
+            className={
+              "palette-filter" + (onlyEnabled ? " active" : "")
+            }
+            aria-pressed={onlyEnabled}
+            title="Show only commands available right now"
+            onClick={toggleOnlyEnabled}
+          >
+            Available only
+          </button>
+        </div>
         <div className="palette-list" ref={listRef} role="listbox">
           {results.length === 0 && (
             <div className="palette-empty">No matching commands</div>
