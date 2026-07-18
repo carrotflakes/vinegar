@@ -54,7 +54,7 @@ import { parseDocument, serializeDocument } from "../io/serialize";
 import { currentSymbolScope, hasUnsavedChanges, useEditor } from "../store/editorStore";
 import { useUi } from "../store/uiStore";
 import type { EditorState } from "../store/state";
-import { toggleFullscreen } from "../ui/fullscreen";
+import { toggleFullscreen } from "../fullscreen";
 
 // --- Platform-aware modifier labels --------------------------------------
 

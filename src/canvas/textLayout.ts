@@ -1,5 +1,5 @@
 import type { TextShape } from "../model/types";
-import { fontStack } from "../ui/fonts";
+import { fontStack } from "../fonts";
 
 export interface TextLineLayout {
   text: string;

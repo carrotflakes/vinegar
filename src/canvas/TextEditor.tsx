@@ -3,7 +3,7 @@ import { multiply, shapeWorldMatrix, translation } from "../model/matrix";
 import type { TextShape } from "../model/types";
 import { viewportMatrix } from "../model/viewport";
 import { useEditor } from "../store/editorStore";
-import { fontStack } from "../ui/fonts";
+import { fontStack } from "../fonts";
 import "./TextEditor.css";
 
 interface Props {

@@ -5,8 +5,8 @@
 // which point the canvas repaints and picks them up.
 // ===========================================================================
 
-import type { Document, DocumentAsset } from "../model/types";
-import { referencedAssetIds } from "../model/scene";
+import type { Document, DocumentAsset } from "./model/types";
+import { referencedAssetIds } from "./model/scene";
 
 /** Decoded pixels by asset id; null marks a failed decode (don't retry). */
 const decoded = new Map<string, HTMLImageElement | null>();

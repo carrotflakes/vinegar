@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useReducer } from "react";
 import { LuImage, LuPlus, LuTrash2 } from "react-icons/lu";
-import { getAssetImage, subscribeImageCache } from "../../../canvas/imageCache";
+import { getAssetImage, subscribeImageCache } from "../../../imageCache";
 import { assetReferenceCounts } from "../../../model/scene";
 import { useEditor } from "../../../store/editorStore";
-import { DRAG_ASSET, canvasCenterPlacement } from "../../canvasDrag";
+import { DRAG_ASSET, canvasCenterPlacement } from "../../../canvas/canvasDrag";
 import "../../Panel.css";
 import "../layers/LayersPanel.css";
 import "./AssetsPanel.css";

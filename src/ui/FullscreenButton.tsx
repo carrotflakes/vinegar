@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { LuMaximize, LuMinimize } from "react-icons/lu";
 import { runCommand } from "../commands/registry";
-import { isFullscreen } from "./fullscreen";
+import { isFullscreen } from "../fullscreen";
 import { barButton } from "./AppBar.css";
 
 /** Header toggle that mirrors the browser's fullscreen state. */

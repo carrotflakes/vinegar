@@ -2,7 +2,7 @@ import { useEffect, useReducer } from "react";
 import {
   getAssetImage,
   subscribeImageCache,
-} from "../../../canvas/imageCache";
+} from "../../../imageCache";
 import { shapeBounds } from "../../../model/bounds";
 import {
   effectiveRectCornerRadius,
@@ -15,7 +15,7 @@ import type {
   TextShape,
 } from "../../../model/types";
 import { useEditor } from "../../../store/editorStore";
-import { FONT_OPTIONS } from "../../fonts";
+import { FONT_OPTIONS } from "../../../fonts";
 import ScrubbableNumber from "../../ScrubbableNumber";
 
 const FONT_WEIGHTS = [100, 200, 300, 400, 500, 600, 700, 800, 900];

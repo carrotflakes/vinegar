@@ -1,6 +1,6 @@
 // Turning picked/dropped image files into document assets.
 
-import { loadAssetImage } from "../canvas/imageCache";
+import { loadAssetImage } from "../imageCache";
 import { makeId, type DocumentAsset } from "../model/types";
 
 /** Image MIME types the browser can decode and we accept for placement. */

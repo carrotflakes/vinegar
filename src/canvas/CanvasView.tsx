@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { subscribeImageCache } from "../imageCache";
 import { unionNodeWorldBounds } from "../model/bounds";
 import {
   drillScopeRoot,
@@ -7,6 +8,7 @@ import {
   isWithinGroup,
 } from "../model/groups";
 import { shapeWorldMatrix } from "../model/matrix";
+import { isGroup, scopeRootGroupId } from "../model/scene";
 import { type Guide, type Spacing } from "../model/snap";
 import type { BezierShape, Bounds, Shape, TextShape, Vec2 } from "../model/types";
 import {
@@ -16,18 +18,18 @@ import {
   zoomAt,
   type Viewport,
 } from "../model/viewport";
-import { usePreferences } from "../store/preferencesStore";
-import { isGroup, scopeRootGroupId } from "../model/scene";
 import { currentSymbolScope, useEditor } from "../store/editorStore";
+import { readModifiers, useInput } from "../store/inputStore";
 import { openContextMenu } from "../store/menuStore";
 import { setPointer, setReadout } from "../store/pointerStore";
-import { readModifiers, useInput } from "../store/inputStore";
+import { usePreferences } from "../store/preferencesStore";
+import { vars } from "../styles/theme.css";
 import { canvasMenu, selectionMenu } from "../ui/menus";
-import { DRAG_ASSET, DRAG_SYMBOL } from "../ui/canvasDrag";
-import ModifierBar from "../ui/ModifierBar";
+import { DRAG_ASSET, DRAG_SYMBOL } from "./canvasDrag";
+import "./CanvasView.css";
+import { cornerRadiusControl } from "./cornerRadiusHandle";
 import { getSelectionFrame } from "./frame";
 import { HANDLE_SIZE } from "./handles";
-import { cornerRadiusControl } from "./cornerRadiusHandle";
 import {
   TOUCH_DRAW_SCALE,
   TOUCH_HIT_SCALE,
@@ -35,6 +37,7 @@ import {
   type LastInsert,
   type ToolContext,
 } from "./interaction";
+import ModifierBar from "./ModifierBar";
 import { ANCHOR_SIZE, HANDLE_DOT } from "./nodes";
 import {
   drawArtboardChrome,
@@ -45,16 +48,28 @@ import {
   drawSpacings,
   drawTextDraft,
 } from "./overlay";
+import { pickShape, selectedNodeShape, selectedShapes } from "./picking";
+import { renderScene } from "./render";
+import TextEditor from "./TextEditor";
+import { measureTextShape } from "./textLayout";
 import {
   artboardCursor,
   finishArtboard,
   onArtboardDown,
   onArtboardMove,
 } from "./tools/artboardTool";
-import { subscribeImageCache } from "./imageCache";
-import { vars } from "../styles/theme.css";
-import { pickShape, selectedNodeShape, selectedShapes } from "./picking";
-import { renderScene } from "./render";
+import {
+  cancelBrush,
+  finishBrush,
+  onBrushMove,
+  startBrush,
+} from "./tools/brushTool";
+import {
+  cancelEraser,
+  finishEraser,
+  onEraserMove,
+  startEraser,
+} from "./tools/eraserTool";
 import {
   nodeCursor,
   onNodeDoubleClick,
@@ -86,26 +101,11 @@ import {
   startShape,
 } from "./tools/shapeTools";
 import {
-  cancelBrush,
-  finishBrush,
-  onBrushMove,
-  startBrush,
-} from "./tools/brushTool";
-import {
-  cancelEraser,
-  finishEraser,
-  onEraserMove,
-  startEraser,
-} from "./tools/eraserTool";
-import { isTypingTarget } from "./util";
-import TextEditor from "./TextEditor";
-import "./CanvasView.css";
-import { measureTextShape } from "./textLayout";
-import {
   finishTextCreate,
   moveTextCreate,
   startTextCreate,
 } from "./tools/textTool";
+import { isTypingTarget } from "./util";
 
 interface TextEditSession {
   shape: TextShape;

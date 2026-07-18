@@ -20,7 +20,7 @@ import {
 } from "../model/stroke";
 import type { Artboard, Bounds, Document, DocumentAsset, Effect, ImageShape, Shape } from "../model/types";
 import { screenToWorld, worldToScreen, type Viewport } from "../model/viewport";
-import { getAssetImage } from "./imageCache";
+import { getAssetImage } from "../imageCache";
 import { layoutTextWithCanvas } from "./textLayout";
 
 /**

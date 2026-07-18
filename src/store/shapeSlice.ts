@@ -12,7 +12,7 @@ import { resizeShapeToBounds, translateShape } from "../model/transforms";
 import { makeId, type Bounds, type ImageShape, type SceneNode, type Shape, type Vec2 } from "../model/types";
 import { importImageFile, isImageFile } from "../io/importImage";
 import { measureTextShape } from "../canvas/textLayout";
-import { loadAssetImage } from "../canvas/imageCache";
+import { loadAssetImage } from "../imageCache";
 import { appendToScope, groupNode, removeRoots } from "./docOps";
 import {
   clearTransient,

@@ -22,7 +22,7 @@ import {
 import type { BezierShape, Bounds, Document, Effect, Matrix, PrimitiveShape, SceneNode, Shape } from "../model/types";
 import { contentBounds } from "./exportBounds";
 import { layoutTextInBrowser } from "../canvas/textLayout";
-import { fontStack } from "../ui/fonts";
+import { fontStack } from "../fonts";
 
 export interface SvgOptions {
   margin?: number;
