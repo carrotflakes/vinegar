@@ -9,7 +9,7 @@ import "../Modal.css";
 import "./ScriptPanel.css";
 import "./GeneratorsDialog.css";
 
-const NEW_SCRIPT_SOURCE = `// Parametric generator — return { params, build }.
+export const NEW_SCRIPT_SOURCE = `// Parametric generator — return { params, build }.
 // params: numeric controls shown in the properties panel.
 // build(args) -> subpaths: [{ anchors: [{ p:{x,y}, hIn, hOut }], closed }]
 // Geometry is local space, centered on the origin. Runs on every edit.
@@ -37,6 +37,8 @@ return { params, build };
 
 interface Props {
   open: boolean;
+  /** When opening, preselect and load this document script for editing. */
+  focusId?: string | null;
   onClose: () => void;
 }
 
@@ -46,7 +48,7 @@ interface Draft {
   source: string;
 }
 
-export default function GeneratorsDialog({ open, onClose }: Props) {
+export default function GeneratorsDialog({ open, focusId, onClose }: Props) {
   const scripts = useEditor((s) => s.doc.scripts);
   const trusted = useEditor((s) => s.scriptsTrusted);
   const addScript = useEditor((s) => s.addScript);
@@ -61,6 +63,17 @@ export default function GeneratorsDialog({ open, onClose }: Props) {
   const [draft, setDraft] = useState<Draft | null>(null);
   // Live compile feedback for the draft, produced off the main thread (worker).
   const [draftError, setDraftError] = useState<string | undefined>(undefined);
+
+  // Preselect a script for editing when opened with a focus id (from the panel).
+  useEffect(() => {
+    if (!open || !focusId) return;
+    const script = scripts[focusId];
+    if (!script) return;
+    setSelected(focusId);
+    setDraft({ name: script.name, source: script.source });
+    // Only react to a fresh open/focus, not to later edits of the script.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, focusId]);
 
   const draftSource = draft?.source;
   useEffect(() => {

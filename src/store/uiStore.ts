@@ -11,6 +11,11 @@ export interface UiState {
   exportOpen: boolean;
   openExport: () => void;
   closeExport: () => void;
+  /** Generators authoring dialog; `generatorsFocusId` preselects a script. */
+  generatorsOpen: boolean;
+  generatorsFocusId: string | null;
+  openGenerators: (focusId?: string) => void;
+  closeGenerators: () => void;
 }
 
 export const useUi = create<UiState>((set) => ({
@@ -20,4 +25,9 @@ export const useUi = create<UiState>((set) => ({
   exportOpen: false,
   openExport: () => set({ exportOpen: true }),
   closeExport: () => set({ exportOpen: false }),
+  generatorsOpen: false,
+  generatorsFocusId: null,
+  openGenerators: (focusId) =>
+    set({ generatorsOpen: true, generatorsFocusId: focusId ?? null }),
+  closeGenerators: () => set({ generatorsOpen: false, generatorsFocusId: null }),
 }));

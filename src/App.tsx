@@ -162,8 +162,11 @@ export default function App() {
   const closePreferences = useUi((s) => s.closePreferences);
   const showExport = useUi((s) => s.exportOpen);
   const closeExport = useUi((s) => s.closeExport);
+  const showGenerators = useUi((s) => s.generatorsOpen);
+  const generatorsFocusId = useUi((s) => s.generatorsFocusId);
+  const openGenerators = useUi((s) => s.openGenerators);
+  const closeGenerators = useUi((s) => s.closeGenerators);
   const [showScript, setShowScript] = useState(false);
-  const [showGenerators, setShowGenerators] = useState(false);
   const [showInspector, setShowInspector] = useState(false);
   const [showPanel, setShowPanel] = useState(false);
   const [showPalette, setShowPalette] = useState(false);
@@ -286,7 +289,7 @@ export default function App() {
           <button className={barButton()} onClick={() => setShowScript(true)}>
             Script
           </button>
-          <button className={barButton()} onClick={() => setShowGenerators(true)}>
+          <button className={barButton()} onClick={() => openGenerators()}>
             Generators
           </button>
           <button className={barButton()} onClick={() => setShowInspector(true)}>
@@ -370,7 +373,8 @@ export default function App() {
       <ScriptPanel open={showScript} onClose={() => setShowScript(false)} />
       <GeneratorsDialog
         open={showGenerators}
-        onClose={() => setShowGenerators(false)}
+        focusId={generatorsFocusId}
+        onClose={closeGenerators}
       />
       <Inspector open={showInspector} onClose={() => setShowInspector(false)} />
       <CommandPalette open={showPalette} onClose={() => setShowPalette(false)} />
