@@ -209,6 +209,22 @@ test("the topmost cover under the click wins", () => {
   assert.ok(b.minX > 49.9 && b.maxX < 150.1, `bounds ${b.minX}..${b.maxX}`);
 });
 
+test("ink hidden under the cover does not bound the fill", () => {
+  // The stroked square is painted *before* the background, so the background
+  // completely hides it; the fill must span the whole cover regardless.
+  const d = doc([
+    strokedRect("under", 30, 30, 40, 40),
+    filledRect("bg", 0, 0, 100, 100),
+  ]);
+  const result = computeBucketFill(d, null, { x: 50, y: 50 }, 4);
+  assert.equal(result.kind, "filled");
+  assert.equal(result.coverId, "bg");
+  assert.ok(insidePolys(result.polys, { x: 50, y: 50 }));
+  assert.ok(insidePolys(result.polys, { x: 10, y: 10 }));
+  const b = polyBounds(result.polys);
+  assert.ok(Math.abs(b.minX) < 0.01 && Math.abs(b.maxX - 100) < 0.01);
+});
+
 test("clicking a stroke over a background still reports inked", () => {
   const d = doc([
     filledRect("bg", 0, 0, 100, 100),

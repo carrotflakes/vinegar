@@ -43,12 +43,14 @@ under a click with the current fill color, as a plain vector polygon inserted
    symbol definition. Each source is normalized by a per-source Clipper union
    under its own fill rule, so self-intersections, even-odd shapes and
    mirroring transforms all reduce to canonically oriented contours.
-2. **Classify covers.** While collecting, a shape whose *fill* silhouette
-   contains the click point is set aside as a cover instead of an obstacle
-   (its stroke still counts as ink). The topmost cover wins; covers below it
-   are invisible at the point and are dropped entirely. Cover detection is
-   disabled inside clip groups and instances, whose composite ink cannot be
-   partially excluded.
+2. **Classify covers.** Ink is collected as an ordered list matching paint
+   order. A shape whose *fill* silhouette contains the click point is marked
+   as a cover candidate instead of an obstacle (its stroke still counts as
+   ink). The topmost (last) cover wins, and only ink painted *after* it can
+   bound the fill: the region never leaves the cover and the cover hides
+   everything painted before it, so earlier ink — lower covers included — is
+   invisible there and is dropped. Cover detection is disabled inside clip
+   groups and instances, whose composite ink cannot be partially excluded.
 3. **Inflate + union.** All obstacle contours are offset outward by half the
    gap tolerance (`ClipperOffset`, round joins) — gaps narrower than the
    tolerance seal shut — and unioned into one poly tree.
@@ -89,9 +91,11 @@ correctly anywhere. With a cover it is inserted as the cover's next sibling
 - Text bounds as ink are the line box, not glyph outlines.
 - Artboard edges do not bound a region; an open sketch on a board cannot be
   filled to the board edge.
-- Region detection is z-order-blind below the cover: ink completely hidden
-  *under* the cover (or under other ink) still blocks/carves the region even
-  though it is invisible.
+- Covers are assumed opaque: a semi-transparent cover lets ink beneath show
+  through visually, but that ink still doesn't bound the fill (it is below
+  the cover in paint order). Likewise, ink above the cover bounds the region
+  even where some *other* shape hides it — full per-face visibility would
+  need a z-aware planar arrangement.
 - Ink-to-cover-edge gaps only close up to *half* the gap tolerance (the cover
   edge does not inflate; only the ink side does).
 - Clicking a stroke/brush does not recolor it (Live-Paint-style edge re-fill).

@@ -163,19 +163,22 @@ function pointInContours(pt: IntPoint, paths: IntPoint[][]): boolean {
   return count % 2 === 1;
 }
 
-/** A fill-painted shape whose silhouette contains the click point. */
-interface CoverHit {
-  id: string;
+/**
+ * One ink contribution in paint order. `coverId` marks a fill silhouette that
+ * contains the click point — a cover candidate rather than an obstacle.
+ */
+interface InkEntry {
   contours: IntPoint[][];
+  coverId?: string;
 }
 
-/** Append one shape's painted silhouette (fill and stroke) to `out`. */
+/** Append one shape's painted silhouette (fill and stroke) to `entries`. */
 function addShapeObstacles(
   shape: Shape,
   parentWorld: Matrix,
   pt: IntPoint,
-  out: IntPoint[][],
-  covers: CoverHit[] | null
+  entries: InkEntry[],
+  allowCovers: boolean
 ): void {
   const world = multiply(parentWorld, shape.transform);
   // Area painted by a fill (or image pixels) can act as a cover; brush
@@ -197,39 +200,44 @@ function addShapeObstacles(
     if (geom) {
       const normalized: IntPoint[][] = [];
       pushNormalized(normalized, worldRings(geom.rings, world), geom.fillType);
-      if (covers && coverable && pointInContours(pt, normalized)) {
-        covers.push({ id: shape.id, contours: normalized });
-      } else {
-        out.push(...normalized);
+      if (normalized.length) {
+        const isCover =
+          allowCovers && coverable && pointInContours(pt, normalized);
+        entries.push(
+          isCover ? { contours: normalized, coverId: shape.id } : { contours: normalized }
+        );
       }
     }
   }
   // Stroke silhouettes come back with the shape transform baked in (parent
   // space). They are hard ink even on a cover shape: a stroked background's
-  // outline still bounds the fill.
+  // outline still bounds the fill (the stroke paints above its own fill, so
+  // its entry follows the cover entry in paint order).
   const stroke = strokeOutline(shape);
   if (stroke) {
+    const normalized: IntPoint[][] = [];
     pushNormalized(
-      out,
+      normalized,
       worldRings(stroke.flat(), parentWorld),
       ClipperLib.PolyFillType.pftEvenOdd
     );
+    if (normalized.length) entries.push({ contours: normalized });
   }
 }
 
 /**
- * Collect the ink contours of the given nodes (and descendants) into `out`.
- * `covers` accumulates fill-painted shapes containing the click point in
- * paint order (last = topmost); it is null inside clip groups and symbol
- * instances, whose composite ink cannot be partially excluded.
+ * Collect the ink of the given nodes (and descendants) into `entries`, in
+ * paint order (back-to-front, matching the renderer's traversal). Cover
+ * detection is disabled inside clip groups and symbol instances, whose
+ * composite ink cannot be partially excluded.
  */
 function collectObstacles(
   doc: Document,
   ids: string[],
   parentWorld: Matrix,
   pt: IntPoint,
-  out: IntPoint[][],
-  covers: CoverHit[] | null
+  entries: InkEntry[],
+  allowCovers: boolean
 ): void {
   for (const id of ids) {
     const node = doc.nodes[id];
@@ -239,8 +247,9 @@ function collectObstacles(
       const mask = clippingMask(doc, node);
       if (mask) {
         // A clip group's ink is its content restricted to the mask silhouette.
-        const content: IntPoint[][] = [];
-        collectObstacles(doc, clippingContentIds(doc, node), world, pt, content, null);
+        const inner: InkEntry[] = [];
+        collectObstacles(doc, clippingContentIds(doc, node), world, pt, inner, false);
+        const content = inner.flatMap((e) => e.contours);
         const geom = fillGeometry(mask);
         if (!content.length || !geom) continue;
         const maskWorld = multiply(world, mask.transform);
@@ -257,9 +266,10 @@ function collectObstacles(
           ClipperLib.PolyFillType.pftNonZero,
           geom.fillType
         );
-        out.push(...contours(tree));
+        const clipped = contours(tree);
+        if (clipped.length) entries.push({ contours: clipped });
       } else {
-        collectObstacles(doc, node.childIds, world, pt, out, covers);
+        collectObstacles(doc, node.childIds, world, pt, entries, allowCovers);
       }
     } else if (isInstance(node)) {
       const def = doc.symbols[node.symbolId];
@@ -270,12 +280,12 @@ function collectObstacles(
           root.childIds,
           multiply(world, root.transform),
           pt,
-          out,
-          null
+          entries,
+          false
         );
       }
     } else if (isShape(node)) {
-      addShapeObstacles(node, parentWorld, pt, out, covers);
+      addShapeObstacles(node, parentWorld, pt, entries, allowCovers);
     }
   }
 }
@@ -380,19 +390,25 @@ export function computeBucketFill(
     X: Math.round(point.x * SCALE),
     Y: Math.round(point.y * SCALE),
   };
-  const obstacles: IntPoint[][] = [];
-  const covers: CoverHit[] = [];
-  collectObstacles(doc, scopeRootIds(doc, scope), IDENTITY, pt, obstacles, covers);
+  const entries: InkEntry[] = [];
+  collectObstacles(doc, scopeRootIds(doc, scope), IDENTITY, pt, entries, true);
+  let coverIdx = -1;
+  for (let i = 0; i < entries.length; i++) {
+    if (entries[i].coverId) coverIdx = i;
+  }
 
   // Inflate the ink by half the gap tolerance: gaps narrower than the
   // tolerance seal shut, so the region they leak from becomes a closed hole.
   const inflate = Math.max(gapTolerance / 2, 0.05);
 
-  if (covers.length) {
+  if (coverIdx >= 0) {
     // The click landed on a fill: the topmost cover's outline is the outer
-    // boundary and the remaining (inflated) ink carves the region out of it.
-    // Lower covers under the point are invisible there and are ignored.
-    const cover = covers[covers.length - 1];
+    // boundary and the (inflated) ink carves the region out of it. The region
+    // never leaves the cover, and the cover hides everything painted before
+    // it, so only ink *above* the cover in paint order can visibly bound the
+    // fill — earlier entries (lower covers included) are ignored.
+    const cover = entries[coverIdx];
+    const obstacles = entries.slice(coverIdx + 1).flatMap((e) => e.contours);
     const ink = obstacles.length ? contours(inflateInk(obstacles, inflate)) : [];
     const clipper = new ClipperLib.Clipper();
     clipper.AddPaths(cover.contours, ClipperLib.PolyType.ptSubject, true);
@@ -422,10 +438,11 @@ export function computeBucketFill(
     );
     const polys = treeToPolys(final);
     return polys.length
-      ? { kind: "filled", polys, coverId: cover.id }
+      ? { kind: "filled", polys, coverId: cover.coverId! }
       : { kind: "inked" };
   }
 
+  const obstacles = entries.flatMap((e) => e.contours);
   if (!obstacles.length) return { kind: "open" };
   const inked = inflateInk(obstacles, inflate);
   const region = findRegion(inked.Childs(), pt);

@@ -114,14 +114,14 @@ Ordered by agreed priority. These are the biggest gaps toward a "real" vector ed
    Clicking a fill-painted shape (or image) treats it as a **cover**: its
    outline bounds the region instead of blocking it (`cover − inflated ink`,
    clipped back to the cover), and the fill is inserted directly above it —
-   the paint-a-background, draw-lines, fill-between workflow. Strokes /
-   brushes / text stay hard ink; covers are disabled inside clip groups and
-   instances.
+   the paint-a-background, draw-lines, fill-between workflow. Only ink
+   painted *above* the cover bounds the fill (ink hidden beneath it is
+   ignored). Strokes / brushes / text stay hard ink; covers are disabled
+   inside clip groups and instances.
    - [ ] Follow-ups: hover preview of the region (needs an obstacle-union
      cache keyed on the document revision), curve re-fitting of the polygon
      boundary, artboard edges as region bounds, recolor of strokes/brushes on
-     click, glyph outlines instead of text line boxes as ink, z-aware
-     visibility (ink hidden under a cover still blocks).
+     click, glyph outlines instead of text line boxes as ink.
 
 ## Next (candidates)
 The 1.0 productization order is: interoperability (SVG import + system
