@@ -40,23 +40,75 @@ export interface RadialGradientPaint {
 export type GradientPaint = LinearGradientPaint | RadialGradientPaint;
 
 /**
- * Raster fill: a document image asset tiled across the shape. The image is
- * repeated in the shape's local space; `scale`/`rotation`/`offset` place the
- * tiling lattice. Decoded pixels come from the asset cache at paint time, so
- * a pattern that references a missing/decoding asset simply paints nothing.
+ * How a raster paint maps its image onto the shape:
+ * - `tile`: repeat across the shape's local space (the original behaviour).
+ * - `fill`: scale uniformly to cover the shape's bounds, cropping overflow.
+ * - `fit`: scale uniformly to sit inside the bounds (margins stay transparent).
+ * - `stretch`: scale non-uniformly to exactly fill the bounds.
+ * Absent on legacy paints (pre-mode); treat a missing value as `tile`.
+ */
+export type PatternMode = "tile" | "fill" | "fit" | "stretch";
+
+/**
+ * Raster fill: a document image asset painted across the shape. `mode` picks
+ * the mapping (tile / fill / fit / stretch). For `tile`, `scale`/`rotation`/
+ * `offset` place the tiling lattice; for `fill`/`fit`, `scale` is a zoom on top
+ * of the cover/contain baseline and `offset` pans the image (rotation is
+ * ignored); `stretch` ignores all three. Decoded pixels come from the asset
+ * cache at paint time, so a pattern that references a missing/decoding asset
+ * simply paints nothing.
  */
 export interface PatternPaint {
   type: "pattern";
   /** Id of a `kind: "image"` asset in `doc.assets`. */
   assetId: string;
-  /** Uniform scale applied to the image's natural pixel size. */
+  /** Image-to-shape mapping; missing means `tile` (legacy). */
+  mode?: PatternMode;
+  /** tile: ×natural pixel size. fill/fit: zoom ×baseline. stretch: ignored. */
   scale: number;
-  /** Rotation of the tiling lattice, radians (canvas convention, y-down). */
+  /** Rotation of the tiling lattice, radians (canvas convention, y-down).
+   *  Applied in `tile` mode only. */
   rotation: number;
-  /** Tile origin offset in the shape's local space. */
+  /** tile: lattice origin. fill/fit: pan. stretch: ignored. Shape-local. */
   offset: Vec2;
   /** 0..1 opacity of this paint, independent of the node's opacity. */
   alpha: number;
+}
+
+/** A pattern's effective mode, defaulting legacy (mode-less) paints to `tile`. */
+export function patternMode(paint: PatternPaint): PatternMode {
+  return paint.mode ?? "tile";
+}
+
+/**
+ * Placement of a single (non-`tile`) pattern image in shape-local space: the
+ * drawn top-left and size, given the image's natural size and the shape's fill
+ * bounds. Shared by the canvas renderer and SVG export so they agree. Not used
+ * for `tile` mode, which lays out an infinite lattice instead.
+ */
+export function patternPlacement(
+  paint: PatternPaint,
+  natural: { width: number; height: number },
+  bounds: Bounds
+): { x: number; y: number; width: number; height: number } {
+  const { width: iw, height: ih } = natural;
+  const { x: bx, y: by, width: bw, height: bh } = bounds;
+  if (patternMode(paint) === "stretch") {
+    return { x: bx, y: by, width: bw, height: bh };
+  }
+  const base =
+    patternMode(paint) === "fit"
+      ? Math.min(bw / iw, bh / ih)
+      : Math.max(bw / iw, bh / ih); // fill
+  const s = base * paint.scale;
+  const dw = iw * s;
+  const dh = ih * s;
+  return {
+    x: bx + (bw - dw) / 2 + paint.offset.x,
+    y: by + (bh - dh) / 2 + paint.offset.y,
+    width: dw,
+    height: dh,
+  };
 }
 
 export type Paint = SolidPaint | GradientPaint | PatternPaint;
@@ -74,6 +126,7 @@ export function pattern(
   return {
     type: "pattern",
     assetId,
+    mode: opts.mode ?? "tile",
     scale: opts.scale ?? 1,
     rotation: opts.rotation ?? 0,
     offset: opts.offset ?? { x: 0, y: 0 },

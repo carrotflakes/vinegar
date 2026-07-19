@@ -13,6 +13,8 @@ import { applyMatrix, isIdentity } from "../model/matrix";
 import {
   gradientToSvg,
   paintToSvgAttrs,
+  patternMode,
+  patternPlacement,
   type Paint,
   type PatternPaint,
 } from "../model/paint";
@@ -102,23 +104,29 @@ function makeDefs(doc: Document): Defs {
   const patternId = (
     paint: PatternPaint,
     asset: DocumentAsset,
-    size: ImageSize
+    size: ImageSize,
+    bounds: Bounds
   ) => {
-    const image = imageId(asset, size);
+    // Tile mode reuses a shared natural-size <image>; the fit modes size the
+    // image to the shape's bounds, so they also key on the bounds.
+    const tiled = patternMode(paint) === "tile";
+    const image = tiled ? imageId(asset, size) : "";
     const key = JSON.stringify([
-      image,
+      patternMode(paint),
+      image || asset.source.data,
       size.width,
       size.height,
       paint.scale,
       paint.rotation,
       paint.offset.x,
       paint.offset.y,
+      tiled ? 0 : [bounds.x, bounds.y, bounds.width, bounds.height],
     ]);
     const existing = patternIds.get(key);
     if (existing) return existing;
     const created = nextId("pat");
     patternIds.set(key, created);
-    items.push(patternToSvg(paint, size, created, image));
+    items.push(patternToSvg(paint, size, created, image, asset, bounds));
     return created;
   };
   return {
@@ -130,7 +138,7 @@ function makeDefs(doc: Document): Defs {
         const asset = doc.assets[paint.assetId];
         const size = asset ? intrinsicImageSize(asset) : null;
         if (!asset || !size) return [`${kind}="#8a9099"`];
-        const id = patternId(paint, asset, size);
+        const id = patternId(paint, asset, size, bounds);
         return [
           `${kind}="url(#${id})"`,
           ...(paint.alpha < 1 ? [`${kind}-opacity="${num(paint.alpha)}"`] : []),
@@ -209,18 +217,37 @@ function patternToSvg(
   paint: PatternPaint,
   size: ImageSize,
   id: string,
-  imageId: string
+  imageId: string,
+  asset: DocumentAsset,
+  bounds: Bounds
 ): string {
-  const transform = [
-    `translate(${num(paint.offset.x)} ${num(paint.offset.y)})`,
-    `rotate(${num((paint.rotation * 180) / Math.PI)})`,
-    `scale(${num(paint.scale)})`,
-  ].join(" ");
+  if (patternMode(paint) === "tile") {
+    const transform = [
+      `translate(${num(paint.offset.x)} ${num(paint.offset.y)})`,
+      `rotate(${num((paint.rotation * 180) / Math.PI)})`,
+      `scale(${num(paint.scale)})`,
+    ].join(" ");
+    return (
+      `<pattern id="${id}" patternUnits="userSpaceOnUse" width="${num(
+        size.width
+      )}" height="${num(size.height)}" patternTransform="${transform}">` +
+      `<use href="#${imageId}"/>` +
+      `</pattern>`
+    );
+  }
+  // fill / fit / stretch: one image sized to the shape's bounds. The pattern
+  // tile equals the bounds box, so it never repeats over the shape and cover
+  // overflow is clipped to the tile (matching the canvas no-repeat fill).
+  const p = patternPlacement(paint, size, bounds);
   return (
-    `<pattern id="${id}" patternUnits="userSpaceOnUse" width="${num(
-      size.width
-    )}" height="${num(size.height)}" patternTransform="${transform}">` +
-    `<use href="#${imageId}"/>` +
+    `<pattern id="${id}" patternUnits="userSpaceOnUse" x="${num(bounds.x)}" y="${num(
+      bounds.y
+    )}" width="${num(bounds.width)}" height="${num(bounds.height)}">` +
+    `<image href="${escapeXml(asset.source.data)}" x="${num(
+      p.x - bounds.x
+    )}" y="${num(p.y - bounds.y)}" width="${num(p.width)}" height="${num(
+      p.height
+    )}" preserveAspectRatio="none"/>` +
     `</pattern>`
   );
 }

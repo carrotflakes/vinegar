@@ -13,11 +13,13 @@ import {
   linearGradient,
   paintToCss,
   pattern,
+  patternMode,
   radialGradient,
   solid,
   stopsToCssBar,
   type GradientStop,
   type Paint,
+  type PatternMode,
   type PatternPaint,
 } from "../model/paint";
 import { pickImageFiles } from "../io/importImage";
@@ -31,6 +33,17 @@ const PALETTE = [
   "#e53935", "#fb8c00", "#fdd835", "#43a047", "#1e88e5", "#3949ab", "#8e24aa", "#d81b60",
   "#ffcdd2", "#ffe0b2", "#fff9c4", "#c8e6c9", "#bbdefb", "#c5cae9", "#e1bee7", "#f8bbd0",
 ];
+
+/** Tooltips for the raster paint mapping modes. */
+const PATTERN_MODE_HINTS: Record<PatternMode, string> = {
+  fill: "Scale to cover the shape, cropping overflow",
+  fit: "Scale to fit inside the shape",
+  stretch: "Stretch to exactly fill the shape",
+  tile: "Repeat the image across the shape",
+};
+
+/** Round to one decimal for the offset number inputs. */
+const round1 = (n: number) => Math.round(n * 10) / 10;
 
 /** Normalize user-entered hex (#rgb or #rrggbb) to #rrggbb, or null if invalid. */
 function normalizeHex(input: string): string | null {
@@ -102,6 +115,7 @@ export default function ColorField({ label, value, onChange }: Props) {
   const imageAssets = Object.values(assets);
   const updatePattern = (patch: Partial<PatternPaint>) =>
     patternPaint && onChange({ ...patternPaint, ...patch });
+  const pMode = patternPaint ? patternMode(patternPaint) : "tile";
   // Point the pattern at an existing asset, keeping its other settings.
   const chooseAsset = (assetId: string) =>
     onChange(pattern(assetId, patternPaint ?? lastPattern.current ?? undefined));
@@ -451,39 +465,102 @@ export default function ColorField({ label, value, onChange }: Props) {
                 <span className="swatch-hint">Selected image is missing</span>
               )}
 
-              <div className="color-pop-alpha">
-                <span className="alpha-label">Scale</span>
-                <input
-                  type="range"
-                  min={5}
-                  max={400}
-                  value={Math.round(patternPaint.scale * 100)}
-                  onChange={(e) =>
-                    updatePattern({ scale: Number(e.target.value) / 100 })
-                  }
-                />
-                <span className="alpha-value">
-                  {Math.round(patternPaint.scale * 100)}%
-                </span>
+              <div className="paint-type-row pattern-mode-row">
+                {(["fill", "fit", "stretch", "tile"] as const).map((m) => (
+                  <button
+                    key={m}
+                    className={"paint-type-btn" + (pMode === m ? " active" : "")}
+                    onClick={() => updatePattern({ mode: m as PatternMode })}
+                    title={PATTERN_MODE_HINTS[m]}
+                  >
+                    {m === "fill"
+                      ? "Fill"
+                      : m === "fit"
+                        ? "Fit"
+                        : m === "stretch"
+                          ? "Stretch"
+                          : "Tile"}
+                  </button>
+                ))}
               </div>
 
-              <div className="color-pop-alpha">
-                <span className="alpha-label">Rotate</span>
-                <input
-                  type="range"
-                  min={0}
-                  max={360}
-                  value={Math.round((patternPaint.rotation * 180) / Math.PI)}
-                  onChange={(e) =>
-                    updatePattern({
-                      rotation: (Number(e.target.value) * Math.PI) / 180,
-                    })
-                  }
-                />
-                <span className="alpha-value">
-                  {Math.round((patternPaint.rotation * 180) / Math.PI)}°
-                </span>
-              </div>
+              {pMode !== "stretch" && (
+                <div className="color-pop-alpha">
+                  <span className="alpha-label">
+                    {pMode === "tile" ? "Scale" : "Zoom"}
+                  </span>
+                  <input
+                    type="range"
+                    min={pMode === "tile" ? 5 : 25}
+                    max={400}
+                    value={Math.round(patternPaint.scale * 100)}
+                    onChange={(e) =>
+                      updatePattern({ scale: Number(e.target.value) / 100 })
+                    }
+                  />
+                  <span className="alpha-value">
+                    {Math.round(patternPaint.scale * 100)}%
+                  </span>
+                </div>
+              )}
+
+              {pMode === "tile" && (
+                <div className="color-pop-alpha">
+                  <span className="alpha-label">Rotate</span>
+                  <input
+                    type="range"
+                    min={0}
+                    max={360}
+                    value={Math.round((patternPaint.rotation * 180) / Math.PI)}
+                    onChange={(e) =>
+                      updatePattern({
+                        rotation: (Number(e.target.value) * Math.PI) / 180,
+                      })
+                    }
+                  />
+                  <span className="alpha-value">
+                    {Math.round((patternPaint.rotation * 180) / Math.PI)}°
+                  </span>
+                </div>
+              )}
+
+              {pMode !== "stretch" && (
+                <div className="pattern-offset">
+                  <span className="alpha-label">
+                    {pMode === "tile" ? "Origin" : "Offset"}
+                  </span>
+                  <label className="offset-input">
+                    X
+                    <input
+                      type="number"
+                      value={round1(patternPaint.offset.x)}
+                      onChange={(e) =>
+                        updatePattern({
+                          offset: {
+                            ...patternPaint.offset,
+                            x: Number(e.target.value) || 0,
+                          },
+                        })
+                      }
+                    />
+                  </label>
+                  <label className="offset-input">
+                    Y
+                    <input
+                      type="number"
+                      value={round1(patternPaint.offset.y)}
+                      onChange={(e) =>
+                        updatePattern({
+                          offset: {
+                            ...patternPaint.offset,
+                            y: Number(e.target.value) || 0,
+                          },
+                        })
+                      }
+                    />
+                  </label>
+                </div>
+              )}
 
               <div className="color-pop-alpha">
                 <span className="alpha-label">Alpha</span>

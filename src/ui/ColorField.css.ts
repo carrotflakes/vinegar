@@ -115,6 +115,37 @@ globalStyle(".pattern-asset-import:hover", {
   color: vars.text,
 });
 
+/* Tile origin / fill pan: a label plus X and Y number inputs. */
+globalStyle(".pattern-offset", {
+  display: "flex",
+  alignItems: "center",
+  gap: "8px",
+});
+
+globalStyle(".pattern-offset .alpha-label", {
+  flex: "none",
+});
+
+globalStyle(".offset-input", {
+  flex: "1",
+  display: "flex",
+  alignItems: "center",
+  gap: "4px",
+  fontSize: "11px",
+  color: vars.muted,
+});
+
+globalStyle(".offset-input input", {
+  width: "100%",
+  minWidth: "0",
+  padding: "3px 6px",
+  border: `1px solid ${vars.border}`,
+  borderRadius: "5px",
+  background: vars.panel,
+  color: vars.text,
+  fontVariantNumeric: "tabular-nums",
+});
+
 globalStyle(".gradient-stop", {
   display: "flex",
   alignItems: "center",

@@ -88,7 +88,10 @@ const isPaint = (value: unknown): boolean => {
   if (value.type === "linear") return isStops(value.stops) && isNumber(value.angle);
   if (value.type === "radial") return isStops(value.stops);
   if (value.type === "pattern") {
-    return typeof value.assetId === "string" &&
+    const modeOk = value.mode === undefined ||
+      value.mode === "tile" || value.mode === "fill" ||
+      value.mode === "fit" || value.mode === "stretch";
+    return typeof value.assetId === "string" && modeOk &&
       isNumber(value.scale) && isNumber(value.rotation) && isPoint(value.offset) &&
       isNumber(value.alpha) && value.alpha >= 0 && value.alpha <= 1;
   }

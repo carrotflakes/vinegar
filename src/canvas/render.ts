@@ -8,7 +8,13 @@ import {
 } from "../model/clippingMask";
 import { hasEffects } from "../model/effects";
 import { isIdentity } from "../model/matrix";
-import { resolvePaint, type Paint, type PatternPaint } from "../model/paint";
+import {
+  patternMode,
+  patternPlacement,
+  resolvePaint,
+  type Paint,
+  type PatternPaint,
+} from "../model/paint";
 import { effectiveRectCornerRadius, roundedRectSubpath } from "../model/roundedRect";
 import { isGroup, isInstance, isShape } from "../model/scene";
 import {
@@ -581,26 +587,41 @@ function resolveStyle(
   bounds: Bounds,
   assets: Record<string, DocumentAsset>
 ): string | CanvasGradient | CanvasPattern | null {
-  if (paint.type === "pattern") return resolvePattern(ctx, paint, assets);
+  if (paint.type === "pattern") return resolvePattern(ctx, paint, bounds, assets);
   return resolvePaint(ctx, paint, bounds);
 }
 
 function resolvePattern(
   ctx: CanvasRenderingContext2D,
   paint: PatternPaint,
+  bounds: Bounds,
   assets: Record<string, DocumentAsset>
 ): CanvasPattern | null {
   const asset = assets[paint.assetId];
   const img = asset ? getAssetImage(asset) : null;
   if (!img) return null;
-  const pat = ctx.createPattern(img, "repeat");
-  if (!pat) return null;
   // The pattern lives in the shape's local space (transform already applied).
+  if (patternMode(paint) === "tile") {
+    const pat = ctx.createPattern(img, "repeat");
+    if (!pat) return null;
+    pat.setTransform(
+      new DOMMatrix()
+        .translateSelf(paint.offset.x, paint.offset.y)
+        .rotateSelf((paint.rotation * 180) / Math.PI)
+        .scaleSelf(paint.scale)
+    );
+    return pat;
+  }
+  // fill / fit / stretch: a single image mapped onto the shape's bounds. The
+  // no-repeat pattern is clipped to the filled path, so cover overflow crops.
+  const iw = img.naturalWidth;
+  const ih = img.naturalHeight;
+  if (!iw || !ih) return null;
+  const p = patternPlacement(paint, { width: iw, height: ih }, bounds);
+  const pat = ctx.createPattern(img, "no-repeat");
+  if (!pat) return null;
   pat.setTransform(
-    new DOMMatrix()
-      .translateSelf(paint.offset.x, paint.offset.y)
-      .rotateSelf((paint.rotation * 180) / Math.PI)
-      .scaleSelf(paint.scale)
+    new DOMMatrix().translateSelf(p.x, p.y).scaleSelf(p.width / iw, p.height / ih)
   );
   return pat;
 }
