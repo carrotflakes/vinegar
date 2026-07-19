@@ -11,6 +11,7 @@ import {
 } from "./dockLayout";
 import { useDock } from "./dockStore";
 import { PANEL_IDS, PANEL_MAP } from "./panels";
+import { useTouchDrag } from "../useTouchDrag";
 import "./dock.css";
 
 const MIN_GROUP = 90;
@@ -50,6 +51,47 @@ export default function Dock() {
     setDragPanel(null);
     setDropTarget(null);
   };
+
+  // Pointer-based tab drag (works for mouse and touch). The drop target is
+  // hit-tested from the element under the pointer via data attributes, so a
+  // finger sliding across groups lands the same as a mouse would.
+  const startTabDrag = useTouchDrag<string>({
+    onStart: (id) => setDragPanel(id),
+    onMove: (_id, { x, y, target }) => {
+      const tabsEl = target?.closest<HTMLElement>('[data-dock-tabs]');
+      if (tabsEl) {
+        const groupId = tabsEl.dataset.dockTabs!;
+        const tabEls = Array.from(
+          tabsEl.querySelectorAll<HTMLElement>(".dock-tab")
+        );
+        let index = tabEls.length;
+        for (let t = 0; t < tabEls.length; t++) {
+          const r = tabEls[t].getBoundingClientRect();
+          if (x < r.left + r.width / 2) {
+            index = t;
+            break;
+          }
+        }
+        setDropTarget({ kind: "tab", groupId, index });
+        return;
+      }
+      const bodyEl = target?.closest<HTMLElement>('[data-dock-body]');
+      if (bodyEl) {
+        const r = bodyEl.getBoundingClientRect();
+        const before = (y - r.top) / r.height < 0.5;
+        setDropTarget({
+          kind: "split",
+          beforeGroupId: before
+            ? bodyEl.dataset.dockBody!
+            : bodyEl.dataset.dockNext || null,
+        });
+        return;
+      }
+      setDropTarget(null);
+    },
+    onDrop: () => commitDrop(),
+    onCancel: endDrag,
+  });
 
   // --- Divider resize: normalize every group to its pixel height on grab, then
   // trade height between the two adjacent groups as the divider moves.
@@ -118,6 +160,7 @@ export default function Dock() {
                 }
                 onPointerMove={onDividerMove}
                 onPointerUp={onDividerUp}
+                onPointerCancel={onDividerUp}
               />
             )}
             <div
@@ -130,30 +173,7 @@ export default function Dock() {
             >
               {splitTop && <div className="dock-split-drop top" />}
               {splitBottom && <div className="dock-split-drop bottom" />}
-              <div
-                className="dock-tabs"
-                onDragOver={(e) => {
-                  if (!dragPanel) return;
-                  e.preventDefault();
-                  e.dataTransfer.dropEffect = "move";
-                  const tabEls = Array.from(
-                    e.currentTarget.querySelectorAll<HTMLElement>(".dock-tab")
-                  );
-                  let index = tabEls.length;
-                  for (let t = 0; t < tabEls.length; t++) {
-                    const r = tabEls[t].getBoundingClientRect();
-                    if (e.clientX < r.left + r.width / 2) {
-                      index = t;
-                      break;
-                    }
-                  }
-                  setDropTarget({ kind: "tab", groupId: group.id, index });
-                }}
-                onDrop={(e) => {
-                  e.preventDefault();
-                  commitDrop();
-                }}
-              >
+              <div className="dock-tabs" data-dock-tabs={group.id}>
                 {group.tabs.map((id, idx) => (
                   <Fragment key={id}>
                     {dropTarget?.kind === "tab" &&
@@ -165,13 +185,7 @@ export default function Dock() {
                       className={
                         "dock-tab" + (group.active === id ? " active" : "")
                       }
-                      draggable
-                      onDragStart={(e) => {
-                        e.dataTransfer.effectAllowed = "move";
-                        e.dataTransfer.setData("text/plain", id);
-                        setDragPanel(id);
-                      }}
-                      onDragEnd={endDrag}
+                      onPointerDown={(e) => startTabDrag(e, id)}
                       onClick={() =>
                         setLayout((l) => setActiveTab(l, group.id, id))
                       }
@@ -209,21 +223,8 @@ export default function Dock() {
               </div>
               <div
                 className="dock-body"
-                onDragOver={(e) => {
-                  if (!dragPanel) return;
-                  e.preventDefault();
-                  e.dataTransfer.dropEffect = "move";
-                  const r = e.currentTarget.getBoundingClientRect();
-                  const before = (e.clientY - r.top) / r.height < 0.5;
-                  setDropTarget({
-                    kind: "split",
-                    beforeGroupId: before ? group.id : nextId,
-                  });
-                }}
-                onDrop={(e) => {
-                  e.preventDefault();
-                  commitDrop();
-                }}
+                data-dock-body={group.id}
+                data-dock-next={nextId ?? ""}
               >
                 {PANEL_MAP[group.active]?.render()}
               </div>

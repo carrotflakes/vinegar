@@ -26,7 +26,6 @@ import { setPointer, setReadout } from "../store/pointerStore";
 import { usePreferences } from "../store/preferencesStore";
 import { vars } from "../styles/theme.css";
 import { canvasMenu, selectionMenu } from "../ui/menus";
-import { DRAG_ASSET, DRAG_SYMBOL } from "./canvasDrag";
 import "./CanvasView.css";
 import { cornerRadiusControl } from "./cornerRadiusHandle";
 import { getSelectionFrame } from "./frame";
@@ -857,8 +856,9 @@ export default function CanvasView() {
     }
   };
 
-  // Dropping onto the canvas places items at the drop point: image files, or an
-  // existing asset / symbol dragged out of the library panels.
+  // Dropping onto the canvas places files at the drop point. (Assets/symbols
+  // dragged out of the library panels use pointer-based drag, see
+  // usePanelCanvasDrag, so only OS file drops arrive here.)
   const onDrop = (e: React.DragEvent<HTMLCanvasElement>) => {
     e.preventDefault();
     const state = useEditor.getState();
@@ -870,16 +870,6 @@ export default function CanvasView() {
       height: (height / state.viewport.scale) * 0.8,
     };
 
-    const assetId = dt?.getData(DRAG_ASSET);
-    if (assetId) {
-      void state.placeAssetImage(assetId, world, fitWithin);
-      return;
-    }
-    const symbolId = dt?.getData(DRAG_SYMBOL);
-    if (symbolId) {
-      state.placeSymbolInstance(symbolId, world);
-      return;
-    }
     const files = [...(dt?.files ?? [])];
     if (!files.length) return;
     // A dropped .vinegar.json opens as the document; image files get placed.

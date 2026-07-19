@@ -79,11 +79,16 @@ export default function ScrubbableNumber({
     if (d.scrubbing) {
       inputRef.current?.releasePointerCapture(d.pointerId);
     } else {
-      // A plain click: focus for text editing.
+      // A plain click/tap: focus for text editing.
       inputRef.current?.focus();
       inputRef.current?.select();
     }
     e.preventDefault();
+  };
+
+  const onPointerCancel = () => {
+    // Touch gestures can be interrupted; just drop the scrub without editing.
+    drag.current = null;
   };
 
   return (
@@ -91,7 +96,9 @@ export default function ScrubbableNumber({
       ref={inputRef}
       type="number"
       className={className}
-      style={{ cursor: "ew-resize" }}
+      // touchAction none: keep the horizontal scrub gesture from scrolling the
+      // panel and cancelling the pointer mid-drag on touch devices.
+      style={{ cursor: "ew-resize", touchAction: "none" }}
       min={min}
       max={max}
       step={step}
@@ -100,6 +107,7 @@ export default function ScrubbableNumber({
       onPointerDown={onPointerDown}
       onPointerMove={onPointerMove}
       onPointerUp={onPointerUp}
+      onPointerCancel={onPointerCancel}
       onChange={(e) => {
         const v = Number(e.target.value);
         if (Number.isFinite(v)) onChange(clamp(v));

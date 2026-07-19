@@ -2,7 +2,8 @@ import { useMemo, useState } from "react";
 import { LuComponent, LuPlus, LuPencil, LuTrash2 } from "react-icons/lu";
 import { instanceCountsBySymbol } from "../../../model/scene";
 import { currentSymbolScope, useEditor } from "../../../store/editorStore";
-import { DRAG_SYMBOL, canvasCenterPlacement } from "../../../canvas/canvasDrag";
+import { canvasCenterPlacement } from "../../../canvas/canvasDrag";
+import { usePanelCanvasDrag } from "../../usePanelCanvasDrag";
 import "../../Panel.css";
 import "../PanelList.css";
 
@@ -19,6 +20,11 @@ export default function SymbolsPanel() {
   const renameSymbol = useEditor((s) => s.renameSymbol);
   const deleteSymbol = useEditor((s) => s.deleteSymbol);
   const [editing, setEditing] = useState<string | null>(null);
+
+  const startDrag = usePanelCanvasDrag<string>({
+    ghost: (id) => ({ label: doc.symbols[id]?.name || "Symbol" }),
+    onDrop: (id, { at }) => placeSymbolInstance(id, at),
+  });
 
   const symbols = Object.values(doc.symbols);
   // One scan for every row's instance count, recomputed only when `doc` changes.
@@ -37,11 +43,9 @@ export default function SymbolsPanel() {
               <div
                 key={def.id}
                 className={"symbol-row" + (scope === def.id ? " selected" : "")}
-                draggable={editing !== def.id}
-                onDragStart={(e) => {
-                  e.dataTransfer.setData(DRAG_SYMBOL, def.id);
-                  e.dataTransfer.effectAllowed = "copy";
-                }}
+                onPointerDown={
+                  editing === def.id ? undefined : (e) => startDrag(e, def.id)
+                }
               >
                 <span className="layer-type" aria-hidden>
                   <LuComponent />

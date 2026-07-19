@@ -1,12 +1,13 @@
 import { useState } from "react";
 import { LuFrame, LuPlus, LuTrash2 } from "react-icons/lu";
 import { useEditor } from "../../../store/editorStore";
+import { useTouchDrag } from "../../useTouchDrag";
 import "../../Panel.css";
 import "../PanelList.css";
 
 /**
  * The document's artboards: select, rename, reorder (= export order), add, and
- * delete. Reordering is plain HTML5 drag-and-drop, matching the Layers panel.
+ * delete. Reordering is pointer-based (mouse + touch), matching the Layers panel.
  */
 export default function ArtboardsPanel() {
   const artboards = useEditor((s) => s.doc.artboards);
@@ -27,6 +28,32 @@ export default function ArtboardsPanel() {
     setDropIndex(null);
   };
 
+  const clearDrop = () => {
+    setDragId(null);
+    setDropIndex(null);
+  };
+
+  const startDrag = useTouchDrag<string>({
+    onStart: (id) => setDragId(id),
+    onMove: (_id, { y, target }) => {
+      const rowEl = target?.closest<HTMLElement>("[data-ab-index]");
+      if (rowEl) {
+        const i = Number(rowEl.dataset.abIndex);
+        const r = rowEl.getBoundingClientRect();
+        const after = (y - r.top) / r.height >= 0.5;
+        setDropIndex(i + (after ? 1 : 0));
+        return;
+      }
+      if (target?.closest(".layers-list")) {
+        setDropIndex(artboards.length);
+        return;
+      }
+      setDropIndex(null);
+    },
+    onDrop: () => commitDrop(),
+    onCancel: clearDrop,
+  });
+
   return (
     <div className="layers">
       <div className="panel-title layers-title">
@@ -39,18 +66,7 @@ export default function ArtboardsPanel() {
           <LuPlus />
         </button>
       </div>
-      <div
-        className="layers-list"
-        onDragOver={(e) => {
-          if (dragId === null || e.target !== e.currentTarget) return;
-          e.preventDefault();
-          setDropIndex(artboards.length);
-        }}
-        onDrop={(e) => {
-          e.preventDefault();
-          commitDrop();
-        }}
-      >
+      <div className="layers-list">
         {artboards.length === 0 && (
           <div className="layers-empty">No artboards yet</div>
         )}
@@ -61,27 +77,10 @@ export default function ArtboardsPanel() {
             )}
             <div
               className={"layer-row" + (selectedId === ab.id ? " selected" : "")}
-              draggable={editing !== ab.id}
-              onDragStart={(e) => {
-                e.dataTransfer.effectAllowed = "move";
-                e.dataTransfer.setData("text/plain", ab.id);
-                setDragId(ab.id);
-              }}
-              onDragOver={(e) => {
-                if (dragId === null) return;
-                e.preventDefault();
-                const r = e.currentTarget.getBoundingClientRect();
-                const after = (e.clientY - r.top) / r.height >= 0.5;
-                setDropIndex(i + (after ? 1 : 0));
-              }}
-              onDrop={(e) => {
-                e.preventDefault();
-                commitDrop();
-              }}
-              onDragEnd={() => {
-                setDragId(null);
-                setDropIndex(null);
-              }}
+              data-ab-index={i}
+              onPointerDown={
+                editing === ab.id ? undefined : (e) => startDrag(e, ab.id)
+              }
               onClick={() => selectArtboard(ab.id)}
             >
               <span

@@ -3,7 +3,8 @@ import { LuImage, LuPlus, LuTrash2 } from "react-icons/lu";
 import { getAssetImage, subscribeImageCache } from "../../../imageCache";
 import { assetReferenceCounts } from "../../../model/scene";
 import { useEditor } from "../../../store/editorStore";
-import { DRAG_ASSET, canvasCenterPlacement } from "../../../canvas/canvasDrag";
+import { canvasCenterPlacement } from "../../../canvas/canvasDrag";
+import { usePanelCanvasDrag } from "../../usePanelCanvasDrag";
 import "../../Panel.css";
 import "../PanelList.css";
 import "./AssetsPanel.css";
@@ -21,6 +22,16 @@ export default function AssetsPanel() {
   // Thumbnails decode asynchronously; repaint when any asset's pixels arrive.
   const [, bump] = useReducer((n) => n + 1, 0);
   useEffect(() => subscribeImageCache(bump), []);
+
+  const startDrag = usePanelCanvasDrag<string>({
+    ghost: (id) => {
+      const asset = doc.assets[id];
+      return { label: asset?.name || "Untitled", imageSrc: asset?.source.data };
+    },
+    onDrop: (id, { at, fitWithin }) => {
+      void placeAssetImage(id, at, fitWithin);
+    },
+  });
 
   const assets = Object.values(doc.assets);
   // Reference counts, keyed on `doc`, so image-decode repaints (which bump this
@@ -62,11 +73,7 @@ export default function AssetsPanel() {
               <div
                 key={asset.id}
                 className="asset-row"
-                draggable
-                onDragStart={(e) => {
-                  e.dataTransfer.setData(DRAG_ASSET, asset.id);
-                  e.dataTransfer.effectAllowed = "copy";
-                }}
+                onPointerDown={(e) => startDrag(e, asset.id)}
               >
                 <span className="asset-thumb" aria-hidden>
                   {img ? (

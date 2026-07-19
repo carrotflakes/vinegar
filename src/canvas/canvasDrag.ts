@@ -6,10 +6,6 @@ import { screenToWorld } from "../model/viewport";
 import type { Vec2 } from "../model/types";
 import { useEditor } from "../store/editorStore";
 
-/** dataTransfer MIME types tagging an internal panel → canvas drag. */
-export const DRAG_ASSET = "application/x-vinegar-asset";
-export const DRAG_SYMBOL = "application/x-vinegar-symbol";
-
 /**
  * The canvas center in world space plus a viewport-relative box to fit placed
  * content into, mirroring what a file drop uses. Drives the panels' "place"
@@ -28,6 +24,31 @@ export function canvasCenterPlacement(): {
     fitWithin: {
       width: (width / viewport.scale) * 0.8,
       height: (height / viewport.scale) * 0.8,
+    },
+  };
+}
+
+/**
+ * Placement for an item dropped at a screen point (client coordinates), used by
+ * the pointer-based panel → canvas drag. Returns null when the point isn't over
+ * the canvas, so a drop elsewhere is ignored.
+ */
+export function canvasDropPlacement(
+  clientX: number,
+  clientY: number
+): { at: Vec2; fitWithin: { width: number; height: number } } | null {
+  const canvas = document.querySelector<HTMLCanvasElement>(".canvas-wrap canvas");
+  if (!canvas) return null;
+  const rect = canvas.getBoundingClientRect();
+  const { viewport } = useEditor.getState();
+  return {
+    at: screenToWorld(viewport, {
+      x: clientX - rect.left,
+      y: clientY - rect.top,
+    }),
+    fitWithin: {
+      width: (rect.width / viewport.scale) * 0.8,
+      height: (rect.height / viewport.scale) * 0.8,
     },
   };
 }

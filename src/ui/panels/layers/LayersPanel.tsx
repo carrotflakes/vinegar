@@ -32,6 +32,7 @@ import {
 import { currentSymbolScope, useEditor } from "../../../store/editorStore";
 import { openContextMenu } from "../../../store/menuStore";
 import { selectionMenu } from "../../menus";
+import { useTouchDrag } from "../../useTouchDrag";
 import "../../Panel.css";
 import "../PanelList.css";
 
@@ -176,35 +177,55 @@ export default function LayersPanel() {
     moveNode(d.id, t.parent ?? scopeParent, canonicalIndex);
   };
 
-  /** Map a row hover to before/after, or its middle third into a group. */
-  const onRowDragOver = (
-    e: React.DragEvent,
-    path: Path,
-    groupId?: string
-  ) => {
-    if (!drag) return;
-    e.preventDefault();
-    e.stopPropagation();
-    const r = e.currentTarget.getBoundingClientRect();
-    const ratio = (e.clientY - r.top) / r.height;
-    if (
-      groupId && ratio > 0.28 && ratio < 0.72 &&
-      groupId !== drag.id &&
-      !descendantNodeIds(doc, drag.id).includes(groupId)
-    ) {
-      setDrop({ parent: groupId, index: 0, inside: groupId });
-      return;
-    }
-    const at = path[path.length - 1];
-    setDrop({ parent: at.parent, index: ratio >= 0.5 ? at.index + 1 : at.index });
-  };
-
-  const dropProps = {
-    onDrop: (e: React.DragEvent) => {
-      e.preventDefault();
-      commitDrop();
+  // Pointer-based row drag (mouse + touch). Touch begins on a long-press so a
+  // quick swipe still scrolls the list. The drop target is hit-tested from the
+  // row under the pointer via its data attributes, mirroring the middle-third
+  // "into group" and before/after logic the old dragover used.
+  const startRowDrag = useTouchDrag<Drag>({
+    onStart: (d) => setDrag(d),
+    onMove: (d, { y, target }) => {
+      const rowEl = target?.closest<HTMLElement>("[data-row-index]");
+      if (rowEl) {
+        const parentAttr = rowEl.dataset.rowParent ?? "";
+        const parent = parentAttr === "" ? null : parentAttr;
+        const index = Number(rowEl.dataset.rowIndex);
+        const gid = rowEl.dataset.rowGroup;
+        const r = rowEl.getBoundingClientRect();
+        const ratio = (y - r.top) / r.height;
+        if (
+          gid && ratio > 0.28 && ratio < 0.72 &&
+          gid !== d.id &&
+          !descendantNodeIds(doc, d.id).includes(gid)
+        ) {
+          setDrop({ parent: gid, index: 0, inside: gid });
+          return;
+        }
+        setDrop({ parent, index: ratio >= 0.5 ? index + 1 : index });
+        return;
+      }
+      if (target?.closest(".layers-list")) {
+        setDrop({ parent: null, index: roots.length });
+        return;
+      }
+      setDrop(null);
     },
-    onDragEnd: clearDnd,
+    onDrop: () => commitDrop(),
+    onCancel: clearDnd,
+  });
+
+  /** Data attributes + pointerdown that make a row draggable and droppable. */
+  const rowDnd = (id: string, path: Path, gid?: string) => {
+    const at = path[path.length - 1];
+    return {
+      "data-row-parent": at.parent ?? "",
+      "data-row-index": at.index,
+      ...(gid ? { "data-row-group": gid } : {}),
+      onPointerDown:
+        editing === id
+          ? undefined
+          : (e: React.PointerEvent) =>
+              startRowDrag(e, { id, parent: at.parent }),
+    };
   };
 
   const nameEditor = (
@@ -240,14 +261,7 @@ export default function LayersPanel() {
         }
         title={isMask ? "Clipping mask" : undefined}
         style={{ paddingLeft: 6 + depth * 16 }}
-        draggable={editing !== id}
-        onDragStart={(e) => {
-          e.dataTransfer.effectAllowed = "move";
-          e.dataTransfer.setData("text/plain", id);
-          setDrag({ id, parent: path[path.length - 1].parent });
-        }}
-        onDragOver={(e) => onRowDragOver(e, path)}
-        {...dropProps}
+        {...rowDnd(id, path)}
         onClick={(e) => selectIds([id], e.shiftKey)}
         onContextMenu={(e) => {
           e.preventDefault();
@@ -323,14 +337,7 @@ export default function LayersPanel() {
           (instance.hidden || dim ? " hidden" : "")
         }
         style={{ paddingLeft: 6 + depth * 16 }}
-        draggable={editing !== id}
-        onDragStart={(e) => {
-          e.dataTransfer.effectAllowed = "move";
-          e.dataTransfer.setData("text/plain", id);
-          setDrag({ id, parent: path[path.length - 1].parent });
-        }}
-        onDragOver={(e) => onRowDragOver(e, path)}
-        {...dropProps}
+        {...rowDnd(id, path)}
         onClick={(e) => selectIds([id], e.shiftKey)}
         onDoubleClick={() => enterSymbolEdit(instance.symbolId)}
         onContextMenu={(e) => {
@@ -409,14 +416,7 @@ export default function LayersPanel() {
           (drop?.inside === gid ? " drop-inside" : "")
         }
         style={{ paddingLeft: 6 + depth * 16 }}
-        draggable={editing !== gid}
-        onDragStart={(e) => {
-          e.dataTransfer.effectAllowed = "move";
-          e.dataTransfer.setData("text/plain", gid);
-          setDrag({ id: gid, parent: path[path.length - 1].parent });
-        }}
-        onDragOver={(e) => onRowDragOver(e, path, gid)}
-        {...dropProps}
+        {...rowDnd(gid, path, gid)}
         onClick={(e) => selectIds([gid], e.shiftKey)}
         onContextMenu={(e) => {
           e.preventDefault();
@@ -545,21 +545,7 @@ export default function LayersPanel() {
           <span>{scopeName}</span>
         </button>
       )}
-      <div
-        className="layers-list"
-        onDragOver={(e) => {
-          if (!drag || e.target !== e.currentTarget) return;
-          e.preventDefault();
-          setDrop({ parent: null, index: roots.length });
-        }}
-        onDrop={(e) => {
-          e.preventDefault();
-          commitDrop();
-        }}
-        onDragLeave={(e) => {
-          if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setDrop(null);
-        }}
-      >
+      <div className="layers-list">
         {roots.length === 0 && <div className="layers-empty">No shapes yet</div>}
         {renderList(roots, null, 0, [], false)}
       </div>

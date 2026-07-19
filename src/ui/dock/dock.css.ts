@@ -164,6 +164,8 @@ globalStyle(".dock-divider", {
   borderTop: `1px solid ${vars.border}`,
   borderBottom: `1px solid ${vars.border}`,
   position: "relative",
+  // Own the vertical gesture so a touch-drag resizes instead of scrolling.
+  touchAction: "none",
 });
 
 globalStyle(".dock-divider::after", {
