@@ -17,10 +17,8 @@ import EffectsSection from "./EffectsSection";
 import GeneratorSection from "./GeneratorSection";
 import GroupSection from "./GroupSection";
 import SelectionActionsSection from "./SelectionActionsSection";
-import {
-  ImageSection,
-  TextSection,
-} from "./ShapeSections";
+import ImageSection from "./ImageSection";
+import TextSection from "./TextSection";
 import SymbolInstanceSection from "./SymbolInstanceSection";
 import "../../Panel.css";
 import "./PropertiesPanel.css";
@@ -130,6 +128,7 @@ export default function PropertiesPanel() {
       <SelectionActionsSection
         doc={doc}
         selection={selection}
+        rootIds={rootIds}
         selected={selected}
         selectedGroup={selectedGroup}
       />

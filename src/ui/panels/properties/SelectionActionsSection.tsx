@@ -22,26 +22,25 @@ import {
   canGroupSelection,
   selectionUnits,
 } from "../../../model/groups";
-import {
-  parentIdOf,
-  selectionRoots,
-} from "../../../model/scene";
+import { parentIdOf } from "../../../model/scene";
 import type {
   Document,
   Group,
   Shape,
 } from "../../../model/types";
 import { useEditor } from "../../../store/editorStore";
-import { Geometry } from "./ShapeSections";
+import Geometry from "./Geometry";
 
 export default function SelectionActionsSection({
   doc,
   selection,
+  rootIds,
   selected,
   selectedGroup,
 }: {
   doc: Document;
   selection: string[];
+  rootIds: string[];
   selected: Shape[];
   selectedGroup: Group | null;
 }) {
@@ -77,7 +76,6 @@ export default function SelectionActionsSection({
     (state) => state.releaseCompoundPathSelected
   );
 
-  const rootIds = selectionRoots(doc, selection);
   const hasSelection = rootIds.length > 0;
   const allRootsAreShapes = selected.length === rootIds.length;
   const sameParent =
@@ -123,7 +121,7 @@ export default function SelectionActionsSection({
 
   return (
     <>
-      {(hasSelection || selectedGroup) && (
+      {hasSelection && (
         <div className="panel-section">
           <div className="panel-title">Arrange</div>
           <div className="btn-row">

@@ -15,8 +15,6 @@ import {
   supportsStrokeAlignment,
 } from "../../../model/stroke";
 import {
-  BLEND_MODES,
-  type BlendMode,
   type Document,
   type Shape,
 } from "../../../model/types";
@@ -26,11 +24,11 @@ import ScrubbableNumber from "../../ScrubbableNumber";
 import StrokeDetailControls, {
   type StrokeDetailsValue,
 } from "./StrokeDetailControls";
-
-function blendLabel(mode: BlendMode): string {
-  const words = mode.replace(/-/g, " ");
-  return words.charAt(0).toUpperCase() + words.slice(1);
-}
+import {
+  BlendModeField,
+  OpacityField,
+  RotationField,
+} from "./StyleFields";
 
 function typeName(shape: Shape): string {
   switch (shape.type) {
@@ -112,8 +110,17 @@ export default function AppearanceSection({
       ? updateSelectedStyle({ strokeWidth: value })
       : setStyle({ strokeWidth: value });
   const setStrokeDetails = (patch: Partial<StrokeDetailsValue>) => {
+    const shared = {
+      ...(patch.cap !== undefined ? { strokeCap: patch.cap } : {}),
+      ...(patch.join !== undefined ? { strokeJoin: patch.join } : {}),
+      ...(patch.alignment !== undefined
+        ? { strokeAlignment: patch.alignment }
+        : {}),
+    };
     if (hasSelection) {
+      // Shapes keep dash fields sparse: empty dash / zero offset are dropped.
       updateSelectedStyle({
+        ...shared,
         ...(patch.dash !== undefined
           ? {
               strokeDash: patch.dash.length
@@ -124,25 +131,16 @@ export default function AppearanceSection({
         ...(patch.dashOffset !== undefined
           ? { strokeDashOffset: patch.dashOffset || undefined }
           : {}),
-        ...(patch.cap !== undefined ? { strokeCap: patch.cap } : {}),
-        ...(patch.join !== undefined ? { strokeJoin: patch.join } : {}),
-        ...(patch.alignment !== undefined
-          ? { strokeAlignment: patch.alignment }
-          : {}),
       });
       return;
     }
     setStyle({
+      ...shared,
       ...(patch.dash !== undefined
         ? { strokeDash: [...patch.dash] }
         : {}),
       ...(patch.dashOffset !== undefined
         ? { strokeDashOffset: patch.dashOffset }
-        : {}),
-      ...(patch.cap !== undefined ? { strokeCap: patch.cap } : {}),
-      ...(patch.join !== undefined ? { strokeJoin: patch.join } : {}),
-      ...(patch.alignment !== undefined
-        ? { strokeAlignment: patch.alignment }
         : {}),
     });
   };
@@ -207,69 +205,33 @@ export default function AppearanceSection({
       )}
 
       {hasSelection && (
-        <div className="field-inline">
-          <label>Opacity</label>
-          <div className="num-suffix">
-            <ScrubbableNumber
-              className="num"
-              min={0}
-              max={100}
-              step={1}
-              value={Math.round(opacity * 100)}
-              onChange={(value) =>
-                updateSelectedStyle({ opacity: value / 100 })
-              }
-              aria-label="Opacity"
-            />
-            <span className="unit">%</span>
-          </div>
-        </div>
+        <OpacityField
+          label="Opacity"
+          value={opacity}
+          onChange={(value) => updateSelectedStyle({ opacity: value })}
+        />
       )}
 
       {hasSelection && (
-        <div className="field-inline">
-          <label>Blend mode</label>
-          <select
-            className="blend-select"
-            value={first.blendMode ?? "normal"}
-            onChange={(event) => {
-              const value = event.target.value as BlendMode;
-              updateSelectedStyle({
-                blendMode: value === "normal" ? undefined : value,
-              });
-            }}
-          >
-            {BLEND_MODES.map((mode) => (
-              <option key={mode} value={mode}>
-                {blendLabel(mode)}
-              </option>
-            ))}
-          </select>
-        </div>
+        <BlendModeField
+          label="Blend mode"
+          value={first.blendMode}
+          onChange={(value) =>
+            updateSelectedStyle({ blendMode: value })
+          }
+        />
       )}
 
       {selected.length === 1 && (
-        <div className="field">
-          <div className="field-inline">
-            <label>Rotation</label>
-            <ScrubbableNumber
-              className="num"
-              step={1}
-              value={rotationDeg}
-              onChange={setRotation}
-              aria-label="Rotation"
-            />
-          </div>
-          <button
-            className="ghost-btn"
-            disabled={first.transformOrigin === null}
-            onClick={() =>
-              updateSelectedStyle({ transformOrigin: null })
-            }
-          >
-            Reset rotation center
-          </button>
-        </div>
+        <RotationField
+          label="Rotation"
+          degrees={rotationDeg}
+          onChange={setRotation}
+          resetDisabled={first.transformOrigin === null}
+          onReset={() =>
+            updateSelectedStyle({ transformOrigin: null })
+          }
+        />
       )}
     </div>
   );
