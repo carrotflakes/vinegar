@@ -9,10 +9,16 @@ export interface BucketOptions {
    * only watertight regions.
    */
   gapTolerance: number;
+  /**
+   * Stop the fill at stroke/brush centerlines instead of their painted edge,
+   * so adjacent fills meet under the line (no gap if the line changes later).
+   */
+  strokeCenterline: boolean;
 }
 
 const DEFAULTS: BucketOptions = {
   gapTolerance: 4,
+  strokeCenterline: false,
 };
 
 const clamp = (v: number, lo: number, hi: number) =>
@@ -23,6 +29,10 @@ function sanitize(o: Partial<BucketOptions>): BucketOptions {
     typeof v === "number" && Number.isFinite(v) ? v : fallback;
   return {
     gapTolerance: clamp(num(o.gapTolerance, DEFAULTS.gapTolerance), 0, 100),
+    strokeCenterline:
+      typeof o.strokeCenterline === "boolean"
+        ? o.strokeCenterline
+        : DEFAULTS.strokeCenterline,
   };
 }
 

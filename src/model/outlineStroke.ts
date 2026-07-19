@@ -207,11 +207,21 @@ function alignOutline(shape: Shape, strokeTree: PolyNode): PolyNode {
  * baked in), using Clipper's polygon offsetting. Dash chunks, cap/join and
  * inside/outside clipping mirror the live renderer as closely as the flattened
  * Clipper approximation permits.
+ *
+ * `halfWidthOverride` replaces the painted half-width and skips the
+ * inside/outside alignment clipping: the bucket fill's centerline mode uses it
+ * to build a hairline band along the geometric centerline instead of the full
+ * stroke band.
  */
-export function strokeOutline(shape: Shape): Vec2[][][] | null {
+export function strokeOutline(
+  shape: Shape,
+  halfWidthOverride?: number
+): Vec2[][][] | null {
   if (shape.stroke === null || shape.strokeWidth <= 0) return null;
   const alignment = effectiveStrokeAlignment(shape);
-  const half = alignment === "center" ? shape.strokeWidth / 2 : shape.strokeWidth;
+  const half =
+    halfWidthOverride ??
+    (alignment === "center" ? shape.strokeWidth / 2 : shape.strokeWidth);
 
   const co = new ClipperLib.ClipperOffset(STROKE_MITER_LIMIT, 0.25 * SCALE);
   let added = false;
@@ -228,6 +238,8 @@ export function strokeOutline(shape: Shape): Vec2[][][] | null {
   const tree = new ClipperLib.PolyTree();
   co.Execute(tree, half * SCALE);
 
-  const polys = treeToPolys(alignOutline(shape, tree));
+  const polys = treeToPolys(
+    halfWidthOverride != null ? tree : alignOutline(shape, tree)
+  );
   return polys.length ? polys : null;
 }

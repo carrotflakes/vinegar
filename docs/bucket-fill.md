@@ -80,8 +80,20 @@ correctly anywhere. With a cover it is inserted as the cover's next sibling
 
 ## Options
 
-- **Gap closing** (Bucket panel, persisted in `bucketStore`): widest boundary
-  gap in world units that still counts as closed. Default 4.
+Both live in the Bucket panel, persisted in `bucketStore`.
+
+- **Gap closing**: widest boundary gap in world units that still counts as
+  closed. Default 4.
+- **Fill to stroke centers** (off by default): strokes and brushes bound the
+  fill at their *centerline* instead of their painted edge. The stroke band
+  (or brush envelope) is swapped for a hairline band along the geometric
+  centerline (`strokeOutline` half-width override / the brush centerline
+  samples), so everything else — gap closing, covers, bleed — works
+  unchanged. Adjacent fills then meet under the line and stay seamless if the
+  line is later thinned, recolored, or deleted. The bleed makes each fill
+  cross the centerline by 0.5 units (hidden as long as the stroke is at least
+  1 unit wide); dashes still leave gaps, and inside/outside-aligned strokes
+  use the geometric path, not the painted band's visual middle.
 
 ## Known limitations / follow-ups
 

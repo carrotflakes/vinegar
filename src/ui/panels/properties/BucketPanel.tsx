@@ -4,7 +4,7 @@ import "../../Panel.css";
 
 /** Tool options for the Bucket Fill tool. Shown while the tool is active. */
 export default function BucketPanel() {
-  const { gapTolerance, setBucket } = useBucket();
+  const { gapTolerance, strokeCenterline, setBucket } = useBucket();
   return (
     <div className="panel-section">
       <div className="panel-title">Bucket Fill</div>
@@ -28,6 +28,16 @@ export default function BucketPanel() {
             aria-label="Gap closing tolerance"
           />
         </div>
+      </div>
+      <div className="field">
+        <label className="checkbox-row">
+          <input
+            type="checkbox"
+            checked={strokeCenterline}
+            onChange={(e) => setBucket({ strokeCenterline: e.target.checked })}
+          />
+          Fill to stroke centers
+        </label>
       </div>
     </div>
   );

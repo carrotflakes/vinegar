@@ -19,11 +19,13 @@ export function bucketFillAt(state: EditorState, world: Vec2): void {
     notify.info("Choose a fill color first.");
     return;
   }
+  const { gapTolerance, strokeCenterline } = useBucket.getState();
   const result = computeBucketFill(
     state.doc,
     currentSymbolScope(state),
     world,
-    useBucket.getState().gapTolerance
+    gapTolerance,
+    strokeCenterline
   );
   if (result.kind === "open") {
     notify.info(

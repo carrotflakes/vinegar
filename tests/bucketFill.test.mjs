@@ -234,6 +234,53 @@ test("clicking a stroke over a background still reports inked", () => {
   assert.equal(result.kind, "inked");
 });
 
+test("centerline mode fills up to stroke centers", () => {
+  const rect = strokedRect("r", 0, 0, 100, 100);
+  rect.strokeWidth = 4; // band spans [-2, 2] around each edge
+  const d = doc([rect]);
+  const edge = computeBucketFill(d, null, { x: 50, y: 50 }, 4);
+  const center = computeBucketFill(d, null, { x: 50, y: 50 }, 4, true);
+  assert.equal(edge.kind, "filled");
+  assert.equal(center.kind, "filled");
+  // Default mode stays inside the painted band; centerline mode reaches the
+  // geometric edge (0), overshooting only by the bleed.
+  const bEdge = polyBounds(edge.polys);
+  const bCenter = polyBounds(center.polys);
+  assert.ok(bEdge.minX > 1 && bEdge.minX < 2.1, `edge minX ${bEdge.minX}`);
+  assert.ok(
+    bCenter.minX > -0.6 && bCenter.minX < 0.2,
+    `center minX ${bCenter.minX}`
+  );
+});
+
+test("centerline mode applies to brush strokes", () => {
+  const brushStroke = (id, pts) =>
+    shape({
+      id,
+      type: "brush",
+      anchors: pts.map((p) => ({ p, hIn: null, hOut: null, w: 1 })),
+      stroke: { type: "solid", color: "#000000", alpha: 1 },
+      strokeWidth: 8, // envelope spans [-4, 4] around the centerline
+    });
+  const d = doc([
+    brushStroke("top", [{ x: 0, y: 0 }, { x: 100, y: 0 }]),
+    brushStroke("right", [{ x: 100, y: 0 }, { x: 100, y: 100 }]),
+    brushStroke("bottom", [{ x: 100, y: 100 }, { x: 0, y: 100 }]),
+    brushStroke("left", [{ x: 0, y: 100 }, { x: 0, y: 0 }]),
+  ]);
+  const edge = computeBucketFill(d, null, { x: 50, y: 50 }, 4);
+  const center = computeBucketFill(d, null, { x: 50, y: 50 }, 4, true);
+  assert.equal(edge.kind, "filled");
+  assert.equal(center.kind, "filled");
+  const bEdge = polyBounds(edge.polys);
+  const bCenter = polyBounds(center.polys);
+  assert.ok(bEdge.minX > 3 && bEdge.minX < 4.1, `edge minX ${bEdge.minX}`);
+  assert.ok(
+    bCenter.minX > -0.6 && bCenter.minX < 0.2,
+    `center minX ${bCenter.minX}`
+  );
+});
+
 test("hidden nodes do not bound the fill", () => {
   const d = doc([{ ...strokedRect("r", 0, 0, 100, 100), hidden: true }]);
   const result = computeBucketFill(d, null, { x: 50, y: 50 }, 4);

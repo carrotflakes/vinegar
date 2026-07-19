@@ -109,8 +109,10 @@ Ordered by agreed priority. These are the biggest gaps toward a "real" vector ed
    union *hole* containing it, and the hole is re-expanded so the fill tucks
    0.5 units under the ink. The result is a plain `polygon` node inserted at
    the *back* of the active drawing container (`addFillShape`), so line art
-   keeps painting over it. Gap-closing tolerance lives in a persisted
-   `bucketStore` + Bucket panel. No new file version.
+   keeps painting over it. Options (persisted `bucketStore` + Bucket panel):
+   gap-closing tolerance and "Fill to stroke centers" (bound the fill at
+   stroke/brush centerlines so adjacent fills meet under the line). No new
+   file version.
    Clicking a fill-painted shape (or image) treats it as a **cover**: its
    outline bounds the region instead of blocking it (`cover − inflated ink`,
    clipped back to the cover), and the fill is inserted directly above it —

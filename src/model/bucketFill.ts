@@ -16,7 +16,7 @@
 
 import ClipperLib, { type IntPoint, type PolyNode, type PolyTree } from "clipper-lib";
 import { flattenSubpath } from "./bezier";
-import { cachedBrushEnvelope } from "./brushOutline";
+import { brushCenterlineSamples, cachedBrushEnvelope } from "./brushOutline";
 import { shapeBounds } from "./bounds";
 import { clippingContentIds, clippingMask } from "./clippingMask";
 import { contours, intPath, SCALE, treeToPolys } from "./clipperPaths";
@@ -44,6 +44,13 @@ export type BucketFillResult =
  * shared edge without visibly thickening thin strokes.
  */
 const BLEED = 0.5;
+
+/**
+ * Half-width of the hairline band standing in for a stroke in centerline
+ * mode. It only has to give Clipper an area to inflate; the fill's final edge
+ * lands `BLEED` past the centerline regardless (hidden under the stroke).
+ */
+const CENTERLINE_HALF = 0.05;
 
 /** Closed silhouette rings of a shape's geometry, in its local space. */
 function fillGeometry(
@@ -178,9 +185,34 @@ function addShapeObstacles(
   parentWorld: Matrix,
   pt: IntPoint,
   entries: InkEntry[],
-  allowCovers: boolean
+  allowCovers: boolean,
+  strokeCenterline: boolean
 ): void {
   const world = multiply(parentWorld, shape.transform);
+  // Centerline mode: a brush blocks along its centerline, not its envelope.
+  // Lone dots (fewer than 2 samples) keep their envelope below.
+  if (
+    strokeCenterline &&
+    shape.type === "brush" &&
+    shape.stroke !== null &&
+    shape.strokeWidth > 0
+  ) {
+    const samples = brushCenterlineSamples(shape);
+    if (samples.length >= 2) {
+      const pts = samples.map((s) => applyMatrix(world, s.p));
+      const co = new ClipperLib.ClipperOffset(2, 0.25 * SCALE);
+      co.AddPath(
+        intPath(pts),
+        ClipperLib.JoinType.jtRound,
+        ClipperLib.EndType.etOpenRound
+      );
+      const tree = new ClipperLib.PolyTree();
+      co.Execute(tree, CENTERLINE_HALF * SCALE);
+      const band = contours(tree);
+      if (band.length) entries.push({ contours: band });
+      return;
+    }
+  }
   // Area painted by a fill (or image pixels) can act as a cover; brush
   // envelopes and text boxes are stroke-like and always block.
   const coverable =
@@ -212,8 +244,12 @@ function addShapeObstacles(
   // Stroke silhouettes come back with the shape transform baked in (parent
   // space). They are hard ink even on a cover shape: a stroked background's
   // outline still bounds the fill (the stroke paints above its own fill, so
-  // its entry follows the cover entry in paint order).
-  const stroke = strokeOutline(shape);
+  // its entry follows the cover entry in paint order). Centerline mode swaps
+  // the painted band for a hairline along the geometric centerline.
+  const stroke = strokeOutline(
+    shape,
+    strokeCenterline ? CENTERLINE_HALF : undefined
+  );
   if (stroke) {
     const normalized: IntPoint[][] = [];
     pushNormalized(
@@ -237,7 +273,8 @@ function collectObstacles(
   parentWorld: Matrix,
   pt: IntPoint,
   entries: InkEntry[],
-  allowCovers: boolean
+  allowCovers: boolean,
+  strokeCenterline: boolean
 ): void {
   for (const id of ids) {
     const node = doc.nodes[id];
@@ -248,7 +285,15 @@ function collectObstacles(
       if (mask) {
         // A clip group's ink is its content restricted to the mask silhouette.
         const inner: InkEntry[] = [];
-        collectObstacles(doc, clippingContentIds(doc, node), world, pt, inner, false);
+        collectObstacles(
+          doc,
+          clippingContentIds(doc, node),
+          world,
+          pt,
+          inner,
+          false,
+          strokeCenterline
+        );
         const content = inner.flatMap((e) => e.contours);
         const geom = fillGeometry(mask);
         if (!content.length || !geom) continue;
@@ -269,7 +314,15 @@ function collectObstacles(
         const clipped = contours(tree);
         if (clipped.length) entries.push({ contours: clipped });
       } else {
-        collectObstacles(doc, node.childIds, world, pt, entries, allowCovers);
+        collectObstacles(
+          doc,
+          node.childIds,
+          world,
+          pt,
+          entries,
+          allowCovers,
+          strokeCenterline
+        );
       }
     } else if (isInstance(node)) {
       const def = doc.symbols[node.symbolId];
@@ -281,11 +334,12 @@ function collectObstacles(
           multiply(world, root.transform),
           pt,
           entries,
-          false
+          false,
+          strokeCenterline
         );
       }
     } else if (isShape(node)) {
-      addShapeObstacles(node, parentWorld, pt, entries, allowCovers);
+      addShapeObstacles(node, parentWorld, pt, entries, allowCovers, strokeCenterline);
     }
   }
 }
@@ -378,20 +432,32 @@ function inflateInk(obstacles: IntPoint[][], delta: number): PolyTree {
 /**
  * Compute the fill region around `point` (scope-view space) bounded by the
  * visible ink of the given editing scope. `gapTolerance` (world units) is the
- * widest boundary gap that still counts as closed.
+ * widest boundary gap that still counts as closed. With `strokeCenterline`,
+ * strokes and brushes bound the fill at their centerline instead of their
+ * painted edge, so adjacent fills meet under the line with no gap when the
+ * line is later thinned, recolored, or removed.
  */
 export function computeBucketFill(
   doc: Document,
   scope: string | null,
   point: Vec2,
-  gapTolerance: number
+  gapTolerance: number,
+  strokeCenterline = false
 ): BucketFillResult {
   const pt = {
     X: Math.round(point.x * SCALE),
     Y: Math.round(point.y * SCALE),
   };
   const entries: InkEntry[] = [];
-  collectObstacles(doc, scopeRootIds(doc, scope), IDENTITY, pt, entries, true);
+  collectObstacles(
+    doc,
+    scopeRootIds(doc, scope),
+    IDENTITY,
+    pt,
+    entries,
+    true,
+    strokeCenterline
+  );
   let coverIdx = -1;
   for (let i = 0; i < entries.length; i++) {
     if (entries[i].coverId) coverIdx = i;
