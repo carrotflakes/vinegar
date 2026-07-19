@@ -136,16 +136,35 @@ additional effects, or other feature expansion.
 
 ## Backlog / ideas
 - [x] Pattern/texture paint (raster fill) — shipped (`PatternPaint` in the fill/
-  stroke `Paint` union, file v13). A pattern tiles a `doc.assets` image in the
-  shape's **local** space via `ctx.createPattern(img, "repeat")` +
-  `pattern.setTransform` (scale / rotation / offset); a decoding/missing asset
-  paints nothing that frame (the cache repaints on load). Both fill and stroke.
+  stroke `Paint` union, file v13). A pattern maps a `doc.assets` image into the
+  shape's **local** space via `ctx.createPattern` + `pattern.setTransform`; a
+  `mode` (tile/fill/fit/stretch) picks tiling vs single-image cover/contain/
+  stretch. A decoding/missing asset paints nothing that frame (the cache
+  repaints on load). Both fill and stroke.
   Asset lifetime uses `referencedAssetIds` (image nodes + pattern paints) so
   save-time orphan pruning and export pre-decode both retain texture assets.
-  - [ ] Deferred: **SVG export** (currently a neutral `#8a9099` placeholder) —
-    needs `<pattern>` + embedded `<image>` sized from the decoded asset;
-    fit-to-bounds (stretch) mode; per-axis repeat / no-repeat; interactive
-    on-canvas placement; Script API for pattern paints.
+  - [x] **SVG export** — `<pattern>` + embedded `<image>`; tile uses a shared
+    natural-size image with `patternTransform`, the fit modes emit a
+    bounds-sized pattern that clips overflow.
+  - [x] **Fill modes** (`PatternPaint.mode`, optional so no file-version bump):
+    `fill` (cover, crop), `fit` (contain), `stretch` (non-uniform), plus the
+    original `tile`. Shared `patternPlacement()` keeps canvas + SVG in sync;
+    non-tile modes render one `no-repeat` image mapped to the shape bounds.
+    ColorField gained a mode selector, per-mode Scale/Zoom + tile-only Rotate,
+    and ScrubbableNumber X/Y offset (tile origin / fill pan).
+  - [ ] Remaining follow-ups:
+    - [ ] Rotation for `fill`/`fit` (currently tile-only; cover recompute under
+      rotation is skipped)
+    - [ ] `scale` means "×natural" for tile but "×cover/contain baseline" for
+      fill/fit — switching modes keeps the number, changing the visual basis.
+      Consider resetting scale to 1 on mode change.
+    - [ ] Verify canvas ↔ SVG-export parity for the fit modes in a browser
+      (pattern-tile clipping is implementation-sensitive)
+    - [ ] **SVG import** of `<pattern>` (export is one-way today)
+    - [ ] Interactive on-canvas placement (drag to pan the crop / tile origin)
+    - [ ] Script API for pattern paints
+    - [ ] New patterns default to `tile`; consider defaulting to `fill` to match
+      Figma-style image fills
 - [ ] Swatches saved in the document (currently localStorage, color-only)
 - [ ] System clipboard integration (paste across tabs/apps)
 - [ ] Distribution: match an existing gap (not just centering)
