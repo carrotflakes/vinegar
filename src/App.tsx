@@ -26,6 +26,7 @@ import FileMenu from "./ui/FileMenu";
 import FullscreenButton from "./ui/FullscreenButton";
 import RightSidebar from "./ui/RightSidebar";
 import SnapMenu from "./ui/SnapMenu";
+import Toasts from "./ui/Toasts";
 import Toolbar from "./ui/Toolbar";
 import ZoomMenu from "./ui/ZoomMenu";
 import ExportDialog from "./ui/dialogs/ExportDialog";
@@ -381,6 +382,7 @@ export default function App() {
       <PreferencesDialog open={showPreferences} onClose={closePreferences} />
       <ExportDialog open={showExport} onClose={closeExport} />
       <ContextMenuHost />
+      <Toasts />
 
       <footer className="statusbar">
         <PointerReadout />

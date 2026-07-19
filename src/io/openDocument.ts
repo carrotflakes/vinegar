@@ -2,6 +2,7 @@
 // the current drawing. Shared by the File ▸ Open command and canvas file drops.
 
 import { hasUnsavedChanges, useEditor } from "../store/editorStore";
+import { notify } from "../store/toastStore";
 import { parseDocument } from "./serialize";
 
 /** A saved-document file (our own JSON format), as opposed to an image drop. */
@@ -24,7 +25,7 @@ export function loadDocumentText(text: string): void {
   try {
     useEditor.getState().loadDocument(parseDocument(text));
   } catch (err) {
-    window.alert(
+    notify.error(
       "Could not open file:\n" + (err instanceof Error ? err.message : String(err))
     );
   }
@@ -40,7 +41,7 @@ export async function openDocumentFile(file: File): Promise<void> {
   try {
     text = await file.text();
   } catch {
-    window.alert("Could not read file: " + file.name);
+    notify.error("Could not read file: " + file.name);
     return;
   }
   loadDocumentText(text);

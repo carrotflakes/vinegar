@@ -55,6 +55,7 @@ import { serializeDocument } from "../io/serialize";
 import { currentSymbolScope, hasUnsavedChanges, useEditor } from "../store/editorStore";
 import { useUi } from "../store/uiStore";
 import type { EditorState } from "../store/state";
+import { notify } from "../store/toastStore";
 import { toggleFullscreen } from "../fullscreen";
 
 // --- Platform-aware modifier labels --------------------------------------
@@ -525,7 +526,7 @@ export const COMMANDS: Command[] = [
         const name = file.name.replace(/\.[^.]+$/, "") || "Imported SVG";
         placeSvgFitted(importSvg(file.text, name), ctx?.at);
       } catch (err) {
-        window.alert(
+        notify.error(
           "Could not import SVG:\n" +
             (err instanceof Error ? err.message : String(err))
         );
@@ -567,7 +568,7 @@ export const COMMANDS: Command[] = [
         const blob = await exportPng(s.doc, { scale: 2 });
         downloadBlob(blob, "drawing.png");
       } catch (err) {
-        window.alert(err instanceof Error ? err.message : String(err));
+        notify.error(err instanceof Error ? err.message : String(err));
       }
     },
   },
@@ -580,7 +581,7 @@ export const COMMANDS: Command[] = [
         const svg = exportSvg(s.doc);
         downloadText(svg, "drawing.svg", "image/svg+xml");
       } catch (err) {
-        window.alert(err instanceof Error ? err.message : String(err));
+        notify.error(err instanceof Error ? err.message : String(err));
       }
     },
   },
@@ -600,7 +601,7 @@ export const COMMANDS: Command[] = [
         });
         downloadBlob(blob, `${fileSlug(ab.name)}.png`);
       } catch (err) {
-        window.alert(err instanceof Error ? err.message : String(err));
+        notify.error(err instanceof Error ? err.message : String(err));
       }
     },
   },
@@ -616,7 +617,7 @@ export const COMMANDS: Command[] = [
         const svg = exportSvg(s.doc, { bounds: artboardBounds(ab), background: ab.background });
         downloadText(svg, `${fileSlug(ab.name)}.svg`, "image/svg+xml");
       } catch (err) {
-        window.alert(err instanceof Error ? err.message : String(err));
+        notify.error(err instanceof Error ? err.message : String(err));
       }
     },
   },
@@ -637,7 +638,7 @@ export const COMMANDS: Command[] = [
           downloadBlob(blob, `${slugs[index]}.png`);
         }
       } catch (err) {
-        window.alert(err instanceof Error ? err.message : String(err));
+        notify.error(err instanceof Error ? err.message : String(err));
       }
     },
   },

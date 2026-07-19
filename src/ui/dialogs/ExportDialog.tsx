@@ -25,6 +25,7 @@ import {
 } from "../../io/exportImage";
 import { exportPng } from "../../io/exportPng";
 import { useEditor } from "../../store/editorStore";
+import { notify } from "../../store/toastStore";
 import "../Modal.css";
 import "./DialogForm.css";
 import ScrubbableNumber from "../ScrubbableNumber";
@@ -162,7 +163,7 @@ export default function ExportDialog({ open, onClose }: Props) {
       downloadBlob(blob, exportFilename(settings, stem));
       onClose();
     } catch (err) {
-      window.alert(err instanceof Error ? err.message : String(err));
+      notify.error(err instanceof Error ? err.message : String(err));
     }
   };
 

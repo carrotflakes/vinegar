@@ -14,6 +14,7 @@ import { clampRectCornerRadius } from "../model/roundedRect";
 import { resizeShapeToBounds, translateShape } from "../model/transforms";
 import { makeId, type BezierShape, type Bounds, type ImageShape, type SceneNode, type Shape, type Vec2 } from "../model/types";
 import { importImageFile, importImageFiles, isImageFile } from "../io/importImage";
+import { notify } from "./toastStore";
 import { measureTextShape } from "../canvas/textLayout";
 import { loadAssetImage } from "../imageCache";
 import { appendToScope, groupNode, removeRoots } from "./docOps";
@@ -23,6 +24,10 @@ import {
   type ShapeActions,
   type StoreCtx,
 } from "./state";
+
+/** Shown when picked/dropped image files can't be read or decoded. */
+const IMAGE_LOAD_ERROR =
+  "Could not load the image. It may be corrupt or an unsupported format.";
 
 /** Axis-aligned bounds of a point list (eraser path). */
 function pathBounds(pts: Vec2[]): Bounds {
@@ -243,7 +248,10 @@ export function createShapeActions({ set, get, transact, replaceDocumentWithoutH
     },
     placeImageFiles: async (files, at, fitWithin) => {
       const images = await importImageFiles(files);
-      if (!images.length) return;
+      if (!images.length) {
+        if (files.some(isImageFile)) notify.error(IMAGE_LOAD_ERROR);
+        return;
+      }
       const s = get();
       const nodes = { ...s.doc.nodes };
       const assets = { ...s.doc.assets };
@@ -325,14 +333,20 @@ export function createShapeActions({ set, get, transact, replaceDocumentWithoutH
     addPatternImage: async (file) => {
       if (!isImageFile(file)) return null;
       const img = await importImageFile(file);
-      if (!img) return null;
+      if (!img) {
+        notify.error(IMAGE_LOAD_ERROR);
+        return null;
+      }
       const s = get();
       transact({ ...s.doc, assets: { ...s.doc.assets, [img.asset.id]: img.asset } });
       return img.asset.id;
     },
     importImageAssets: async (files) => {
       const images = await importImageFiles(files);
-      if (!images.length) return [];
+      if (!images.length) {
+        if (files.some(isImageFile)) notify.error(IMAGE_LOAD_ERROR);
+        return [];
+      }
       const s = get();
       const assets = { ...s.doc.assets };
       const ids: string[] = [];
