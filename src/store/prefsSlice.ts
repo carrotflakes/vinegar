@@ -27,8 +27,10 @@ function saveColorList(key: string, list: string[]): void {
 }
 
 function loadBool(key: string, fallback: boolean): boolean {
-  const raw = localStorage.getItem(key);
-  return raw === null ? fallback : raw === "true";
+  try {
+    const raw = localStorage.getItem(key);
+    return raw === null ? fallback : raw === "true";
+  } catch { return fallback; }
 }
 function saveBool(key: string, value: boolean): void {
   try { localStorage.setItem(key, String(value)); } catch { /* storage is optional */ }
