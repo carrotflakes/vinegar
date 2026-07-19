@@ -43,13 +43,40 @@ globalStyle(".gen-name-field input", {
   fontSize: "13px",
 });
 
+globalStyle(".gen-preview-split", {
+  display: "flex",
+  height: "170px",
+  flex: "none",
+  borderBottom: `1px solid ${vars.border}`,
+});
+
+globalStyle(".gen-params", {
+  display: "flex",
+  flexDirection: "column",
+  gap: "8px",
+  width: "190px",
+  flex: "none",
+  padding: "12px 14px",
+  overflowY: "auto",
+  borderRight: `1px solid ${vars.border}`,
+});
+
+globalStyle(".gen-params .num", {
+  width: "72px",
+});
+
+globalStyle(".gen-params-empty", {
+  margin: "auto",
+  color: vars.muted,
+  fontSize: "12px",
+});
+
 globalStyle(".gen-preview", {
   display: "block",
-  width: "100%",
-  height: "150px",
-  flex: "none",
+  flex: "1",
+  minWidth: "0",
+  height: "100%",
   background: vars.codeBg,
-  borderBottom: `1px solid ${vars.border}`,
 });
 
 globalStyle(".gen-empty", {
