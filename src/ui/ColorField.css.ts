@@ -77,19 +77,42 @@ globalStyle(".gradient-bar", {
   borderRadius: "6px",
 });
 
-globalStyle(".pattern-preview", {
-  height: "84px",
-  border: `1px solid ${vars.border}`,
+/* A selectable grid of the document's images (plus an import tile). */
+globalStyle(".pattern-assets", {
+  display: "grid",
+  gridTemplateColumns: "repeat(auto-fill, minmax(44px, 1fr))",
+  gap: "6px",
+});
+
+globalStyle(".pattern-asset", {
+  aspectRatio: "1",
+  padding: "0",
   borderRadius: "6px",
-  backgroundRepeat: "repeat",
+  border: `1px solid ${vars.border}`,
   backgroundColor: vars.panel,
+  backgroundSize: "cover",
+  backgroundPosition: "center",
+  cursor: "pointer",
+});
+
+globalStyle(".pattern-asset:hover", {
+  borderColor: vars.muted,
+});
+
+globalStyle(".pattern-asset.selected", {
+  borderColor: vars.accent,
+  boxShadow: `0 0 0 1px ${vars.accent}`,
+});
+
+globalStyle(".pattern-asset-import", {
   display: "flex",
   alignItems: "center",
   justifyContent: "center",
+  color: vars.muted,
 });
 
-globalStyle(".pattern-replace", {
-  alignSelf: "stretch",
+globalStyle(".pattern-asset-import:hover", {
+  color: vars.text,
 });
 
 globalStyle(".gradient-stop", {

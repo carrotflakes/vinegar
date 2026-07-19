@@ -7,7 +7,7 @@ import {
 } from "@floating-ui/react-dom";
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { LuPipette } from "react-icons/lu";
+import { LuPipette, LuPlus } from "react-icons/lu";
 import {
   isGradient,
   linearGradient,
@@ -98,16 +98,18 @@ export default function ColorField({ label, value, onChange }: Props) {
   if (patternPaint) lastPattern.current = patternPaint;
   const patternAsset = patternPaint ? assets[patternPaint.assetId] : null;
   const patternUrl = patternAsset?.source.data ?? null;
+  // Existing document images are the primary source; import adds a new one.
+  const imageAssets = Object.values(assets);
   const updatePattern = (patch: Partial<PatternPaint>) =>
     patternPaint && onChange({ ...patternPaint, ...patch });
-  const choosePattern = async () => {
+  // Point the pattern at an existing asset, keeping its other settings.
+  const chooseAsset = (assetId: string) =>
+    onChange(pattern(assetId, patternPaint ?? lastPattern.current ?? undefined));
+  const importPattern = async () => {
     const [file] = await pickImageFiles();
     if (!file) return;
     const id = await addPatternImage(file);
-    if (!id) return;
-    onChange(
-      pattern(id, patternPaint ?? lastPattern.current ?? undefined)
-    );
+    if (id) chooseAsset(id);
   };
 
   const setKind = (next: "none" | "solid" | "linear" | "radial" | "pattern") => {
@@ -115,9 +117,12 @@ export default function ColorField({ label, value, onChange }: Props) {
     if (next === "solid") return onChange(solid(color, alpha));
     if (next === "linear") return onChange(linearGradient(stops, angle));
     if (next === "radial") return onChange(radialGradient(stops));
-    // Pattern: reuse a remembered image, else pick one now.
+    // Pattern: reuse a remembered image, else the first existing asset, else
+    // import one now.
     const memo = patternPaint ?? lastPattern.current;
-    return memo ? onChange(memo) : void choosePattern();
+    if (memo) return onChange(memo);
+    if (imageAssets[0]) return chooseAsset(imageAssets[0].id);
+    return void importPattern();
   };
 
   // The popover portals to <body> so the sidebar's overflow can't clip it;
@@ -420,17 +425,31 @@ export default function ColorField({ label, value, onChange }: Props) {
 
           {patternPaint && (
             <>
-              <div
-                className="pattern-preview"
-                style={
-                  patternUrl ? { backgroundImage: `url(${patternUrl})` } : undefined
-                }
-              >
-                {!patternUrl && <span className="swatch-hint">No image</span>}
+              <div className="color-pop-label">Image</div>
+              <div className="pattern-assets">
+                {imageAssets.map((a) => (
+                  <button
+                    key={a.id}
+                    className={
+                      "pattern-asset" +
+                      (a.id === patternPaint.assetId ? " selected" : "")
+                    }
+                    style={{ backgroundImage: `url(${a.source.data})` }}
+                    title={a.name || "Untitled"}
+                    onClick={() => chooseAsset(a.id)}
+                  />
+                ))}
+                <button
+                  className="pattern-asset pattern-asset-import"
+                  title="Import an image…"
+                  onClick={importPattern}
+                >
+                  <LuPlus aria-hidden />
+                </button>
               </div>
-              <button className="ghost-btn pattern-replace" onClick={choosePattern}>
-                Replace image…
-              </button>
+              {!patternUrl && (
+                <span className="swatch-hint">Selected image is missing</span>
+              )}
 
               <div className="color-pop-alpha">
                 <span className="alpha-label">Scale</span>
