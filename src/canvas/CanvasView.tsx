@@ -64,6 +64,7 @@ import {
   onBrushMove,
   startBrush,
 } from "./tools/brushTool";
+import { bucketFillAt } from "./tools/bucketTool";
 import {
   cancelEraser,
   finishEraser,
@@ -609,6 +610,11 @@ export default function CanvasView() {
       startEraser(ctx, world, e.pointerId);
       return;
     }
+    if (tool === "bucket") {
+      // A plain click commits (or toasts) immediately; no drag interaction.
+      bucketFillAt(state, world);
+      return;
+    }
     if (tool === "artboard") {
       onArtboardDown(ctx, state, screen, world);
       return;
@@ -934,7 +940,11 @@ export default function CanvasView() {
       canvas.style.cursor = "text";
       return;
     }
-    if (state.tool === "brush" || state.tool === "eraser") {
+    if (
+      state.tool === "brush" ||
+      state.tool === "eraser" ||
+      state.tool === "bucket"
+    ) {
       canvas.style.cursor = "crosshair";
       return;
     }

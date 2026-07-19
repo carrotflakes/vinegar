@@ -102,6 +102,19 @@ Ordered by agreed priority. These are the biggest gaps toward a "real" vector ed
    outside alignment for closed vector shapes and live text. Open paths remain
    center-aligned; Canvas/PNG, SVG export, bounds/hit-testing and Outline Stroke
    share the same appearance fields.
+7. [x] **Bucket fill** — shipped (`G`; see docs/bucket-fill.md). Click an
+   enclosed empty region to fill it with the current fill color. Vector
+   region detection (`model/bucketFill.ts`): all visible ink is unioned with
+   Clipper after inflating by half the gap tolerance, the click picks the
+   union *hole* containing it, and the hole is re-expanded so the fill tucks
+   0.5 units under the ink. The result is a plain `polygon` node inserted at
+   the *back* of the active drawing container (`addFillShape`), so line art
+   keeps painting over it. Gap-closing tolerance lives in a persisted
+   `bucketStore` + Bucket panel. No new file version.
+   - [ ] Follow-ups: hover preview of the region (needs an obstacle-union
+     cache keyed on the document revision), curve re-fitting of the polygon
+     boundary, artboard edges as region bounds, recolor-on-click of existing
+     ink, glyph outlines instead of text line boxes as ink.
 
 ## Next (candidates)
 The 1.0 productization order is: interoperability (SVG import + system

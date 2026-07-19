@@ -8,8 +8,8 @@ import { deleteBrushAnchor, toggleBrushAnchorSmooth } from "../model/brushEdit";
 import { expandBounds, intersectBounds, shapeBounds, unionNodeWorldBounds, worldShapeBounds } from "../model/bounds";
 import { hasValidClippingMasks } from "../model/clippingMask";
 import { eraseBrush } from "../model/eraser";
-import { applyWorldTransformToNode, boundsTransform, multiply, shapeWorldMatrix, translation } from "../model/matrix";
-import { childIdsOf, descendantShapeIds, isGroup, isNodeHidden, isNodeLocked, isShape, parentIdOf, referencedAssetIds, scopeLeafIds, selectionRoots, withChildIds } from "../model/scene";
+import { applyWorldTransformToNode, boundsTransform, IDENTITY, invertMatrix, multiply, nodeWorldMatrix, shapeWorldMatrix, translation } from "../model/matrix";
+import { childIdsOf, descendantShapeIds, isGroup, isNodeHidden, isNodeLocked, isShape, parentIdOf, referencedAssetIds, scopeLeafIds, scopeRootGroupId, selectionRoots, withChildIds } from "../model/scene";
 import { clampRectCornerRadius } from "../model/roundedRect";
 import { resizeShapeToBounds, translateShape } from "../model/transforms";
 import { makeId, type BezierShape, type Bounds, type ImageShape, type SceneNode, type Shape, type Vec2 } from "../model/types";
@@ -145,6 +145,20 @@ export function createShapeActions({ set, get, transact, replaceDocumentWithoutH
       const withGroup = { ...doc, nodes: { ...doc.nodes, [groupId]: group } };
       transact(appendToScope(withGroup, currentSymbolScope(s), [groupId]));
       set({ selection: [shape.id], activeGroupId: groupId, ...clearTransient });
+    },
+    addFillShape: (shape) => {
+      const s = get();
+      const active =
+        s.activeGroupId && isGroup(s.doc.nodes[s.activeGroupId]) ? s.activeGroupId : null;
+      const containerId = active ?? scopeRootGroupId(s.doc, currentSymbolScope(s));
+      // The fill's geometry is in scope-view space; parenting it under the
+      // container needs the inverse of the container's world matrix baked into
+      // its transform so it lands exactly where it was computed.
+      const world = containerId ? nodeWorldMatrix(s.doc, containerId) : IDENTITY;
+      const placed = { ...shape, transform: invertMatrix(world) ?? [...IDENTITY] };
+      const doc = { ...s.doc, nodes: { ...s.doc.nodes, [placed.id]: placed } };
+      transact(withChildIds(doc, containerId, [placed.id, ...childIdsOf(doc, containerId)]));
+      set({ selection: [placed.id], ...clearTransient });
     },
     eraseBrushStrokes: (pathWorld, radiusWorld) => {
       if (pathWorld.length === 0 || radiusWorld <= 0) return;

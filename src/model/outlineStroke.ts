@@ -1,6 +1,7 @@
-import ClipperLib, { type IntPoint, type PolyNode } from "clipper-lib";
+import ClipperLib, { type PolyNode } from "clipper-lib";
 import { flattenSubpath } from "./bezier";
 import { shapeBounds } from "./bounds";
+import { contours, intPath, SCALE, treeToPolys } from "./clipperPaths";
 import { applyMatrix } from "./matrix";
 import { roundedRectPolyline } from "./roundedRect";
 import {
@@ -11,9 +12,6 @@ import {
   strokeJoin,
 } from "./stroke";
 import type { Shape, Vec2 } from "./types";
-
-// Clipper works in integers; scale world units up for sub-pixel precision.
-const SCALE = 1000;
 
 interface Polyline {
   points: Vec2[];
@@ -83,10 +81,6 @@ function centerlines(shape: Shape): Polyline[] {
       // outlining a brush into a polygon is deferred (see docs/brush-strokes.md).
       return [];
   }
-}
-
-function ringFrom(path: IntPoint[]): Vec2[] {
-  return path.map((pt) => ({ x: pt.X / SCALE, y: pt.Y / SCALE }));
 }
 
 function samePoint(a: Vec2, b: Vec2): boolean {
@@ -186,25 +180,6 @@ function endType(shape: Shape, closed: boolean): number {
   }
 }
 
-function intPath(points: Vec2[]): IntPoint[] {
-  return points.map((p) => ({
-    X: Math.round(p.x * SCALE),
-    Y: Math.round(p.y * SCALE),
-  }));
-}
-
-function contours(node: PolyNode): IntPoint[][] {
-  const paths: IntPoint[][] = [];
-  const walk = (parent: PolyNode) => {
-    for (const child of parent.Childs()) {
-      if (child.Contour().length >= 3) paths.push(child.Contour());
-      walk(child);
-    }
-  };
-  walk(node);
-  return paths;
-}
-
 function alignOutline(shape: Shape, strokeTree: PolyNode): PolyNode {
   const alignment = effectiveStrokeAlignment(shape);
   if (alignment === "center") return strokeTree;
@@ -225,24 +200,6 @@ function alignOutline(shape: Shape, strokeTree: PolyNode): PolyNode {
     ClipperLib.PolyFillType.pftEvenOdd
   );
   return result;
-}
-
-function treeToPolys(tree: PolyNode): Vec2[][][] {
-  const polys: Vec2[][][] = [];
-  const walk = (node: PolyNode) => {
-    for (const child of node.Childs()) {
-      const contour = child.Contour();
-      if (!contour.length) continue;
-      const poly: Vec2[][] = [ringFrom(contour)];
-      for (const hole of child.Childs()) {
-        if (hole.Contour().length) poly.push(ringFrom(hole.Contour()));
-      }
-      polys.push(poly);
-      for (const hole of child.Childs()) walk(hole);
-    }
-  };
-  walk(tree);
-  return polys;
 }
 
 /**

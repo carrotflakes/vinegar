@@ -1,5 +1,6 @@
 // Minimal typings for clipper-lib (no official types). Covers the polygon
-// offsetting API used for stroke-to-path.
+// offsetting API used for stroke-to-path and the boolean/point queries used
+// by the bucket fill.
 declare module "clipper-lib" {
   export interface IntPoint {
     X: number;
@@ -28,6 +29,10 @@ declare module "clipper-lib" {
       subjectFillType?: number,
       clipFillType?: number
     ): boolean;
+    /** 0 = outside, -1 = on the boundary, 1 = inside. */
+    static PointInPolygon(pt: IntPoint, path: IntPoint[]): number;
+    /** True for positively oriented (outer) rings. */
+    static Orientation(path: IntPoint[]): boolean;
   }
 
   interface ClipperLibStatic {

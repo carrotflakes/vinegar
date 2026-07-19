@@ -10,6 +10,7 @@ import {
 import type { SelectionLeaf } from "../../../canvas/frame";
 import { useEditor } from "../../../store/editorStore";
 import BrushPanel, { EraserPanel } from "./BrushPanel";
+import BucketPanel from "./BucketPanel";
 import ArtboardPanel from "./ArtboardPanel";
 import AppearanceSection from "./AppearanceSection";
 import EffectsSection from "./EffectsSection";
@@ -68,6 +69,7 @@ export default function PropertiesPanel() {
     <div className="panel">
       {tool === "brush" && <BrushPanel />}
       {tool === "eraser" && <EraserPanel />}
+      {tool === "bucket" && <BucketPanel />}
 
       {selectedInstance && (
         <SymbolInstanceSection

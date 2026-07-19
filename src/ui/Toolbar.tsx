@@ -9,6 +9,7 @@ import {
   LuPencil,
   LuBrush,
   LuEraser,
+  LuPaintBucket,
   LuFrame,
   LuType,
 } from "react-icons/lu";
@@ -34,6 +35,7 @@ const TOOLS: ToolDef[] = [
   { id: "brush", label: "Brush", hint: "B", icon: LuBrush },
   { id: "eraser", label: "Eraser", hint: "E", icon: LuEraser },
   { id: "pencil", label: "Pencil", hint: "⇧B", icon: LuPencil },
+  { id: "bucket", label: "Bucket Fill", hint: "G", icon: LuPaintBucket },
   { id: "text", label: "Text", hint: "T", icon: LuType },
   { id: "artboard", label: "Artboard", hint: "A", icon: LuFrame, groupBefore: true },
 ];
