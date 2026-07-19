@@ -481,6 +481,12 @@ export const COMMANDS: Command[] = [
     run: (s) => s.toggleGridSnap(),
   },
   {
+    id: "view.toggleGridVisible",
+    label: "Toggle grid visibility",
+    group: "View",
+    run: (s) => s.toggleGridVisible(),
+  },
+  {
     id: "view.fullscreen",
     label: "Toggle fullscreen",
     group: "View",

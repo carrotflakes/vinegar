@@ -198,7 +198,7 @@ export default function CanvasView() {
       doc,
       preview: previewRef.current,
       background: scope ? themeRef.current.scopeBg : themeRef.current.bg,
-      showGrid: true,
+      showGrid: state.gridVisible,
       gridSize: state.gridSize,
       gridColors: themeRef.current.grid,
       rootIds: scopeRoot !== null ? [scopeRoot] : undefined,

@@ -12,6 +12,9 @@ import {
 const RECENT_COLORS_KEY = "vinegar.recentColors";
 const RECENT_COLORS_MAX = 12;
 const SAVED_SWATCHES_KEY = "vinegar.savedSwatches";
+const SNAP_ENABLED_KEY = "vinegar.snapEnabled";
+const GRID_SNAP_KEY = "vinegar.gridSnap";
+const GRID_VISIBLE_KEY = "vinegar.gridVisible";
 
 function loadColorList(key: string, max = Infinity): string[] {
   try {
@@ -23,10 +26,18 @@ function saveColorList(key: string, list: string[]): void {
   try { localStorage.setItem(key, JSON.stringify(list)); } catch { /* storage is optional */ }
 }
 
+function loadBool(key: string, fallback: boolean): boolean {
+  const raw = localStorage.getItem(key);
+  return raw === null ? fallback : raw === "true";
+}
+function saveBool(key: string, value: boolean): void {
+  try { localStorage.setItem(key, String(value)); } catch { /* storage is optional */ }
+}
+
 type PrefsData = Pick<
   EditorData,
   | "tool" | "viewport" | "style"
-  | "snapEnabled" | "gridSnap" | "gridSize"
+  | "snapEnabled" | "gridSnap" | "gridVisible" | "gridSize"
   | "recentColors" | "savedSwatches"
 >;
 
@@ -44,8 +55,9 @@ export function initialPrefs(): PrefsData {
       strokeJoin: "round",
       strokeAlignment: "center",
     },
-    snapEnabled: true,
-    gridSnap: false,
+    snapEnabled: loadBool(SNAP_ENABLED_KEY, true),
+    gridSnap: loadBool(GRID_SNAP_KEY, false),
+    gridVisible: loadBool(GRID_VISIBLE_KEY, true),
     gridSize: 50,
     recentColors: loadColorList(RECENT_COLORS_KEY, RECENT_COLORS_MAX),
     savedSwatches: loadColorList(SAVED_SWATCHES_KEY),
@@ -56,8 +68,9 @@ export function createPrefsActions({ set, get, replaceDocumentWithoutHistory }: 
   return {
     setTool: (tool) => set({ tool, selection: tool === "select" || tool === "node" ? get().selection : [], ...(tool === "select" || tool === "node" ? {} : clearTransient), editNode: null }),
     setViewport: (viewport) => set({ viewport }),
-    toggleSnap: () => set({ snapEnabled: !get().snapEnabled }),
-    toggleGridSnap: () => set({ gridSnap: !get().gridSnap }),
+    toggleSnap: () => { const snapEnabled = !get().snapEnabled; saveBool(SNAP_ENABLED_KEY, snapEnabled); set({ snapEnabled }); },
+    toggleGridSnap: () => { const gridSnap = !get().gridSnap; saveBool(GRID_SNAP_KEY, gridSnap); set({ gridSnap }); },
+    toggleGridVisible: () => { const gridVisible = !get().gridVisible; saveBool(GRID_VISIBLE_KEY, gridVisible); set({ gridVisible }); },
     // The document grid travels with the file but is not an undoable edit.
     setGridSize: (size) => { const gridSize = Math.max(1, Math.round(size)); const doc = get().doc; replaceDocumentWithoutHistory({ ...doc, settings: { ...doc.settings, gridSize } }, { gridSize }); },
     addRecentColor: (hex) => { const c = hex.toLowerCase(); const recentColors = [c, ...get().recentColors.filter((x) => x !== c)].slice(0, RECENT_COLORS_MAX); saveColorList(RECENT_COLORS_KEY, recentColors); set({ recentColors }); },

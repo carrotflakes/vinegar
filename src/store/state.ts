@@ -101,6 +101,7 @@ export interface EditorData {
   scriptsTrusted: boolean;
   snapEnabled: boolean;
   gridSnap: boolean;
+  gridVisible: boolean;
   gridSize: number;
   recentColors: string[];
   savedSwatches: string[];
@@ -122,6 +123,7 @@ export interface PrefsActions {
   setViewport: (vp: Viewport) => void;
   toggleSnap: () => void;
   toggleGridSnap: () => void;
+  toggleGridVisible: () => void;
   setGridSize: (size: number) => void;
   addRecentColor: (hex: string) => void;
   addSwatch: (hex: string) => void;

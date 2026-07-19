@@ -13,6 +13,8 @@ export default function SnapMenu() {
   const toggleSnap = useEditor((s) => s.toggleSnap);
   const gridSnap = useEditor((s) => s.gridSnap);
   const toggleGridSnap = useEditor((s) => s.toggleGridSnap);
+  const gridVisible = useEditor((s) => s.gridVisible);
+  const toggleGridVisible = useEditor((s) => s.toggleGridVisible);
   const gridSize = useEditor((s) => s.gridSize);
   const setGridSize = useEditor((s) => s.setGridSize);
   const [open, setOpen] = useState(false);
@@ -75,6 +77,14 @@ export default function SnapMenu() {
             Snap to grid
           </label>
           <div className="menu-divider" />
+          <label className="snap-menu-row">
+            <input
+              type="checkbox"
+              checked={gridVisible}
+              onChange={toggleGridVisible}
+            />
+            Show grid
+          </label>
           <label className="snap-menu-row snap-menu-size">
             <span>Grid size</span>
             <ScrubbableNumber
