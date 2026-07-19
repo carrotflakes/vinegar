@@ -23,6 +23,7 @@ import {
   type PatternPaint,
 } from "../model/paint";
 import { pickImageFiles } from "../io/importImage";
+import ScrubbableNumber from "./ScrubbableNumber";
 import { useEditor } from "../store/editorStore";
 import "./Panel.css";
 import "./ColorField.css";
@@ -531,32 +532,22 @@ export default function ColorField({ label, value, onChange }: Props) {
                   </span>
                   <label className="offset-input">
                     X
-                    <input
-                      type="number"
+                    <ScrubbableNumber
                       value={round1(patternPaint.offset.x)}
-                      onChange={(e) =>
-                        updatePattern({
-                          offset: {
-                            ...patternPaint.offset,
-                            x: Number(e.target.value) || 0,
-                          },
-                        })
+                      onChange={(x) =>
+                        updatePattern({ offset: { ...patternPaint.offset, x } })
                       }
+                      aria-label="Pattern offset X"
                     />
                   </label>
                   <label className="offset-input">
                     Y
-                    <input
-                      type="number"
+                    <ScrubbableNumber
                       value={round1(patternPaint.offset.y)}
-                      onChange={(e) =>
-                        updatePattern({
-                          offset: {
-                            ...patternPaint.offset,
-                            y: Number(e.target.value) || 0,
-                          },
-                        })
+                      onChange={(y) =>
+                        updatePattern({ offset: { ...patternPaint.offset, y } })
                       }
+                      aria-label="Pattern offset Y"
                     />
                   </label>
                 </div>
