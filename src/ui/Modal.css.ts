@@ -37,6 +37,13 @@ globalStyle(".modal-foot", {
   borderTop: `1px solid ${vars.border}`,
 });
 
+/* Status text absorbs the free space so the action buttons cluster on the
+ * right (space-between would otherwise spread them evenly across the row). */
+globalStyle(".modal-foot .script-status", {
+  flex: "1",
+  minWidth: "0",
+});
+
 globalStyle(".modal-close", {
   display: "inline-flex",
   alignItems: "center",

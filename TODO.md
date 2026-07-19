@@ -264,3 +264,4 @@ additional effects, or other feature expansion.
 - [x] グリッド表示オプション
 - [ ] 左右反転のUIリファイン
 - [x] エラーをユーザーに伝えるUI　（できるだけ握りつぶさない）
+- [ ] generator、コードを変更したときに、それを使っているインスタンスのパラメータを保持したまま再生成する方法

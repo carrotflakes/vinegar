@@ -18,7 +18,6 @@ import {
   BLEND_MODES,
   type BlendMode,
   type Document,
-  type Group,
   type Shape,
 } from "../../../model/types";
 import { useEditor } from "../../../store/editorStore";
@@ -61,11 +60,9 @@ function typeName(shape: Shape): string {
 export default function AppearanceSection({
   doc,
   selected,
-  selectedGroup,
 }: {
   doc: Document;
   selected: Shape[];
-  selectedGroup: Group | null;
 }) {
   const style = useEditor((state) => state.style);
   const updateSelectedStyle = useEditor(
@@ -189,28 +186,16 @@ export default function AppearanceSection({
           <ColorField label="Fill" value={fill} onChange={setFill} />
           <ColorField label="Stroke" value={stroke} onChange={setStroke} />
 
-          <div className="field">
+          <div className="field-inline">
             <label>Stroke width</label>
-            <div className="field-row">
-              <input
-                type="range"
-                min={0}
-                max={40}
-                step={0.5}
-                value={strokeWidth}
-                onChange={(event) =>
-                  setStrokeWidth(Number(event.target.value))
-                }
-              />
-              <ScrubbableNumber
-                className="num"
-                min={0}
-                step={0.5}
-                value={strokeWidth}
-                onChange={setStrokeWidth}
-                aria-label="Stroke width"
-              />
-            </div>
+            <ScrubbableNumber
+              className="num"
+              min={0}
+              step={0.5}
+              value={strokeWidth}
+              onChange={setStrokeWidth}
+              aria-label="Stroke width"
+            />
           </div>
           <StrokeDetailControls
             value={strokeDetails}
@@ -222,30 +207,27 @@ export default function AppearanceSection({
       )}
 
       {hasSelection && (
-        <div className="field">
+        <div className="field-inline">
           <label>Opacity</label>
-          <div className="field-row">
-            <input
-              type="range"
+          <div className="num-suffix">
+            <ScrubbableNumber
+              className="num"
               min={0}
-              max={1}
-              step={0.01}
-              value={opacity}
-              onChange={(event) =>
-                updateSelectedStyle({
-                  opacity: Number(event.target.value),
-                })
+              max={100}
+              step={1}
+              value={Math.round(opacity * 100)}
+              onChange={(value) =>
+                updateSelectedStyle({ opacity: value / 100 })
               }
+              aria-label="Opacity"
             />
-            <span className="num readout">
-              {Math.round(opacity * 100)}%
-            </span>
+            <span className="unit">%</span>
           </div>
         </div>
       )}
 
       {hasSelection && (
-        <div className="field">
+        <div className="field-inline">
           <label>Blend mode</label>
           <select
             className="blend-select"
@@ -266,20 +248,10 @@ export default function AppearanceSection({
         </div>
       )}
 
-      {selected.length === 1 && !selectedGroup && (
+      {selected.length === 1 && (
         <div className="field">
-          <label>Rotation</label>
-          <div className="field-row">
-            <input
-              type="range"
-              min={-180}
-              max={180}
-              step={1}
-              value={rotationDeg}
-              onChange={(event) =>
-                setRotation(Number(event.target.value))
-              }
-            />
+          <div className="field-inline">
+            <label>Rotation</label>
             <ScrubbableNumber
               className="num"
               step={1}

@@ -1,3 +1,4 @@
+import { LuChevronDown, LuChevronUp, LuX } from "react-icons/lu";
 import { defaultEffect } from "../../../model/effects";
 import type {
   DropShadowEffect,
@@ -74,7 +75,7 @@ export default function EffectsSection({ node }: { node: SceneNode }) {
               disabled={index === 0}
               onClick={() => move(index, -1)}
             >
-              ↑
+              <LuChevronUp aria-hidden />
             </button>
             <button
               className="ghost-btn icon-btn"
@@ -82,14 +83,14 @@ export default function EffectsSection({ node }: { node: SceneNode }) {
               disabled={index === effects.length - 1}
               onClick={() => move(index, 1)}
             >
-              ↓
+              <LuChevronDown aria-hidden />
             </button>
             <button
               className="ghost-btn icon-btn danger"
               title="Remove"
               onClick={() => remove(index)}
             >
-              ✕
+              <LuX aria-hidden />
             </button>
           </div>
           {effect.type === "blur" ? (
@@ -125,36 +126,32 @@ export default function EffectsSection({ node }: { node: SceneNode }) {
                   { min: 0 }
                 )}
               </div>
-              <div className="field-row">
-                <input
-                  type="color"
-                  value={(effect as DropShadowEffect).color}
-                  onChange={(event) =>
-                    replace(index, {
-                      ...effect,
-                      color: event.target.value,
-                    })
-                  }
-                />
-                <label className="geo-field">
-                  <span>Opacity</span>
+              <div className="field-inline">
+                <label>Color</label>
+                <div className="num-suffix">
                   <input
-                    type="range"
-                    min={0}
-                    max={1}
-                    step={0.01}
-                    value={effect.alpha}
+                    type="color"
+                    value={(effect as DropShadowEffect).color}
                     onChange={(event) =>
                       replace(index, {
                         ...effect,
-                        alpha: Number(event.target.value),
+                        color: event.target.value,
                       })
                     }
                   />
-                </label>
-                <span className="num readout">
-                  {Math.round(effect.alpha * 100)}%
-                </span>
+                  <ScrubbableNumber
+                    className="num"
+                    min={0}
+                    max={100}
+                    step={1}
+                    value={Math.round(effect.alpha * 100)}
+                    onChange={(value) =>
+                      replace(index, { ...effect, alpha: value / 100 })
+                    }
+                    aria-label="Shadow opacity"
+                  />
+                  <span className="unit">%</span>
+                </div>
               </div>
             </>
           )}

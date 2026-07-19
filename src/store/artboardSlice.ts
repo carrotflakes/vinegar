@@ -17,7 +17,16 @@ export function patchArtboard(
   const artboards = doc.artboards.map((ab) => {
     if (ab.id !== id) return ab;
     changed = true;
-    return { ...ab, ...patch };
+    return {
+      ...ab,
+      ...patch,
+      ...(patch.width !== undefined
+        ? { width: Math.max(1, patch.width) }
+        : {}),
+      ...(patch.height !== undefined
+        ? { height: Math.max(1, patch.height) }
+        : {}),
+    };
   });
   return changed ? { ...doc, artboards } : doc;
 }

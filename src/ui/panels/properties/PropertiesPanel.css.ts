@@ -74,13 +74,14 @@ globalStyle(".readout", {
 });
 
 globalStyle(".effect-card", {
-  border: `1px solid ${vars.border}`,
+  // Filled recessed card instead of an outlined box: reads as a group without
+  // the heavy border, and the panel-section gap handles spacing between cards.
+  background: vars.bg,
   borderRadius: "8px",
-  padding: "8px",
-  marginBottom: "8px",
+  padding: "8px 10px",
   display: "flex",
   flexDirection: "column",
-  gap: "8px",
+  gap: "6px",
 });
 
 globalStyle(".effect-head", {

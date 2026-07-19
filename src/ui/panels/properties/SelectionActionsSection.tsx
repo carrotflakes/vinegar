@@ -8,6 +8,7 @@ import {
   LuAlignStartVertical,
   LuAlignVerticalDistributeCenter,
 } from "react-icons/lu";
+import { nodeWorldBounds } from "../../../model/bounds";
 import { isAreal } from "../../../model/boolean";
 import {
   canMakeClippingMaskSelection,
@@ -21,6 +22,10 @@ import {
   canGroupSelection,
   selectionUnits,
 } from "../../../model/groups";
+import {
+  parentIdOf,
+  selectionRoots,
+} from "../../../model/scene";
 import type {
   Document,
   Group,
@@ -72,11 +77,22 @@ export default function SelectionActionsSection({
     (state) => state.releaseCompoundPathSelected
   );
 
-  const hasSelection = selected.length > 0;
+  const rootIds = selectionRoots(doc, selection);
+  const hasSelection = rootIds.length > 0;
+  const allRootsAreShapes = selected.length === rootIds.length;
+  const sameParent =
+    rootIds.length > 0 &&
+    new Set(rootIds.map((id) => parentIdOf(doc, id))).size === 1;
+  const alignableCount = rootIds.filter(
+    (id) => nodeWorldBounds(doc, id) !== null
+  ).length;
   const canGroup = canGroupSelection(doc, selection);
   const canUngroup = selectionUnits(doc, selection).groups.length > 0;
   const canBoolean =
-    !selectedGroup && selected.filter(isAreal).length >= 2;
+    allRootsAreShapes &&
+    sameParent &&
+    selected.length >= 2 &&
+    selected.every(isAreal);
   const closable = selectedGroup
     ? []
     : selected.filter(
@@ -208,11 +224,13 @@ export default function SelectionActionsSection({
               Delete
             </button>
           </div>
-          {selected.length === 1 && <Geometry shape={selected[0]} />}
+          {rootIds.length === 1 && selected.length === 1 && (
+            <Geometry shape={selected[0]} />
+          )}
         </div>
       )}
 
-      {selected.length >= 2 && (
+      {alignableCount >= 2 && (
         <div className="panel-section">
           <div className="panel-title">Align</div>
           <div className="btn-row">
@@ -264,7 +282,7 @@ export default function SelectionActionsSection({
           <div className="btn-row">
             <button
               className="ghost-btn"
-              disabled={selected.length < 3}
+              disabled={alignableCount < 3}
               title="Distribute horizontally"
               onClick={() => distributeSelected("h")}
             >
@@ -273,7 +291,7 @@ export default function SelectionActionsSection({
             </button>
             <button
               className="ghost-btn"
-              disabled={selected.length < 3}
+              disabled={alignableCount < 3}
               title="Distribute vertically"
               onClick={() => distributeSelected("v")}
             >

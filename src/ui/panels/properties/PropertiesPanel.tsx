@@ -2,16 +2,12 @@ import {
   exactlySelectedGroup,
 } from "../../../model/groups";
 import {
-  descendantShapeIds,
+  descendantNodeIds,
   isInstance,
   isShape,
   selectionRoots,
 } from "../../../model/scene";
-import type {
-  SceneNode,
-  Shape,
-  SymbolInstance,
-} from "../../../model/types";
+import type { SelectionLeaf } from "../../../canvas/frame";
 import { useEditor } from "../../../store/editorStore";
 import BrushPanel, { EraserPanel } from "./BrushPanel";
 import ArtboardPanel from "./ArtboardPanel";
@@ -48,22 +44,26 @@ export default function PropertiesPanel() {
   if (artboard) return <ArtboardPanel artboard={artboard} />;
 
   const rootIds = selectionRoots(doc, selection);
+  const selectedNode =
+    rootIds.length === 1 ? doc.nodes[rootIds[0]] : undefined;
   const selectedInstance =
-    rootIds.length === 1 && isInstance(doc.nodes[rootIds[0]])
-      ? (doc.nodes[rootIds[0]] as SymbolInstance)
+    isInstance(selectedNode)
+      ? selectedNode
       : null;
-  const selectedIds = rootIds.flatMap((id) =>
-    isShape(doc.nodes[id]) ? [id] : descendantShapeIds(doc, id)
-  );
-  const selected = selectedIds
+  const selected = rootIds
     .map((id) => doc.nodes[id])
-    .filter(isShape) as Shape[];
+    .filter(isShape);
   const selectedGroup = exactlySelectedGroup(doc, selection);
-  const effectTarget: SceneNode | null =
-    selectedInstance ??
-    selectedGroup ??
-    (selected.length === 1 ? selected[0] : null);
-
+  const selectedGroupLeaves = selectedGroup
+    ? descendantNodeIds(doc, selectedGroup.id)
+        .map((id) => doc.nodes[id])
+        .filter(
+          (node): node is SelectionLeaf =>
+            isShape(node) || isInstance(node)
+        )
+    : [];
+  const showAppearance =
+    rootIds.length === 0 || selected.length === rootIds.length;
   return (
     <div className="panel">
       {tool === "brush" && <BrushPanel />}
@@ -79,11 +79,12 @@ export default function PropertiesPanel() {
         />
       )}
 
-      <AppearanceSection
-        doc={doc}
-        selected={selected}
-        selectedGroup={selectedGroup}
-      />
+      {showAppearance && (
+        <AppearanceSection
+          doc={doc}
+          selected={selected}
+        />
+      )}
 
       {selected.length === 1 && selected[0].type === "image" && (
         <ImageSection
@@ -106,11 +107,11 @@ export default function PropertiesPanel() {
         <GroupSection
           doc={doc}
           group={selectedGroup}
-          selected={selected}
+          selected={selectedGroupLeaves}
         />
       )}
 
-      {selected.length > 1 && !selectedGroup && selectionPivot && (
+      {rootIds.length > 1 && selectionPivot && (
         <div className="panel-section">
           <div className="panel-title">Transform</div>
           <button
@@ -122,7 +123,7 @@ export default function PropertiesPanel() {
         </div>
       )}
 
-      {effectTarget && <EffectsSection node={effectTarget} />}
+      {selectedNode && <EffectsSection node={selectedNode} />}
 
       <SelectionActionsSection
         doc={doc}

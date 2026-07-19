@@ -1,4 +1,7 @@
-import { getSelectionFrame } from "../../../canvas/frame";
+import {
+  getSelectionFrame,
+  type SelectionLeaf,
+} from "../../../canvas/frame";
 import { clippingMask } from "../../../model/clippingMask";
 import {
   applyMatrix,
@@ -12,7 +15,6 @@ import {
   type BlendMode,
   type Document,
   type Group,
-  type Shape,
 } from "../../../model/types";
 import { useEditor } from "../../../store/editorStore";
 import ScrubbableNumber from "../../ScrubbableNumber";
@@ -29,7 +31,7 @@ export default function GroupSection({
 }: {
   doc: Document;
   group: Group;
-  selected: Shape[];
+  selected: SelectionLeaf[];
 }) {
   const updateGroupStyle = useEditor((state) => state.updateGroupStyle);
   const rotationDeg = Math.round(
@@ -63,39 +65,26 @@ export default function GroupSection({
   return (
     <div className="panel-section">
       <div className="panel-title">Group “{group.name}”</div>
-      <div className="field">
+      <div className="field-inline">
         <label>Group opacity</label>
-        <div className="field-row">
-          <input
-            type="range"
+        <div className="num-suffix">
+          <ScrubbableNumber
+            className="num"
             min={0}
-            max={1}
-            step={0.01}
-            value={group.opacity ?? 1}
-            onChange={(event) =>
-              updateGroupStyle(group.id, {
-                opacity: Number(event.target.value),
-              })
+            max={100}
+            step={1}
+            value={Math.round(group.opacity * 100)}
+            onChange={(value) =>
+              updateGroupStyle(group.id, { opacity: value / 100 })
             }
+            aria-label="Group opacity"
           />
-          <span className="num readout">
-            {Math.round((group.opacity ?? 1) * 100)}%
-          </span>
+          <span className="unit">%</span>
         </div>
       </div>
       <div className="field">
-        <label>Group rotation</label>
-        <div className="field-row">
-          <input
-            type="range"
-            min={-180}
-            max={180}
-            step={1}
-            value={rotationDeg}
-            onChange={(event) =>
-              setRotation(Number(event.target.value))
-            }
-          />
+        <div className="field-inline">
+          <label>Group rotation</label>
           <ScrubbableNumber
             className="num"
             step={1}
@@ -114,7 +103,7 @@ export default function GroupSection({
           Reset rotation center
         </button>
       </div>
-      <div className="field">
+      <div className="field-inline">
         <label>Group blend mode</label>
         <select
           className="blend-select"

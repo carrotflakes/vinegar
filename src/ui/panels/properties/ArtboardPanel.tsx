@@ -17,6 +17,7 @@ export default function ArtboardPanel({ artboard }: { artboard: Artboard }) {
     <label className="geo-field">
       <span>{label}</span>
       <ScrubbableNumber
+        min={key === "width" || key === "height" ? 1 : undefined}
         value={Math.round(artboard[key])}
         aria-label={label}
         onChange={(next) => update(artboard.id, { [key]: next })}

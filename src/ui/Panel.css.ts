@@ -48,7 +48,33 @@ globalStyle(".field-row input[type=\"range\"]", {
   flex: "1",
 });
 
-globalStyle(".field-row input[type=\"color\"]", {
+/* Compact single-row field: label on the left, control on the right. Used to
+ * keep the properties dock dense now that sliders are gone. */
+globalStyle(".field-inline", {
+  display: "flex",
+  flexDirection: "row",
+  alignItems: "center",
+  justifyContent: "space-between",
+  gap: "8px",
+});
+
+globalStyle(".field-inline > label", {
+  fontSize: "12px",
+  color: vars.muted,
+});
+
+globalStyle(".num-suffix", {
+  display: "flex",
+  alignItems: "center",
+  gap: "4px",
+});
+
+globalStyle(".num-suffix .unit", {
+  fontSize: "12px",
+  color: vars.muted,
+});
+
+globalStyle(".field-row input[type=\"color\"],\n.field-inline input[type=\"color\"]", {
   width: "30px",
   height: "26px",
   padding: "0",
@@ -62,41 +88,28 @@ globalStyle(".stroke-presets .ghost-btn", {
   paddingInline: "8px",
 });
 
-globalStyle(".icon-btn", {
-  display: "inline-flex",
-  alignItems: "center",
-  justifyContent: "center",
-  width: "28px",
-  height: "28px",
-  padding: "0",
-  border: `1px solid ${vars.border}`,
-  borderRadius: "6px",
-  background: vars.panel,
-  color: vars.muted,
-});
-
-globalStyle(".icon-btn:hover", {
-  background: vars.bg,
-  color: vars.text,
-});
-
 globalStyle(".btn-row", {
   display: "flex",
   gap: "6px",
 });
 
-globalStyle(".ghost-btn", {
+/* Equal-width split is a property of the button row, not the button itself,
+ * so a lone .ghost-btn placed elsewhere sizes to its content. */
+globalStyle(".btn-row .ghost-btn", {
   flex: "1",
+});
+
+globalStyle(".ghost-btn", {
   display: "inline-flex",
   alignItems: "center",
   justifyContent: "center",
   gap: "6px",
-  padding: "7px 10px",
+  padding: "4px 8px",
   border: `1px solid ${vars.border}`,
-  borderRadius: "7px",
+  borderRadius: "6px",
   background: vars.panel,
   color: vars.text,
-  fontSize: "12.5px",
+  fontSize: "12px",
 });
 
 globalStyle(".ghost-btn:hover:not(:disabled)", {
@@ -118,7 +131,19 @@ globalStyle(".ghost-btn.danger:hover", {
 });
 
 globalStyle(".icon-btn", {
-  padding: "2px 6px",
-  minWidth: "0",
-  lineHeight: "1",
+  display: "inline-flex",
+  alignItems: "center",
+  justifyContent: "center",
+  width: "26px",
+  height: "26px",
+  padding: "0",
+  border: `1px solid ${vars.border}`,
+  borderRadius: "6px",
+  background: vars.panel,
+  color: vars.muted,
+});
+
+globalStyle(".icon-btn:hover", {
+  background: vars.bg,
+  color: vars.text,
 });
