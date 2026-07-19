@@ -20,6 +20,7 @@ import SelectionActionsSection from "./SelectionActionsSection";
 import ImageSection from "./ImageSection";
 import TextSection from "./TextSection";
 import SymbolInstanceSection from "./SymbolInstanceSection";
+import TransformSection from "./TransformSection";
 import "../../Panel.css";
 import "./PropertiesPanel.css";
 
@@ -63,6 +64,11 @@ export default function PropertiesPanel() {
     : [];
   const showAppearance =
     rootIds.length === 0 || selected.length === rootIds.length;
+  // A single leaf (shape or symbol instance) gets a Transform section with its
+  // world position, size and rotation.
+  const transformLeaf =
+    selectedInstance ??
+    (rootIds.length === 1 && selected.length === 1 ? selected[0] : null);
   return (
     <div className="panel">
       {tool === "brush" && <BrushPanel />}
@@ -80,10 +86,7 @@ export default function PropertiesPanel() {
       )}
 
       {showAppearance && (
-        <AppearanceSection
-          doc={doc}
-          selected={selected}
-        />
+        <AppearanceSection selected={selected} />
       )}
 
       {selected.length === 1 && selected[0].type === "image" && (
@@ -110,6 +113,8 @@ export default function PropertiesPanel() {
           selected={selectedGroupLeaves}
         />
       )}
+
+      {transformLeaf && <TransformSection node={transformLeaf} />}
 
       {rootIds.length > 1 && selectionPivot && (
         <div className="panel-section">

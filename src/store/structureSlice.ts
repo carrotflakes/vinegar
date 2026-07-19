@@ -28,6 +28,7 @@ import {
   childIdsOf,
   descendantNodeIds,
   isGroup,
+  isInstance,
   isShape,
   parentIdOf,
   selectionRoots,
@@ -280,7 +281,7 @@ export function createStructureActions({ set, get, transact }: StoreCtx): Struct
     renameShape: (id, name) => { const doc = get().doc, node = doc.nodes[id]; if (!isShape(node)) return; transact({ ...doc, nodes: { ...doc.nodes, [id]: { ...node, name } } }); },
     renameGroup: (id, name) => { const doc = get().doc, node = doc.nodes[id]; if (!isGroup(node)) return; transact({ ...doc, nodes: { ...doc.nodes, [id]: { ...node, name } } }); },
     renameNode: (id, name) => { const doc = get().doc, node = doc.nodes[id]; if (!node) return; transact({ ...doc, nodes: { ...doc.nodes, [id]: { ...node, name } } }); },
-    updateGroupStyle: (id, patch) => { const doc = get().doc, node = doc.nodes[id]; if (!isGroup(node)) return; transact({ ...doc, nodes: { ...doc.nodes, [id]: { ...node, ...patch } } }, "gstyle:" + id + ":" + Object.keys(patch).sort().join(",")); if (patch.hidden || patch.locked) { const affected = new Set([id, ...descendantNodeIds(doc, id)]); set({ selection: get().selection.filter((x) => !affected.has(x)), ...clearTransient }); } },
+    updateNodeStyle: (id, patch) => { const doc = get().doc, node = doc.nodes[id]; if (!isGroup(node) && !isInstance(node)) return; transact({ ...doc, nodes: { ...doc.nodes, [id]: { ...node, ...patch } } }, "nstyle:" + id + ":" + Object.keys(patch).sort().join(",")); if (patch.hidden || patch.locked) { const affected = new Set([id, ...descendantNodeIds(doc, id)]); set({ selection: get().selection.filter((x) => !affected.has(x)), ...clearTransient }); } },
     setNodeEffects: (id, effects) => {
       const doc = get().doc;
       const node = doc.nodes[id];

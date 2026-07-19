@@ -1,5 +1,6 @@
 import type { SymbolInstance } from "../../../model/types";
 import { useEditor } from "../../../store/editorStore";
+import { BlendModeField, OpacityField } from "./StyleFields";
 
 export default function SymbolInstanceSection({
   instance,
@@ -12,6 +13,7 @@ export default function SymbolInstanceSection({
   const detachSelectedInstances = useEditor(
     (state) => state.detachSelectedInstances
   );
+  const updateNodeStyle = useEditor((state) => state.updateNodeStyle);
 
   return (
     <div className="panel-section">
@@ -24,6 +26,20 @@ export default function SymbolInstanceSection({
           </span>
         </div>
       </div>
+      <OpacityField
+        label="Opacity"
+        value={instance.opacity}
+        onChange={(value) =>
+          updateNodeStyle(instance.id, { opacity: value })
+        }
+      />
+      <BlendModeField
+        label="Blend mode"
+        value={instance.blendMode}
+        onChange={(value) =>
+          updateNodeStyle(instance.id, { blendMode: value })
+        }
+      />
       <div className="btn-row">
         <button
           className="ghost-btn"

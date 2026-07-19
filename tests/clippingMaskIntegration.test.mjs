@@ -139,7 +139,7 @@ test("make/release actions preserve order and appearance and are undoable", () =
   assert.deepEqual(state.selection, [clipId]);
   assert.equal(release.enabled(state), true);
 
-  state.updateGroupStyle(clipId, {
+  state.updateNodeStyle(clipId, {
     transform: [1, 0, 0, 1, 12, 8],
     opacity: 0.5,
     blendMode: "multiply",

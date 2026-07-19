@@ -1,11 +1,3 @@
-import { shapeBounds } from "../../../model/bounds";
-import {
-  applyMatrix,
-  applyWorldTransformToNode,
-  matrixAngle,
-  rotationAbout,
-  shapeWorldMatrix,
-} from "../../../model/matrix";
 import type { Paint } from "../../../model/paint";
 import {
   effectiveStrokeAlignment,
@@ -14,10 +6,7 @@ import {
   strokeJoin as resolvedStrokeJoin,
   supportsStrokeAlignment,
 } from "../../../model/stroke";
-import {
-  type Document,
-  type Shape,
-} from "../../../model/types";
+import { type Shape } from "../../../model/types";
 import { useEditor } from "../../../store/editorStore";
 import ColorField from "../../ColorField";
 import ScrubbableNumber from "../../ScrubbableNumber";
@@ -27,7 +16,6 @@ import StrokeDetailControls, {
 import {
   BlendModeField,
   OpacityField,
-  RotationField,
 } from "./StyleFields";
 
 function typeName(shape: Shape): string {
@@ -56,10 +44,8 @@ function typeName(shape: Shape): string {
 }
 
 export default function AppearanceSection({
-  doc,
   selected,
 }: {
-  doc: Document;
   selected: Shape[];
 }) {
   const style = useEditor((state) => state.style);
@@ -145,30 +131,6 @@ export default function AppearanceSection({
     });
   };
 
-  const rotationDeg = hasSelection
-    ? Math.round(
-        (matrixAngle(shapeWorldMatrix(doc, first)) * 180) / Math.PI
-      )
-    : 0;
-  const setRotation = (degrees: number) => {
-    const bounds = shapeBounds(first);
-    const localOrigin = first.transformOrigin ?? {
-      x: bounds.x + bounds.width / 2,
-      y: bounds.y + bounds.height / 2,
-    };
-    const world = shapeWorldMatrix(doc, first);
-    const pivot = applyMatrix(world, localOrigin);
-    const target = (degrees * Math.PI) / 180;
-    const delta = target - matrixAngle(world);
-    updateSelectedStyle({
-      transform: applyWorldTransformToNode(
-        doc,
-        first,
-        rotationAbout(pivot, delta)
-      ).transform,
-    });
-  };
-
   return (
     <div className="panel-section">
       <div className="panel-title">
@@ -218,18 +180,6 @@ export default function AppearanceSection({
           value={first.blendMode}
           onChange={(value) =>
             updateSelectedStyle({ blendMode: value })
-          }
-        />
-      )}
-
-      {selected.length === 1 && (
-        <RotationField
-          label="Rotation"
-          degrees={rotationDeg}
-          onChange={setRotation}
-          resetDisabled={first.transformOrigin === null}
-          onReset={() =>
-            updateSelectedStyle({ transformOrigin: null })
           }
         />
       )}

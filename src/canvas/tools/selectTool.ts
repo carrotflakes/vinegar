@@ -465,7 +465,7 @@ export function onSelectDoubleClick(
   if (hitFrameHandle(ctx, screen)?.type !== "pivot") return false;
   const group = exactlySelectedGroup(state.doc, state.selection);
   if (group) {
-    state.updateGroupStyle(group.id, { transformOrigin: null });
+    state.updateNodeStyle(group.id, { transformOrigin: null });
   } else if (state.selection.length === 1) {
     state.updateSelectedStyle({ transformOrigin: null });
   } else {

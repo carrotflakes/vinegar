@@ -29,7 +29,6 @@ import type {
   Shape,
 } from "../../../model/types";
 import { useEditor } from "../../../store/editorStore";
-import Geometry from "./Geometry";
 
 export default function SelectionActionsSection({
   doc,
@@ -222,9 +221,6 @@ export default function SelectionActionsSection({
               Delete
             </button>
           </div>
-          {rootIds.length === 1 && selected.length === 1 && (
-            <Geometry shape={selected[0]} />
-          )}
         </div>
       )}
 

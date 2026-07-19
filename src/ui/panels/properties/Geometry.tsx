@@ -1,13 +1,22 @@
-import { shapeBounds, worldShapeBounds } from "../../../model/bounds";
+import {
+  instanceWorldBounds,
+  shapeBounds,
+  worldShapeBounds,
+} from "../../../model/bounds";
 import {
   effectiveRectCornerRadius,
   maxRectCornerRadius,
 } from "../../../model/roundedRect";
-import type { Shape } from "../../../model/types";
+import { isInstance } from "../../../model/scene";
+import type { Shape, SymbolInstance } from "../../../model/types";
 import { useEditor } from "../../../store/editorStore";
 import ScrubbableNumber from "../../ScrubbableNumber";
 
-export default function Geometry({ shape }: { shape: Shape }) {
+export default function Geometry({
+  node,
+}: {
+  node: Shape | SymbolInstance;
+}) {
   const setShapeGeometry = useEditor(
     (state) => state.setShapeGeometry
   );
@@ -15,14 +24,19 @@ export default function Geometry({ shape }: { shape: Shape }) {
     (state) => state.setRectCornerRadius
   );
   const doc = useEditor((state) => state.doc);
-  // Parametric shapes keep placement (position/scale) in their transform, so
-  // their panel fields report world bounds — setShapeGeometry maps edits back
-  // onto the transform rather than folding into the generated geometry.
-  const bounds = shape.generator
-    ? worldShapeBounds(doc, shape)
-    : shapeBounds(shape);
+  // Parametric shapes and instances keep placement (position/scale) in their
+  // transform, so their panel fields report world bounds — setShapeGeometry
+  // maps edits back onto the transform rather than into the geometry.
+  const bounds = isInstance(node)
+    ? instanceWorldBounds(doc, node) ?? { x: 0, y: 0, width: 0, height: 0 }
+    : node.generator
+      ? worldShapeBounds(doc, node)
+      : shapeBounds(node);
   const lockRatio =
-    shape.type === "image" && shape.lockAspect && bounds.height > 0
+    !isInstance(node) &&
+    node.type === "image" &&
+    node.lockAspect &&
+    bounds.height > 0
       ? bounds.width / bounds.height
       : null;
 
@@ -44,38 +58,39 @@ export default function Geometry({ shape }: { shape: Shape }) {
           } else if (lockRatio && key === "height") {
             patch.width = next * lockRatio;
           }
-          setShapeGeometry(shape.id, patch);
+          setShapeGeometry(node.id, patch);
         }}
       />
     </label>
   );
 
   const radiusField = () => {
-    if (shape.type !== "rect") return null;
-    const radius = Math.round(effectiveRectCornerRadius(shape));
+    if (isInstance(node) || node.type !== "rect") return null;
+    const radius = Math.round(effectiveRectCornerRadius(node));
     return (
       <label className="geo-field">
         <span>R</span>
         <ScrubbableNumber
           min={0}
-          max={maxRectCornerRadius(shape)}
+          max={maxRectCornerRadius(node)}
           step={1}
           value={radius}
           aria-label="Corner radius"
           onChange={(value) =>
-            setRectCornerRadius(shape.id, value)
+            setRectCornerRadius(node.id, value)
           }
         />
       </label>
     );
   };
 
+  const isText = !isInstance(node) && node.type === "text";
   return (
     <div className="geometry-grid">
       {field("x", "X")}
       {field("y", "Y")}
-      {shape.type !== "text" && field("width", "W")}
-      {shape.type !== "text" && field("height", "H")}
+      {!isText && field("width", "W")}
+      {!isText && field("height", "H")}
       {radiusField()}
     </div>
   );

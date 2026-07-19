@@ -30,7 +30,7 @@ export default function GroupSection({
   group: Group;
   selected: SelectionLeaf[];
 }) {
-  const updateGroupStyle = useEditor((state) => state.updateGroupStyle);
+  const updateNodeStyle = useEditor((state) => state.updateNodeStyle);
   const rotationDeg = Math.round(
     (matrixAngle(nodeWorldMatrix(doc, group.id)) * 180) / Math.PI
   );
@@ -50,7 +50,7 @@ export default function GroupSection({
     const pivot = applyMatrix(world, localCenter);
     const target = (degrees * Math.PI) / 180;
     const delta = target - matrixAngle(world);
-    updateGroupStyle(group.id, {
+    updateNodeStyle(group.id, {
       transform: applyWorldTransformToNode(
         doc,
         group,
@@ -66,7 +66,7 @@ export default function GroupSection({
         label="Group opacity"
         value={group.opacity}
         onChange={(value) =>
-          updateGroupStyle(group.id, { opacity: value })
+          updateNodeStyle(group.id, { opacity: value })
         }
       />
       <RotationField
@@ -75,14 +75,14 @@ export default function GroupSection({
         onChange={setRotation}
         resetDisabled={group.transformOrigin === null}
         onReset={() =>
-          updateGroupStyle(group.id, { transformOrigin: null })
+          updateNodeStyle(group.id, { transformOrigin: null })
         }
       />
       <BlendModeField
         label="Group blend mode"
         value={group.blendMode}
         onChange={(value) =>
-          updateGroupStyle(group.id, { blendMode: value })
+          updateNodeStyle(group.id, { blendMode: value })
         }
       />
     </div>

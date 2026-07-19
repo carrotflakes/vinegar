@@ -9,10 +9,10 @@ import type { ScriptMeta } from "../model/generators";
 import type { Paint } from "../model/paint";
 import type {
   Artboard,
+  BaseNode,
   BlendMode,
   Document,
   Effect,
-  Group,
   Matrix,
   SceneNode,
   ScriptDef,
@@ -283,7 +283,11 @@ export interface StructureActions {
   renameShape: (id: string, name: string) => void;
   renameGroup: (id: string, name: string) => void;
   renameNode: (id: string, name: string) => void;
-  updateGroupStyle: (id: string, patch: Partial<Pick<Group, "opacity" | "blendMode" | "hidden" | "locked" | "transform" | "transformOrigin">>) => void;
+  /**
+   * Patch the shared BaseNode style fields of a single group or symbol
+   * instance. Shapes go through updateSelectedStyle / setShapeGeometry instead.
+   */
+  updateNodeStyle: (id: string, patch: Partial<Pick<BaseNode, "opacity" | "blendMode" | "hidden" | "locked" | "transform" | "transformOrigin">>) => void;
   /** Replace a node's effect stack; an empty list clears it. Works on any node. */
   setNodeEffects: (id: string, effects: Effect[]) => void;
   moveNode: (id: string, parentId: string | null, index: number) => void;
