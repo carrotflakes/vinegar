@@ -7,9 +7,14 @@
 // enclosed empty regions appear as *holes* of the union; the hole containing
 // the click point is the region to fill. The hole is then re-expanded so the
 // fill tucks slightly under the surrounding ink (no antialiasing seams).
+//
+// Clicking *on* a fill-painted shape (or image) instead treats that shape as
+// a "cover": its area no longer blocks the fill, but its outline becomes the
+// region's outer boundary — the raster-bucket behavior of filling up to the
+// edges of the color you clicked. Strokes, brushes and text stay hard ink.
 // ===========================================================================
 
-import ClipperLib, { type IntPoint, type PolyNode } from "clipper-lib";
+import ClipperLib, { type IntPoint, type PolyNode, type PolyTree } from "clipper-lib";
 import { flattenSubpath } from "./bezier";
 import { cachedBrushEnvelope } from "./brushOutline";
 import { shapeBounds } from "./bounds";
@@ -22,8 +27,12 @@ import { isGroup, isInstance, isShape, scopeRootIds } from "./scene";
 import type { Document, Matrix, Shape, Vec2 } from "./types";
 
 export type BucketFillResult =
-  /** Polys of the region (PolygonShape layout), in scope-view space. */
-  | { kind: "filled"; polys: Vec2[][][] }
+  /**
+   * Polys of the region (PolygonShape layout), in scope-view space. When the
+   * click landed on a fill-painted shape, `coverId` is that shape (topmost),
+   * so the new fill can be inserted directly above it.
+   */
+  | { kind: "filled"; polys: Vec2[][][]; coverId: string | null }
   /** The point is not inside any enclosed empty region. */
   | { kind: "open" }
   /** The point sits on painted ink, not in an empty region. */
@@ -145,26 +154,59 @@ function worldRings(rings: Vec2[][], world: Matrix): Vec2[][] {
   return rings.map((ring) => ring.map((p) => applyMatrix(world, p)));
 }
 
+/** Even-odd containment across canonically oriented contours (outer − hole). */
+function pointInContours(pt: IntPoint, paths: IntPoint[][]): boolean {
+  let count = 0;
+  for (const path of paths) {
+    if (ClipperLib.Clipper.PointInPolygon(pt, path) !== 0) count++;
+  }
+  return count % 2 === 1;
+}
+
+/** A fill-painted shape whose silhouette contains the click point. */
+interface CoverHit {
+  id: string;
+  contours: IntPoint[][];
+}
+
 /** Append one shape's painted silhouette (fill and stroke) to `out`. */
 function addShapeObstacles(
   shape: Shape,
   parentWorld: Matrix,
-  out: IntPoint[][]
+  pt: IntPoint,
+  out: IntPoint[][],
+  covers: CoverHit[] | null
 ): void {
   const world = multiply(parentWorld, shape.transform);
-  const painted =
+  // Area painted by a fill (or image pixels) can act as a cover; brush
+  // envelopes and text boxes are stroke-like and always block.
+  const coverable =
     shape.type === "image" ||
-    (shape.type === "brush"
-      ? shape.stroke !== null && shape.strokeWidth > 0
-      : shape.type === "text"
-        ? shape.fill !== null || (shape.stroke !== null && shape.strokeWidth > 0)
-        : shape.fill !== null && shape.type !== "line");
-  if (painted) {
+    (shape.fill !== null &&
+      shape.type !== "line" &&
+      shape.type !== "brush" &&
+      shape.type !== "text");
+  const hardPainted =
+    (shape.type === "brush" &&
+      shape.stroke !== null &&
+      shape.strokeWidth > 0) ||
+    (shape.type === "text" &&
+      (shape.fill !== null || (shape.stroke !== null && shape.strokeWidth > 0)));
+  if (coverable || hardPainted) {
     const geom = fillGeometry(shape);
-    if (geom) pushNormalized(out, worldRings(geom.rings, world), geom.fillType);
+    if (geom) {
+      const normalized: IntPoint[][] = [];
+      pushNormalized(normalized, worldRings(geom.rings, world), geom.fillType);
+      if (covers && coverable && pointInContours(pt, normalized)) {
+        covers.push({ id: shape.id, contours: normalized });
+      } else {
+        out.push(...normalized);
+      }
+    }
   }
   // Stroke silhouettes come back with the shape transform baked in (parent
-  // space); brush/image/text return null and are fully covered above.
+  // space). They are hard ink even on a cover shape: a stroked background's
+  // outline still bounds the fill.
   const stroke = strokeOutline(shape);
   if (stroke) {
     pushNormalized(
@@ -175,12 +217,19 @@ function addShapeObstacles(
   }
 }
 
-/** Collect the ink contours of the given nodes (and descendants) into `out`. */
+/**
+ * Collect the ink contours of the given nodes (and descendants) into `out`.
+ * `covers` accumulates fill-painted shapes containing the click point in
+ * paint order (last = topmost); it is null inside clip groups and symbol
+ * instances, whose composite ink cannot be partially excluded.
+ */
 function collectObstacles(
   doc: Document,
   ids: string[],
   parentWorld: Matrix,
-  out: IntPoint[][]
+  pt: IntPoint,
+  out: IntPoint[][],
+  covers: CoverHit[] | null
 ): void {
   for (const id of ids) {
     const node = doc.nodes[id];
@@ -191,7 +240,7 @@ function collectObstacles(
       if (mask) {
         // A clip group's ink is its content restricted to the mask silhouette.
         const content: IntPoint[][] = [];
-        collectObstacles(doc, clippingContentIds(doc, node), world, content);
+        collectObstacles(doc, clippingContentIds(doc, node), world, pt, content, null);
         const geom = fillGeometry(mask);
         if (!content.length || !geom) continue;
         const maskWorld = multiply(world, mask.transform);
@@ -210,16 +259,23 @@ function collectObstacles(
         );
         out.push(...contours(tree));
       } else {
-        collectObstacles(doc, node.childIds, world, out);
+        collectObstacles(doc, node.childIds, world, pt, out, covers);
       }
     } else if (isInstance(node)) {
       const def = doc.symbols[node.symbolId];
       const root = def ? doc.nodes[def.rootNodeId] : undefined;
       if (isGroup(root)) {
-        collectObstacles(doc, root.childIds, multiply(world, root.transform), out);
+        collectObstacles(
+          doc,
+          root.childIds,
+          multiply(world, root.transform),
+          pt,
+          out,
+          null
+        );
       }
     } else if (isShape(node)) {
-      addShapeObstacles(node, parentWorld, out);
+      addShapeObstacles(node, parentWorld, pt, out, covers);
     }
   }
 }
@@ -256,42 +312,26 @@ function findRegion(
 }
 
 /**
- * Compute the fill region around `point` (scope-view space) bounded by the
- * visible ink of the given editing scope. `gapTolerance` (world units) is the
- * widest boundary gap that still counts as closed.
+ * Deepest filled component of a poly tree containing the point, or null when
+ * the point only lands on excluded area (holes without a nested component).
  */
-export function computeBucketFill(
-  doc: Document,
-  scope: string | null,
-  point: Vec2,
-  gapTolerance: number
-): BucketFillResult {
-  const obstacles: IntPoint[][] = [];
-  collectObstacles(doc, scopeRootIds(doc, scope), IDENTITY, obstacles);
-  if (!obstacles.length) return { kind: "open" };
-
-  // Inflate the ink by half the gap tolerance: gaps narrower than the
-  // tolerance seal shut, so the region they leak from becomes a closed hole.
-  const inflate = Math.max(gapTolerance / 2, 0.05);
-  const co = new ClipperLib.ClipperOffset(2, 0.25 * SCALE);
-  for (const path of obstacles) {
-    co.AddPath(path, ClipperLib.JoinType.jtRound, ClipperLib.EndType.etClosedPolygon);
+function findComponent(outers: PolyNode[], pt: IntPoint): Region | null {
+  for (const outer of outers) {
+    if (ClipperLib.Clipper.PointInPolygon(pt, outer.Contour()) === 0) continue;
+    for (const hole of outer.Childs()) {
+      if (ClipperLib.Clipper.PointInPolygon(pt, hole.Contour()) === 0) continue;
+      return findComponent(hole.Childs(), pt);
+    }
+    return {
+      outer: outer.Contour(),
+      holes: outer.Childs().map((n) => n.Contour()),
+    };
   }
-  const inked = new ClipperLib.PolyTree();
-  co.Execute(inked, inflate * SCALE);
+  return null;
+}
 
-  const pt = {
-    X: Math.round(point.x * SCALE),
-    Y: Math.round(point.y * SCALE),
-  };
-  const region = findRegion(inked.Childs(), pt);
-  if (region === null) return { kind: "open" };
-  if (region === "inked") return { kind: "inked" };
-
-  // The hole is the true region eroded by `inflate`; expanding by
-  // `inflate + BLEED` restores it and tucks the edge under the ink. This is a
-  // morphological opening, so the fill never reaches farther than BLEED past
-  // the real empty region (small nub at a bridged gap, underlap elsewhere).
+/** Offset a region (outer grows, holes shrink) into a new poly tree. */
+function expandRegion(region: Region, delta: number): PolyTree {
   const orient = (path: IntPoint[], positive: boolean): IntPoint[] =>
     ClipperLib.Clipper.Orientation(path) === positive
       ? path
@@ -309,9 +349,93 @@ export function computeBucketFill(
       ClipperLib.EndType.etClosedPolygon
     );
   }
-  const expanded = new ClipperLib.PolyTree();
-  expand.Execute(expanded, (inflate + BLEED) * SCALE);
+  const tree = new ClipperLib.PolyTree();
+  expand.Execute(tree, delta * SCALE);
+  return tree;
+}
 
-  const polys = treeToPolys(expanded);
-  return polys.length ? { kind: "filled", polys } : { kind: "open" };
+/** Inflate ink contours by `delta` and union them into one poly tree. */
+function inflateInk(obstacles: IntPoint[][], delta: number): PolyTree {
+  const co = new ClipperLib.ClipperOffset(2, 0.25 * SCALE);
+  for (const path of obstacles) {
+    co.AddPath(path, ClipperLib.JoinType.jtRound, ClipperLib.EndType.etClosedPolygon);
+  }
+  const tree = new ClipperLib.PolyTree();
+  co.Execute(tree, delta * SCALE);
+  return tree;
+}
+
+/**
+ * Compute the fill region around `point` (scope-view space) bounded by the
+ * visible ink of the given editing scope. `gapTolerance` (world units) is the
+ * widest boundary gap that still counts as closed.
+ */
+export function computeBucketFill(
+  doc: Document,
+  scope: string | null,
+  point: Vec2,
+  gapTolerance: number
+): BucketFillResult {
+  const pt = {
+    X: Math.round(point.x * SCALE),
+    Y: Math.round(point.y * SCALE),
+  };
+  const obstacles: IntPoint[][] = [];
+  const covers: CoverHit[] = [];
+  collectObstacles(doc, scopeRootIds(doc, scope), IDENTITY, pt, obstacles, covers);
+
+  // Inflate the ink by half the gap tolerance: gaps narrower than the
+  // tolerance seal shut, so the region they leak from becomes a closed hole.
+  const inflate = Math.max(gapTolerance / 2, 0.05);
+
+  if (covers.length) {
+    // The click landed on a fill: the topmost cover's outline is the outer
+    // boundary and the remaining (inflated) ink carves the region out of it.
+    // Lower covers under the point are invisible there and are ignored.
+    const cover = covers[covers.length - 1];
+    const ink = obstacles.length ? contours(inflateInk(obstacles, inflate)) : [];
+    const clipper = new ClipperLib.Clipper();
+    clipper.AddPaths(cover.contours, ClipperLib.PolyType.ptSubject, true);
+    if (ink.length) clipper.AddPaths(ink, ClipperLib.PolyType.ptClip, true);
+    const free = new ClipperLib.PolyTree();
+    clipper.Execute(
+      ink.length ? ClipperLib.ClipType.ctDifference : ClipperLib.ClipType.ctUnion,
+      free,
+      ClipperLib.PolyFillType.pftNonZero,
+      ClipperLib.PolyFillType.pftNonZero
+    );
+    const component = findComponent(free.Childs(), pt);
+    if (!component) return { kind: "inked" };
+    // Tuck under the strokes like the no-cover path, but never past the
+    // cover's own edge — beyond it the fill would show over whatever is
+    // underneath, so clip the expansion back to the cover silhouette.
+    const expanded = expandRegion(component, inflate + BLEED);
+    const clip = new ClipperLib.Clipper();
+    clip.AddPaths(contours(expanded), ClipperLib.PolyType.ptSubject, true);
+    clip.AddPaths(cover.contours, ClipperLib.PolyType.ptClip, true);
+    const final = new ClipperLib.PolyTree();
+    clip.Execute(
+      ClipperLib.ClipType.ctIntersection,
+      final,
+      ClipperLib.PolyFillType.pftNonZero,
+      ClipperLib.PolyFillType.pftNonZero
+    );
+    const polys = treeToPolys(final);
+    return polys.length
+      ? { kind: "filled", polys, coverId: cover.id }
+      : { kind: "inked" };
+  }
+
+  if (!obstacles.length) return { kind: "open" };
+  const inked = inflateInk(obstacles, inflate);
+  const region = findRegion(inked.Childs(), pt);
+  if (region === null) return { kind: "open" };
+  if (region === "inked") return { kind: "inked" };
+
+  // The hole is the true region eroded by `inflate`; expanding by
+  // `inflate + BLEED` restores it and tucks the edge under the ink. This is a
+  // morphological opening, so the fill never reaches farther than BLEED past
+  // the real empty region (small nub at a bridged gap, underlap elsewhere).
+  const polys = treeToPolys(expandRegion(region, inflate + BLEED));
+  return polys.length ? { kind: "filled", polys, coverId: null } : { kind: "open" };
 }

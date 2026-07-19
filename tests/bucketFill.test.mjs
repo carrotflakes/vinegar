@@ -105,19 +105,10 @@ test("reports an unenclosed click as open", () => {
   assert.equal(result.kind, "open");
 });
 
-test("reports a click on painted ink as inked", () => {
-  const d = doc([
-    shape({
-      id: "r",
-      type: "rect",
-      x: 0,
-      y: 0,
-      width: 100,
-      height: 100,
-      fill: { type: "solid", color: "#ff0000", alpha: 1 },
-    }),
-  ]);
-  const result = computeBucketFill(d, null, { x: 50, y: 50 }, 4);
+test("reports a click on stroke ink as inked", () => {
+  const d = doc([strokedRect("r", 0, 0, 100, 100)]);
+  // (0, 50) sits on the centerline of the left stroke band.
+  const result = computeBucketFill(d, null, { x: 0, y: 50 }, 4);
   assert.equal(result.kind, "inked");
 });
 
@@ -153,6 +144,78 @@ test("an island inside the region becomes a hole of the fill", () => {
   assert.ok(insidePolys(result.polys, { x: 20, y: 50 }));
   // The inner rectangle's interior is a separate region, not painted here.
   assert.ok(!insidePolys(result.polys, { x: 50, y: 50 }));
+});
+
+const filledRect = (id, x, y, w, h, color = "#ff0000") =>
+  shape({
+    id,
+    type: "rect",
+    x,
+    y,
+    width: w,
+    height: h,
+    fill: { type: "solid", color, alpha: 1 },
+  });
+
+test("clicking a bare filled shape fills its whole area as a cover", () => {
+  const d = doc([filledRect("bg", 0, 0, 100, 100)]);
+  const result = computeBucketFill(d, null, { x: 50, y: 50 }, 4);
+  assert.equal(result.kind, "filled");
+  assert.equal(result.coverId, "bg");
+  const b = polyBounds(result.polys);
+  assert.ok(Math.abs(b.minX) < 0.01 && Math.abs(b.maxX - 100) < 0.01);
+  assert.ok(Math.abs(b.minY) < 0.01 && Math.abs(b.maxY - 100) < 0.01);
+});
+
+test("filling over a background is bounded by strokes drawn on top", () => {
+  const d = doc([
+    filledRect("bg", 0, 0, 100, 100),
+    strokedRect("square", 30, 30, 40, 40),
+  ]);
+  const result = computeBucketFill(d, null, { x: 50, y: 50 }, 4);
+  assert.equal(result.kind, "filled");
+  assert.equal(result.coverId, "bg");
+  assert.ok(insidePolys(result.polys, { x: 50, y: 50 }));
+  assert.ok(!insidePolys(result.polys, { x: 10, y: 10 }));
+  const b = polyBounds(result.polys);
+  assert.ok(b.minX > 28 && b.maxX < 72, `bounds ${b.minX}..${b.maxX}`);
+});
+
+test("filling the open part of a background stops at its edge", () => {
+  const d = doc([
+    filledRect("bg", 0, 0, 100, 100),
+    strokedRect("square", 30, 30, 40, 40),
+  ]);
+  const result = computeBucketFill(d, null, { x: 10, y: 10 }, 4);
+  assert.equal(result.kind, "filled");
+  assert.equal(result.coverId, "bg");
+  assert.ok(insidePolys(result.polys, { x: 10, y: 10 }));
+  // The stroked square's interior belongs to a different region.
+  assert.ok(!insidePolys(result.polys, { x: 50, y: 50 }));
+  // Clipped exactly to the cover: no bleed past the background's edge.
+  const b = polyBounds(result.polys);
+  assert.ok(b.minX > -0.01 && b.maxX < 100.01, `bounds ${b.minX}..${b.maxX}`);
+});
+
+test("the topmost cover under the click wins", () => {
+  const d = doc([
+    filledRect("paper", 0, 0, 200, 200, "#ffffff"),
+    filledRect("card", 50, 50, 100, 100, "#4488ff"),
+  ]);
+  const result = computeBucketFill(d, null, { x: 100, y: 100 }, 4);
+  assert.equal(result.kind, "filled");
+  assert.equal(result.coverId, "card");
+  const b = polyBounds(result.polys);
+  assert.ok(b.minX > 49.9 && b.maxX < 150.1, `bounds ${b.minX}..${b.maxX}`);
+});
+
+test("clicking a stroke over a background still reports inked", () => {
+  const d = doc([
+    filledRect("bg", 0, 0, 100, 100),
+    strokedRect("square", 30, 30, 40, 40),
+  ]);
+  const result = computeBucketFill(d, null, { x: 30, y: 50 }, 4);
+  assert.equal(result.kind, "inked");
 });
 
 test("hidden nodes do not bound the fill", () => {

@@ -47,5 +47,5 @@ export function bucketFillAt(state: EditorState, world: Vec2): void {
     transform: [...IDENTITY],
     transformOrigin: null,
   };
-  state.addFillShape(shape);
+  state.addFillShape(shape, result.coverId);
 }

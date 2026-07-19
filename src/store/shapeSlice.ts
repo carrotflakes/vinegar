@@ -146,18 +146,36 @@ export function createShapeActions({ set, get, transact, replaceDocumentWithoutH
       transact(appendToScope(withGroup, currentSymbolScope(s), [groupId]));
       set({ selection: [shape.id], activeGroupId: groupId, ...clearTransient });
     },
-    addFillShape: (shape) => {
+    addFillShape: (shape, aboveId) => {
       const s = get();
-      const active =
-        s.activeGroupId && isGroup(s.doc.nodes[s.activeGroupId]) ? s.activeGroupId : null;
-      const containerId = active ?? scopeRootGroupId(s.doc, currentSymbolScope(s));
+      const above = aboveId ? s.doc.nodes[aboveId] : undefined;
+      let parentId: string | null;
+      let index: number;
+      if (above) {
+        // Right above the cover the fill was clicked on: over its color but
+        // still under the line art painted later.
+        parentId = parentIdOf(s.doc, above.id);
+        index = childIdsOf(s.doc, parentId).indexOf(above.id) + 1;
+      } else {
+        const active =
+          s.activeGroupId && isGroup(s.doc.nodes[s.activeGroupId]) ? s.activeGroupId : null;
+        parentId = active ?? scopeRootGroupId(s.doc, currentSymbolScope(s));
+        index = 0;
+      }
       // The fill's geometry is in scope-view space; parenting it under the
       // container needs the inverse of the container's world matrix baked into
       // its transform so it lands exactly where it was computed.
-      const world = containerId ? nodeWorldMatrix(s.doc, containerId) : IDENTITY;
+      const world = parentId ? nodeWorldMatrix(s.doc, parentId) : IDENTITY;
       const placed = { ...shape, transform: invertMatrix(world) ?? [...IDENTITY] };
       const doc = { ...s.doc, nodes: { ...s.doc.nodes, [placed.id]: placed } };
-      transact(withChildIds(doc, containerId, [placed.id, ...childIdsOf(doc, containerId)]));
+      const siblings = childIdsOf(doc, parentId);
+      transact(
+        withChildIds(doc, parentId, [
+          ...siblings.slice(0, index),
+          placed.id,
+          ...siblings.slice(index),
+        ])
+      );
       set({ selection: [placed.id], ...clearTransient });
     },
     eraseBrushStrokes: (pathWorld, radiusWorld) => {

@@ -175,11 +175,12 @@ export interface ShapeActions {
    */
   addBrushStroke: (shape: Shape) => void;
   /**
-   * Commit a bucket-fill region (scope-view-space geometry) at the *back* of
-   * the active drawing container — the drilled-into `activeGroupId` when set,
-   * else the scope root — so the fill paints underneath the ink that bounds it.
+   * Commit a bucket-fill region (scope-view-space geometry) underneath the ink
+   * that bounds it: directly above `aboveId` when given (the cover shape the
+   * fill was clicked on), else at the *back* of the active drawing container —
+   * the drilled-into `activeGroupId` when set, else the scope root.
    */
-  addFillShape: (shape: Shape) => void;
+  addFillShape: (shape: Shape, aboveId?: string | null) => void;
   /**
    * Erase along a world-space path of the given radius: brush strokes it
    * crosses are split at their centerline into new brush pieces (or removed
