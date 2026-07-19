@@ -23,11 +23,14 @@ pnpm test       # node --test (model, store, persistence, import and recovery)
 
 ## Features
 
-- Tools: Select, Edit Nodes, Rectangle, Ellipse, Line, **Pen (Bézier)**, **Brush** (pressure / variable width), **Eraser**, Pencil (freehand), Text, Artboard
+- Tools: Select, Edit Nodes, Rectangle, Ellipse, Line, **Pen (Bézier)**, **Brush** (pressure / variable width), **Eraser**, Pencil (freehand), **Bucket Fill**, Text, Artboard
 - Pencil: freehand strokes are simplified and smoothed into an editable Bézier path (tweak it with the Node tool); end near the start to close it
 - Brush: pen-pressure capture with adjustable size, pressure curve, stabilizer and taper; strokes remain editable vector centerlines with a derived variable-width envelope.
   Consecutive strokes collect in an active drawing group.
 - Eraser: split or trim Brush strokes with a vector centerline eraser while preserving the surviving Bézier geometry and width profile
+- **Bucket Fill**: click an enclosed empty region to fill it with the current fill color — detected **vectorially** (no raster tracing), with an adjustable **gap-closing** tolerance for not-quite-closed line art; the fill lands as an ordinary editable polygon *below* the surrounding strokes.
+  Clicking a filled shape or image treats it as the region's background: the fill spreads up to its edges and the strokes drawn on top, and is inserted directly above it — paint a background, draw line art, fill in between.
+  An optional **"Fill to stroke centers"** mode stops fills at stroke/brush centerlines so adjacent fills stay seamless if the line art changes later (see [docs/bucket-fill.md](docs/bucket-fill.md))
 - Pen tool: click for corner anchors, click-drag for smooth anchors; click the first anchor to close, or Enter / double-click to finish, Esc to cancel; click an endpoint of an existing open path to continue it
 - Node editing: drag anchors and control handles (Alt to break handle symmetry), click a segment to insert an anchor (curve-preserving), double-click an anchor to toggle smooth ↔ corner, Delete to remove an anchor; Brush anchors use the same editing model; open/close a path via the properties panel
 - Move, resize (8 handles), **rotate** (rotation handle; Shift snaps to 15°) — all driven by per-node **affine matrices**, so rotated/nested resize is exact
@@ -95,7 +98,8 @@ See [docs/document-model.md](docs/document-model.md).
 src/
   model/     types, geometry, hit-testing, matrix/affine transforms, bounds,
              scene index, groups, paint, snapping, freehand/brush geometry,
-             erasing, boolean, compound paths, generators, outlineStroke
+             erasing, boolean, compound paths, generators, outlineStroke,
+             bucketFill
   store/     zustand editor store split into slices (shapes, selection,
              structure, symbols, artboards, clipboard, history, prefs),
              pointer & menu stores
