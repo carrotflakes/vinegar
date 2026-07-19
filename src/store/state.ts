@@ -193,6 +193,9 @@ export interface ShapeActions {
   /** Import one image file as a document asset (no scene node) for use as a
    *  pattern fill/stroke. Resolves the new asset id, or null on failure. */
   addPatternImage: (file: File) => Promise<string | null>;
+  /** Import image files as document assets (no scene nodes) in one undoable
+   *  step. Used by the Assets panel's file drop. Resolves the new asset ids. */
+  importImageAssets: (files: File[]) => Promise<string[]>;
   /** Place a new image node referencing an existing asset (no re-import),
    *  centered on `at`. Used by the Assets panel's place/drag. */
   placeAssetImage: (

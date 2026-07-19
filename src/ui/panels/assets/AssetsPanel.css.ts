@@ -22,6 +22,35 @@ globalStyle(".assets-purge:disabled", {
   cursor: "default",
 });
 
+globalStyle(".assets-panel", {
+  position: "relative",
+  display: "flex",
+  flexDirection: "column",
+  minHeight: "100%",
+});
+
+/* Let the list take remaining height so the panel fills the drop target. */
+globalStyle(".assets-panel .symbols-list", {
+  flex: "1 1 0",
+});
+
+/* Highlight the whole panel while an image file is dragged over it. */
+globalStyle(".assets-panel.assets-drop-active::after", {
+  content: "'Drop images to import'",
+  position: "absolute",
+  inset: "4px",
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  borderRadius: "8px",
+  border: `2px dashed ${vars.accent}`,
+  background: vars.hover,
+  color: vars.text,
+  fontSize: "13px",
+  pointerEvents: "none",
+  zIndex: 2,
+});
+
 globalStyle(".asset-row", {
   display: "flex",
   alignItems: "center",

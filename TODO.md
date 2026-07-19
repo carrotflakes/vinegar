@@ -244,3 +244,4 @@ additional effects, or other feature expansion.
     参照 `ScriptDef` を同梱してマージするか、貼り先に無ければ generator リンクを外す
 - [ ] グリッド表示オプション
 - [ ] 左右反転のUIリファイン
+- [ ] エラーをユーザーに伝えるUI　（できるだけ握りつぶさない）

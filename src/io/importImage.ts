@@ -42,6 +42,16 @@ export interface ImportedImage {
 }
 
 /**
+ * Import every decodable image in a batch, dropping non-images and any that
+ * fail to read/decode. The shared front end for both placing images as scene
+ * nodes and importing them as bare assets.
+ */
+export async function importImageFiles(files: File[]): Promise<ImportedImage[]> {
+  const results = await Promise.all(files.filter(isImageFile).map(importImageFile));
+  return results.filter((img): img is ImportedImage => img !== null);
+}
+
+/**
  * Read a file into a data-URL asset and decode it once to learn its natural
  * size (the decode also pre-warms the render cache). Resolves null for files
  * that fail to read or decode.

@@ -13,7 +13,7 @@ import { childIdsOf, descendantShapeIds, isGroup, isNodeHidden, isNodeLocked, is
 import { clampRectCornerRadius } from "../model/roundedRect";
 import { resizeShapeToBounds, translateShape } from "../model/transforms";
 import { makeId, type BezierShape, type Bounds, type ImageShape, type SceneNode, type Shape, type Vec2 } from "../model/types";
-import { importImageFile, isImageFile } from "../io/importImage";
+import { importImageFile, importImageFiles, isImageFile } from "../io/importImage";
 import { measureTextShape } from "../canvas/textLayout";
 import { loadAssetImage } from "../imageCache";
 import { appendToScope, groupNode, removeRoots } from "./docOps";
@@ -242,9 +242,7 @@ export function createShapeActions({ set, get, transact, replaceDocumentWithoutH
       else { const next = { ...doc, nodes: { ...doc.nodes, [shape.id]: { ...shape, subpaths, generator: undefined } } }; if (!hasValidClippingMasks(next)) return; transact(next); set({ editNode: null }); }
     },
     placeImageFiles: async (files, at, fitWithin) => {
-      const images = (
-        await Promise.all(files.filter(isImageFile).map(importImageFile))
-      ).filter((img) => img !== null);
+      const images = await importImageFiles(files);
       if (!images.length) return;
       const s = get();
       const nodes = { ...s.doc.nodes };
@@ -331,6 +329,19 @@ export function createShapeActions({ set, get, transact, replaceDocumentWithoutH
       const s = get();
       transact({ ...s.doc, assets: { ...s.doc.assets, [img.asset.id]: img.asset } });
       return img.asset.id;
+    },
+    importImageAssets: async (files) => {
+      const images = await importImageFiles(files);
+      if (!images.length) return [];
+      const s = get();
+      const assets = { ...s.doc.assets };
+      const ids: string[] = [];
+      images.forEach((img) => {
+        assets[img.asset.id] = img.asset;
+        ids.push(img.asset.id);
+      });
+      transact({ ...s.doc, assets });
+      return ids;
     },
     placeAssetImage: async (assetId, at, fitWithin) => {
       const asset = get().doc.assets[assetId];

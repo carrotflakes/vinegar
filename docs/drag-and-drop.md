@@ -3,8 +3,10 @@
 All in-app dragging is pointer-based, not HTML5 drag-and-drop. Native DnD
 (`draggable` + `dragstart`/`dragover`/`drop`) never fires from touch input, so
 every draggable surface — reordering lists and dragging library items onto the
-canvas alike — is built on Pointer Events instead. The only remaining native
-`onDrop` is the canvas handler for files dropped from the operating system.
+canvas alike — is built on Pointer Events instead. The only native `onDrop`
+handlers are for files dropped from the operating system, which Pointer Events
+cannot deliver: the canvas (places image/SVG/document files) and the Assets
+panel (imports image files as bare assets, no scene node).
 
 Two hooks cover the two shapes of drag. Reach for one of them before adding a
 new draggable surface; do not reintroduce `draggable`.

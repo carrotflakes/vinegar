@@ -1,9 +1,10 @@
-import { useEffect, useMemo, useReducer } from "react";
+import { useEffect, useMemo, useReducer, useState } from "react";
 import { LuImage, LuPlus, LuTrash2 } from "react-icons/lu";
 import { getAssetImage, subscribeImageCache } from "../../../imageCache";
 import { assetReferenceCounts } from "../../../model/scene";
 import { useEditor } from "../../../store/editorStore";
 import { canvasCenterPlacement } from "../../../canvas/canvasDrag";
+import { imageFilesFromData } from "../../../io/importImage";
 import { usePanelCanvasDrag } from "../../usePanelCanvasDrag";
 import "../../Panel.css";
 import "../PanelList.css";
@@ -19,9 +20,31 @@ export default function AssetsPanel() {
   const deleteAsset = useEditor((s) => s.deleteAsset);
   const deleteUnusedAssets = useEditor((s) => s.deleteUnusedAssets);
   const placeAssetImage = useEditor((s) => s.placeAssetImage);
+  const importImageAssets = useEditor((s) => s.importImageAssets);
   // Thumbnails decode asynchronously; repaint when any asset's pixels arrive.
   const [, bump] = useReducer((n) => n + 1, 0);
   useEffect(() => subscribeImageCache(bump), []);
+
+  // Dropping image files onto the panel imports them as assets (no scene node).
+  const [dropActive, setDropActive] = useState(false);
+  const onDragOver = (e: React.DragEvent<HTMLDivElement>) => {
+    if (!e.dataTransfer.types.includes("Files")) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = "copy";
+    setDropActive(true);
+  };
+  const onDragLeave = (e: React.DragEvent<HTMLDivElement>) => {
+    // Ignore leaves into descendant elements; only clear when truly outside.
+    if (e.currentTarget.contains(e.relatedTarget as Node | null)) return;
+    setDropActive(false);
+  };
+  const onDrop = (e: React.DragEvent<HTMLDivElement>) => {
+    if (!e.dataTransfer.types.includes("Files")) return;
+    e.preventDefault();
+    setDropActive(false);
+    const files = imageFilesFromData(e.dataTransfer);
+    if (files.length) void importImageAssets(files);
+  };
 
   const startDrag = usePanelCanvasDrag<string>({
     ghost: (id) => {
@@ -40,7 +63,12 @@ export default function AssetsPanel() {
   const unusedCount = assets.filter((a) => !counts.has(a.id)).length;
 
   return (
-    <div className="symbols-panel">
+    <div
+      className={`symbols-panel assets-panel${dropActive ? " assets-drop-active" : ""}`}
+      onDragOver={onDragOver}
+      onDragLeave={onDragLeave}
+      onDrop={onDrop}
+    >
       <div className="panel-title layers-title">
         <span>Assets</span>
         <button
