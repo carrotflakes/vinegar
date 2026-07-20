@@ -249,7 +249,7 @@ export function createStructureActions({ set, get, transact }: StoreCtx): Struct
       const next = replaceChildren({ ...doc, nodes }, parent, order);
       if (!hasValidClippingMasks(next)) return;
       transact(next);
-      set({ selection: [compound.id], editNode: null, ...clearTransient });
+      set({ selection: [compound.id], ...clearTransient });
     },
     releaseCompoundPathSelected: () => {
       let doc = get().doc;
@@ -273,7 +273,7 @@ export function createStructureActions({ set, get, transact }: StoreCtx): Struct
       }
       if (selected.length && hasValidClippingMasks(doc)) {
         transact(doc);
-        set({ selection: selected, editNode: null, ...clearTransient });
+        set({ selection: selected, ...clearTransient });
       }
     },
     toggleHidden: (id) => { const doc = get().doc, node = doc.nodes[id]; if (!node) return; transact({ ...doc, nodes: { ...doc.nodes, [id]: { ...node, hidden: !node.hidden } } }); if (!node.hidden) { const affected = new Set([id, ...descendantNodeIds(doc, id)]); set({ selection: get().selection.filter((x) => !affected.has(x)), ...clearTransient }); } },

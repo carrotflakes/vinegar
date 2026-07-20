@@ -1,5 +1,5 @@
 // Selection state, including the transient multi-select pivot/transform and
-// the node-tool's active anchor.
+// the node-tool's selected anchors.
 
 import {
   ancestorIds,
@@ -22,9 +22,15 @@ export function createSelectionActions({ set, get }: StoreCtx): SelectionActions
     setSelectionPivot: (selectionPivot) => set({ selectionPivot }),
     setSelectionTransform: (selectionTransform) => set({ selectionTransform }),
     toggleSelection: (id) => set({ selection: get().selection.includes(id) ? get().selection.filter((x) => x !== id) : [...get().selection, id], ...clearTransient }),
-    clearSelection: () => set({ selection: [], editNode: null, ...clearTransient }),
+    clearSelection: () => set({ selection: [], ...clearTransient }),
     selectAll: () => { const s = get(); const roots = scopeRootIds(s.doc, currentSymbolScope(s)); set({ selection: roots.filter((id) => !isNodeHidden(s.doc, id) && !isNodeLocked(s.doc, id)), ...clearTransient }); },
-    setEditNode: (editNode) => set({ editNode }),
+    setEditNodes: (editNodes) => {
+      const unique = new Map<string, (typeof editNodes)[number]>();
+      for (const node of editNodes) {
+        unique.set(`${node.shapeId}:${node.sub}:${node.index}`, node);
+      }
+      set({ editNodes: [...unique.values()], selectedArtboardId: null });
+    },
     setActiveGroup: (activeGroupId) => set({ activeGroupId }),
     exitGroup: () => {
       const s = get();

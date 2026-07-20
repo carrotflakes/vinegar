@@ -126,7 +126,18 @@ export function createHistory(set: StoreSet, get: StoreGet): HistorySlice {
   const rollbackInteraction = (): boolean => {
     const state = get(), interaction = state._interaction;
     if (!interaction) return false;
-    if (interaction.dirty) set({ doc: interaction.before, _revision: revisionForDocument(interaction.before, { ...state._revision, history: interaction.beforeRevision }, state), ...clearTransient, selectedArtboardId: state.selectedArtboardId, _interaction: null });
+    if (interaction.dirty) set({
+      doc: interaction.before,
+      _revision: revisionForDocument(
+        interaction.before,
+        { ...state._revision, history: interaction.beforeRevision },
+        state
+      ),
+      ...clearTransient,
+      selectedArtboardId: state.selectedArtboardId,
+      editNodes: interaction.beforeEditNodes,
+      _interaction: null,
+    });
     else set({ _interaction: null });
     return true;
   };
@@ -181,7 +192,20 @@ export function createHistory(set: StoreSet, get: StoreGet): HistorySlice {
     loadDocument: (doc) => { resetCoalesce(); set({ ...documentReset(doc, true), savedDoc: doc }); },
     recoverDocument: (doc) => { resetCoalesce(); set({ ...documentReset(doc, false), savedDoc: doc }); },
     markSaved: () => { resetCoalesce(); finishInteraction(); const state = get(); set({ savedDoc: state.doc, _savedRevision: state._revision }); },
-    beginInteraction: () => { const state = get(); if (!state._interaction) set({ _interaction: { before: state.doc, beforeRevision: state._revision.history, afterRevision: null, dirty: false } }); },
+    beginInteraction: () => {
+      const state = get();
+      if (!state._interaction) {
+        set({
+          _interaction: {
+            before: state.doc,
+            beforeEditNodes: [...state.editNodes],
+            beforeRevision: state._revision.history,
+            afterRevision: null,
+            dirty: false,
+          },
+        });
+      }
+    },
     applyShapes: (next) => { const state = get(), interaction = state._interaction; if (!interaction || !Object.entries(next).some(([id, node]) => state.doc.nodes[id] !== node)) return; const afterRevision = interaction.afterRevision ?? nextRevision(); set({ doc: { ...state.doc, nodes: { ...state.doc.nodes, ...next } }, _interaction: { ...interaction, afterRevision, dirty: true }, _revision: { ...state._revision, history: afterRevision } }); },
     setDoc: (doc) => { const state = get(), interaction = state._interaction; if (!interaction || doc === state.doc) return; const afterRevision = interaction.afterRevision ?? nextRevision(); set({ doc, _interaction: { ...interaction, afterRevision, dirty: true }, _revision: { ...state._revision, history: afterRevision } }); },
     endInteraction: () => { resetCoalesce(); finishInteraction(); },

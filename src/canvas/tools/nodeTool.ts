@@ -13,7 +13,7 @@ import { isShape } from "../../model/scene";
 import type { Vec2 } from "../../model/types";
 import { useEditor, type EditorState } from "../../store/editorStore";
 import { NODE_GRAB, type Interaction, type ToolContext } from "../interaction";
-import { hitNodes, moveAnchor, moveHandle, nodeSubpaths } from "../nodes";
+import { hitNodes, moveAnchors, moveHandle, nodeSubpaths } from "../nodes";
 import {
   pickShape,
   pickTolerance,
@@ -31,7 +31,8 @@ export function onNodeDown(
   ctx: ToolContext,
   state: EditorState,
   screen: Vec2,
-  world: Vec2
+  world: Vec2,
+  shiftKey: boolean
 ) {
   const sel = selectedNodeShape(state);
   if (sel) {
@@ -40,10 +41,30 @@ export function onNodeDown(
       shapeWorldMatrix(state.doc, sel),
       screen,
       state.viewport,
-      NODE_GRAB * ctx.hitScale()
+      NODE_GRAB * ctx.hitScale(),
+      shiftKey
     );
     if (hit) {
-      state.setEditNode({ shapeId: sel.id, sub: hit.sub, index: hit.index });
+      const node = { shapeId: sel.id, sub: hit.sub, index: hit.index };
+      const current = state.editNodes.filter((selected) => selected.shapeId === sel.id);
+      const sameNode = (selected: typeof node) =>
+        selected.sub === node.sub && selected.index === node.index;
+      const alreadySelected = current.some(sameNode);
+      let selected = current;
+      if (hit.part === "anchor" && shiftKey) {
+        if (alreadySelected) {
+          state.setEditNodes(current.filter((selectedNode) => !sameNode(selectedNode)));
+          return;
+        }
+        selected = [...current, node];
+      } else if (alreadySelected) {
+        // Preserve the group when dragging an already-selected anchor, but make
+        // the pressed anchor active by moving it to the end.
+        selected = [...current.filter((selectedNode) => !sameNode(selectedNode)), node];
+      } else {
+        selected = [node];
+      }
+      state.setEditNodes(selected);
       state.beginInteraction();
       ctx.interaction.current =
         hit.part === "anchor"
@@ -53,6 +74,7 @@ export function onNodeDown(
               sub: hit.sub,
               index: hit.index,
               orig: sel,
+              selected: selected.map(({ sub, index }) => ({ sub, index })),
             }
           : {
               kind: "node-handle",
@@ -90,7 +112,7 @@ export function onNodeDown(
       const { next, sub, index } = insert;
       state.beginInteraction();
       state.applyShapes({ [sel.id]: next });
-      state.setEditNode({ shapeId: sel.id, sub, index });
+      state.setEditNodes([{ shapeId: sel.id, sub, index }]);
       ctx.lastInsert.current = { shapeId: sel.id, sub, index, time: Date.now() };
       ctx.interaction.current = {
         kind: "node-anchor",
@@ -98,6 +120,7 @@ export function onNodeDown(
         sub,
         index,
         orig: next,
+        selected: [{ sub, index }],
       };
       return;
     }
@@ -107,7 +130,7 @@ export function onNodeDown(
   const picked = id ? state.doc.nodes[id] : null;
   if (picked && (picked.type === "bezier" || picked.type === "brush")) {
     state.setSelection([id!]);
-    state.setEditNode(null);
+    state.setEditNodes([]);
   } else {
     state.clearSelection();
   }
@@ -140,8 +163,15 @@ export function onNodeMove(
       const snapped = pointSnap(ctx, world, new Set([inter.shapeId]));
       target = inverse ? applyMatrix(inverse, snapped) : snapped;
     }
+    const origin =
+      nodeSubpaths(inter.orig)[inter.sub]?.anchors[inter.index]?.p ?? target;
     state.applyShapes({
-      [inter.shapeId]: moveAnchor(inter.orig, inter.sub, inter.index, target),
+      [inter.shapeId]: moveAnchors(
+        inter.orig,
+        inter.selected,
+        target.x - origin.x,
+        target.y - origin.y
+      ),
     });
     return;
   }
@@ -185,7 +215,7 @@ export function onNodeDoubleClick(
   )
     return;
   state.toggleNodeSmooth(sel.id, hit.sub, hit.index);
-  state.setEditNode({ shapeId: sel.id, sub: hit.sub, index: hit.index });
+  state.setEditNodes([{ shapeId: sel.id, sub: hit.sub, index: hit.index }]);
 }
 
 export function nodeCursor(

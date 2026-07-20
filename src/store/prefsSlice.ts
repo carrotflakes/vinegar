@@ -68,7 +68,7 @@ export function initialPrefs(): PrefsData {
 
 export function createPrefsActions({ set, get, replaceDocumentWithoutHistory }: StoreCtx): PrefsActions {
   return {
-    setTool: (tool) => set({ tool, selection: tool === "select" || tool === "node" ? get().selection : [], ...(tool === "select" || tool === "node" ? {} : clearTransient), editNode: null }),
+    setTool: (tool) => set({ tool, selection: tool === "select" || tool === "node" ? get().selection : [], ...clearTransient }),
     setViewport: (viewport) => set({ viewport }),
     toggleSnap: () => { const snapEnabled = !get().snapEnabled; saveBool(SNAP_ENABLED_KEY, snapEnabled); set({ snapEnabled }); },
     toggleGridSnap: () => { const gridSnap = !get().gridSnap; saveBool(GRID_SNAP_KEY, gridSnap); set({ gridSnap }); },

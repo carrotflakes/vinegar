@@ -51,29 +51,38 @@ export function hitNodes(
   transform: Matrix,
   screen: Vec2,
   viewport: Viewport,
-  grabPx = 8
+  grabPx = 8,
+  preferAnchors = false
 ): NodeHit | null {
   const subpaths = nodeSubpaths(shape);
   const near = (w: Vec2, tol: number) => {
     const s = worldToScreen(viewport, applyMatrix(transform, w));
     return Math.abs(s.x - screen.x) <= tol && Math.abs(s.y - screen.y) <= tol;
   };
-  // Handles first.
-  for (let sub = 0; sub < subpaths.length; sub++) {
-    const anchors = subpaths[sub].anchors;
-    for (let i = 0; i < anchors.length; i++) {
-      const a = anchors[i];
-      if (a.hOut && near(a.hOut, grabPx)) return { part: "out", sub, index: i };
-      if (a.hIn && near(a.hIn, grabPx)) return { part: "in", sub, index: i };
+  const hitAnchor = (): NodeHit | null => {
+    for (let sub = 0; sub < subpaths.length; sub++) {
+      const anchors = subpaths[sub].anchors;
+      for (let i = 0; i < anchors.length; i++) {
+        if (near(anchors[i].p, grabPx + 1))
+          return { part: "anchor", sub, index: i };
+      }
     }
-  }
-  for (let sub = 0; sub < subpaths.length; sub++) {
-    const anchors = subpaths[sub].anchors;
-    for (let i = 0; i < anchors.length; i++) {
-      if (near(anchors[i].p, grabPx + 1)) return { part: "anchor", sub, index: i };
+    return null;
+  };
+  const hitHandle = (): NodeHit | null => {
+    for (let sub = 0; sub < subpaths.length; sub++) {
+      const anchors = subpaths[sub].anchors;
+      for (let i = 0; i < anchors.length; i++) {
+        const a = anchors[i];
+        if (a.hOut && near(a.hOut, grabPx))
+          return { part: "out", sub, index: i };
+        if (a.hIn && near(a.hIn, grabPx))
+          return { part: "in", sub, index: i };
+      }
     }
-  }
-  return null;
+    return null;
+  };
+  return preferAnchors ? hitAnchor() ?? hitHandle() : hitHandle() ?? hitAnchor();
 }
 
 /** Move an anchor point to `world`, dragging its handles along with it. The
@@ -101,6 +110,34 @@ export function moveAnchor(
   const anchors = sp.anchors.slice();
   anchors[index] = { ...a, p: world, hIn: shiftV(a.hIn, dx, dy), hOut: shiftV(a.hOut, dx, dy) };
   return withSubpath(shape, sub, { ...sp, anchors });
+}
+
+/**
+ * Translate several anchors by one local-space delta. Every target is read from
+ * the immutable starting shape so repeated pointer moves never accumulate
+ * rounding error. Moving an anchor carries its handles with it.
+ */
+export function moveAnchors(
+  shape: NodeEditShape,
+  nodes: readonly { sub: number; index: number }[],
+  dx: number,
+  dy: number
+): NodeEditShape {
+  let next = shape;
+  const seen = new Set<string>();
+  const subpaths = nodeSubpaths(shape);
+  for (const node of nodes) {
+    const key = `${node.sub}:${node.index}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    const anchor = subpaths[node.sub]?.anchors[node.index];
+    if (!anchor) continue;
+    next = moveAnchor(next, node.sub, node.index, {
+      x: anchor.p.x + dx,
+      y: anchor.p.y + dy,
+    });
+  }
+  return next;
 }
 
 /**

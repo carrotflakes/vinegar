@@ -212,7 +212,7 @@ export default function App() {
         return;
       }
       if (e.key === "Escape") {
-        if (s.selection.length || s.editNode) s.clearSelection();
+        if (s.selection.length || s.editNodes.length) s.clearSelection();
         else if (s.activeGroupId) s.exitGroup();
         else if (s.editingSymbols.length) s.exitSymbolEdit();
         return;

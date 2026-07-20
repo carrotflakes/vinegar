@@ -80,6 +80,8 @@ export type Interaction =
       sub: number;
       index: number;
       orig: BezierShape | BrushShape;
+      /** Anchor selection captured at pointer-down, all within `shapeId`. */
+      selected: { sub: number; index: number }[];
     }
   | {
       kind: "node-handle";

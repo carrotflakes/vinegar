@@ -85,7 +85,8 @@ export interface EditorData {
   viewport: Viewport;
   style: StyleDefaults;
   history: HistoryState;
-  editNode: EditNode | null;
+  /** Node-tool anchor selection. The last entry is the active/dragged anchor. */
+  editNodes: EditNode[];
   /**
    * Worker-compiled metadata (parameter schema / errors) for document scripts,
    * keyed by script id. Session-only cache, rebuilt on demand; never persisted.
@@ -110,6 +111,8 @@ export interface EditorData {
   _interaction: {
     /** Immutable document before the interaction started. */
     before: Document;
+    /** Node selection to restore if the interaction is cancelled. */
+    beforeEditNodes: EditNode[];
     beforeRevision: number;
     afterRevision: number | null;
     /** Whether an intermediate document has been published. */
@@ -138,7 +141,7 @@ export interface SelectionActions {
   toggleSelection: (id: string) => void;
   clearSelection: () => void;
   selectAll: () => void;
-  setEditNode: (node: EditNode | null) => void;
+  setEditNodes: (nodes: EditNode[]) => void;
   /** Drill into a group (double-click); null returns to top level. */
   setActiveGroup: (id: string | null) => void;
   /** Step out of the active group to its parent group (or top level). */
@@ -353,13 +356,14 @@ export interface StoreCtx {
  * Per-selection transient state, reset by selection/document changes. Node
  * selection and artboard selection are mutually exclusive, so setting a node
  * selection also drops the selected artboard. The few callers that roll back an
- * interaction while keeping the artboard selected (undo/redo, cancelInteraction)
- * restore `selectedArtboardId` explicitly.
+ * interaction while keeping an artboard or path anchors selected
+ * (undo/redo, cancelInteraction) restore those fields explicitly.
  */
 export const clearTransient = {
   selectionPivot: null,
   selectionTransform: null,
   selectedArtboardId: null,
+  editNodes: [] as EditNode[],
 };
 
 /** The symbol whose definition is being edited, or null for the scene. */

@@ -249,10 +249,9 @@ export default function CanvasView() {
     if (tool === "node") {
       const sel = selectedNodeShape(state);
       if (sel) {
-        const active =
-          state.editNode && state.editNode.shapeId === sel.id
-            ? { sub: state.editNode.sub, index: state.editNode.index }
-            : null;
+        const active = state.editNodes
+          .filter((node) => node.shapeId === sel.id)
+          .map(({ sub, index }) => ({ sub, index }));
         drawNodes(
           ctx,
           dpr,
@@ -585,7 +584,7 @@ export default function CanvasView() {
       return;
     }
     if (tool === "node") {
-      onNodeDown(ctx, state, screen, world);
+      onNodeDown(ctx, state, screen, world, mod.shift);
       return;
     }
     if (tool === "pen") {

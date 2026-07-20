@@ -57,7 +57,7 @@ export const useEditor = create<EditorState>((set, get) => {
     activeGroupId: null,
     selectedArtboardId: null,
     history: { past: [], future: [] },
-    editNode: null,
+    editNodes: [],
     scriptsTrusted: true,
     scriptMeta: {},
     clipboard: null,

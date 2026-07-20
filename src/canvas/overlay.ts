@@ -282,13 +282,14 @@ export function drawNodes(
   viewport: Viewport,
   shape: NodeEditShape,
   transform: Matrix,
-  active: { sub: number; index: number } | null,
+  active: readonly { sub: number; index: number }[],
   anchorSize = ANCHOR_SIZE,
   dotSize = HANDLE_DOT
 ): void {
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   const toS = (w: Vec2) => worldToScreen(viewport, applyMatrix(transform, w));
   const subpaths = nodeSubpaths(shape);
+  const selected = new Set(active.map((node) => `${node.sub}:${node.index}`));
 
   // Handle lines + dots.
   ctx.strokeStyle = "#9bbcf6";
@@ -319,10 +320,7 @@ export function drawNodes(
     subpath.anchors.forEach((a, i) => {
       const sp = toS(a.p);
       square(ctx, sp, anchorSize);
-      ctx.fillStyle =
-        active && active.sub === sub && active.index === i
-          ? ACCENT
-          : "#ffffff";
+      ctx.fillStyle = selected.has(`${sub}:${i}`) ? ACCENT : "#ffffff";
       ctx.fill();
       ctx.strokeStyle = ACCENT;
       ctx.stroke();

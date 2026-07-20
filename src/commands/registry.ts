@@ -275,11 +275,11 @@ export const COMMANDS: Command[] = [
     danger: true,
     keys: [{ key: "Delete" }, { key: "Backspace" }],
     enabled: (s) =>
-      s.editNode != null ||
+      s.editNodes.length > 0 ||
       s.selection.length > 0 ||
       s.selectedArtboardId != null,
     run: (s) => {
-      if (s.editNode) s.deleteEditNode();
+      if (s.editNodes.length) s.deleteEditNode();
       else if (s.selectedArtboardId) s.deleteArtboard(s.selectedArtboardId);
       else s.deleteSelected();
     },

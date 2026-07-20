@@ -255,16 +255,18 @@ export function createShapeActions({ set, get, transact, replaceDocumentWithoutH
       transact({ ...doc, nodes: { ...doc.nodes, [id]: next } });
     },
     deleteEditNode: () => {
-      const { doc, editNode } = get(); if (!editNode) return;
+      const { doc, editNodes } = get();
+      const editNode = editNodes[editNodes.length - 1];
+      if (!editNode) return;
       const shape = doc.nodes[editNode.shapeId]; if (!isShape(shape)) return;
       if (shape.type === "brush") {
         const next = deleteBrushAnchor(shape, editNode.index);
         if (next === null) {
           const removed = removeRoots(doc, [shape.id]);
           if (!hasValidClippingMasks(removed)) return;
-          transact(removed); set({ selection: [], editNode: null, ...clearTransient });
+          transact(removed); set({ selection: [], ...clearTransient });
         } else {
-          transact({ ...doc, nodes: { ...doc.nodes, [shape.id]: next } }); set({ editNode: null });
+          transact({ ...doc, nodes: { ...doc.nodes, [shape.id]: next } }); set({ editNodes: [] });
         }
         return;
       }
@@ -275,8 +277,8 @@ export function createShapeActions({ set, get, transact, replaceDocumentWithoutH
       const subpaths = anchors.length < 2
         ? shape.subpaths.filter((_, i) => i !== editNode.sub)
         : shape.subpaths.map((s, i) => (i === editNode.sub ? { ...s, anchors } : s));
-      if (subpaths.length === 0) { const next = removeRoots(doc, [shape.id]); if (!hasValidClippingMasks(next)) return; transact(next); set({ selection: [], editNode: null, ...clearTransient }); }
-      else { const next = { ...doc, nodes: { ...doc.nodes, [shape.id]: { ...shape, subpaths, generator: undefined } } }; if (!hasValidClippingMasks(next)) return; transact(next); set({ editNode: null }); }
+      if (subpaths.length === 0) { const next = removeRoots(doc, [shape.id]); if (!hasValidClippingMasks(next)) return; transact(next); set({ selection: [], ...clearTransient }); }
+      else { const next = { ...doc, nodes: { ...doc.nodes, [shape.id]: { ...shape, subpaths, generator: undefined } } }; if (!hasValidClippingMasks(next)) return; transact(next); set({ editNodes: [] }); }
     },
     placeImageFiles: async (files, at, fitWithin) => {
       const images = await importImageFiles(files);
