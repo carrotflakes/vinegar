@@ -1,6 +1,7 @@
 import { subpathSegments } from "../model/path";
 import { shapeBounds } from "../model/bounds";
 import { cachedBrushEnvelope } from "../model/brushOutline";
+import { compoundChildren } from "../model/compoundPath";
 import { getAssetImage } from "../imageCache";
 import {
   clippingContentIds,
@@ -151,7 +152,7 @@ function makeDefs(doc: Document): Defs {
     clipPath(shape) {
       const clipId = nextId("clip");
       items.push(
-        `<clipPath id="${clipId}" clipPathUnits="userSpaceOnUse">${maskShapeToSvg(shape)}</clipPath>`
+        `<clipPath id="${clipId}" clipPathUnits="userSpaceOnUse">${maskShapeToSvg(doc, shape)}</clipPath>`
       );
       return clipId;
     },
@@ -288,9 +289,9 @@ function filterAttr(node: SceneNode, defs: Defs): string {
   return hasEffects(node.effects) ? `filter="url(#${defs.filter(node.effects)})"` : "";
 }
 
-function commonAttrs(shape: Shape, defs: Defs): string {
+function commonAttrs(doc: Document, shape: Shape, defs: Defs): string {
   const parts: string[] = [];
-  const bounds = shapeBounds(shape);
+  const bounds = shapeBounds(shape, doc);
   // SVG fills open subpaths by implicitly closing them while leaving their
   // stroke geometry open.
   const fillable = shape.type !== "line";
@@ -300,7 +301,7 @@ function commonAttrs(shape: Shape, defs: Defs): string {
     parts.push(`fill="none"`);
   }
   if (shape.stroke && shape.strokeWidth > 0) {
-    parts.push(...strokeSvgAttrs(shape, defs, shape.strokeWidth));
+    parts.push(...strokeSvgAttrs(shape, defs, shape.strokeWidth, doc));
   }
   parts.push(...baseAttrs(shape));
   const fx = filterAttr(shape, defs);
@@ -308,10 +309,15 @@ function commonAttrs(shape: Shape, defs: Defs): string {
   return parts.join(" ");
 }
 
-function strokeSvgAttrs(shape: Shape, defs: Defs, width: number): string[] {
+function strokeSvgAttrs(
+  shape: Shape,
+  defs: Defs,
+  width: number,
+  doc?: Document
+): string[] {
   if (!shape.stroke) return [];
   const parts = [
-    ...defs.paintAttrs(shape.stroke, "stroke", shapeBounds(shape)),
+    ...defs.paintAttrs(shape.stroke, "stroke", shapeBounds(shape, doc)),
     `stroke-width="${num(width)}"`,
     `stroke-linecap="${strokeCap(shape)}"`,
     `stroke-linejoin="${strokeJoin(shape)}"`,
@@ -327,10 +333,10 @@ function strokeSvgAttrs(shape: Shape, defs: Defs, width: number): string[] {
   return parts;
 }
 
-function fillSvgAttrs(shape: Shape, defs: Defs): string[] {
+function fillSvgAttrs(doc: Document, shape: Shape, defs: Defs): string[] {
   const fillable = shape.type !== "line";
   return fillable && shape.fill
-    ? defs.paintAttrs(shape.fill, "fill", shapeBounds(shape))
+    ? defs.paintAttrs(shape.fill, "fill", shapeBounds(shape, doc))
     : [`fill="none"`];
 }
 
@@ -367,21 +373,23 @@ function shapeToSvg(doc: Document, shape: Shape, defs: Defs): string {
     parts.push(...baseAttrs(shape));
     const fx = filterAttr(shape, defs);
     if (fx) parts.push(fx);
-    return shapeGeometryToSvg(shape, parts.join(" "));
+    return shapeGeometryToSvg(doc, shape, parts.join(" "));
   }
   const alignment = effectiveStrokeAlignment(shape);
   if (!shape.stroke || shape.strokeWidth <= 0 || alignment === "center") {
-    return shapeGeometryToSvg(shape, commonAttrs(shape, defs));
+    return shapeGeometryToSvg(doc, shape, commonAttrs(doc, shape, defs));
   }
 
   // SVG has no interoperable inside/outside stroke positioning. Paint fill
   // and stroke separately, double the stroke width, then clip/mask the latter.
-  const fill = shapeGeometryToSvg(shape, [...fillSvgAttrs(shape, defs), `stroke="none"`].join(" "));
+  const fill = shapeGeometryToSvg(doc, shape, [...fillSvgAttrs(doc, shape, defs), `stroke="none"`].join(" "));
   const stroke = shapeGeometryToSvg(
+    doc,
     shape,
-    [`fill="none"`, ...strokeSvgAttrs(shape, defs, shape.strokeWidth * 2)].join(" ")
+    [`fill="none"`, ...strokeSvgAttrs(shape, defs, shape.strokeWidth * 2, doc)].join(" ")
   );
   const silhouette = shapeGeometryToSvg(
+    doc,
     shape,
     `fill="black" stroke="none"${
       shapeFillRule(shape) === "evenodd" ? ` clip-rule="evenodd"` : ""
@@ -393,14 +401,14 @@ function shapeToSvg(doc: Document, shape: Shape, defs: Defs): string {
         // Keep this region padding in sync with STROKE_MITER_LIMIT and the
         // conservative strokeOutset policy; an undersized mask clips miters.
         const pad = Math.max(1, shape.strokeWidth * STROKE_MITER_LIMIT);
-        const mask = defs.strokeMask(silhouette, expandedBounds(shapeBounds(shape), pad));
+        const mask = defs.strokeMask(silhouette, expandedBounds(shapeBounds(shape, doc), pad));
         return `<g mask="url(#${mask})">${stroke}</g>`;
       })();
   const wrapper = [...baseAttrs(shape), filterAttr(shape, defs)].filter(Boolean).join(" ");
   return `<g${wrapper ? " " + wrapper : ""}>${fill}${limitedStroke}</g>`;
 }
 
-function shapeGeometryToSvg(shape: Shape, attrs: string): string {
+function shapeGeometryToSvg(doc: Document, shape: Shape, attrs: string): string {
   switch (shape.type) {
     case "text": {
       const layout = layoutTextInBrowser(shape);
@@ -445,7 +453,7 @@ function shapeGeometryToSvg(shape: Shape, attrs: string): string {
       return `<path d="${d}" fill-rule="nonzero" ${attrs} />`;
     }
     case "compoundPath":
-      return `<path d="${shape.components
+      return `<path d="${compoundChildren(doc, shape)
         .map((component) => primitivePathData(component, component.transform))
         .join(" ")}" fill-rule="evenodd" ${attrs} />`;
     case "image":
@@ -533,7 +541,7 @@ function pathData(shape: PathShape): string {
  * path, transform, and fill rule: its paint, opacity, blend mode, and hidden
  * flag deliberately never enter the definition.
  */
-function maskShapeToSvg(shape: ClippingMaskShape): string {
+function maskShapeToSvg(doc: Document, shape: ClippingMaskShape): string {
   let d = "";
   switch (shape.type) {
     case "rect":
@@ -542,7 +550,7 @@ function maskShapeToSvg(shape: ClippingMaskShape): string {
       d = primitivePathData(shape, [1, 0, 0, 1, 0, 0]);
       break;
     case "compoundPath":
-      d = shape.components
+      d = compoundChildren(doc, shape)
         .map((component) => primitivePathData(component, component.transform))
         .join(" ");
       break;

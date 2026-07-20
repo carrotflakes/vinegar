@@ -21,6 +21,7 @@ import type { Group, Shape, SymbolInstance } from "../../../model/types";
 import { isClippingGroup, isClippingMaskNode } from "../../../model/clippingMask";
 import {
   descendantNodeIds,
+  isCompoundPath,
   isGroup,
   isInstance,
   isShape,
@@ -60,7 +61,15 @@ function toDisplayTree(doc: ReturnType<typeof useEditor.getState>["doc"], ids: s
     const node = doc.nodes[id];
     if (isGroup(node)) result.push({ key: id, group: node, children: toDisplayTree(doc, node.childIds) });
     else if (isInstance(node)) result.push({ key: id, instance: node });
-    else if (isShape(node)) result.push({ key: id, shape: node });
+    else if (isShape(node)) {
+      result.push({
+        key: id,
+        shape: node,
+        children: isCompoundPath(node)
+          ? toDisplayTree(doc, node.childIds)
+          : undefined,
+      });
+    }
   }
   return result.reverse();
 }
@@ -248,16 +257,20 @@ export default function LayersPanel() {
     const shape = node.shape!;
     const id = shape.id;
     const isMask = isClippingMaskNode(doc, id);
+    const isCompound = shape.type === "compoundPath";
+    const isCollapsed = collapsed.has(id);
     return (
       <div
         className={
           "layer-row" +
           (selection.includes(id) ? " selected" : "") +
-          (shape.hidden || dim ? " hidden" : "")
+          (shape.hidden || dim ? " hidden" : "") +
+          (isCompound ? " group-header" : "") +
+          (drop?.inside === id ? " drop-inside" : "")
         }
         title={isMask ? "Clipping mask" : undefined}
         style={{ paddingLeft: 6 + depth * 16 }}
-        {...rowDnd(id, path)}
+        {...rowDnd(id, path, isCompound ? id : undefined)}
         onClick={(e) => selectIds([id], e.shiftKey)}
         onContextMenu={(e) => {
           e.preventDefault();
@@ -277,6 +290,18 @@ export default function LayersPanel() {
           ]);
         }}
       >
+        {isCompound && (
+          <button
+            className="layer-icon-btn layer-chevron"
+            title={isCollapsed ? "Expand" : "Collapse"}
+            onClick={(e) => {
+              e.stopPropagation();
+              toggleCollapsed(id);
+            }}
+          >
+            {isCollapsed ? <LuChevronRight /> : <LuChevronDown />}
+          </button>
+        )}
         <button
           className="layer-icon-btn"
           title={shape.hidden ? "Show" : "Hide"}
@@ -516,7 +541,17 @@ export default function LayersPanel() {
             ) : n.instance ? (
               instanceRow(n, depth, path, dim)
             ) : (
-              shapeRow(n, depth, path, dim)
+              <>
+                {shapeRow(n, depth, path, dim)}
+                {n.children && !collapsed.has(n.key) &&
+                  renderList(
+                    n.children,
+                    n.key,
+                    depth + 1,
+                    path,
+                    dim || !!n.shape?.hidden
+                  )}
+              </>
             )}
           </Fragment>
         );

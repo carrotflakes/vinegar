@@ -48,7 +48,7 @@ import {
   drawSpacings,
   drawTextDraft,
 } from "./overlay";
-import { pickShape, selectedNodeShape, selectedShapes } from "./picking";
+import { pickShape, selectedNodeShapes, selectedShapes } from "./picking";
 import { renderScene } from "./render";
 import TextEditor from "./TextEditor";
 import { measureTextShape } from "./textLayout";
@@ -247,8 +247,7 @@ export default function CanvasView() {
     }
 
     if (tool === "node") {
-      const sel = selectedNodeShape(state);
-      if (sel) {
+      for (const sel of selectedNodeShapes(state)) {
         const active = state.editNodes
           .filter((node) => node.shapeId === sel.id)
           .map(({ sub, index }) => ({ sub, index }));

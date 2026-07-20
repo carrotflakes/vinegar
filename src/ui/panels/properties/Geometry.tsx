@@ -29,9 +29,9 @@ export default function Geometry({
   // maps edits back onto the transform rather than into the geometry.
   const bounds = isInstance(node)
     ? instanceWorldBounds(doc, node) ?? { x: 0, y: 0, width: 0, height: 0 }
-    : node.generator
+    : node.generator || node.type === "compoundPath"
       ? worldShapeBounds(doc, node)
-      : shapeBounds(node);
+      : shapeBounds(node, doc);
   const lockRatio =
     !isInstance(node) &&
     node.type === "image" &&

@@ -7,6 +7,14 @@ export interface CubicSegment {
   p1: Vec2;
 }
 
+/** Convert polygon rings into closed, straight-edged editable subpaths. */
+export function ringsToSubpaths(rings: Vec2[][]): PathSubpath[] {
+  return rings.map((ring) => ({
+    anchors: ring.map((p) => ({ p, hIn: null, hOut: null })),
+    closed: true,
+  }));
+}
+
 /** Point on a cubic Bézier at parameter t in [0, 1]. */
 export function cubicPoint(s: CubicSegment, t: number): Vec2 {
   const u = 1 - t;

@@ -3,7 +3,7 @@
 // commit a document change as an undoable step.
 
 import { createEmptyDocument, type Document } from "../model/types";
-import { hasValidClippingMasks } from "../model/clippingMask";
+import { hasValidSceneContainers } from "../model/sceneValidation";
 import { applyDocumentPatches, diffDocument, documentsEqual, type DocumentPatch } from "./documentPatches";
 import { usePreferences } from "./preferencesStore";
 import {
@@ -152,7 +152,7 @@ export function createHistory(set: StoreSet, get: StoreGet): HistorySlice {
   };
   const transact = (next: Document, key?: string) => {
     let state = get();
-    if (next === state.doc || !hasValidClippingMasks(next)) return;
+    if (next === state.doc || !hasValidSceneContainers(next)) return;
     if (state._interaction) { resetCoalesce(); finishInteraction(); state = get(); }
     const now = Date.now(), last = state.history.past[state.history.past.length - 1];
     if (key && key === coalesceKey && coalesceBase && last?.afterRevision === coalesceAfterRevision && now - coalesceTime < 600) {
@@ -170,7 +170,7 @@ export function createHistory(set: StoreSet, get: StoreGet): HistorySlice {
   const replaceDocumentWithoutHistory = (next: Document, additionalState: Partial<Pick<EditorData, "gridSize">> = {}) => {
     resetCoalesce();
     const state = get();
-    if (next === state.doc || !hasValidClippingMasks(next)) { if (additionalState.gridSize !== undefined) set(additionalState); return; }
+    if (next === state.doc || !hasValidSceneContainers(next)) { if (additionalState.gridSize !== undefined) set(additionalState); return; }
     const maintenancePatches = diffDocument(state.doc, next).patches;
     let interaction = state._interaction;
     let revision: DocumentRevision;

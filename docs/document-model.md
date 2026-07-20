@@ -6,15 +6,15 @@ active tool, selection, viewport and undo history does not belong in the file.
 ## Invariants
 
 - Every key in `nodes` equals that shape or group's `id`.
-- `rootIds` and each group's `childIds` are back-to-front and are the only
+- `rootIds` and each container's `childIds` are back-to-front and are the only
   persisted sources of hierarchy and paint order.
 - Every node is owned exactly once by either `rootIds` or one `childIds` list.
 - Missing children, multiple ownership, duplicate ownership, cycles and
   unreachable nodes are invalid. Empty groups are valid.
 - Parent ids, ancestors, depth, leaf shapes, inherited visibility/locking and
   world matrices are derived by the Scene Index and are not persisted.
-- Leaf shape types are `rect`, `ellipse`, `line`, `path`, `compoundPath`,
-  `image`, `text`, and `brush`. A `path` is the canonical vector-outline shape:
+- Leaf shape types are `rect`, `ellipse`, `line`, `path`, `image`, `text`, and
+  `brush`. A `path` is the canonical vector-outline shape:
   it stores one or more `subpaths`, each with cubic anchors (`p`, `hIn`,
   `hOut`) and a `closed` flag. Null handles make straight segments.
 - A path's optional `fillRule` is either `nonzero` or `evenodd`; an absent
@@ -38,9 +38,12 @@ active tool, selection, viewport and undo history does not belong in the file.
   corners. An absent value means `0`; rendering clamps the effective radius to
   half the rectangle's shorter side.
 - Extension data uses namespaced keys in `extensions` and must be JSON-safe.
-- Compound paths are single scene nodes. Their closed source shapes are stored
-  inline in `components`, are not independently selectable, and are painted
-  once with the compound path's shared appearance using the even-odd rule.
+- A compound path is a paintable container node. Its non-empty `childIds` owns
+  only `rect`, `ellipse`, and closed `path` nodes. The children retain their
+  transforms and appearance fields, but only visible child outlines contribute
+  while contained; the compound's appearance paints the combined outline once
+  using the even-odd rule. Scene picking remains atomic at the compound while
+  the node tool can edit path children.
 - A group with `clip: true` uses its final (frontmost) child as a vector
   clipping mask and paints only the preceding children. The mask must be an
   area-bearing vector shape; its paint and visibility fields are preserved but
@@ -59,8 +62,8 @@ active tool, selection, viewport and undo history does not belong in the file.
   Typography is one style per node (`fontFamily`, size, weight, italic,
   line-height and alignment); line layout is derived from the text at render.
 
-The file wrapper version is deliberately strict. The current version is v21;
-v8–v20 files are migrated before validation. Changing the
+The file wrapper version is deliberately strict. The current version is v22;
+v8–v21 files are migrated before validation. Changing the
 persisted shape of `Document` requires bumping `CURRENT_FILE_VERSION`.
 
 ## Coordinate policy

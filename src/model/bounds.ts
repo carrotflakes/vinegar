@@ -1,6 +1,7 @@
 import { flattenPath } from "./path";
 import { cachedBrushEnvelope } from "./brushOutline";
 import { clippingMask } from "./clippingMask";
+import { compoundChildren } from "./compoundPath";
 import { nodeWorldMatrix, shapeWorldMatrix, transformBounds } from "./matrix";
 import { isGroup, isInstance, isShape } from "./scene";
 import type { Bounds, Document, Shape, SymbolInstance, Vec2 } from "./types";
@@ -36,7 +37,7 @@ export function normalizeRect(
 }
 
 /** Axis-aligned bounding box of a single shape (ignores stroke width). */
-export function shapeBounds(shape: Shape): Bounds {
+export function shapeBounds(shape: Shape, doc?: Document): Bounds {
   switch (shape.type) {
     case "rect":
     case "ellipse":
@@ -56,9 +57,11 @@ export function shapeBounds(shape: Shape): Bounds {
       // The envelope already includes the stroke width and end caps.
       return pointsBounds(cachedBrushEnvelope(shape));
     case "compoundPath": {
-      if (shape.components.length === 0) return { x: 0, y: 0, width: 0, height: 0 };
-      const bounds = shape.components.map((component) =>
-        transformBounds(shapeBounds(component), component.transform)
+      if (!doc) return { x: 0, y: 0, width: 0, height: 0 };
+      const children = compoundChildren(doc, shape);
+      if (children.length === 0) return { x: 0, y: 0, width: 0, height: 0 };
+      const bounds = children.map((component) =>
+        transformBounds(shapeBounds(component, doc), component.transform)
       );
       const x = Math.min(...bounds.map((b) => b.x));
       const y = Math.min(...bounds.map((b) => b.y));
@@ -70,14 +73,14 @@ export function shapeBounds(shape: Shape): Bounds {
 }
 
 /** Combined bounding box of several shapes. Returns null when empty. */
-export function unionBounds(shapes: Shape[]): Bounds | null {
+export function unionBounds(shapes: Shape[], doc?: Document): Bounds | null {
   if (shapes.length === 0) return null;
   let minX = Infinity;
   let minY = Infinity;
   let maxX = -Infinity;
   let maxY = -Infinity;
   for (const s of shapes) {
-    const b = shapeBounds(s);
+    const b = shapeBounds(s, doc);
     minX = Math.min(minX, b.x);
     minY = Math.min(minY, b.y);
     maxX = Math.max(maxX, b.x + b.width);
@@ -87,14 +90,14 @@ export function unionBounds(shapes: Shape[]): Bounds | null {
 }
 
 /** Center of a shape in its local geometry space. */
-export function shapeCenter(shape: Shape): Vec2 {
-  const b = shapeBounds(shape);
+export function shapeCenter(shape: Shape, doc?: Document): Vec2 {
+  const b = shapeBounds(shape, doc);
   return { x: b.x + b.width / 2, y: b.y + b.height / 2 };
 }
 
 /** Axis-aligned world bounds after shape and ancestor transforms. */
 export function worldShapeBounds(doc: Document, shape: Shape): Bounds {
-  return transformBounds(shapeBounds(shape), shapeWorldMatrix(doc, shape));
+  return transformBounds(shapeBounds(shape, doc), shapeWorldMatrix(doc, shape));
 }
 
 /** Combined world AABB of several shapes (accounts for all transforms). */
@@ -166,7 +169,7 @@ export function leafLocalBounds(
   if (isInstance(leaf)) {
     return symbolContentBounds(doc, leaf.symbolId) ?? { x: 0, y: 0, width: 0, height: 0 };
   }
-  return shapeBounds(leaf);
+  return shapeBounds(leaf, doc);
 }
 
 export function nodeWorldBounds(

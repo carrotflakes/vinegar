@@ -95,10 +95,7 @@ export function translateShape(shape: Shape, dx: number, dy: number): Shape {
     const delta = translation(dx, dy);
     return {
       ...shape,
-      components: shape.components.map((component) => ({
-        ...component,
-        transform: multiply(delta, component.transform),
-      })),
+      transform: multiply(shape.transform, delta),
       transformOrigin: shape.transformOrigin
         ? { x: shape.transformOrigin.x + dx, y: shape.transformOrigin.y + dy }
         : null,
@@ -120,10 +117,7 @@ export function resizeShapeToBounds(
     const delta = boundsTransform(from, to);
     return {
       ...shape,
-      components: shape.components.map((component) => ({
-        ...component,
-        transform: multiply(delta, component.transform),
-      })),
+      transform: multiply(shape.transform, delta),
       transformOrigin: shape.transformOrigin
         ? {
             x: to.x + (shape.transformOrigin.x - from.x) * (from.width ? to.width / from.width : 1),

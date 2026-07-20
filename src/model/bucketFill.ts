@@ -18,6 +18,7 @@ import ClipperLib, { type IntPoint, type PolyNode, type PolyTree } from "clipper
 import { flattenSubpath } from "./path";
 import { brushCenterlineSamples, cachedBrushEnvelope } from "./brushOutline";
 import { shapeBounds } from "./bounds";
+import { compoundChildren } from "./compoundPath";
 import { clippingContentIds, clippingMask } from "./clippingMask";
 import { contours, intPath, SCALE, treeToPolys } from "./clipperPaths";
 import { applyMatrix, IDENTITY, multiply } from "./matrix";
@@ -54,7 +55,8 @@ const CENTERLINE_HALF = 0.05;
 
 /** Closed silhouette rings of a shape's geometry, in its local space. */
 function fillGeometry(
-  shape: Shape
+  shape: Shape,
+  doc?: Document
 ): { rings: Vec2[][]; fillType: number } | null {
   const evenOdd = ClipperLib.PolyFillType.pftEvenOdd;
   switch (shape.type) {
@@ -87,8 +89,8 @@ function fillGeometry(
           }
         : null;
     case "compoundPath": {
-      const rings = shape.components.flatMap((component) => {
-        const geom = fillGeometry(component);
+      const rings = (doc ? compoundChildren(doc, shape) : []).flatMap((component) => {
+        const geom = fillGeometry(component, doc);
         return geom
           ? geom.rings.map((ring) =>
               ring.map((p) => applyMatrix(component.transform, p))
@@ -178,6 +180,7 @@ interface InkEntry {
 
 /** Append one shape's painted silhouette (fill and stroke) to `entries`. */
 function addShapeObstacles(
+  doc: Document,
   shape: Shape,
   parentWorld: Matrix,
   pt: IntPoint,
@@ -225,7 +228,7 @@ function addShapeObstacles(
     (shape.type === "text" &&
       (shape.fill !== null || (shape.stroke !== null && shape.strokeWidth > 0)));
   if (coverable || hardPainted) {
-    const geom = fillGeometry(shape);
+    const geom = fillGeometry(shape, doc);
     if (geom) {
       const normalized: IntPoint[][] = [];
       pushNormalized(normalized, worldRings(geom.rings, world), geom.fillType);
@@ -245,7 +248,8 @@ function addShapeObstacles(
   // the painted band for a hairline along the geometric centerline.
   const stroke = strokeOutline(
     shape,
-    strokeCenterline ? CENTERLINE_HALF : undefined
+    strokeCenterline ? CENTERLINE_HALF : undefined,
+    doc
   );
   if (stroke) {
     const normalized: IntPoint[][] = [];
@@ -292,7 +296,7 @@ function collectObstacles(
           strokeCenterline
         );
         const content = inner.flatMap((e) => e.contours);
-        const geom = fillGeometry(mask);
+        const geom = fillGeometry(mask, doc);
         if (!content.length || !geom) continue;
         const maskWorld = multiply(world, mask.transform);
         const maskPaths = worldRings(geom.rings, maskWorld)
@@ -336,7 +340,7 @@ function collectObstacles(
         );
       }
     } else if (isShape(node)) {
-      addShapeObstacles(node, parentWorld, pt, entries, allowCovers, strokeCenterline);
+      addShapeObstacles(doc, node, parentWorld, pt, entries, allowCovers, strokeCenterline);
     }
   }
 }

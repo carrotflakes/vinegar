@@ -12,6 +12,7 @@ import {
   isNodeLocked,
   isShape,
   scopeLeafIds,
+  sceneIndex,
   selectionRoots,
   shapesInPaintOrder,
 } from "../model/scene";
@@ -41,10 +42,21 @@ export function selectedPath(state: EditorState): PathShape | null {
 }
 
 /** The single selected shape the node tool can edit (path or brush). */
+export function selectedNodeShapes(state: EditorState): NodeEditShape[] {
+  if (state.selection.length !== 1) return [];
+  const selected = state.doc.nodes[state.selection[0]];
+  if (selected?.type === "path" || selected?.type === "brush") return [selected];
+  if (selected?.type !== "compoundPath") return [];
+  return selected.childIds.flatMap((id) => {
+    const child = state.doc.nodes[id];
+    return child?.type === "path" && !child.hidden ? [child] : [];
+  });
+}
+
 export function selectedNodeShape(state: EditorState): NodeEditShape | null {
-  if (state.selection.length !== 1) return null;
-  const s = state.doc.nodes[state.selection[0]];
-  return s && (s.type === "path" || s.type === "brush") ? s : null;
+  const shapes = selectedNodeShapes(state);
+  const activeId = state.editNodes[state.editNodes.length - 1]?.shapeId;
+  return shapes.find((shape) => shape.id === activeId) ?? shapes[0] ?? null;
 }
 
 const isLeaf = (node: EditorState["doc"]["nodes"][string] | undefined): node is SelectionLeaf =>
@@ -55,6 +67,7 @@ export function selectedShapes(
   doc: EditorState["doc"],
   selection: string[]
 ): SelectionLeaf[] {
+  const paintable = new Set(sceneIndex(doc).shapeIds);
   return selectionRoots(doc, selection)
     .flatMap((id) => {
       const node = doc.nodes[id];
@@ -63,7 +76,7 @@ export function selectedShapes(
         const mask = clippingMask(doc, node);
         return mask ? [mask.id] : [];
       }
-      return descendantNodeIds(doc, id);
+      return descendantNodeIds(doc, id).filter((childId) => paintable.has(childId));
     })
     .map((id) => doc.nodes[id])
     .filter(isLeaf);

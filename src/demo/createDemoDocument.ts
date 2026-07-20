@@ -266,25 +266,23 @@ export function createDemoDocument() {
     demo_compound_path: {
       id: "demo_compound_path", type: "compoundPath",
       ...shapeBase("Compound Path · retained path + ellipse", "#3abf9c", "#1c6457"),
-      fillRule: "evenodd",
-      components: [
-        {
-          id: "demo_compound_outer", type: "path",
-          ...shapeBase("Retained outer path", "#f29b72", "#28344f"),
-          subpaths: [straightSubpath([
-            { x: 28, y: 42 }, { x: 72, y: 26 }, { x: 124, y: 34 },
-            { x: 218, y: 62 }, { x: 184, y: 138 }, { x: 92, y: 146 },
-            { x: 46, y: 112 },
-          ], true)],
-        },
-        {
-          id: "demo_compound_hole", type: "ellipse",
-          ...shapeBase("Retained ellipse hole", "#ffcf5c", null),
-          x: 82, y: 62, width: 82, height: 54,
-          transform: multiply(translation(2, -1), rotation(0.08)),
-          transformOrigin: { x: 123, y: 89 },
-        },
-      ],
+      childIds: ["demo_compound_outer", "demo_compound_hole"],
+    },
+    demo_compound_outer: {
+      id: "demo_compound_outer", type: "path",
+      ...shapeBase("Retained outer path", "#f29b72", "#28344f"),
+      subpaths: [straightSubpath([
+        { x: 28, y: 42 }, { x: 72, y: 26 }, { x: 124, y: 34 },
+        { x: 218, y: 62 }, { x: 184, y: 138 }, { x: 92, y: 146 },
+        { x: 46, y: 112 },
+      ], true)],
+    },
+    demo_compound_hole: {
+      id: "demo_compound_hole", type: "ellipse",
+      ...shapeBase("Retained ellipse hole", "#ffcf5c", null),
+      x: 82, y: 62, width: 82, height: 54,
+      transform: multiply(translation(2, -1), rotation(0.08)),
+      transformOrigin: { x: 123, y: 89 },
     },
     demo_polygon_accent: {
       id: "demo_polygon_accent", type: "path", ...shapeBase("Multi-polygon", "#725ac1", null),

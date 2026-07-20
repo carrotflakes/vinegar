@@ -1,6 +1,7 @@
 import { subpathSegments } from "../model/path";
 import { shapeBounds } from "../model/bounds";
 import { cachedBrushEnvelope } from "../model/brushOutline";
+import { isCompoundChild } from "../model/compoundPath";
 import {
   clippingContentIds,
   clippingMask,
@@ -48,7 +49,7 @@ export function paintNode(
     if (node.hidden || node.id === hiddenShapeId) return;
     const shape = preview?.id === node.id ? preview : node;
     if (!hasEffects(shape.effects)) {
-      paintShape(ctx, shape, doc.assets);
+      paintShape(ctx, shape, doc.assets, doc, preview);
       return;
     }
     // Effects need the shape composited as a layer, so its own opacity/blend is
@@ -57,7 +58,7 @@ export function paintNode(
     if (!acq) return;
     const { canvas: layer, lctx } = acq;
     lctx.setTransform(ctx.getTransform());
-    paintShape(lctx, { ...shape, opacity: 1, blendMode: undefined }, doc.assets);
+    paintShape(lctx, { ...shape, opacity: 1, blendMode: undefined }, doc.assets, doc, preview);
     compositeEffects(ctx, layer, deviceScale(ctx), shape.effects, shape.opacity, shape.blendMode);
     return;
   }
@@ -85,7 +86,7 @@ export function paintNode(
     const geometry = preview?.id === mask.id ? preview : mask;
     target.save();
     target.transform(...geometry.transform);
-    tracePath(target, geometry);
+    tracePath(target, geometry, true, doc, preview);
     target.restore();
     target.clip(shapeFillRule(geometry));
   };
@@ -230,7 +231,13 @@ function compositeEffects(
 }
 
 /** Build the geometry of a shape onto the current canvas path. */
-function tracePath(ctx: CanvasRenderingContext2D, shape: Shape, begin = true): void {
+function tracePath(
+  ctx: CanvasRenderingContext2D,
+  shape: Shape,
+  begin = true,
+  doc?: Document,
+  preview?: Shape | null
+): void {
   if (begin) ctx.beginPath();
   switch (shape.type) {
     case "rect": {
@@ -306,10 +313,14 @@ function tracePath(ctx: CanvasRenderingContext2D, shape: Shape, begin = true): v
       break;
     }
     case "compoundPath": {
-      for (const component of shape.components) {
+      if (!doc) break;
+      for (const id of shape.childIds) {
+        const stored = doc.nodes[id];
+        const component = preview?.id === id ? preview : stored;
+        if (!isShape(component) || !isCompoundChild(component) || component.hidden) continue;
         ctx.save();
         ctx.transform(...component.transform);
-        tracePath(ctx, component, false);
+        tracePath(ctx, component, false, doc, preview);
         ctx.restore();
       }
       break;
@@ -333,7 +344,9 @@ function tracePath(ctx: CanvasRenderingContext2D, shape: Shape, begin = true): v
 export function paintShape(
   ctx: CanvasRenderingContext2D,
   shape: Shape,
-  assets: Record<string, DocumentAsset> = {}
+  assets: Record<string, DocumentAsset> = {},
+  doc?: Document,
+  preview?: Shape | null
 ): void {
   ctx.save();
   ctx.globalAlpha = shape.opacity;
@@ -356,8 +369,8 @@ export function paintShape(
     ctx.restore();
     return;
   }
-  tracePath(ctx, shape);
-  const bounds = shapeBounds(shape);
+  tracePath(ctx, shape, true, doc, preview);
+  const bounds = shapeBounds(shape, doc);
 
   // Canvas/SVG fill implicitly closes open subpaths without changing how
   // their strokes are traced, so only a standalone line is never fillable.
@@ -375,7 +388,7 @@ export function paintShape(
     }
   }
   if (shape.stroke !== null && shape.strokeWidth > 0) {
-    paintVectorStroke(ctx, shape, bounds, assets);
+    paintVectorStroke(ctx, shape, bounds, assets, doc, preview);
   }
   ctx.restore();
 }
@@ -460,7 +473,9 @@ function paintVectorStroke(
   ctx: CanvasRenderingContext2D,
   shape: Shape,
   bounds: Bounds,
-  assets: Record<string, DocumentAsset>
+  assets: Record<string, DocumentAsset>,
+  doc?: Document,
+  preview?: Shape | null
 ): void {
   if (!shape.stroke) return;
   const alignment = effectiveStrokeAlignment(shape);
@@ -480,12 +495,12 @@ function paintVectorStroke(
     }
     lctx.strokeStyle = style;
     applyStrokeStyle(lctx, shape, shape.strokeWidth * 2);
-    tracePath(lctx, shape);
+    tracePath(lctx, shape, true, doc, preview);
     lctx.stroke();
     lctx.globalCompositeOperation = "destination-out";
     lctx.globalAlpha = 1;
     lctx.fillStyle = "#000000";
-    tracePath(lctx, shape);
+    tracePath(lctx, shape, true, doc, preview);
     lctx.fill(shapeFillRule(shape));
     withPaintAlpha(ctx, shape.opacity, shape.stroke, () => drawLayerInDeviceSpace(ctx, layer));
     releaseLayer(layer);
@@ -497,9 +512,9 @@ function paintVectorStroke(
   withPaintAlpha(ctx, shape.opacity, shape.stroke, () => {
     ctx.save();
     if (alignment === "inside") {
-      tracePath(ctx, shape);
+      tracePath(ctx, shape, true, doc, preview);
       ctx.clip(shapeFillRule(shape));
-      tracePath(ctx, shape);
+      tracePath(ctx, shape, true, doc, preview);
     }
     ctx.strokeStyle = style;
     applyStrokeStyle(
@@ -707,7 +722,7 @@ export function renderScene(
     paintNode(ctx, doc, nodeId, opts.preview, opts.hiddenShapeId);
   }
   if (opts.preview && !doc.nodes[opts.preview.id]) {
-    paintShape(ctx, opts.preview, doc.assets);
+    paintShape(ctx, opts.preview, doc.assets, doc, opts.preview);
   }
 
   ctx.restore();

@@ -1,5 +1,6 @@
 import { computeBucketFill } from "../../model/bucketFill";
 import { IDENTITY } from "../../model/matrix";
+import { ringsToSubpaths } from "../../model/path";
 import { makeId, type PathShape } from "../../model/types";
 import type { Vec2 } from "../../model/types";
 import { useBucket } from "../../store/bucketStore";
@@ -42,10 +43,7 @@ export function bucketFillAt(state: EditorState, world: Vec2): void {
     name: "Fill",
     type: "path",
     fillRule: "evenodd",
-    subpaths: result.polys.flat().map((ring) => ({
-      anchors: ring.map((p) => ({ p, hIn: null, hOut: null })),
-      closed: true,
-    })),
+    subpaths: ringsToSubpaths(result.polys.flat()),
     fill: paint,
     stroke: null,
     strokeWidth: 1,

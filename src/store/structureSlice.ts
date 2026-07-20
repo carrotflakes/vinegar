@@ -5,6 +5,7 @@ import { booleanShapes, isAreal } from "../model/boolean";
 import { nodeWorldBounds, unionNodeWorldBounds } from "../model/bounds";
 import {
   canMakeCompoundPathSelection,
+  canCompoundShape,
   canReleaseCompoundPathSelection,
   makeCompoundPath,
   releaseCompoundPath,
@@ -12,9 +13,9 @@ import {
 import {
   canMakeClippingMaskSelection,
   canReleaseClippingMaskSelection,
-  hasValidClippingMasks,
   isClippingGroup,
 } from "../model/clippingMask";
+import { hasValidSceneContainers } from "../model/sceneValidation";
 import {
   IDENTITY,
   applyWorldTransformToNode,
@@ -24,9 +25,12 @@ import {
   translation as translationMatrix,
 } from "../model/matrix";
 import { strokeOutline } from "../model/outlineStroke";
+import { ringsToSubpaths } from "../model/path";
 import {
   childIdsOf,
   descendantNodeIds,
+  isCompoundPath,
+  isContainer,
   isGroup,
   isInstance,
   isShape,
@@ -40,7 +44,7 @@ import {
   type StoreCtx,
   type StructureActions,
 } from "./state";
-import { notifyEffectsRemoved } from "./toastStore";
+import { notify, notifyEffectsRemoved } from "./toastStore";
 
 interface AlignItem { id: string; bounds: Bounds }
 function selectionItems(doc: Document, selection: string[]): AlignItem[] {
@@ -96,7 +100,7 @@ export function createStructureActions({ set, get, transact }: StoreCtx): Struct
       const roots = selectionRoots(doc, get().selection);
       if (!roots.length) return;
       const next = removeRoots(doc, roots);
-      if (!hasValidClippingMasks(next)) return;
+      if (!hasValidSceneContainers(next)) return;
       transact(next);
       set({ selection: [], ...clearTransient });
     },
@@ -113,7 +117,7 @@ export function createStructureActions({ set, get, transact }: StoreCtx): Struct
           ...ids.filter((id) => selected.has(id)),
         ]);
       }
-      if (!hasValidClippingMasks(doc)) return;
+      if (!hasValidSceneContainers(doc)) return;
       transact(doc);
     },
     sendToBack: () => {
@@ -129,7 +133,7 @@ export function createStructureActions({ set, get, transact }: StoreCtx): Struct
           ...ids.filter((id) => !selected.has(id)),
         ]);
       }
-      if (!hasValidClippingMasks(doc)) return;
+      if (!hasValidSceneContainers(doc)) return;
       transact(doc);
     },
     groupSelected: () => {
@@ -137,7 +141,7 @@ export function createStructureActions({ set, get, transact }: StoreCtx): Struct
       const parent = parentIdOf(doc, roots[0]); if (!roots.every((id) => parentIdOf(doc, id) === parent)) return;
       const selected = new Set(roots); const siblings = childIdsOf(doc, parent); const members = siblings.filter((id) => selected.has(id)); const insert = siblings.indexOf(members[members.length - 1]); const rest = siblings.filter((id) => !selected.has(id)); const below = siblings.slice(0, insert).filter((id) => !selected.has(id)).length;
       const id = makeId("group"); rest.splice(below, 0, id);
-      let next = { ...doc, nodes: { ...doc.nodes, [id]: groupNode(id, members) } }; next = replaceChildren(next, parent, rest); if (!hasValidClippingMasks(next)) return; transact(next); set({ selection: [id], ...clearTransient });
+      let next = { ...doc, nodes: { ...doc.nodes, [id]: groupNode(id, members) } }; next = replaceChildren(next, parent, rest); if (!hasValidSceneContainers(next)) return; transact(next); set({ selection: [id], ...clearTransient });
     },
     ungroupSelected: () => {
       const state = get();
@@ -146,7 +150,7 @@ export function createStructureActions({ set, get, transact }: StoreCtx): Struct
         state.doc,
         roots
       );
-      if (!result.selected.length || !hasValidClippingMasks(result.doc)) return;
+      if (!result.selected.length || !hasValidSceneContainers(result.doc)) return;
       transact(result.doc);
       set({
         selection: result.selected,
@@ -186,7 +190,7 @@ export function createStructureActions({ set, get, transact }: StoreCtx): Struct
         },
       };
       next = replaceChildren(next, parent, rest);
-      if (!hasValidClippingMasks(next)) return;
+      if (!hasValidSceneContainers(next)) return;
       transact(next);
       set({ selection: [id], ...clearTransient });
     },
@@ -198,7 +202,7 @@ export function createStructureActions({ set, get, transact }: StoreCtx): Struct
         isClippingGroup(doc.nodes[id])
       );
       const result = releaseGroups(doc, roots);
-      if (!result.selected.length || !hasValidClippingMasks(result.doc)) return;
+      if (!result.selected.length || !hasValidSceneContainers(result.doc)) return;
       transact(result.doc);
       set({
         selection: result.selected,
@@ -224,16 +228,16 @@ export function createStructureActions({ set, get, transact }: StoreCtx): Struct
       let doc = get().doc; const selected: string[] = []; let effectsRemoved = false;
       for (const id of selectionRoots(doc, get().selection)) {
         const shape = doc.nodes[id]; if (!isShape(shape) || !shape.stroke || shape.strokeWidth <= 0) continue;
-        const polys = strokeOutline(shape); if (!polys?.length) continue;
-        const outline: Shape = { id: makeId("path"), name: "Outline", type: "path", fillRule: "evenodd", subpaths: polys.flat().map((ring) => ({ anchors: ring.map((p) => ({ p, hIn: null, hOut: null })), closed: true })), fill: shape.stroke, stroke: null, strokeWidth: 0, opacity: shape.opacity, blendMode: shape.blendMode, transform: [...IDENTITY], transformOrigin: null };
+        const polys = strokeOutline(shape, undefined, doc); if (!polys?.length) continue;
+        const outline: Shape = { id: makeId("path"), name: "Outline", type: "path", fillRule: "evenodd", subpaths: ringsToSubpaths(polys.flat()), fill: shape.stroke, stroke: null, strokeWidth: 0, opacity: shape.opacity, blendMode: shape.blendMode, transform: [...IDENTITY], transformOrigin: null };
         const parent = parentIdOf(doc, id); const siblings = childIdsOf(doc, parent); const at = siblings.indexOf(id); const nodes = { ...doc.nodes };
         if (isAreal(shape) && shape.fill) { const gid = makeId("group"); nodes[id] = { ...shape, stroke: null }; nodes[outline.id] = outline; nodes[gid] = groupNode(gid, [id, outline.id]); const order = [...siblings]; order.splice(at, 1, gid); doc = replaceChildren({ ...doc, nodes }, parent, order); selected.push(gid); }
-        else { effectsRemoved ||= !!shape.effects?.length; delete nodes[id]; nodes[outline.id] = outline; const order = [...siblings]; order.splice(at, 1, outline.id); doc = replaceChildren({ ...doc, nodes }, parent, order); selected.push(outline.id); }
+        else { effectsRemoved ||= !!shape.effects?.length; for (const removed of [id, ...descendantNodeIds(doc, id)]) delete nodes[removed]; nodes[outline.id] = outline; const order = [...siblings]; order.splice(at, 1, outline.id); doc = replaceChildren({ ...doc, nodes }, parent, order); selected.push(outline.id); }
       }
-      if (selected.length && hasValidClippingMasks(doc)) { transact(doc); set({ selection: selected, ...clearTransient }); if (effectsRemoved) notifyEffectsRemoved(); }
+      if (selected.length && hasValidSceneContainers(doc)) { transact(doc); set({ selection: selected, ...clearTransient }); if (effectsRemoved) notifyEffectsRemoved(); }
     },
     booleanSelected: (op) => {
-      const doc = get().doc; const roots = selectionRoots(doc, get().selection); if (roots.length < 2 || !roots.every((id) => isShape(doc.nodes[id]))) return; const parent = parentIdOf(doc, roots[0]); if (!roots.every((id) => parentIdOf(doc, id) === parent)) return; const siblings = childIdsOf(doc, parent); const selected = new Set(roots); const ordered = siblings.filter((id) => selected.has(id)); const effectsRemoved = ordered.some((id) => !!doc.nodes[id]?.effects?.length); const result = booleanShapes(ordered.map((id) => doc.nodes[id] as Shape), op); if (!result) return; const nodes = { ...doc.nodes }; for (const id of roots) delete nodes[id]; nodes[result.id] = result; const order = siblings.filter((id) => !selected.has(id)); order.splice(siblings.slice(0, siblings.indexOf(ordered[0])).filter((id) => !selected.has(id)).length, 0, result.id); const next = replaceChildren({ ...doc, nodes }, parent, order); if (!hasValidClippingMasks(next)) return; transact(next); set({ selection: [result.id], ...clearTransient }); if (effectsRemoved) notifyEffectsRemoved();
+      const doc = get().doc; const roots = selectionRoots(doc, get().selection); if (roots.length < 2 || !roots.every((id) => isShape(doc.nodes[id]))) return; const parent = parentIdOf(doc, roots[0]); if (!roots.every((id) => parentIdOf(doc, id) === parent)) return; const siblings = childIdsOf(doc, parent); const selected = new Set(roots); const ordered = siblings.filter((id) => selected.has(id)); const effectsRemoved = ordered.some((id) => !!doc.nodes[id]?.effects?.length); const result = booleanShapes(ordered.map((id) => doc.nodes[id] as Shape), op, doc); if (!result) return; const nodes = { ...doc.nodes }; for (const id of roots.flatMap((root) => [root, ...descendantNodeIds(doc, root)])) delete nodes[id]; nodes[result.id] = result; const order = siblings.filter((id) => !selected.has(id)); order.splice(siblings.slice(0, siblings.indexOf(ordered[0])).filter((id) => !selected.has(id)).length, 0, result.id); const next = replaceChildren({ ...doc, nodes }, parent, order); if (!hasValidSceneContainers(next)) return; transact(next); set({ selection: [result.id], ...clearTransient }); if (effectsRemoved) notifyEffectsRemoved();
     },
     makeCompoundPathSelected: () => {
       const doc = get().doc;
@@ -247,13 +251,26 @@ export function createStructureActions({ set, get, transact }: StoreCtx): Struct
       const compound = makeCompoundPath(ordered.map((id) => doc.nodes[id] as Shape));
       if (!compound) return;
       const nodes = { ...doc.nodes };
-      for (const id of ordered) delete nodes[id];
+      for (const id of ordered) {
+        const node = nodes[id];
+        if (!isCompoundPath(node)) continue;
+        for (const childId of node.childIds) {
+          const child = nodes[childId];
+          if (child) {
+            nodes[childId] = {
+              ...child,
+              transform: multiply(node.transform, child.transform),
+            };
+          }
+        }
+        delete nodes[id];
+      }
       nodes[compound.id] = compound;
       const order = siblings.filter((id) => !selected.has(id));
       const at = siblings.slice(0, siblings.indexOf(ordered[0])).filter((id) => !selected.has(id)).length;
       order.splice(at, 0, compound.id);
       const next = replaceChildren({ ...doc, nodes }, parent, order);
-      if (!hasValidClippingMasks(next)) return;
+      if (!hasValidSceneContainers(next)) return;
       transact(next);
       set({ selection: [compound.id], ...clearTransient });
       if (effectsRemoved) notifyEffectsRemoved();
@@ -271,7 +288,7 @@ export function createStructureActions({ set, get, transact }: StoreCtx): Struct
         const parent = parentIdOf(doc, id);
         const siblings = childIdsOf(doc, parent);
         const at = siblings.indexOf(id);
-        const released = releaseCompoundPath(compound);
+        const released = releaseCompoundPath(doc, compound);
         const nodes = { ...doc.nodes };
         delete nodes[id];
         for (const shape of released) nodes[shape.id] = shape;
@@ -280,7 +297,7 @@ export function createStructureActions({ set, get, transact }: StoreCtx): Struct
         doc = replaceChildren({ ...doc, nodes }, parent, order);
         selected.push(...released.map((shape) => shape.id));
       }
-      if (selected.length && hasValidClippingMasks(doc)) {
+      if (selected.length && hasValidSceneContainers(doc)) {
         transact(doc);
         set({ selection: selected, ...clearTransient });
         if (effectsRemoved) notifyEffectsRemoved();
@@ -304,14 +321,38 @@ export function createStructureActions({ set, get, transact }: StoreCtx): Struct
     moveNode: (id, parent, index) => {
       const doc = get().doc;
       const node = doc.nodes[id];
-      if (!node || (parent !== null && !isGroup(doc.nodes[parent]))) return;
-      if (parent === id || descendantNodeIds(doc, id).includes(parent ?? "")) return;
+      const target = parent === null ? undefined : doc.nodes[parent];
+      if (!node) return;
+      if (parent !== null && !isContainer(target)) {
+        notify.error("That layer cannot contain child layers.");
+        return;
+      }
+      if (isCompoundPath(target) && (!isShape(node) || !canCompoundShape(node) ||
+          node.type === "compoundPath")) {
+        notify.error(
+          "Compound paths only accept rectangles, ellipses, and closed paths."
+        );
+        return;
+      }
+      if (parent === id || descendantNodeIds(doc, id).includes(parent ?? "")) {
+        notify.error("A layer cannot be moved into itself or its descendants.");
+        return;
+      }
 
       const oldParent = parentIdOf(doc, id);
+      const oldContainer = oldParent === null ? undefined : doc.nodes[oldParent];
+      if (oldParent !== parent && isCompoundPath(oldContainer) &&
+          oldContainer.childIds.length <= 1) {
+        notify.error("A compound path must contain at least one child.");
+        return;
+      }
       const oldWorld = nodeWorldMatrix(doc, id);
       const targetWorld = nodeWorldMatrix(doc, parent);
       const inverseTarget = invertMatrix(targetWorld);
-      if (!inverseTarget) return;
+      if (!inverseTarget) {
+        notify.error("The target layer has a non-invertible transform.");
+        return;
+      }
 
       let next = replaceChildren(
         doc,
@@ -334,7 +375,10 @@ export function createStructureActions({ set, get, transact }: StoreCtx): Struct
         },
       };
 
-      if (!hasValidClippingMasks(next)) return;
+      if (!hasValidSceneContainers(next)) {
+        notify.error("That move would create an invalid scene container.");
+        return;
+      }
       transact(next);
     },
   };

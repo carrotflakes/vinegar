@@ -32,7 +32,7 @@ pnpm test       # node --test (model, store, persistence, import and recovery)
   Clicking a filled shape or image treats it as the region's background: the fill spreads up to its edges and the strokes drawn on top, and is inserted directly above it — paint a background, draw line art, fill in between.
   An optional **"Fill to stroke centers"** mode stops fills at stroke/brush centerlines so adjacent fills stay seamless if the line art changes later (see [docs/bucket-fill.md](docs/bucket-fill.md))
 - Pen tool: click for corner anchors, click-drag for smooth anchors; click the first anchor to close, or Enter / double-click to finish, Esc to cancel; click an endpoint of an existing open path to continue it
-- Node editing: drag anchors and control handles (Alt to break handle symmetry), click a segment to insert an anchor (curve-preserving), double-click an anchor to toggle smooth ↔ corner, Delete to remove an anchor; Brush anchors use the same editing model; open/close a path via the properties panel
+- Node editing: drag anchors and control handles (Alt to break handle symmetry), click a segment to insert an anchor (curve-preserving), double-click an anchor to toggle smooth ↔ corner, Delete to remove an anchor; Brush anchors use the same editing model; path children remain node-editable inside a compound path; open/close a path via the properties panel
 - Move, resize (8 handles), **rotate** (rotation handle; Shift snaps to 15°) — all driven by per-node **affine matrices**, so rotated/nested resize is exact
 - Rectangles support one shared **corner radius** for all four corners, editable numerically or with an on-canvas control and preserved across export/geometry operations
 - **Movable rotation centers** (transform origin) per shape and group; a transient pivot for multi-selection
@@ -41,7 +41,7 @@ pnpm test       # node --test (model, store, persistence, import and recovery)
 - Multi-select (shift-click & marquee)
 - Copy / cut / paste / duplicate (groups stay grouped on paste; **Paste here** from the canvas context menu)
 - **Boolean operations**: union, subtract, intersect, exclude (Paper.js; curve-preserving — the result is a node-editable compound Bézier)
-- **Compound paths**: retain closed source shapes behind one shared appearance, cut even-odd holes, and release back to the original shape types
+- **Compound paths**: own real, nested layer nodes for their closed source shapes, paint them through one shared even-odd appearance, allow path-anchor and hide/reorder editing, and release back to the original shape types
 - **Outline stroke**: convert a shape's stroke into a filled path (`clipper-lib`)
 - **Paint model** for fill/stroke: solid colors with **per-color alpha** and **gradients** (linear & radial, with a stop editor), plus tiled raster **patterns** — rendered on Canvas.
   Solids and gradients export to SVG; pattern SVG export is intentionally limited (see SVG interoperability below).
@@ -86,10 +86,10 @@ For editable exchange, expect to inspect and adjust the imported or exported res
 
 ## Document model
 
-The persisted `Document` is a **unified scene tree**: a flat `nodes` map keyed by id, with `rootIds` and each group's `childIds` as the only source of hierarchy and back-to-front paint order.
+The persisted `Document` is a **unified scene tree**: a flat `nodes` map keyed by id, with `rootIds` and each group/compound-path container's `childIds` as the only source of hierarchy and back-to-front paint order.
 Every node carries a Canvas/SVG-compatible affine `transform` into its parent space plus a `transformOrigin`; parents, world matrices and leaf shapes are derived (not stored).
 The document also holds `symbols`, `artboards`, `assets` (embedded raster images), `settings` (unit, dpi, grid size), document-local generator `scripts`, `metadata` and namespaced `extensions`.
-The file wrapper is versioned — the current version is v21; v8–v20 files migrate automatically on load, while older versions are unsupported.
+The file wrapper is versioned — the current version is v22; v8–v21 files migrate automatically on load, while older versions are unsupported.
 See [docs/document-model.md](docs/document-model.md).
 
 ## Project layout

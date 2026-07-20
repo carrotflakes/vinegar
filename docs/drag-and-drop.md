@@ -71,3 +71,6 @@ to reset. This is the opposite of a reorderable **list**, whose rows keep
 - Do not add `preventDefault` in drag handlers — tap-to-select and
   double-tap-to-rename must keep working.
 - Drop zones need `data-*` identity and must not be `pointer-events: none`.
+- The Layers panel treats groups and compound paths as drop containers.
+  Compound paths accept only rectangles, ellipses, and closed paths, reject
+  nested compounds, and may never be emptied by a move.

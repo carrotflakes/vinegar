@@ -6,7 +6,7 @@ import { GENERATORS, defaultArgs, type ScriptMeta } from "../model/generators";
 import { solid } from "../model/paint";
 import { deleteBrushAnchor, toggleBrushAnchorSmooth } from "../model/brushEdit";
 import { expandBounds, instanceWorldBounds, intersectBounds, shapeBounds, unionNodeWorldBounds, worldShapeBounds } from "../model/bounds";
-import { hasValidClippingMasks } from "../model/clippingMask";
+import { hasValidSceneContainers } from "../model/sceneValidation";
 import { eraseBrush } from "../model/eraser";
 import { applyWorldTransformToNode, boundsTransform, IDENTITY, invertMatrix, multiply, nodeWorldMatrix, shapeWorldMatrix, translation } from "../model/matrix";
 import { childIdsOf, descendantShapeIds, isGroup, isInstance, isNodeHidden, isNodeLocked, isShape, parentIdOf, referencedAssetIds, scopeLeafIds, scopeRootGroupId, selectionRoots, withChildIds } from "../model/scene";
@@ -223,7 +223,7 @@ export function createShapeActions({ set, get, transact, replaceDocumentWithoutH
       transact(next);
       set({ selection: get().selection.filter((id) => next.nodes[id]), ...clearTransient });
     },
-    updateShape: (shape, select = true) => { const doc = get().doc; if (!isShape(doc.nodes[shape.id])) return; const next = { ...doc, nodes: { ...doc.nodes, [shape.id]: shape } }; if (!hasValidClippingMasks(next)) return; transact(next); if (select) set({ selection: [shape.id], ...clearTransient }); },
+    updateShape: (shape, select = true) => { const doc = get().doc; if (!isShape(doc.nodes[shape.id])) return; const next = { ...doc, nodes: { ...doc.nodes, [shape.id]: shape } }; if (!hasValidSceneContainers(next)) return; transact(next); if (select) set({ selection: [shape.id], ...clearTransient }); },
     updateTextShape: (id, patch) => {
       const doc = get().doc; const shape = doc.nodes[id];
       if (!isShape(shape) || shape.type !== "text") return;
@@ -263,7 +263,7 @@ export function createShapeActions({ set, get, transact, replaceDocumentWithoutH
         const next = deleteBrushAnchor(shape, editNode.index);
         if (next === null) {
           const removed = removeRoots(doc, [shape.id]);
-          if (!hasValidClippingMasks(removed)) return;
+          if (!hasValidSceneContainers(removed)) return;
           transact(removed); set({ selection: [], ...clearTransient });
         } else {
           transact({ ...doc, nodes: { ...doc.nodes, [shape.id]: next } }); set({ editNodes: [] });
@@ -277,8 +277,8 @@ export function createShapeActions({ set, get, transact, replaceDocumentWithoutH
       const subpaths = anchors.length < 2
         ? shape.subpaths.filter((_, i) => i !== editNode.sub)
         : shape.subpaths.map((s, i) => (i === editNode.sub ? { ...s, anchors } : s));
-      if (subpaths.length === 0) { const next = removeRoots(doc, [shape.id]); if (!hasValidClippingMasks(next)) return; transact(next); set({ selection: [], ...clearTransient }); }
-      else { const next = { ...doc, nodes: { ...doc.nodes, [shape.id]: { ...shape, subpaths, generator: undefined } } }; if (!hasValidClippingMasks(next)) return; transact(next); set({ editNodes: [] }); }
+      if (subpaths.length === 0) { const next = removeRoots(doc, [shape.id]); if (!hasValidSceneContainers(next)) return; transact(next); set({ selection: [], ...clearTransient }); }
+      else { const next = { ...doc, nodes: { ...doc.nodes, [shape.id]: { ...shape, subpaths, generator: undefined } } }; if (!hasValidSceneContainers(next)) return; transact(next); set({ editNodes: [] }); }
     },
     placeImageFiles: async (files, at, fitWithin) => {
       const images = await importImageFiles(files);
@@ -448,7 +448,7 @@ export function createShapeActions({ set, get, transact, replaceDocumentWithoutH
       for (const shape of updated) if (!del.has(shape.id) && isShape(nodes[shape.id])) nodes[shape.id] = shape;
       for (const shape of created) nodes[shape.id] = shape;
       doc = { ...doc, nodes, rootIds: [...doc.rootIds, ...created.map((s) => s.id)] };
-      if (!hasValidClippingMasks(doc)) return;
+      if (!hasValidSceneContainers(doc)) return;
       transact(doc); set({ selection: [...updated.filter((s) => !del.has(s.id)).map((s) => s.id), ...created.map((s) => s.id)], ...clearTransient });
     },
     updateSelectedStyle: (patch) => {
@@ -460,7 +460,7 @@ export function createShapeActions({ set, get, transact, replaceDocumentWithoutH
       }
       if (changed) transact({ ...doc, nodes }, `style:${roots.join(",")}:${Object.keys(patch).sort().join(",")}`);
     },
-    setShapeGeometry: (id, patch) => { const doc = get().doc; const shape = doc.nodes[id]; if (isInstance(shape)) { const wf = instanceWorldBounds(doc, shape); if (!wf) return; const to = { x: patch.x ?? wf.x, y: patch.y ?? wf.y, width: Math.max(1, patch.width ?? wf.width), height: Math.max(1, patch.height ?? wf.height) }; const next = applyWorldTransformToNode(doc, shape, boundsTransform(wf, to)); transact({ ...doc, nodes: { ...doc.nodes, [id]: next } }, "geom:" + id); return; } if (!isShape(shape)) return; if (shape.generator) { const wf = worldShapeBounds(doc, shape); const to = { x: patch.x ?? wf.x, y: patch.y ?? wf.y, width: Math.max(1, patch.width ?? wf.width), height: Math.max(1, patch.height ?? wf.height) }; const next = applyWorldTransformToNode(doc, shape, boundsTransform(wf, to)); transact({ ...doc, nodes: { ...doc.nodes, [id]: next } }, "geom:" + id); return; } const b = shapeBounds(shape); if (shape.type === "text") { const moved = translateShape(shape, (patch.x ?? b.x) - b.x, (patch.y ?? b.y) - b.y); if (moved.type !== "text") return; const next = measureTextShape({ ...moved, width: shape.textMode === "area" ? Math.max(1, patch.width ?? shape.width) : shape.width }); transact({ ...doc, nodes: { ...doc.nodes, [id]: next } }, "geom:" + id); return; } let next = resizeShapeToBounds(shape, b, { x: b.x, y: b.y, width: Math.max(1, patch.width ?? b.width), height: Math.max(1, patch.height ?? b.height) }); next = translateShape(next, (patch.x ?? b.x) - b.x, (patch.y ?? b.y) - b.y); transact({ ...doc, nodes: { ...doc.nodes, [id]: next } }, "geom:" + id); },
+    setShapeGeometry: (id, patch) => { const doc = get().doc; const shape = doc.nodes[id]; if (isInstance(shape)) { const wf = instanceWorldBounds(doc, shape); if (!wf) return; const to = { x: patch.x ?? wf.x, y: patch.y ?? wf.y, width: Math.max(1, patch.width ?? wf.width), height: Math.max(1, patch.height ?? wf.height) }; const next = applyWorldTransformToNode(doc, shape, boundsTransform(wf, to)); transact({ ...doc, nodes: { ...doc.nodes, [id]: next } }, "geom:" + id); return; } if (!isShape(shape)) return; if (shape.generator || shape.type === "compoundPath") { const wf = worldShapeBounds(doc, shape); const to = { x: patch.x ?? wf.x, y: patch.y ?? wf.y, width: Math.max(1, patch.width ?? wf.width), height: Math.max(1, patch.height ?? wf.height) }; const next = applyWorldTransformToNode(doc, shape, boundsTransform(wf, to)); transact({ ...doc, nodes: { ...doc.nodes, [id]: next } }, "geom:" + id); return; } const b = shapeBounds(shape, doc); if (shape.type === "text") { const moved = translateShape(shape, (patch.x ?? b.x) - b.x, (patch.y ?? b.y) - b.y); if (moved.type !== "text") return; const next = measureTextShape({ ...moved, width: shape.textMode === "area" ? Math.max(1, patch.width ?? shape.width) : shape.width }); transact({ ...doc, nodes: { ...doc.nodes, [id]: next } }, "geom:" + id); return; } let next = resizeShapeToBounds(shape, b, { x: b.x, y: b.y, width: Math.max(1, patch.width ?? b.width), height: Math.max(1, patch.height ?? b.height) }); next = translateShape(next, (patch.x ?? b.x) - b.x, (patch.y ?? b.y) - b.y); transact({ ...doc, nodes: { ...doc.nodes, [id]: next } }, "geom:" + id); },
     insertGenerator: (generatorId, at) => {
       const s = get();
       const builtin = GENERATORS[generatorId];
@@ -552,6 +552,6 @@ export function createShapeActions({ set, get, transact, replaceDocumentWithoutH
       transact({ ...doc, nodes: { ...doc.nodes, [id]: next } }, "radius:" + id);
     },
     setImageLockAspect: (id, lock) => { const doc = get().doc; const shape = doc.nodes[id]; if (!isShape(shape) || shape.type !== "image") return; const next = { ...shape, lockAspect: lock || undefined }; transact({ ...doc, nodes: { ...doc.nodes, [id]: next } }, "lockAspect:" + id); },
-    setClosedSelected: (closed) => { const doc = get().doc; const nodes = { ...doc.nodes }; let changed = false; for (const id of selectionRoots(doc, get().selection)) { const shape = nodes[id]; if (!isShape(shape) || shape.type !== "path") continue; if (shape.subpaths.some((sp) => sp.closed !== closed)) { nodes[id] = { ...shape, subpaths: shape.subpaths.map((sp) => ({ ...sp, closed })), generator: undefined }; changed = true; } } const next = { ...doc, nodes }; if (changed && hasValidClippingMasks(next)) transact(next); },
+    setClosedSelected: (closed) => { const doc = get().doc; const nodes = { ...doc.nodes }; let changed = false; for (const id of selectionRoots(doc, get().selection)) { const shape = nodes[id]; if (!isShape(shape) || shape.type !== "path") continue; if (shape.subpaths.some((sp) => sp.closed !== closed)) { nodes[id] = { ...shape, subpaths: shape.subpaths.map((sp) => ({ ...sp, closed })), generator: undefined }; changed = true; } } const next = { ...doc, nodes }; if (changed && hasValidSceneContainers(next)) transact(next); },
   };
 }

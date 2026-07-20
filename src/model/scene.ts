@@ -1,5 +1,13 @@
 import type { Paint } from "./paint";
-import type { Document, Group, Matrix, SceneNode, Shape, SymbolInstance } from "./types";
+import type {
+  CompoundPathNode,
+  Document,
+  Group,
+  Matrix,
+  SceneNode,
+  Shape,
+  SymbolInstance,
+} from "./types";
 
 export const isGroup = (node: SceneNode | undefined): node is Group =>
   node?.type === "group";
@@ -7,8 +15,20 @@ export const isGroup = (node: SceneNode | undefined): node is Group =>
 export const isInstance = (node: SceneNode | undefined): node is SymbolInstance =>
   node?.type === "instance";
 
+export const isCompoundPath = (
+  node: SceneNode | undefined
+): node is CompoundPathNode => node?.type === "compoundPath";
+
+export const isContainer = (
+  node: SceneNode | undefined
+): node is Group | CompoundPathNode => isGroup(node) || isCompoundPath(node);
+
 export const isShape = (node: SceneNode | undefined): node is Shape =>
   !!node && node.type !== "group" && node.type !== "instance";
+
+export const childIdsOfNode = (
+  node: SceneNode | undefined
+): string[] => isContainer(node) ? node.childIds : [];
 
 export interface SceneIndex {
   parent: Map<string, string | null>;
@@ -55,7 +75,8 @@ export function sceneIndex(doc: Document): SceneIndex {
     parentWorld: Matrix,
     parentAncestors: string[],
     inheritedHidden: boolean,
-    inheritedLocked: boolean
+    inheritedLocked: boolean,
+    paintable = true
   ) => {
     const node = doc.nodes[id];
     if (!node || parent.has(id)) return;
@@ -68,7 +89,8 @@ export function sceneIndex(doc: Document): SceneIndex {
     locked.set(id, inheritedLocked || !!node.locked);
     owner.set(id, currentOwner);
     nodeIds.push(id);
-    if (isGroup(node)) {
+    if (isContainer(node)) {
+      if (isCompoundPath(node) && paintable) shapeIds.push(id);
       for (const childId of node.childIds) {
         visit(
           childId,
@@ -77,10 +99,11 @@ export function sceneIndex(doc: Document): SceneIndex {
           nodeWorld,
           [id, ...parentAncestors],
           hidden.get(id)!,
-          locked.get(id)!
+          locked.get(id)!,
+          paintable && isGroup(node)
         );
       }
-    } else {
+    } else if (paintable) {
       shapeIds.push(id);
     }
   };
@@ -137,7 +160,7 @@ export function reachableSymbols(doc: Document, symbolId: string): Set<string> {
       const node = doc.nodes[nodeId];
       if (!node) return;
       if (isInstance(node)) visitSymbol(node.symbolId);
-      else if (isGroup(node)) node.childIds.forEach(walk);
+      else if (isContainer(node)) node.childIds.forEach(walk);
     };
     walk(def.rootNodeId);
   };
@@ -195,8 +218,7 @@ export function parentIdOf(doc: Document, id: string): string | null {
 
 export function childIdsOf(doc: Document, parentId: string | null): string[] {
   if (parentId === null) return doc.rootIds;
-  const parent = doc.nodes[parentId];
-  return isGroup(parent) ? parent.childIds : [];
+  return childIdsOfNode(doc.nodes[parentId]);
 }
 
 export function withChildIds(
@@ -206,7 +228,7 @@ export function withChildIds(
 ): Document {
   if (parentId === null) return { ...doc, rootIds: childIds };
   const parent = doc.nodes[parentId];
-  if (!isGroup(parent)) return doc;
+  if (!isContainer(parent)) return doc;
   return {
     ...doc,
     nodes: { ...doc.nodes, [parentId]: { ...parent, childIds } },
@@ -244,7 +266,7 @@ export function descendantNodeIds(doc: Document, id: string): string[] {
   const result: string[] = [];
   const visit = (nodeId: string) => {
     const node = doc.nodes[nodeId];
-    if (!isGroup(node)) return;
+    if (!isContainer(node)) return;
     for (const childId of node.childIds) {
       result.push(childId);
       visit(childId);
@@ -255,11 +277,17 @@ export function descendantNodeIds(doc: Document, id: string): string[] {
 }
 
 export function descendantShapeIds(doc: Document, id: string): string[] {
-  const node = doc.nodes[id];
-  if (isShape(node)) return [id];
-  return descendantNodeIds(doc, id).filter((childId) =>
-    isShape(doc.nodes[childId])
-  );
+  const result: string[] = [];
+  const visit = (nodeId: string) => {
+    const node = doc.nodes[nodeId];
+    if (isShape(node)) {
+      result.push(nodeId);
+      return;
+    }
+    if (isGroup(node)) node.childIds.forEach(visit);
+  };
+  visit(id);
+  return result;
 }
 
 /** Selected nodes with descendants of another selected node removed. */
@@ -305,7 +333,6 @@ export function assetReferenceCounts(doc: Document): Map<string, number> {
     for (const id of [paintAssetId(shape.fill), paintAssetId(shape.stroke)]) {
       if (id) bump(id);
     }
-    if (shape.type === "compoundPath") shape.components.forEach(addShape);
   };
   for (const node of Object.values(doc.nodes)) if (isShape(node)) addShape(node);
   return counts;

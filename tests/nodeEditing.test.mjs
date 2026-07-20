@@ -180,6 +180,54 @@ test("cancelling an inserted anchor restores the prior valid node selection", ()
   ]);
 });
 
+test("a compound path inserts on a non-active child path segment", () => {
+  const first = pathShape();
+  first.id = "first";
+  first.subpaths[0].closed = true;
+  first.subpaths[0].anchors = [
+    anchor(0, 0),
+    anchor(100, 0),
+    anchor(200, 0),
+  ];
+  const second = structuredClone(first);
+  second.id = "second";
+  second.subpaths[0].anchors = second.subpaths[0].anchors.map((item) => ({
+    ...item,
+    p: { x: item.p.x, y: 100 },
+  }));
+  useEditor.getState().addShape(first);
+  useEditor.getState().addShape(second);
+  useEditor.getState().setSelection(["first", "second"]);
+  useEditor.getState().makeCompoundPathSelected();
+  const compoundId = useEditor.getState().selection[0];
+  useEditor.getState().setTool("node");
+  useEditor.getState().setSelection([compoundId]);
+  useEditor.getState().setEditNodes([
+    { shapeId: "first", sub: 0, index: 0 },
+  ]);
+  const ctx = context();
+
+  onNodeDown(
+    ctx,
+    useEditor.getState(),
+    { x: 50, y: 100 },
+    { x: 50, y: 100 },
+    false
+  );
+
+  assert.equal(
+    useEditor.getState().doc.nodes.first.subpaths[0].anchors.length,
+    3
+  );
+  assert.equal(
+    useEditor.getState().doc.nodes.second.subpaths[0].anchors.length,
+    4
+  );
+  assert.deepEqual(useEditor.getState().editNodes, [
+    { shapeId: "second", sub: 0, index: 1 },
+  ]);
+});
+
 test("dragging an already-selected anchor moves the full selection in one undo step", () => {
   useEditor.getState().addShape(pathShape());
   useEditor.getState().setTool("node");

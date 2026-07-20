@@ -4,6 +4,7 @@ import * as paperNs from "paper";
 const paper: typeof paperNs =
   (paperNs as { default?: typeof paperNs }).default ?? paperNs;
 import { shapeBounds } from "./bounds";
+import { compoundChildren } from "./compoundPath";
 import { IDENTITY } from "./matrix";
 import { roundedRectSubpath } from "./roundedRect";
 import { strokeDetailFields } from "./stroke";
@@ -12,6 +13,7 @@ import {
   type PathShape,
   type PathSubpath,
   type Shape,
+  type Document,
 } from "./types";
 
 export type BoolOp = "union" | "subtract" | "intersect" | "xor";
@@ -64,7 +66,7 @@ function pathsOf(item: paper.PathItem | null): paper.Path[] {
  * (the shape's own transform baked in), or null if it encloses no area.
  * Curves are preserved exactly — no flattening.
  */
-function shapeToGeom(shape: Shape): paper.PathItem | null {
+function shapeToGeom(shape: Shape, doc?: Document): paper.PathItem | null {
   let item: paper.PathItem | null;
   switch (shape.type) {
     case "rect": {
@@ -72,7 +74,7 @@ function shapeToGeom(shape: Shape): paper.PathItem | null {
       break;
     }
     case "ellipse": {
-      const b = shapeBounds(shape);
+      const b = shapeBounds(shape, doc);
       item = new paper.Path.Ellipse({
         point: [b.x, b.y],
         size: [Math.max(b.width, 0), Math.max(b.height, 0)],
@@ -95,8 +97,8 @@ function shapeToGeom(shape: Shape): paper.PathItem | null {
       break;
     case "compoundPath":
       item = compound(
-        shape.components
-          .flatMap((component) => pathsOf(shapeToGeom(component)))
+        (doc ? compoundChildren(doc, shape) : [])
+          .flatMap((component) => pathsOf(shapeToGeom(component, doc)))
       );
       if (item) item.fillRule = "evenodd";
       break;
@@ -167,10 +169,14 @@ function geomToSubpaths(item: paper.PathItem): PathSubpath[] {
  * curves; the result is a (possibly compound) Bézier shape editable with the
  * node tool. Returns null if there are <2 areal inputs or the result is empty.
  */
-export function booleanShapes(shapes: Shape[], op: BoolOp): PathShape | null {
+export function booleanShapes(
+  shapes: Shape[],
+  op: BoolOp,
+  doc?: Document
+): PathShape | null {
   ensurePaper();
   const geoms = shapes
-    .map(shapeToGeom)
+    .map((shape) => shapeToGeom(shape, doc))
     .filter((g): g is paper.PathItem => g !== null);
   if (geoms.length < 2) return null;
 

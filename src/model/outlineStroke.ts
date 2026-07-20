@@ -1,6 +1,7 @@
 import ClipperLib, { type PolyNode } from "clipper-lib";
 import { flattenSubpath } from "./path";
 import { shapeBounds } from "./bounds";
+import { compoundChildren } from "./compoundPath";
 import { contours, intPath, SCALE, treeToPolys } from "./clipperPaths";
 import { applyMatrix } from "./matrix";
 import { roundedRectPolyline } from "./roundedRect";
@@ -11,7 +12,7 @@ import {
   strokeCap,
   strokeJoin,
 } from "./stroke";
-import type { Shape, Vec2 } from "./types";
+import type { Document, Shape, Vec2 } from "./types";
 
 interface Polyline {
   points: Vec2[];
@@ -23,7 +24,7 @@ function withTransform(shape: Shape, points: Vec2[]): Vec2[] {
 }
 
 /** The stroked centerline(s) of a shape, before rotation. */
-function centerlines(shape: Shape): Polyline[] {
+function centerlines(shape: Shape, doc?: Document): Polyline[] {
   switch (shape.type) {
     case "line":
       return [
@@ -62,8 +63,8 @@ function centerlines(shape: Shape): Polyline[] {
         closed: sp.closed,
       }));
     case "compoundPath":
-      return shape.components.flatMap((component) =>
-        centerlines(component).map((line) => ({
+      return (doc ? compoundChildren(doc, shape) : []).flatMap((component) =>
+        centerlines(component, doc).map((line) => ({
           ...line,
           points: line.points.map((point) => applyMatrix(component.transform, point)),
         }))
@@ -176,10 +177,14 @@ function endType(shape: Shape, closed: boolean): number {
   }
 }
 
-function alignOutline(shape: Shape, strokeTree: PolyNode): PolyNode {
+function alignOutline(
+  shape: Shape,
+  strokeTree: PolyNode,
+  doc?: Document
+): PolyNode {
   const alignment = effectiveStrokeAlignment(shape);
   if (alignment === "center") return strokeTree;
-  const silhouette = centerlines(shape)
+  const silhouette = centerlines(shape, doc)
     .filter((line) => line.closed && line.points.length >= 3)
     .map((line) => intPath(withTransform(shape, line.points)));
   if (!silhouette.length) return strokeTree;
@@ -211,7 +216,8 @@ function alignOutline(shape: Shape, strokeTree: PolyNode): PolyNode {
  */
 export function strokeOutline(
   shape: Shape,
-  halfWidthOverride?: number
+  halfWidthOverride?: number,
+  doc?: Document
 ): Vec2[][][] | null {
   if (shape.stroke === null || shape.strokeWidth <= 0) return null;
   const alignment = effectiveStrokeAlignment(shape);
@@ -221,7 +227,7 @@ export function strokeOutline(
 
   const co = new ClipperLib.ClipperOffset(STROKE_MITER_LIMIT, 0.25 * SCALE);
   let added = false;
-  for (const pl of centerlines(shape)) {
+  for (const pl of centerlines(shape, doc)) {
     for (const dashed of dashedCenterlines(shape, pl)) {
       const pts = withTransform(shape, dashed.points);
       if (pts.length < 2) continue;
@@ -235,7 +241,7 @@ export function strokeOutline(
   co.Execute(tree, half * SCALE);
 
   const polys = treeToPolys(
-    halfWidthOverride != null ? tree : alignOutline(shape, tree)
+    halfWidthOverride != null ? tree : alignOutline(shape, tree, doc)
   );
   return polys.length ? polys : null;
 }

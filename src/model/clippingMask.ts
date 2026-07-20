@@ -27,7 +27,8 @@ export type ClippingMaskShape =
 /** Whether a node has area-bearing geometry suitable for clipping. Open paths
  * qualify because clipping implicitly closes them, just like fill. */
 export function isClippingMaskCandidate(
-  node: SceneNode | null | undefined
+  node: SceneNode | null | undefined,
+  doc?: Document
 ): node is ClippingMaskShape {
   if (!node) return false;
   switch (node.type) {
@@ -36,8 +37,8 @@ export function isClippingMaskCandidate(
       return node.width !== 0 && node.height !== 0;
     case "compoundPath":
       return (
-        node.components.length > 0 &&
-        node.components.every((component) => isClippingMaskCandidate(component))
+        node.childIds.length > 0 &&
+        (!doc || node.childIds.every((id) => isClippingMaskCandidate(doc.nodes[id], doc)))
       );
     case "path":
       return (
@@ -72,7 +73,7 @@ export function clippingMask(
 ): ClippingMaskShape | null {
   if (!isClippingGroup(group) || group.childIds.length < 2) return null;
   const node = doc.nodes[group.childIds[group.childIds.length - 1]];
-  return isClippingMaskCandidate(node) ? node : null;
+  return isClippingMaskCandidate(node, doc) ? node : null;
 }
 
 /** Child ids painted beneath a group's mask; ordinary groups return all ids. */
@@ -156,7 +157,7 @@ export function canMakeClippingMaskSelection(
   const selected = new Set(roots);
   const ordered = siblings.filter((id) => selected.has(id));
   if (ordered.length !== roots.length) return false;
-  if (!isClippingMaskCandidate(doc.nodes[ordered[ordered.length - 1]])) {
+  if (!isClippingMaskCandidate(doc.nodes[ordered[ordered.length - 1]], doc)) {
     return false;
   }
 

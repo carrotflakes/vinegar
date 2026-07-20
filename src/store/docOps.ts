@@ -12,7 +12,8 @@ import {
 import {
   childIdsOf,
   descendantNodeIds,
-  isGroup,
+  isCompoundPath,
+  isContainer,
   parentIdOf,
   scopeRootGroupId,
   selectionRoots,
@@ -42,9 +43,28 @@ export function replaceChildren(
 
 /** Remove the given roots (and their subtrees) from the scene. */
 export function removeRoots(doc: Document, roots: string[]): Document {
-  const remove = new Set(roots.flatMap((id) => [id, ...descendantNodeIds(doc, id)]));
+  const effectiveRoots = new Set(selectionRoots(doc, roots));
+  const remove = new Set(
+    [...effectiveRoots].flatMap((id) => [id, ...descendantNodeIds(doc, id)])
+  );
+  // A compound path may not be empty. Removing its final remaining child
+  // removes the compound container as well (and may in turn empty an outer
+  // compound in malformed/pre-validation data).
+  let changed = true;
+  while (changed) {
+    changed = false;
+    for (const node of Object.values(doc.nodes)) {
+      if (!isCompoundPath(node) || remove.has(node.id)) continue;
+      if (node.childIds.every((id) => remove.has(id))) {
+        effectiveRoots.add(node.id);
+        remove.add(node.id);
+        for (const id of descendantNodeIds(doc, node.id)) remove.add(id);
+        changed = true;
+      }
+    }
+  }
   let next = doc;
-  const parents = new Set(roots.map((id) => parentIdOf(doc, id)));
+  const parents = new Set([...effectiveRoots].map((id) => parentIdOf(doc, id)));
   for (const parent of parents) {
     next = replaceChildren(next, parent, childIdsOf(next, parent).filter((id) => !remove.has(id)));
   }
@@ -72,7 +92,9 @@ export function remapPayload(payload: ClipboardPayload, offset = 0): ClipboardPa
   for (const [oldId, node] of Object.entries(payload.nodes)) {
     const id = ids.get(oldId)!;
     let next: SceneNode = { ...structuredClone(node), id };
-    if (isGroup(next)) next = { ...next, childIds: next.childIds.map((child) => ids.get(child)!) };
+    if (isContainer(next)) {
+      next = { ...next, childIds: next.childIds.map((child) => ids.get(child)!) };
+    }
     if (offset && roots.has(oldId)) next = { ...next, transform: multiply(translationMatrix(offset, offset), next.transform) };
     nodes[id] = next;
   }

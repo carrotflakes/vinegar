@@ -38,7 +38,8 @@ export const useToasts = create<ToastState>((set, get) => ({
     set((s) => ({ toasts: [...s.toasts, { id, kind, message }] }));
     const ms = timeout === undefined ? DEFAULT_TIMEOUT[kind] : timeout;
     if (ms != null) {
-      window.setTimeout(() => get().dismiss(id), ms);
+      const timer = globalThis.setTimeout(() => get().dismiss(id), ms);
+      (timer as unknown as { unref?: () => void }).unref?.();
     }
     return id;
   },

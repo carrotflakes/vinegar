@@ -3,7 +3,7 @@
 // tracked by the editingSymbols stack.
 
 import { symbolContentBounds } from "../model/bounds";
-import { hasValidClippingMasks } from "../model/clippingMask";
+import { hasValidSceneContainers } from "../model/sceneValidation";
 import { IDENTITY, translation as translationMatrix } from "../model/matrix";
 import {
   childIdsOf,
@@ -66,7 +66,7 @@ export function createSymbolActions({ set, get, transact }: StoreCtx): SymbolAct
         symbols: { ...doc.symbols, [symbolId]: { id: symbolId, name, rootNodeId: rootId } },
       };
       next = replaceChildren(next, parent, rest);
-      if (!hasValidClippingMasks(next)) return;
+      if (!hasValidSceneContainers(next)) return;
       transact(next); set({ selection: [instId], ...clearTransient });
     },
     placeSymbolInstance: (symbolId, at) => {

@@ -16,7 +16,7 @@ import {
   type PathShape,
   type PathSubpath,
   type BlendMode,
-  type CompoundPathShape,
+  type CompoundPathNode,
   type Group,
   type Matrix,
   type PrimitiveShape,
@@ -218,16 +218,17 @@ function compoundComponents(item: paper.CompoundPath): PrimitiveShape[] {
 }
 
 function compoundNode(
-  item: paper.CompoundPath
-): PathShape | CompoundPathShape | null {
+  item: paper.CompoundPath,
+  nodes: Record<string, SceneNode>
+): PathShape | CompoundPathNode | null {
   if (item.fillRule === "evenodd") {
     const components = compoundComponents(item);
     if (!components.length) return null;
+    for (const component of components) nodes[component.id] = component;
     return {
       id: makeId("compound"),
       type: "compoundPath",
-      components,
-      fillRule: "evenodd",
+      childIds: components.map((component) => component.id),
       ...shapeStyle(item),
       ...baseNode(item, "Compound Path"),
     };
@@ -263,7 +264,7 @@ function convertItem(
     return node.id;
   }
   if (item.className === "CompoundPath") {
-    const node = compoundNode(item as paper.CompoundPath);
+    const node = compoundNode(item as paper.CompoundPath, nodes);
     if (!node) return null;
     nodes[node.id] = node;
     return node.id;

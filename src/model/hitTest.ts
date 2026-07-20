@@ -1,5 +1,6 @@
 import { flattenSubpath } from "./path";
 import { cachedBrushEnvelope } from "./brushOutline";
+import { compoundChildren } from "./compoundPath";
 import {
   expandBounds,
   instanceWorldBounds,
@@ -94,18 +95,20 @@ function distToPolyline(p: Vec2, pts: Vec2[], closed: boolean): number {
 function containsTransformedGeometry(
   shape: Shape,
   p: Vec2,
-  rule: "nonzero" | "evenodd"
+  rule: "nonzero" | "evenodd",
+  doc?: Document
 ): boolean {
   const inverse = invertMatrix(shape.transform);
   if (!inverse) return false;
-  return containsGeometry(shape, applyMatrix(inverse, p), rule);
+  return containsGeometry(shape, applyMatrix(inverse, p), rule, doc);
 }
 
 /** Fill containment using geometry only: paint and visibility are ignored. */
 function containsGeometry(
   shape: Shape,
   p: Vec2,
-  rule: "nonzero" | "evenodd"
+  rule: "nonzero" | "evenodd",
+  doc?: Document
 ): boolean {
   switch (shape.type) {
     case "rect": {
@@ -132,9 +135,9 @@ function containsGeometry(
       // The envelope fills with nonzero winding regardless of the caller's rule.
       return containsRings([cachedBrushEnvelope(shape)], p, "nonzero");
     case "compoundPath":
-      return shape.components.reduce(
+      return (doc ? compoundChildren(doc, shape) : []).reduce(
         (inside, component) =>
-          inside !== containsTransformedGeometry(component, p, "evenodd"),
+          inside !== containsTransformedGeometry(component, p, "evenodd", doc),
         false
       );
     case "line":
@@ -144,15 +147,21 @@ function containsGeometry(
   }
 }
 
-function strokesLocal(shape: Shape, p: Vec2, tolerance: number): boolean {
+function strokesLocal(
+  shape: Shape,
+  p: Vec2,
+  tolerance: number,
+  doc?: Document
+): boolean {
   const inverse = invertMatrix(shape.transform);
   if (!inverse) return false;
   p = applyMatrix(inverse, p);
   tolerance /= matrixScale(shape.transform);
   if (shape.type === "compoundPath") {
-    return shape.components.some((component) => strokesLocal(component, p, tolerance));
+    return (doc ? compoundChildren(doc, shape) : [])
+      .some((component) => strokesLocal(component, p, tolerance, doc));
   }
-  return localPolylines(shape).some(
+  return localPolylines(shape, doc).some(
     (line) => distToPolyline(p, line.points, line.closed) <= tolerance
   );
 }
@@ -181,7 +190,8 @@ export function hitTestClippingMask(
   return containsGeometry(
     shape,
     applyMatrix(inverse, p),
-    shapeFillRule(shape)
+    shapeFillRule(shape),
+    doc
   );
 }
 
@@ -298,9 +308,9 @@ export function hitTestShape(doc: Document, shape: Shape, p: Vec2, tol: number):
       return distToPolyline(p, ring, true) <= tol;
     }
     case "compoundPath": {
-      const inside = shape.components.reduce(
+      const inside = compoundChildren(doc, shape).reduce(
         (inside, component) =>
-          inside !== containsTransformedGeometry(component, p, "evenodd"),
+          inside !== containsTransformedGeometry(component, p, "evenodd", doc),
         false
       );
       if (hasFill && inside) return true;
@@ -308,8 +318,8 @@ export function hitTestShape(doc: Document, shape: Shape, p: Vec2, tol: number):
         (alignment === "inside" ? inside : !inside);
       return shape.stroke !== null && shape.strokeWidth > 0 &&
         sideMatches &&
-        shape.components.some((component) =>
-          strokesLocal(component, p, pickTol)
+        compoundChildren(doc, shape).some((component) =>
+          strokesLocal(component, p, pickTol, doc)
         );
     }
   }
@@ -398,7 +408,7 @@ export function marqueeHitClippingMask(
 ): boolean {
   if (!rectsIntersect(worldShapeBounds(doc, shape), region)) return false;
   const matrix = shapeWorldMatrix(doc, shape);
-  const lines = localPolylines(shape).map((line) => ({
+  const lines = localPolylines(shape, doc).map((line) => ({
     ...line,
     points: line.points.map((point) => applyMatrix(matrix, point)),
   }));
@@ -464,7 +474,7 @@ export function marqueeHitShape(
     strokeOutset(shape) * matrixScale(matrix)
   );
   if (!rectsIntersect(visualBounds, region)) return false;
-  const lines = localPolylines(shape).map((line) => ({
+  const lines = localPolylines(shape, doc).map((line) => ({
     ...line,
     points: line.points.map((point) => applyMatrix(matrix, point)),
   }));
@@ -525,7 +535,7 @@ function rectsIntersect(a: Bounds, b: Bounds): boolean {
   );
 }
 
-function localPolylines(shape: Shape): WorldPolyline[] {
+function localPolylines(shape: Shape, doc?: Document): WorldPolyline[] {
   switch (shape.type) {
     case "image":
     case "text": {
@@ -575,8 +585,8 @@ function localPolylines(shape: Shape): WorldPolyline[] {
     case "brush":
       return [{ points: cachedBrushEnvelope(shape), closed: true }];
     case "compoundPath":
-      return shape.components.flatMap((component) =>
-        localPolylines(component).map((line) => ({
+      return (doc ? compoundChildren(doc, shape) : []).flatMap((component) =>
+        localPolylines(component, doc).map((line) => ({
           ...line,
           points: line.points.map((point) => applyMatrix(component.transform, point)),
         }))

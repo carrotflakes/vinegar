@@ -16,6 +16,9 @@ let booleanShapes;
 let exportSvg;
 let canMakeCompoundPathSelection;
 let paintShape;
+let selectedNodeShapes;
+let sceneIndex;
+let useToasts;
 let commands;
 let matchKeydown;
 
@@ -25,7 +28,7 @@ before(async () => {
   ({ parseDocument, serializeDocument } = await server.ssrLoadModule("/src/io/serialize.ts"));
   ({ nodeWorldBounds } = await server.ssrLoadModule("/src/model/bounds.ts"));
   ({ hitTestShape } = await server.ssrLoadModule("/src/model/hitTest.ts"));
-  ({ parentIdOf } = await server.ssrLoadModule("/src/model/scene.ts"));
+  ({ parentIdOf, sceneIndex } = await server.ssrLoadModule("/src/model/scene.ts"));
   ({ createDemoDocument } = await server.ssrLoadModule("/src/demo/createDemoDocument.ts"));
   ({ useEditor } = await server.ssrLoadModule("/src/store/editorStore.ts"));
   ({ nodeWorldMatrix } = await server.ssrLoadModule("/src/model/matrix.ts"));
@@ -33,6 +36,8 @@ before(async () => {
   ({ exportSvg } = await server.ssrLoadModule("/src/io/exportSvg.ts"));
   ({ canMakeCompoundPathSelection } = await server.ssrLoadModule("/src/model/compoundPath.ts"));
   ({ paintShape } = await server.ssrLoadModule("/src/canvas/render.ts"));
+  ({ selectedNodeShapes } = await server.ssrLoadModule("/src/canvas/picking.ts"));
+  ({ useToasts } = await server.ssrLoadModule("/src/store/toastStore.ts"));
   ({ COMMANDS: commands, matchKeydown } =
     await server.ssrLoadModule("/src/commands/registry.ts"));
 });
@@ -186,13 +191,22 @@ test("a nested v8 scene tree survives save/load and remains usable", () => {
   );
   const demoCompound = demo.nodes.demo_compound_path;
   assert.equal(demoCompound.type, "compoundPath");
-  assert.deepEqual(demoCompound.components.map((component) => component.type), ["path", "ellipse"]);
+  assert.deepEqual(
+    demoCompound.childIds.map((id) => demo.nodes[id].type),
+    ["path", "ellipse"]
+  );
+  assert.equal(parentIdOf(demo, "demo_compound_outer"), "demo_compound_path");
   assert.equal(hitTestShape(demo, demoCompound, { x: 690, y: 270 }, 0), true);
   assert.equal(hitTestShape(demo, demoCompound, { x: 773, y: 309 }, 0), false);
   assert.ok(Object.values(demo.nodes).some((node) => node.type === "group" && node.childIds.length === 0));
 
   const editor = useEditor.getState();
   editor.loadDocument(demo);
+  useEditor.getState().setSelection(["demo_compound_path"]);
+  assert.deepEqual(
+    selectedNodeShapes(useEditor.getState()).map((shape) => shape.id),
+    ["demo_compound_outer"]
+  );
   const beforeMove = nodeWorldMatrix(demo, "demo_skew_rect");
   useEditor.getState().moveNode("demo_skew_rect", "demo_card_paths", 1);
   const moved = useEditor.getState().doc;
@@ -206,7 +220,7 @@ test("a nested v8 scene tree survives save/load and remains usable", () => {
   assert.equal(parentIdOf(useEditor.getState().doc, "demo_skew_rect"), "demo_card_shapes");
 });
 
-test("v20 path, bezier, polygon, and compound components migrate to unified paths", () => {
+test("v20 paths unify and inline compound components migrate to real nodes", () => {
   const file = JSON.parse(serializeDocument(createEmptyDocument()));
   file.version = 20;
   const base = {
@@ -245,7 +259,8 @@ test("v20 path, bezier, polygon, and compound components migrate to unified path
     type: "compoundPath",
     fillRule: "evenodd",
     components: [
-      { ...legacyPath, id: "component-path", closed: true },
+      // Deliberately collides with the existing top-level node id.
+      { ...legacyPath, id: "polyline", closed: true },
       { ...legacyBezier, id: "component-bezier" },
       { ...legacyPolygon, id: "component-polygon" },
     ],
@@ -274,12 +289,16 @@ test("v20 path, bezier, polygon, and compound components migrate to unified path
 
   const migratedCompound = loaded.nodes.compound;
   assert.equal(migratedCompound.type, "compoundPath");
+  assert.equal("components" in migratedCompound, false);
+  assert.equal("fillRule" in migratedCompound, false);
   assert.deepEqual(
-    migratedCompound.components.map((component) => component.type),
+    migratedCompound.childIds.map((id) => loaded.nodes[id].type),
     ["path", "path", "path"]
   );
-  assert.equal(migratedCompound.components[2].fillRule, "evenodd");
-  assert.equal(JSON.parse(serializeDocument(loaded)).version, 21);
+  assert.equal(loaded.nodes[migratedCompound.childIds[2]].fillRule, "evenodd");
+  assert.ok(migratedCompound.childIds.every((id) => parentIdOf(loaded, id) === "compound"));
+  assert.notEqual(migratedCompound.childIds[0], "polyline");
+  assert.equal(JSON.parse(serializeDocument(loaded)).version, 22);
 });
 
 test("boolean ops keep curves and produce editable multi-subpath paths", () => {
@@ -315,15 +334,17 @@ test("boolean ops keep curves and produce editable multi-subpath paths", () => {
   assert.ok(union.subpaths[0].anchors.some((an) => an.hIn || an.hOut));
 });
 
-test("compound paths retain source shapes, cut even-odd holes, and release", () => {
+test("compound paths own real children, cut even-odd holes, and release", () => {
   const doc = createEmptyDocument();
   const base = {
     name: "base", fill: { type: "solid", color: "#123456", alpha: 1 },
     stroke: { type: "solid", color: "#222222", alpha: 1 }, strokeWidth: 2,
     opacity: 0.8, transform: [1, 0, 0, 1, 0, 0], transformOrigin: null,
   };
+  const outerEffects = [{ type: "blur", radius: 1 }];
   doc.nodes.outer = {
     id: "outer", type: "rect", x: 0, y: 0, width: 100, height: 100, ...base,
+    effects: outerEffects,
   };
   doc.nodes.inner = {
     id: "inner", type: "ellipse", x: 25, y: 25, width: 50, height: 50,
@@ -343,11 +364,57 @@ test("compound paths retain source shapes, cut even-odd holes, and release", () 
   const compoundId = state.doc.rootIds[0];
   let compound = state.doc.nodes[compoundId];
   assert.equal(compound.type, "compoundPath");
-  assert.deepEqual(compound.components.map((component) => component.type), ["rect", "ellipse"]);
+  assert.deepEqual(compound.childIds, ["outer", "inner"]);
+  assert.deepEqual(
+    compound.childIds.map((id) => state.doc.nodes[id].type),
+    ["rect", "ellipse"]
+  );
+  assert.equal(parentIdOf(state.doc, "inner"), compoundId);
+  assert.ok(sceneIndex(state.doc).shapeIds.includes(compoundId));
+  assert.equal(sceneIndex(state.doc).shapeIds.includes("outer"), false);
+  assert.deepEqual(compound.effects, outerEffects);
+  useToasts.setState({ toasts: [] });
+  useEditor.getState().moveNode(compoundId, compoundId, 0);
+  assert.deepEqual(useEditor.getState().doc.rootIds, [compoundId]);
+  assert.equal(useToasts.getState().toasts.at(-1)?.kind, "error");
+  assert.match(
+    useToasts.getState().toasts.at(-1)?.message ?? "",
+    /Compound paths only accept/
+  );
+  useEditor.getState().undo();
+  assert.deepEqual(useEditor.getState().doc.rootIds, ["outer", "inner"]);
+  useEditor.getState().redo();
+  assert.equal(useEditor.getState().doc.nodes[compoundId].type, "compoundPath");
+  useEditor.getState().setSelection([compoundId]);
+  state = useEditor.getState();
+  compound = state.doc.nodes[compoundId];
   assert.deepEqual(compound.fill, { type: "solid", color: "#123456", alpha: 1 });
   assert.equal("subpaths" in compound, false);
   assert.equal(hitTestShape(state.doc, compound, { x: 10, y: 10 }, 0), true);
   assert.equal(hitTestShape(state.doc, compound, { x: 55, y: 50 }, 0), false);
+  useEditor.getState().toggleHidden("inner");
+  state = useEditor.getState();
+  assert.equal(hitTestShape(state.doc, state.doc.nodes[compoundId], { x: 55, y: 50 }, 0), true);
+  useEditor.getState().toggleHidden("inner");
+  state = useEditor.getState();
+
+  useEditor.getState().copySelected();
+  useEditor.getState().paste();
+  let cloned = useEditor.getState().doc.nodes[useEditor.getState().selection[0]];
+  assert.equal(cloned.type, "compoundPath");
+  assert.ok(cloned.childIds.every((id) => !["outer", "inner"].includes(id)));
+  assert.ok(cloned.childIds.every((id) => parentIdOf(useEditor.getState().doc, id) === cloned.id));
+  useEditor.getState().undo();
+  useEditor.getState().setSelection([compoundId]);
+
+  useEditor.getState().duplicateSelected();
+  cloned = useEditor.getState().doc.nodes[useEditor.getState().selection[0]];
+  assert.equal(cloned.type, "compoundPath");
+  assert.ok(cloned.childIds.every((id) => !["outer", "inner"].includes(id)));
+  useEditor.getState().undo();
+  useEditor.getState().setSelection([compoundId]);
+  state = useEditor.getState();
+  compound = state.doc.nodes[compoundId];
   const drawCalls = [];
   const mockContext = {
     save() {}, restore() {}, transform() {}, beginPath() {}, closePath() {},
@@ -357,7 +424,7 @@ test("compound paths retain source shapes, cut even-odd holes, and release", () 
     globalAlpha: 1, fillStyle: "", strokeStyle: "", lineWidth: 1,
     lineJoin: "round", lineCap: "round", globalCompositeOperation: "source-over",
   };
-  paintShape(mockContext, compound);
+  paintShape(mockContext, compound, {}, state.doc);
   const ellipseCall = drawCalls.findIndex(([name]) => name === "ellipse");
   assert.ok(ellipseCall > 0);
   assert.equal(drawCalls[ellipseCall - 1][0], "moveTo");
@@ -367,24 +434,32 @@ test("compound paths retain source shapes, cut even-odd holes, and release", () 
 
   const loaded = parseDocument(serializeDocument(state.doc));
   assert.equal(loaded.nodes[compoundId].type, "compoundPath");
-  assert.equal(loaded.nodes[compoundId].components[1].type, "ellipse");
+  assert.equal(loaded.nodes[loaded.nodes[compoundId].childIds[1]].type, "ellipse");
   const malformedCompound = JSON.parse(serializeDocument(state.doc));
-  malformedCompound.document.nodes[compoundId].components[0].type = "line";
+  malformedCompound.document.nodes.outer.type = "path";
+  malformedCompound.document.nodes.outer.subpaths = [{
+    anchors: [
+      { p: { x: 0, y: 0 }, hIn: null, hOut: null },
+      { p: { x: 10, y: 10 }, hIn: null, hOut: null },
+    ],
+    closed: false,
+  }];
   assert.throws(
     () => parseDocument(JSON.stringify(malformedCompound)),
-    /missing or malformed/
+    /invalid child/
   );
 
-  useEditor.getState().undo();
-  assert.deepEqual(useEditor.getState().doc.rootIds, ["outer", "inner"]);
-  useEditor.getState().redo();
-  assert.equal(useEditor.getState().doc.nodes[compoundId].type, "compoundPath");
   useEditor.getState().setSelection([compoundId]);
 
   useEditor.getState().updateSelectedStyle({
     fill: { type: "solid", color: "#abcdef", alpha: 1 },
     transform: [1, 0, 0, 1, 10, 5],
   });
+  const childEffects = [{ type: "blur", radius: 2 }];
+  const compoundEffects = [{ type: "blur", radius: 9 }];
+  useEditor.getState().setNodeEffects("inner", childEffects);
+  useEditor.getState().setNodeEffects(compoundId, compoundEffects);
+  useToasts.setState({ toasts: [] });
   useEditor.getState().releaseCompoundPathSelected();
   state = useEditor.getState();
   assert.equal(state.doc.rootIds.length, 2);
@@ -398,12 +473,18 @@ test("compound paths retain source shapes, cut even-odd holes, and release", () 
     released.map((shape) => [shape.transform[4], shape.transform[5]]),
     [[10, 5], [15, 5]]
   );
-  assert.ok(released.every((shape) => shape.id !== "outer" && shape.id !== "inner"));
+  assert.deepEqual(released.map((shape) => shape.id), ["outer", "inner"]);
+  assert.deepEqual(released[0].effects, outerEffects);
+  assert.deepEqual(released[1].effects, childEffects);
+  assert.ok(useToasts.getState().toasts.some(
+    (toast) => toast.kind === "info" && /effects were removed/.test(toast.message)
+  ));
 
   useEditor.getState().undo();
   compound = useEditor.getState().doc.nodes[compoundId];
   assert.equal(compound.type, "compoundPath");
   assert.deepEqual(compound.fill, { type: "solid", color: "#abcdef", alpha: 1 });
+  assert.deepEqual(compound.effects, compoundEffects);
   useEditor.getState().redo();
   assert.equal(useEditor.getState().doc.rootIds.length, 2);
 

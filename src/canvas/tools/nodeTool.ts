@@ -13,12 +13,19 @@ import { isShape } from "../../model/scene";
 import type { Vec2 } from "../../model/types";
 import { useEditor, type EditorState } from "../../store/editorStore";
 import { NODE_GRAB, type Interaction, type ToolContext } from "../interaction";
-import { hitNodes, moveAnchors, moveHandle, nodeSubpaths } from "../nodes";
+import {
+  hitNodes,
+  moveAnchors,
+  moveHandle,
+  nodeSubpaths,
+  type NodeEditShape,
+} from "../nodes";
 import {
   pickShape,
   pickTolerance,
   pointSnap,
   selectedNodeShape,
+  selectedNodeShapes,
 } from "../picking";
 import { constrain45 } from "../util";
 
@@ -27,6 +34,58 @@ export type NodeInteraction = Extract<
   { kind: "node-anchor" | "node-handle" }
 >;
 
+interface SegmentTarget {
+  shape: NodeEditShape;
+  sub: number;
+  segIndex: number;
+  t: number;
+  worldDistance: number;
+}
+
+/** Closest segment across every node-editable selected shape. */
+function closestSegmentTarget(
+  ctx: ToolContext,
+  state: EditorState,
+  shapes: NodeEditShape[],
+  world: Vec2
+): SegmentTarget | null {
+  let best: SegmentTarget | null = null;
+  for (const shape of shapes) {
+    const matrix = shapeWorldMatrix(state.doc, shape);
+    const inverse = invertMatrix(matrix);
+    const local = inverse ? applyMatrix(inverse, world) : world;
+    const scale = matrixScale(matrix);
+    if (shape.type === "path") {
+      const loc = closestPointOnPath(shape, local);
+      if (!loc) continue;
+      const worldDistance = loc.distance * scale;
+      if (worldDistance > pickTolerance(ctx) ||
+          (best && best.worldDistance <= worldDistance)) continue;
+      best = {
+        shape,
+        sub: loc.sub,
+        segIndex: loc.segIndex,
+        t: loc.t,
+        worldDistance,
+      };
+      continue;
+    }
+    const loc = closestPointOnBrush(shape, local);
+    if (!loc) continue;
+    const worldDistance = loc.distance * scale;
+    if (worldDistance > pickTolerance(ctx) ||
+        (best && best.worldDistance <= worldDistance)) continue;
+    best = {
+      shape,
+      sub: 0,
+      segIndex: loc.segIndex,
+      t: loc.t,
+      worldDistance,
+    };
+  }
+  return best;
+}
+
 export function onNodeDown(
   ctx: ToolContext,
   state: EditorState,
@@ -34,16 +93,25 @@ export function onNodeDown(
   world: Vec2,
   shiftKey: boolean
 ) {
-  const sel = selectedNodeShape(state);
-  if (sel) {
+  const candidates = selectedNodeShapes(state);
+  const hitTarget = candidates.flatMap((shape) => {
     const hit = hitNodes(
-      sel,
-      shapeWorldMatrix(state.doc, sel),
+      shape,
+      shapeWorldMatrix(state.doc, shape),
       screen,
       state.viewport,
       NODE_GRAB * ctx.hitScale(),
       shiftKey
     );
+    return hit ? [{ shape, hit }] : [];
+  })[0];
+  const segmentTarget = hitTarget
+    ? null
+    : closestSegmentTarget(ctx, state, candidates, world);
+  const sel =
+    hitTarget?.shape ?? segmentTarget?.shape ?? selectedNodeShape(state);
+  if (sel) {
+    const hit = hitTarget?.shape.id === sel.id ? hitTarget.hit : null;
     if (hit) {
       const node = { shapeId: sel.id, sub: hit.sub, index: hit.index };
       const current = state.editNodes.filter((selected) => selected.shapeId === sel.id);
@@ -88,24 +156,26 @@ export function onNodeDown(
     }
     // Clicking the path itself (not a node) inserts an anchor there and starts
     // dragging it, all as one undo step.
-    const inverse = invertMatrix(shapeWorldMatrix(state.doc, sel));
-    const local = inverse ? applyMatrix(inverse, world) : world;
-    const localScale = matrixScale(shapeWorldMatrix(state.doc, sel));
-    const withinPath = (distance: number) =>
-      distance * localScale <= pickTolerance(ctx);
-
-    let insert: { next: typeof sel; sub: number; index: number } | null = null;
-    if (sel.type === "path") {
-      const loc = closestPointOnPath(sel, local);
-      if (loc && withinPath(loc.distance)) {
-        const next = insertAnchorOnSegment(sel, loc.sub, loc.segIndex, loc.t);
-        if (next !== sel) insert = { next, sub: loc.sub, index: loc.segIndex + 1 };
-      }
-    } else {
-      const loc = closestPointOnBrush(sel, local);
-      if (loc && withinPath(loc.distance)) {
-        const next = insertBrushAnchor(sel, loc.segIndex, loc.t);
-        if (next !== sel) insert = { next, sub: 0, index: loc.segIndex + 1 };
+    let insert: {
+      next: NodeEditShape;
+      sub: number;
+      index: number;
+    } | null = null;
+    if (segmentTarget?.shape.id === sel.id) {
+      const next = sel.type === "path"
+        ? insertAnchorOnSegment(
+            sel,
+            segmentTarget.sub,
+            segmentTarget.segIndex,
+            segmentTarget.t
+          )
+        : insertBrushAnchor(sel, segmentTarget.segIndex, segmentTarget.t);
+      if (next !== sel) {
+        insert = {
+          next,
+          sub: segmentTarget.sub,
+          index: segmentTarget.segIndex + 1,
+        };
       }
     }
     if (insert) {
@@ -193,15 +263,18 @@ export function onNodeDoubleClick(
   state: EditorState,
   screen: Vec2
 ) {
-  const sel = selectedNodeShape(state);
-  if (!sel) return;
-  const hit = hitNodes(
-    sel,
-    shapeWorldMatrix(state.doc, sel),
-    screen,
-    state.viewport,
-    NODE_GRAB * ctx.hitScale()
-  );
+  const target = selectedNodeShapes(state).flatMap((shape) => {
+    const hit = hitNodes(
+      shape,
+      shapeWorldMatrix(state.doc, shape),
+      screen,
+      state.viewport,
+      NODE_GRAB * ctx.hitScale()
+    );
+    return hit ? [{ shape, hit }] : [];
+  })[0];
+  if (!target) return;
+  const { shape: sel, hit } = target;
   if (hit?.part !== "anchor") return;
   // The first click of this double-click may have just inserted this
   // anchor; don't immediately flip it to a corner as well.
@@ -224,26 +297,24 @@ export function nodeCursor(
   world: Vec2
 ): string {
   const state = useEditor.getState();
-  const sel = selectedNodeShape(state);
-  if (
-    sel &&
-    hitNodes(
-      sel,
-      shapeWorldMatrix(state.doc, sel),
-      screen,
-      state.viewport,
-      NODE_GRAB * ctx.hitScale()
-    )
-  ) {
+  const shapes = selectedNodeShapes(state);
+  if (shapes.some((shape) => hitNodes(
+    shape,
+    shapeWorldMatrix(state.doc, shape),
+    screen,
+    state.viewport,
+    NODE_GRAB * ctx.hitScale()
+  ))) {
     return "move";
   }
   // "copy" (arrow + plus) over the path itself: a click inserts a point. Only
   // Paths support inserting anchors; brush insertion is handled on click only.
-  if (!sel || sel.type !== "path") return "default";
-  const inverse = invertMatrix(shapeWorldMatrix(state.doc, sel));
-  const loc = closestPointOnPath(sel, inverse ? applyMatrix(inverse, world) : world);
-  const localScale = matrixScale(shapeWorldMatrix(state.doc, sel));
-  return loc && loc.distance * localScale <= pickTolerance(ctx)
+  return closestSegmentTarget(
+    ctx,
+    state,
+    shapes.filter((shape) => shape.type === "path"),
+    world
+  )
     ? "copy"
     : "default";
 }

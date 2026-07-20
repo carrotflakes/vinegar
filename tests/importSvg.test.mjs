@@ -201,7 +201,7 @@ test("groups keep paint order and convert Paper clipping masks", () => {
   assert.equal(clippingMask(doc, converted)?.name, "Mask");
 });
 
-test("even-odd Paper compound paths become retained compound geometry", () => {
+test("even-odd Paper compound paths become containers with real path children", () => {
   const scope = makeScope();
   const outer = new scope.Path.Rectangle({
     point: [0, 0],
@@ -223,9 +223,9 @@ test("even-odd Paper compound paths become retained compound geometry", () => {
   const imported = convertSvgItem(compound);
   const node = importedContent(imported);
   assert.equal(node.type, "compoundPath");
-  assert.equal(node.fillRule, "evenodd");
-  assert.equal(node.components.length, 2);
-  assert.ok(node.components.every((component) => component.type === "path"));
+  assert.equal("fillRule" in node, false);
+  assert.equal(node.childIds.length, 2);
+  assert.ok(node.childIds.every((id) => imported.nodes[id].type === "path"));
   assert.deepEqual(node.fill, {
     type: "solid",
     color: "#ff0000",

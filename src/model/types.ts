@@ -205,15 +205,17 @@ export interface PathShape extends BaseShape {
 }
 
 /**
- * A compound path paints several retained source shapes as one even-odd path.
- * Components are deliberately not scene nodes: the compound path is a single
- * selectable/layer item and its component geometry is not node-editable.
+ * A compound path owns real areal leaf nodes but paints their outlines once,
+ * using the container's appearance and the even-odd fill rule.
  */
-export interface CompoundPathShape extends BaseShape {
+export interface CompoundPathNode extends BaseShape {
   type: "compoundPath";
-  components: PrimitiveShape[];
-  fillRule: "evenodd";
+  /** Child node ids, back-to-front. Must contain areal leaf shapes only. */
+  childIds: string[];
 }
+
+/** @deprecated Use CompoundPathNode. Kept as a source-compatible type alias. */
+export type CompoundPathShape = CompoundPathNode;
 
 /**
  * A placed raster image. The pixels live in a `DocumentAsset` referenced by
@@ -326,7 +328,7 @@ export type PrimitiveShape =
 
 export type Shape =
   | PrimitiveShape
-  | CompoundPathShape
+  | CompoundPathNode
   | ImageShape
   | TextShape
   | BrushShape;

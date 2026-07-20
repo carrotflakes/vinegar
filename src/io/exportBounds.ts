@@ -13,6 +13,7 @@ import {
   isGroup,
   isNodeHidden,
   isShape,
+  sceneIndex,
   scopeLeafIds,
   selectionRoots,
 } from "../model/scene";
@@ -43,6 +44,7 @@ export function selectionContentBounds(
   margin = 8
 ): Bounds | null {
   const leaves = new Set<string>();
+  const paintable = new Set(sceneIndex(doc).shapeIds);
   for (const rootId of selectionRoots(doc, selection)) {
     const node = doc.nodes[rootId];
     if (!node) continue;
@@ -50,7 +52,7 @@ export function selectionContentBounds(
     if (!isGroup(node)) leaves.add(rootId);
     else {
       for (const id of descendantNodeIds(doc, rootId)) {
-        if (!isGroup(doc.nodes[id])) leaves.add(id);
+        if (paintable.has(id)) leaves.add(id);
       }
     }
   }

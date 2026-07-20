@@ -1,4 +1,5 @@
 import { clippingMask } from "../model/clippingMask";
+import { isCompoundChild } from "../model/compoundPath";
 import { paintFromLegacy } from "../model/paint";
 import { referencedAssetIds } from "../model/scene";
 import {
@@ -10,7 +11,7 @@ import {
   type ShapeType,
 } from "../model/types";
 
-export const CURRENT_FILE_VERSION = 21 as const;
+export const CURRENT_FILE_VERSION = 22 as const;
 
 /**
  * v8 lacked `symbols` (added as an empty registry). v8 and v9 stored fill/
@@ -25,11 +26,12 @@ export const CURRENT_FILE_VERSION = 21 as const;
  * (pressure-profiled variable-width strokes). v20 adds `doc.scripts` (user
  * parametric generators, backfilled as empty) and the optional `generator`
  * link on nodes. v21 unifies path, bezier, and polygon geometry as multi-
- * subpath `path` nodes with an optional fill rule. v8-v20 documents migrate
- * on load; absent optional fields retain their historical behavior.
+ * subpath `path` nodes with an optional fill rule. v22 moves compound-path
+ * members into `nodes` and owns them through `childIds`. v8-v21 documents
+ * migrate on load; absent optional fields retain their historical behavior.
  */
 const MIGRATABLE_VERSIONS = new Set<unknown>([
-  8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20,
+  8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21,
 ]);
 
 export interface VinegarFile {
@@ -61,9 +63,6 @@ function usedAssets(doc: Document): Document["assets"] {
 
 const NODE_TYPES = new Set<ShapeType | "group" | "instance">([
   "group", "rect", "ellipse", "line", "path", "compoundPath", "instance", "image", "text", "brush",
-]);
-const COMPOUND_COMPONENT_TYPES = new Set<ShapeType>([
-  "rect", "ellipse", "path",
 ]);
 const isObject = (value: unknown): value is Record<string, unknown> =>
   !!value && typeof value === "object" && !Array.isArray(value);
@@ -194,16 +193,9 @@ const isNode = (id: string, node: unknown): boolean => {
           (anchor.hOut === null || isPoint(anchor.hOut)) &&
           isNumber(anchor.w) && anchor.w >= 0);
     case "compoundPath":
-      return node.fillRule === "evenodd" &&
-        Array.isArray(node.components) && node.components.length > 0 &&
-        node.components.every((component: unknown) =>
-          isObject(component) &&
-          COMPOUND_COMPONENT_TYPES.has(component.type as ShapeType) &&
-          typeof component.id === "string" &&
-          isNode(component.id, component) &&
-          (component.type !== "path" ||
-            (component.subpaths as unknown[]).length > 0 &&
-            (component.subpaths as Array<{ closed?: unknown }>).every((sp) => sp.closed === true)));
+      return node.components === undefined && node.fillRule === undefined &&
+        Array.isArray(node.childIds) && node.childIds.length > 0 &&
+        node.childIds.every((child) => typeof child === "string");
     default:
       return false;
   }
@@ -242,14 +234,57 @@ export function parseDocument(text: string): Document {
   ) {
     data.document.scripts = {};
   }
-  if (data.version !== CURRENT_FILE_VERSION && isObject(data.document)) {
+  if (typeof data.version === "number" && data.version <= 20 && isObject(data.document)) {
     migrateUnifiedPaths(data.document);
+  }
+  if (data.version !== CURRENT_FILE_VERSION && isObject(data.document)) {
+    migrateCompoundPathNodes(data.document);
   }
   if (!isCurrentDocument(data.document)) {
     throw new Error("Document data is missing or malformed.");
   }
   validateTree(data.document);
   return structuredClone(data.document);
+}
+
+/** Move pre-v22 inline compound components into the document node registry. */
+function migrateCompoundPathNodes(doc: Record<string, unknown>): void {
+  const nodes = doc.nodes;
+  if (!isObject(nodes)) return;
+  const used = new Set(Object.keys(nodes));
+  let suffix = 0;
+  const freshId = (preferred: unknown): string => {
+    const base = typeof preferred === "string" && preferred.length
+      ? preferred
+      : "compound_component";
+    if (!used.has(base)) {
+      used.add(base);
+      return base;
+    }
+    let id = "";
+    do {
+      suffix += 1;
+      id = `${base}_${suffix}`;
+    } while (used.has(id));
+    used.add(id);
+    return id;
+  };
+  for (const node of Object.values(nodes)) {
+    if (!isObject(node) || node.type !== "compoundPath" || !Array.isArray(node.components)) {
+      continue;
+    }
+    const childIds: string[] = [];
+    for (const component of node.components) {
+      if (!isObject(component)) continue;
+      const id = freshId(component.id);
+      component.id = id;
+      nodes[id] = component;
+      childIds.push(id);
+    }
+    node.childIds = childIds;
+    delete node.components;
+    delete node.fillRule;
+  }
 }
 
 /** Convert pre-v21 path/bezier/polygon nodes to the canonical path layout. */
@@ -373,8 +408,23 @@ function validateTree(doc: Document): void {
           throw new Error(`Pattern references missing asset: ${paint.assetId}.`);
         }
       }
+    }
+    if (node.type === "compoundPath") {
+      if (node.childIds.length === 0) {
+        throw new Error(`Compound path has no children: ${id}.`);
+      }
+      for (const childId of node.childIds) {
+        const child = doc.nodes[childId];
+        if (!isCompoundChild(child)) {
+          throw new Error(`Compound path has invalid child: ${childId}.`);
+        }
+      }
+      visiting.add(id);
+      for (const childId of node.childIds) visit(childId);
+      visiting.delete(id);
       return;
     }
+    if (node.type !== "group") return;
     if (node.clip === true && !clippingMask(doc, node)) {
       throw new Error(`Clipping group has no valid final mask: ${id}.`);
     }
@@ -404,7 +454,9 @@ function validateTree(doc: Document): void {
       const node = doc.nodes[nodeId];
       if (!node) return;
       if (node.type === "instance") visitSymbol(node.symbolId);
-      else if (node.type === "group") node.childIds.forEach(walk);
+      else if (node.type === "group" || node.type === "compoundPath") {
+        node.childIds.forEach(walk);
+      }
     };
     const def = doc.symbols[id];
     if (def) walk(def.rootNodeId);
