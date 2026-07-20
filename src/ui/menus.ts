@@ -66,3 +66,15 @@ export function selectionMenu(): MenuEntry[] {
 export function canvasMenu(at: Vec2): MenuEntry[] {
   return [item("edit.paste", at), item("file.placeImage", at), item("select.all")];
 }
+
+/** Actions for the artboard selected by an Artboards panel row. */
+export function artboardMenu(): MenuEntry[] {
+  return [
+    item("view.fitArtboard"),
+    "separator",
+    item("file.exportArtboardPng"),
+    item("file.exportArtboardSvg"),
+    "separator",
+    item("artboard.delete"),
+  ];
+}

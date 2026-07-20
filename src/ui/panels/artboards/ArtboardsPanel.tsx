@@ -1,6 +1,8 @@
 import { useState } from "react";
 import { LuFrame, LuPlus, LuTrash2 } from "react-icons/lu";
 import { useEditor } from "../../../store/editorStore";
+import { openContextMenu } from "../../../store/menuStore";
+import { artboardMenu } from "../../menus";
 import { useTouchDrag } from "../../useTouchDrag";
 import "../../Panel.css";
 import "../PanelList.css";
@@ -82,6 +84,11 @@ export default function ArtboardsPanel() {
                 editing === ab.id ? undefined : (e) => startDrag(e, ab.id)
               }
               onClick={() => selectArtboard(ab.id)}
+              onContextMenu={(e) => {
+                e.preventDefault();
+                selectArtboard(ab.id);
+                openContextMenu(e.clientX, e.clientY, artboardMenu());
+              }}
             >
               <span
                 className="layer-type"
