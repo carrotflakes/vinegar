@@ -142,16 +142,8 @@ export function radialGradient(stops: GradientStop[]): RadialGradientPaint {
   return { type: "radial", stops };
 }
 
-export function isSolid(paint: Paint): paint is SolidPaint {
-  return paint.type === "solid";
-}
-
 export function isGradient(paint: Paint): paint is GradientPaint {
   return paint.type === "linear" || paint.type === "radial";
-}
-
-export function isPattern(paint: Paint): paint is PatternPaint {
-  return paint.type === "pattern";
 }
 
 /** Stops in ascending offset order (rendering requires monotonic offsets). */
@@ -160,7 +152,7 @@ export function sortedStops(stops: GradientStop[]): GradientStop[] {
 }
 
 /** Parse `#rgb`/`#rrggbb` to 0-255 channels (black on malformed input). */
-export function hexToRgb(hex: string): { r: number; g: number; b: number } {
+function hexToRgb(hex: string): { r: number; g: number; b: number } {
   let h = hex.trim().replace("#", "").toLowerCase();
   if (h.length === 3) h = h.split("").map((c) => c + c).join("");
   const n = parseInt(h, 16);

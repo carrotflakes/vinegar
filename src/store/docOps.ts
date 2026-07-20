@@ -28,17 +28,11 @@ import {
   type SymbolInstance,
 } from "../model/types";
 
+export { withChildIds as replaceChildren } from "../model/scene";
+
 export interface ClipboardPayload {
   nodes: Record<string, SceneNode>;
   rootIds: string[];
-}
-
-export function replaceChildren(
-  doc: Document,
-  parentId: string | null,
-  ids: string[]
-): Document {
-  return withChildIds(doc, parentId, ids);
 }
 
 /** Remove the given roots (and their subtrees) from the scene. */
@@ -66,7 +60,7 @@ export function removeRoots(doc: Document, roots: string[]): Document {
   let next = doc;
   const parents = new Set([...effectiveRoots].map((id) => parentIdOf(doc, id)));
   for (const parent of parents) {
-    next = replaceChildren(next, parent, childIdsOf(next, parent).filter((id) => !remove.has(id)));
+    next = withChildIds(next, parent, childIdsOf(next, parent).filter((id) => !remove.has(id)));
   }
   const nodes = { ...next.nodes };
   for (const id of remove) delete nodes[id];

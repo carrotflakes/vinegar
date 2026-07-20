@@ -283,8 +283,6 @@ export interface StructureActions {
   releaseCompoundPathSelected: () => void;
   toggleHidden: (id: string) => void;
   toggleLocked: (id: string) => void;
-  renameShape: (id: string, name: string) => void;
-  renameGroup: (id: string, name: string) => void;
   renameNode: (id: string, name: string) => void;
   /**
    * Patch the shared BaseNode style fields of a single group or symbol

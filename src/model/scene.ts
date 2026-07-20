@@ -26,7 +26,7 @@ export const isContainer = (
 export const isShape = (node: SceneNode | undefined): node is Shape =>
   !!node && node.type !== "group" && node.type !== "instance";
 
-export const childIdsOfNode = (
+const childIdsOfNode = (
   node: SceneNode | undefined
 ): string[] => isContainer(node) ? node.childIds : [];
 
@@ -120,11 +120,6 @@ export function sceneIndex(doc: Document): SceneIndex {
   return index;
 }
 
-/** Which symbol definition owns a node; null for scene nodes. */
-export function nodeOwner(doc: Document, id: string): string | null {
-  return sceneIndex(doc).owner.get(id) ?? null;
-}
-
 /**
  * Paintable leaf ids (shapes and instances) of one scope in paint order.
  * `scope` is null for the scene or a symbol id for that definition's content.
@@ -149,7 +144,7 @@ export function scopeRootIds(doc: Document, scope: string | null): string[] {
 }
 
 /** Symbol ids reachable from `symbolId`'s definition, including itself. */
-export function reachableSymbols(doc: Document, symbolId: string): Set<string> {
+function reachableSymbols(doc: Document, symbolId: string): Set<string> {
   const seen = new Set<string>();
   const visitSymbol = (id: string) => {
     if (seen.has(id)) return;

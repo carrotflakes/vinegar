@@ -2,34 +2,15 @@
 
 import {
   ancestorIds,
-  descendantShapeIds,
   isGroup,
   isNodeHidden,
   isNodeLocked,
   isShape,
   parentIdOf,
-  rootAncestorId,
   rootAncestorIdWithin,
   selectionRoots,
 } from "./scene";
 import type { Document, Group, Shape } from "./types";
-
-export function groupChain(doc: Document, nodeId?: string | null): string[] {
-  if (!nodeId) return [];
-  const node = doc.nodes[nodeId];
-  return [
-    ...(isGroup(node) ? [nodeId] : []),
-    ...ancestorIds(doc, nodeId).filter((id) => isGroup(doc.nodes[id])),
-  ];
-}
-
-export function rootGroupId(doc: Document, nodeId?: string | null): string | null {
-  if (!nodeId) return null;
-  const root = rootAncestorId(doc, nodeId);
-  return isGroup(doc.nodes[root]) ? root : null;
-}
-
-export const shapesInGroup = descendantShapeIds;
 
 export function isShapeHidden(doc: Document, shape: Shape): boolean {
   return isNodeHidden(doc, shape.id);
@@ -104,9 +85,4 @@ export function exactlySelectedGroup(
   if (roots.length !== 1) return null;
   const node = doc.nodes[roots[0]];
   return isGroup(node) ? node : null;
-}
-
-/** Empty groups are valid; no implicit pruning occurs in the scene model. */
-export function pruneGroups(doc: Document): Document {
-  return doc;
 }

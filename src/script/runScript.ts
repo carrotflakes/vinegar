@@ -300,9 +300,6 @@ function flattenSnapshotForScript(snap: ScriptSnapshot): ScriptSnapshot {
   const flattenPaint = (node: Record<string, unknown>) => {
     if ("fill" in node) node.fill = flat(node.fill);
     if ("stroke" in node) node.stroke = flat(node.stroke);
-    if (node.type === "compoundPath" && Array.isArray(node.components)) {
-      node.components.forEach((c) => flattenPaint(c as Record<string, unknown>));
-    }
   };
   const shapes = snap.shapes.map((s) => {
     const copy = structuredClone(s) as unknown as Record<string, unknown>;

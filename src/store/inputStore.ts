@@ -50,15 +50,3 @@ export function readModifiers(e: {
     alt: e.altKey || s.stickyAlt,
   };
 }
-
-/** Whether Shift is currently active from any source (keys or sticky). */
-export function shiftActive(): boolean {
-  const s = useInput.getState();
-  return s.physShift || s.stickyShift;
-}
-
-/** Whether Alt is currently active from any source (keys or sticky). */
-export function altActive(): boolean {
-  const s = useInput.getState();
-  return s.physAlt || s.stickyAlt;
-}

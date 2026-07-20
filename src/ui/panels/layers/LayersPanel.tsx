@@ -117,8 +117,6 @@ export default function LayersPanel() {
   const toggleHidden = useEditor((s) => s.toggleHidden);
   const toggleLocked = useEditor((s) => s.toggleLocked);
   const updateNodeStyle = useEditor((s) => s.updateNodeStyle);
-  const renameShape = useEditor((s) => s.renameShape);
-  const renameGroup = useEditor((s) => s.renameGroup);
   const renameNode = useEditor((s) => s.renameNode);
   const moveNode = useEditor((s) => s.moveNode);
   const scope = useEditor((s) => currentSymbolScope(s));
@@ -329,7 +327,7 @@ export default function LayersPanel() {
           })()}
         </span>
         {editing === id ? (
-          nameEditor(shape.name, (name) => renameShape(id, name))
+          nameEditor(shape.name, (name) => renameNode(id, name))
         ) : (
           <span
             className="layer-name"
@@ -490,7 +488,7 @@ export default function LayersPanel() {
           {group.locked ? <LuLock /> : <LuLockOpen />}
         </button>
         {editing === gid ? (
-          nameEditor(group.name, (name) => renameGroup(gid, name))
+          nameEditor(group.name, (name) => renameNode(gid, name))
         ) : (
           <span
             className="layer-name"

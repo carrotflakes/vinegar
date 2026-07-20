@@ -4,6 +4,7 @@ import { paintFromLegacy } from "../model/paint";
 import { referencedAssetIds } from "../model/scene";
 import {
   BLEND_MODES,
+  EFFECT_TYPES,
   STROKE_ALIGNMENTS,
   STROKE_CAPS,
   STROKE_JOINS,
@@ -101,7 +102,7 @@ const isPaint = (value: unknown): boolean => {
 };
 const isPaintOrNull = (value: unknown): boolean => value === null || isPaint(value);
 const isEffect = (value: unknown): boolean => {
-  if (!isObject(value)) return false;
+  if (!isObject(value) || !EFFECT_TYPES.includes(value.type as never)) return false;
   if (value.type === "blur") return isNumber(value.radius) && value.radius >= 0;
   if (value.type === "drop-shadow") {
     return typeof value.color === "string" &&

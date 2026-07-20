@@ -17,7 +17,7 @@ import {
   shapesInPaintOrder,
 } from "../model/scene";
 import { collectSnapTargets, snapPoint } from "../model/snap";
-import type { PathShape, Shape, Vec2 } from "../model/types";
+import type { Shape, Vec2 } from "../model/types";
 import { worldToScreen } from "../model/viewport";
 import { currentSymbolScope, useEditor, type EditorState } from "../store/editorStore";
 import {
@@ -34,12 +34,6 @@ import {
 } from "./cornerRadiusHandle";
 import type { FrameHit, ToolContext } from "./interaction";
 import type { NodeEditShape } from "./nodes";
-
-export function selectedPath(state: EditorState): PathShape | null {
-  if (state.selection.length !== 1) return null;
-  const s = state.doc.nodes[state.selection[0]];
-  return s && s.type === "path" ? s : null;
-}
 
 /** The single selected shape the node tool can edit (path or brush). */
 export function selectedNodeShapes(state: EditorState): NodeEditShape[] {

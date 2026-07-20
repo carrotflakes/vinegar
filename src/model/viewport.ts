@@ -1,3 +1,4 @@
+import { rotateAbout } from "./rotate";
 import type { Matrix, Bounds, Vec2 } from "./types";
 
 /**
@@ -101,18 +102,11 @@ export function snapAngleToQuarter(
 
 /** Rotate the canvas around a fixed screen anchor point (keeps it stationary). */
 export function rotateAt(v: Viewport, anchor: Vec2, delta: number): Viewport {
-  const cos = Math.cos(delta);
-  const sin = Math.sin(delta);
-  const dx = v.offset.x - anchor.x;
-  const dy = v.offset.y - anchor.y;
   return {
     scale: v.scale,
     rotation: v.rotation + delta,
     flipX: v.flipX,
-    offset: {
-      x: anchor.x + cos * dx - sin * dy,
-      y: anchor.y + sin * dx + cos * dy,
-    },
+    offset: rotateAbout(anchor, v.offset, delta),
   };
 }
 

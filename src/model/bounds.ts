@@ -72,49 +72,9 @@ export function shapeBounds(shape: Shape, doc?: Document): Bounds {
   }
 }
 
-/** Combined bounding box of several shapes. Returns null when empty. */
-export function unionBounds(shapes: Shape[], doc?: Document): Bounds | null {
-  if (shapes.length === 0) return null;
-  let minX = Infinity;
-  let minY = Infinity;
-  let maxX = -Infinity;
-  let maxY = -Infinity;
-  for (const s of shapes) {
-    const b = shapeBounds(s, doc);
-    minX = Math.min(minX, b.x);
-    minY = Math.min(minY, b.y);
-    maxX = Math.max(maxX, b.x + b.width);
-    maxY = Math.max(maxY, b.y + b.height);
-  }
-  return { x: minX, y: minY, width: maxX - minX, height: maxY - minY };
-}
-
-/** Center of a shape in its local geometry space. */
-export function shapeCenter(shape: Shape, doc?: Document): Vec2 {
-  const b = shapeBounds(shape, doc);
-  return { x: b.x + b.width / 2, y: b.y + b.height / 2 };
-}
-
 /** Axis-aligned world bounds after shape and ancestor transforms. */
 export function worldShapeBounds(doc: Document, shape: Shape): Bounds {
   return transformBounds(shapeBounds(shape, doc), shapeWorldMatrix(doc, shape));
-}
-
-/** Combined world AABB of several shapes (accounts for all transforms). */
-export function unionWorldBounds(doc: Document, shapes: Shape[]): Bounds | null {
-  if (shapes.length === 0) return null;
-  let minX = Infinity;
-  let minY = Infinity;
-  let maxX = -Infinity;
-  let maxY = -Infinity;
-  for (const s of shapes) {
-    const b = worldShapeBounds(doc, s);
-    minX = Math.min(minX, b.x);
-    minY = Math.min(minY, b.y);
-    maxX = Math.max(maxX, b.x + b.width);
-    maxY = Math.max(maxY, b.y + b.height);
-  }
-  return { x: minX, y: minY, width: maxX - minX, height: maxY - minY };
 }
 
 function unionOf(bounds: (Bounds | null)[]): Bounds | null {

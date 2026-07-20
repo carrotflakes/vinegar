@@ -11,7 +11,7 @@ export function isDocumentFile(file: File): boolean {
 }
 
 /** Prompt before throwing away unsaved work; returns whether to proceed. */
-export function confirmDiscardCurrent(): boolean {
+function confirmDiscardCurrent(): boolean {
   if (!hasUnsavedChanges(useEditor.getState())) return true;
   return window.confirm("Discard unsaved changes to the current drawing?");
 }

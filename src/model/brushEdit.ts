@@ -1,4 +1,5 @@
-import { cubicPoint, type CubicSegment } from "./path";
+import { brushSegments } from "./brushSegments";
+import { cubicPoint } from "./path";
 import type { BrushAnchor, BrushShape, Vec2 } from "./types";
 
 // Node-tool structural edits on a brush centerline (one open run of anchors).
@@ -7,18 +8,6 @@ import type { BrushAnchor, BrushShape, Vec2 } from "./types";
 
 function lerp(a: Vec2, b: Vec2, t: number): Vec2 {
   return { x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t };
-}
-
-/** Cubic segment anchor i → i+1 (missing handles collapse to the anchor). */
-function segment(shape: BrushShape, i: number): CubicSegment {
-  const cur = shape.anchors[i];
-  const next = shape.anchors[i + 1];
-  return {
-    p0: cur.p,
-    c1: cur.hOut ?? cur.p,
-    c2: next.hIn ?? next.p,
-    p1: next.p,
-  };
 }
 
 export interface BrushLocation {
@@ -38,8 +27,9 @@ export interface BrushLocation {
 export function closestPointOnBrush(shape: BrushShape, p: Vec2): BrushLocation | null {
   let best: BrushLocation | null = null;
   const COARSE = 20;
-  for (let si = 0; si + 1 < shape.anchors.length; si++) {
-    const seg = segment(shape, si);
+  const segments = brushSegments(shape);
+  for (let si = 0; si < segments.length; si++) {
+    const seg = segments[si];
     const distAt = (t: number) => {
       const q = cubicPoint(seg, t);
       return Math.hypot(q.x - p.x, q.y - p.y);

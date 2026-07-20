@@ -1,4 +1,5 @@
-import { cubicPoint, type CubicSegment } from "./path";
+import { brushSegments, type BrushSegment } from "./brushSegments";
+import { cubicPoint } from "./path";
 import { distToSegment } from "./hitTest";
 import { applyMatrix } from "./matrix";
 import {
@@ -9,11 +10,6 @@ import {
   type Vec2,
 } from "./types";
 
-interface BrushSegment extends CubicSegment {
-  w0: number;
-  w1: number;
-}
-
 interface ParameterInterval {
   start: number;
   end: number;
@@ -21,24 +17,6 @@ interface ParameterInterval {
 
 const MIN_INTERVAL = 1e-7;
 const BOUNDARY_STEPS = 18;
-
-/** Cubic segments of an open brush centerline, including endpoint widths. */
-function brushSegments(shape: BrushShape): BrushSegment[] {
-  const segments: BrushSegment[] = [];
-  for (let i = 0; i + 1 < shape.anchors.length; i++) {
-    const current = shape.anchors[i];
-    const next = shape.anchors[i + 1];
-    segments.push({
-      p0: current.p,
-      c1: current.hOut ?? current.p,
-      c2: next.hIn ?? next.p,
-      p1: next.p,
-      w0: current.w,
-      w1: next.w,
-    });
-  }
-  return segments;
-}
 
 /** Distance from p to an open polyline (single point falls back to distance). */
 function distToPolyline(p: Vec2, points: Vec2[]): number {

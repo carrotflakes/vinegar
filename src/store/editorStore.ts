@@ -90,10 +90,6 @@ export function hasUnsavedChanges(
   return !state._savedRevision || state._revision.history !== state._savedRevision.history || state._revision.maintenance !== state._savedRevision.maintenance;
 }
 
-export function useIsDirty() {
-  return useEditor(hasUnsavedChanges);
-}
-
 export function styleFromDefaults(style: StyleDefaults) {
   return {
     fill: style.fill,

@@ -1,32 +1,6 @@
-import { cubicPoint, type CubicSegment } from "./path";
+import { brushSegments } from "./brushSegments";
+import { cubicPoint } from "./path";
 import type { BrushAnchor, BrushShape, Vec2 } from "./types";
-
-/** Cubic segments of a brush centerline, carrying the anchor widths. */
-interface BrushSegment extends CubicSegment {
-  /** Width multiplier at `p0`. */
-  w0: number;
-  /** Width multiplier at `p1`. */
-  w1: number;
-}
-
-function brushSegments(shape: BrushShape): BrushSegment[] {
-  const a = shape.anchors;
-  const segs: BrushSegment[] = [];
-  // Brush centerlines are always open in v1: anchor i → i+1, no wrap.
-  for (let i = 0; i + 1 < a.length; i++) {
-    const cur = a[i];
-    const next = a[i + 1];
-    segs.push({
-      p0: cur.p,
-      c1: cur.hOut ?? cur.p,
-      c2: next.hIn ?? next.p,
-      p1: next.p,
-      w0: cur.w,
-      w1: next.w,
-    });
-  }
-  return segs;
-}
 
 /** One sample of the flattened centerline: position and (base-scaled) width. */
 interface Sample {

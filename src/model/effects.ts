@@ -16,7 +16,7 @@ export const SHADOW_BLUR_TO_STDDEV = 0.5;
 /** A Gaussian's visible reach is ~3 standard deviations. */
 const BLUR_REACH = 3;
 
-export const DEFAULT_DROP_SHADOW: Effect = {
+const DEFAULT_DROP_SHADOW: Effect = {
   type: "drop-shadow",
   color: "#000000",
   alpha: 0.4,
@@ -25,7 +25,7 @@ export const DEFAULT_DROP_SHADOW: Effect = {
   offsetY: 4,
 };
 
-export const DEFAULT_BLUR: Effect = { type: "blur", radius: 4 };
+const DEFAULT_BLUR: Effect = { type: "blur", radius: 4 };
 
 export function defaultEffect(type: Effect["type"]): Effect {
   return type === "blur" ? { ...DEFAULT_BLUR } : { ...DEFAULT_DROP_SHADOW };

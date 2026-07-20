@@ -1,4 +1,4 @@
-import type { Bounds, Document, Group, Matrix, SceneNode, Shape, Vec2 } from "./types";
+import type { Bounds, Document, Matrix, SceneNode, Shape, Vec2 } from "./types";
 import { parentIdOf, sceneIndex } from "./scene";
 
 export const IDENTITY: Matrix = [1, 0, 0, 1, 0, 0];
@@ -87,24 +87,6 @@ export function shapeWorldMatrix(doc: Document, shape: Shape): Matrix {
   return nodeWorldMatrix(doc, shape.id);
 }
 
-/** Apply a world-space transform while keeping the shape parent unchanged. */
-export function applyWorldTransform(
-  doc: Document,
-  shape: Shape,
-  worldDelta: Matrix
-): Shape {
-  const parent = nodeWorldMatrix(doc, parentIdOf(doc, shape.id));
-  const inverseParent = invertMatrix(parent);
-  if (!inverseParent) return shape;
-  return {
-    ...shape,
-    transform: multiply(
-      inverseParent,
-      multiply(worldDelta, multiply(parent, shape.transform))
-    ),
-  };
-}
-
 export function applyWorldTransformToNode<T extends SceneNode>(
   doc: Document,
   node: T,
@@ -120,24 +102,6 @@ export function applyWorldTransformToNode<T extends SceneNode>(
       multiply(worldDelta, multiply(parent, node.transform))
     ),
   } as T;
-}
-
-/** Apply a world-space transform while keeping the group parent unchanged. */
-export function applyWorldTransformToGroup(
-  doc: Document,
-  group: Group,
-  worldDelta: Matrix
-): Group {
-  const parent = nodeWorldMatrix(doc, parentIdOf(doc, group.id));
-  const inverseParent = invertMatrix(parent);
-  if (!inverseParent) return group;
-  return {
-    ...group,
-    transform: multiply(
-      inverseParent,
-      multiply(worldDelta, multiply(parent, group.transform))
-    ),
-  };
 }
 
 /** Matrix mapping one axis-aligned bounds rectangle onto another. */
