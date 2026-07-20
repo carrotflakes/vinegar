@@ -24,8 +24,6 @@ export type ShapeType =
   | "ellipse"
   | "line"
   | "path"
-  | "bezier"
-  | "polygon"
   | "compoundPath"
   | "image"
   | "text"
@@ -178,47 +176,32 @@ export interface LineShape extends BaseShape {
   y2: number;
 }
 
-/** Freehand / multi-point path. Points are in the shape's local space. */
-export interface PathShape extends BaseShape {
-  type: "path";
-  points: Vec2[];
-  closed: boolean;
-}
-
 /**
- * A single anchor of a Bézier path. Control handles are stored as absolute
+ * A single anchor of a path. Control handles are stored as absolute
  * points in the shape's local space. A `null` handle
  * means that side is a sharp corner.
  */
-export interface BezierAnchor {
+export interface PathAnchor {
   p: Vec2;
   hIn: Vec2 | null;
   hOut: Vec2 | null;
 }
 
-/** One contour of a Bézier shape. */
-export interface BezierSubpath {
-  anchors: BezierAnchor[];
+/** One contour of a path shape. */
+export interface PathSubpath {
+  anchors: PathAnchor[];
   closed: boolean;
 }
 
 /**
- * Cubic Bézier path produced by the pen tool. Boolean operations produce
- * multi-subpath (compound) shapes, where later subpaths can cut holes.
+ * A multi-subpath outline. Null handles make straight segments; non-null
+ * handles make cubic Bézier segments. All subpaths share one winding rule.
  */
-export interface BezierShape extends BaseShape {
-  type: "bezier";
-  subpaths: BezierSubpath[];
-}
-
-/**
- * Multi-polygon, produced by boolean operations. `polys` is an array of
- * polygons, each `[outerRing, ...holeRings]`; rings are closed loops with no
- * repeated final point. Rendered with the even-odd rule so holes show through.
- */
-export interface PolygonShape extends BaseShape {
-  type: "polygon";
-  polys: Vec2[][][];
+export interface PathShape extends BaseShape {
+  type: "path";
+  subpaths: PathSubpath[];
+  /** Winding rule for fill, hit-testing, and clipping. Absent = nonzero. */
+  fillRule?: "nonzero" | "evenodd";
 }
 
 /**
@@ -230,11 +213,6 @@ export interface CompoundPathShape extends BaseShape {
   type: "compoundPath";
   components: PrimitiveShape[];
   fillRule: "evenodd";
-}
-
-/** Flatten a polygon shape's polys into a flat list of rings. */
-export function polygonRings(shape: PolygonShape): Vec2[][] {
-  return shape.polys.flat();
 }
 
 /**
@@ -259,7 +237,7 @@ export interface ImageShape extends BaseShape {
 
 /**
  * One anchor of a brush centerline: a cubic Bézier anchor (absolute handles in
- * local space, `null` = sharp corner, matching {@link BezierAnchor}) carrying a
+ * local space, `null` = sharp corner, matching {@link PathAnchor}) carrying a
  * width multiplier.
  */
 export interface BrushAnchor {
@@ -344,9 +322,7 @@ export type PrimitiveShape =
   | RectShape
   | EllipseShape
   | LineShape
-  | PathShape
-  | BezierShape
-  | PolygonShape;
+  | PathShape;
 
 export type Shape =
   | PrimitiveShape

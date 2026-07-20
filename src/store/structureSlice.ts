@@ -225,7 +225,7 @@ export function createStructureActions({ set, get, transact }: StoreCtx): Struct
       for (const id of selectionRoots(doc, get().selection)) {
         const shape = doc.nodes[id]; if (!isShape(shape) || !shape.stroke || shape.strokeWidth <= 0) continue;
         const polys = strokeOutline(shape); if (!polys?.length) continue;
-        const outline: Shape = { id: makeId("polygon"), name: "Outline", type: "polygon", polys, fill: shape.stroke, stroke: null, strokeWidth: 0, opacity: shape.opacity, blendMode: shape.blendMode, transform: [...IDENTITY], transformOrigin: null };
+        const outline: Shape = { id: makeId("path"), name: "Outline", type: "path", fillRule: "evenodd", subpaths: polys.flat().map((ring) => ({ anchors: ring.map((p) => ({ p, hIn: null, hOut: null })), closed: true })), fill: shape.stroke, stroke: null, strokeWidth: 0, opacity: shape.opacity, blendMode: shape.blendMode, transform: [...IDENTITY], transformOrigin: null };
         const parent = parentIdOf(doc, id); const siblings = childIdsOf(doc, parent); const at = siblings.indexOf(id); const nodes = { ...doc.nodes };
         if (isAreal(shape) && shape.fill) { const gid = makeId("group"); nodes[id] = { ...shape, stroke: null }; nodes[outline.id] = outline; nodes[gid] = groupNode(gid, [id, outline.id]); const order = [...siblings]; order.splice(at, 1, gid); doc = replaceChildren({ ...doc, nodes }, parent, order); selected.push(gid); }
         else { effectsRemoved ||= !!shape.effects?.length; delete nodes[id]; nodes[outline.id] = outline; const order = [...siblings]; order.splice(at, 1, outline.id); doc = replaceChildren({ ...doc, nodes }, parent, order); selected.push(outline.id); }

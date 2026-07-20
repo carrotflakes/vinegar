@@ -1,6 +1,6 @@
-import { withSubpath } from "../model/bezier";
+import { withSubpath } from "../model/path";
 import { applyMatrix } from "../model/matrix";
-import type { BezierShape, BrushShape, Matrix, Vec2 } from "../model/types";
+import type { PathShape, BrushShape, Matrix, Vec2 } from "../model/types";
 import { worldToScreen, type Viewport } from "../model/viewport";
 
 export type NodePart = "anchor" | "in" | "out";
@@ -16,7 +16,7 @@ export interface NodeHit {
  * Shapes whose cubic anchors the node tool can edit. A brush is treated as one
  * open subpath of anchors (its per-anchor width rides along untouched).
  */
-export type NodeEditShape = BezierShape | BrushShape;
+export type NodeEditShape = PathShape | BrushShape;
 
 /** Structural read view of a single anchor, shared by bezier and brush. */
 interface EditAnchor {
@@ -163,5 +163,5 @@ export function moveHandle(
     anchors[index] = { ...a, hIn: world, hOut: symmetric && a.hOut ? mirror : a.hOut };
   }
   if (shape.type === "brush") return { ...shape, anchors: anchors as BrushShape["anchors"] };
-  return withSubpath(shape, sub, { ...shape.subpaths[sub], anchors: anchors as BezierShape["subpaths"][number]["anchors"] });
+  return withSubpath(shape, sub, { ...shape.subpaths[sub], anchors: anchors as PathShape["subpaths"][number]["anchors"] });
 }

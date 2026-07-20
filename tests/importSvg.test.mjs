@@ -59,6 +59,7 @@ test("Paper paths retain curves, transforms, and solid stroke styling", () => {
   path.applyMatrix = false;
   path.matrix = new scope.Matrix(2, 0, 0, 2, 10, 15);
   path.fillColor = new scope.Color(0.2, 0.4, 0.6, 0.5);
+  path.fillRule = "evenodd";
   path.strokeColor = new scope.Color("#112233");
   path.strokeWidth = 3;
   path.strokeCap = "butt";
@@ -68,7 +69,8 @@ test("Paper paths retain curves, transforms, and solid stroke styling", () => {
 
   const imported = convertSvgItem(path, "curve.svg");
   const node = importedContent(imported);
-  assert.equal(node.type, "bezier");
+  assert.equal(node.type, "path");
+  assert.equal(node.fillRule, "evenodd");
   assert.equal(node.name, "Curve");
   assert.deepEqual(node.transform, [2, 0, 0, 2, 10, 15]);
   assert.deepEqual(node.fill, {
@@ -117,7 +119,7 @@ test("Paper gradients retain stops, alpha, angle, and radial type", () => {
 
   const imported = convertSvgItem(path);
   const node = importedContent(imported);
-  assert.equal(node.type, "bezier");
+  assert.equal(node.type, "path");
   assert.deepEqual(node.fill, {
     type: "linear",
     angle: Math.PI / 4,
@@ -148,7 +150,7 @@ test("open fill paths (no Z) keep their fill and enclose an implicit area", () =
 
   const imported = convertSvgItem(path);
   const node = importedContent(imported);
-  assert.equal(node.type, "bezier");
+  assert.equal(node.type, "path");
   assert.equal(node.subpaths[0].closed, false);
   assert.deepEqual(node.fill, {
     type: "solid",
@@ -223,7 +225,7 @@ test("even-odd Paper compound paths become retained compound geometry", () => {
   assert.equal(node.type, "compoundPath");
   assert.equal(node.fillRule, "evenodd");
   assert.equal(node.components.length, 2);
-  assert.ok(node.components.every((component) => component.type === "bezier"));
+  assert.ok(node.components.every((component) => component.type === "path"));
   assert.deepEqual(node.fill, {
     type: "solid",
     color: "#ff0000",

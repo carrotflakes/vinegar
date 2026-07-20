@@ -1,6 +1,6 @@
-import { flattenSubpath } from "./bezier";
+import { flattenSubpath } from "./path";
 import { shapeBounds } from "./bounds";
-import type { BezierSubpath, RectShape, Vec2 } from "./types";
+import type { PathSubpath, RectShape, Vec2 } from "./types";
 
 /** Maximum circular radius that fits inside the rectangle. */
 export function maxRectCornerRadius(shape: RectShape): number {
@@ -26,7 +26,7 @@ export function clampRectCornerRadius(shape: RectShape, radius: number): number 
  * edges between four quarter-circle cubic curves, so compound geometry,
  * booleans, hit testing and outline conversion can share one representation.
  */
-export function roundedRectSubpath(shape: RectShape): BezierSubpath {
+export function roundedRectSubpath(shape: RectShape): PathSubpath {
   const b = shapeBounds(shape);
   const r = effectiveRectCornerRadius(shape);
   if (r <= 0) {

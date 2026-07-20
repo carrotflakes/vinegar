@@ -182,7 +182,7 @@ test("a nested v8 scene tree survives save/load and remains usable", () => {
   const demo = parseDocument(serializeDocument(createDemoDocument()));
   assert.deepEqual(
     new Set(Object.values(demo.nodes).map((node) => node.type)),
-    new Set(["group", "rect", "ellipse", "line", "path", "bezier", "polygon", "compoundPath", "text"])
+    new Set(["group", "rect", "ellipse", "line", "path", "compoundPath", "text"])
   );
   const demoCompound = demo.nodes.demo_compound_path;
   assert.equal(demoCompound.type, "compoundPath");
@@ -206,7 +206,83 @@ test("a nested v8 scene tree survives save/load and remains usable", () => {
   assert.equal(parentIdOf(useEditor.getState().doc, "demo_skew_rect"), "demo_card_shapes");
 });
 
-test("boolean ops keep curves and produce editable compound béziers", () => {
+test("v20 path, bezier, polygon, and compound components migrate to unified paths", () => {
+  const file = JSON.parse(serializeDocument(createEmptyDocument()));
+  file.version = 20;
+  const base = {
+    name: "legacy",
+    fill: { type: "solid", color: "#123456", alpha: 1 },
+    stroke: null,
+    strokeWidth: 0,
+    opacity: 1,
+    transform: [1, 0, 0, 1, 0, 0],
+    transformOrigin: null,
+  };
+  const points = [{ x: 0, y: 0 }, { x: 20, y: 0 }, { x: 10, y: 10 }];
+  const anchors = points.map((p) => ({ p, hIn: null, hOut: null }));
+  const legacyPath = {
+    ...base,
+    id: "polyline",
+    type: "path",
+    points,
+    closed: false,
+  };
+  const legacyBezier = {
+    ...base,
+    id: "curve",
+    type: "bezier",
+    subpaths: [{ anchors, closed: true }],
+  };
+  const legacyPolygon = {
+    ...base,
+    id: "region",
+    type: "polygon",
+    polys: [[points, points.map((p) => ({ x: p.x + 3, y: p.y + 3 }))]],
+  };
+  const compound = {
+    ...base,
+    id: "compound",
+    type: "compoundPath",
+    fillRule: "evenodd",
+    components: [
+      { ...legacyPath, id: "component-path", closed: true },
+      { ...legacyBezier, id: "component-bezier" },
+      { ...legacyPolygon, id: "component-polygon" },
+    ],
+  };
+  file.document.nodes = {
+    polyline: legacyPath,
+    curve: legacyBezier,
+    region: legacyPolygon,
+    compound,
+  };
+  file.document.rootIds = ["polyline", "curve", "region", "compound"];
+
+  const loaded = parseDocument(JSON.stringify(file));
+  assert.equal(loaded.nodes.polyline.type, "path");
+  assert.equal(loaded.nodes.polyline.fillRule, undefined);
+  assert.equal(loaded.nodes.polyline.subpaths[0].closed, false);
+  assert.deepEqual(loaded.nodes.polyline.subpaths[0].anchors, anchors);
+
+  assert.equal(loaded.nodes.curve.type, "path");
+  assert.deepEqual(loaded.nodes.curve.subpaths, legacyBezier.subpaths);
+
+  assert.equal(loaded.nodes.region.type, "path");
+  assert.equal(loaded.nodes.region.fillRule, "evenodd");
+  assert.equal(loaded.nodes.region.subpaths.length, 2);
+  assert.ok(loaded.nodes.region.subpaths.every((subpath) => subpath.closed));
+
+  const migratedCompound = loaded.nodes.compound;
+  assert.equal(migratedCompound.type, "compoundPath");
+  assert.deepEqual(
+    migratedCompound.components.map((component) => component.type),
+    ["path", "path", "path"]
+  );
+  assert.equal(migratedCompound.components[2].fillRule, "evenodd");
+  assert.equal(JSON.parse(serializeDocument(loaded)).version, 21);
+});
+
+test("boolean ops keep curves and produce editable multi-subpath paths", () => {
   const style = {
     name: "e", fill: { type: "solid", color: "#ffffff", alpha: 1 },
     stroke: null, strokeWidth: 0, opacity: 1,
@@ -217,7 +293,7 @@ test("boolean ops keep curves and produce editable compound béziers", () => {
 
   // Subtracting a fully contained ellipse cuts a hole: two closed subpaths.
   const ring = booleanShapes([outer, inner], "subtract");
-  assert.equal(ring.type, "bezier");
+  assert.equal(ring.type, "path");
   assert.equal(ring.subpaths.length, 2);
   assert.ok(ring.subpaths.every((sp) => sp.closed));
   // Curves survive as Bézier handles instead of being flattened to polylines.
@@ -334,8 +410,15 @@ test("compound paths retain source shapes, cut even-odd holes, and release", () 
   const openDoc = createEmptyDocument();
   openDoc.nodes.a = { ...doc.nodes.outer, id: "a" };
   openDoc.nodes.b = {
-    id: "b", type: "path", name: "open", points: [{ x: 0, y: 0 }, { x: 5, y: 5 }],
-    closed: false, ...base,
+    id: "b", type: "path", name: "open",
+    subpaths: [{
+      anchors: [
+        { p: { x: 0, y: 0 }, hIn: null, hOut: null },
+        { p: { x: 5, y: 5 }, hIn: null, hOut: null },
+      ],
+      closed: false,
+    }],
+    ...base,
   };
   openDoc.rootIds = ["a", "b"];
   assert.equal(canMakeCompoundPathSelection(openDoc, ["a", "b"]), false);

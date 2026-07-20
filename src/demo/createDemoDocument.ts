@@ -1,4 +1,4 @@
-import { createEmptyDocument, makeArtboard, type DocumentAsset, type SceneNode } from "../model/types";
+import { createEmptyDocument, makeArtboard, type DocumentAsset, type SceneNode, type Vec2 } from "../model/types";
 import { linearGradient, pattern, radialGradient, solid } from "../model/paint";
 import { IDENTITY, multiply, rotation, translation } from "../model/matrix";
 
@@ -38,6 +38,11 @@ const shapeBase = (
   transformOrigin: null,
 });
 
+const straightSubpath = (points: Vec2[], closed: boolean) => ({
+  anchors: points.map((p) => ({ p, hIn: null, hOut: null })),
+  closed,
+});
+
 /**
  * A deterministic kitchen-sink document for visual regression and manual
  * debugging. Stable ids make it convenient to inspect in devtools/scripts.
@@ -73,7 +78,7 @@ export function createDemoDocument() {
       transformOrigin: { x: 68, y: 56 },
     },
     demo_header_curve: {
-      id: "demo_header_curve", type: "bezier", ...shapeBase("Open Bézier", null, "#e25555"),
+      id: "demo_header_curve", type: "path", ...shapeBase("Open Bézier", null, "#e25555"),
       strokeWidth: 7,
       subpaths: [{
         anchors: [
@@ -109,7 +114,7 @@ export function createDemoDocument() {
       ...shapeBase("Spiky callout shape", "#ff3b30", "#111111"),
       strokeWidth: 8,
       strokeJoin: "miter",
-      points: [
+      subpaths: [straightSubpath([
         { x: 528, y: 56 }, { x: 553, y: 47 }, { x: 537, y: 29 },
         { x: 568, y: 31 }, { x: 566, y: 7 }, { x: 593, y: 25 },
         { x: 612, y: 3 }, { x: 623, y: 24 }, { x: 657, y: 5 },
@@ -120,8 +125,7 @@ export function createDemoDocument() {
         { x: 709, y: 84 }, { x: 689, y: 108 }, { x: 672, y: 85 },
         { x: 636, y: 106 }, { x: 628, y: 84 }, { x: 588, y: 99 },
         { x: 593, y: 77 }, { x: 551, y: 83 }, { x: 566, y: 65 },
-      ],
-      closed: true,
+      ], true)],
     },
     demo_spiky_callout_cat: {
       id: "demo_spiky_callout_cat", type: "group", name: "Abstract cat",
@@ -136,13 +140,12 @@ export function createDemoDocument() {
       ...shapeBase("Cat head", "#fffdf8", "#111111"),
       strokeWidth: 3.5,
       strokeJoin: "round",
-      points: [
+      subpaths: [straightSubpath([
         { x: 575, y: 81 }, { x: 575, y: 67 }, { x: 578, y: 53 },
         { x: 589, y: 60 }, { x: 598, y: 53 }, { x: 601, y: 67 },
         { x: 604, y: 74 }, { x: 601, y: 83 }, { x: 594, y: 90 },
         { x: 583, y: 90 }, { x: 577, y: 85 },
-      ],
-      closed: true,
+      ], true)],
     },
     demo_spiky_callout_cat_eye_left: {
       id: "demo_spiky_callout_cat_eye_left", type: "ellipse",
@@ -157,8 +160,9 @@ export function createDemoDocument() {
     demo_spiky_callout_cat_nose: {
       id: "demo_spiky_callout_cat_nose", type: "path",
       ...shapeBase("Cat nose", "#111111", null),
-      points: [{ x: 587, y: 79 }, { x: 592, y: 79 }, { x: 589.5, y: 82 }],
-      closed: true,
+      subpaths: [straightSubpath([
+        { x: 587, y: 79 }, { x: 592, y: 79 }, { x: 589.5, y: 82 },
+      ], true)],
     },
     demo_spiky_callout_text: {
       id: "demo_spiky_callout_text", type: "text",
@@ -221,17 +225,21 @@ export function createDemoDocument() {
     },
     demo_closed_path: {
       id: "demo_closed_path", type: "path", ...shapeBase("Closed path", "#f29b72", "#28344f"),
-      points: [{ x: 28, y: 128 }, { x: 70, y: 54 }, { x: 112, y: 112 }, { x: 152, y: 42 }, { x: 218, y: 128 }],
-      closed: true,
+      subpaths: [straightSubpath([
+        { x: 28, y: 128 }, { x: 70, y: 54 }, { x: 112, y: 112 },
+        { x: 152, y: 42 }, { x: 218, y: 128 },
+      ], true)],
     },
     demo_open_path: {
       id: "demo_open_path", type: "path", ...shapeBase("Open path", null, "#3c6eeb"),
       strokeWidth: 5,
-      points: [{ x: 28, y: 28 }, { x: 70, y: 18 }, { x: 112, y: 32 }, { x: 156, y: 16 }, { x: 218, y: 30 }],
-      closed: false,
+      subpaths: [straightSubpath([
+        { x: 28, y: 28 }, { x: 70, y: 18 }, { x: 112, y: 32 },
+        { x: 156, y: 16 }, { x: 218, y: 30 },
+      ], false)],
     },
     demo_blob: {
-      id: "demo_blob", type: "bezier", ...shapeBase("Closed Bézier · radial gradient", null, "#28344f"),
+      id: "demo_blob", type: "path", ...shapeBase("Closed Bézier · radial gradient", null, "#28344f"),
       fill: radialGradient([
         { offset: 0, color: "#fff0a8", alpha: 1 },
         { offset: 1, color: "#f2932f", alpha: 1 },
@@ -263,12 +271,11 @@ export function createDemoDocument() {
         {
           id: "demo_compound_outer", type: "path",
           ...shapeBase("Retained outer path", "#f29b72", "#28344f"),
-          points: [
+          subpaths: [straightSubpath([
             { x: 28, y: 42 }, { x: 72, y: 26 }, { x: 124, y: 34 },
             { x: 218, y: 62 }, { x: 184, y: 138 }, { x: 92, y: 146 },
             { x: 46, y: 112 },
-          ],
-          closed: true,
+          ], true)],
         },
         {
           id: "demo_compound_hole", type: "ellipse",
@@ -280,10 +287,15 @@ export function createDemoDocument() {
       ],
     },
     demo_polygon_accent: {
-      id: "demo_polygon_accent", type: "polygon", ...shapeBase("Multi-polygon", "#725ac1", null),
-      polys: [
-        [[{ x: 44, y: 44 }, { x: 68, y: 44 }, { x: 56, y: 66 }]],
-        [[{ x: 178, y: 120 }, { x: 204, y: 120 }, { x: 191, y: 142 }]],
+      id: "demo_polygon_accent", type: "path", ...shapeBase("Multi-polygon", "#725ac1", null),
+      fillRule: "evenodd",
+      subpaths: [
+        straightSubpath([
+          { x: 44, y: 44 }, { x: 68, y: 44 }, { x: 56, y: 66 },
+        ], true),
+        straightSubpath([
+          { x: 178, y: 120 }, { x: 204, y: 120 }, { x: 191, y: 142 },
+        ], true),
       ],
     },
 

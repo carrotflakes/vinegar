@@ -34,13 +34,10 @@ export function supportsStrokeAlignment(shape: Shape): boolean {
   switch (shape.type) {
     case "rect":
     case "ellipse":
-    case "polygon":
     case "compoundPath":
     case "text":
       return true;
     case "path":
-      return shape.closed;
-    case "bezier":
       return shape.subpaths.length > 0 && shape.subpaths.every((subpath) => subpath.closed);
     case "line":
     case "image":

@@ -1,6 +1,6 @@
 import type { Guide, SnapTargets, Spacing } from "../model/snap";
 import type {
-  BezierShape,
+  PathShape,
   Bounds,
   BrushShape,
   Matrix,
@@ -79,7 +79,7 @@ export type Interaction =
       shapeId: string;
       sub: number;
       index: number;
-      orig: BezierShape | BrushShape;
+      orig: PathShape | BrushShape;
       /** Anchor selection captured at pointer-down, all within `shapeId`. */
       selected: { sub: number; index: number }[];
     }
@@ -89,7 +89,7 @@ export type Interaction =
       sub: number;
       index: number;
       part: "in" | "out";
-      orig: BezierShape | BrushShape;
+      orig: PathShape | BrushShape;
     }
   | { kind: "marquee"; start: Vec2; additive: boolean }
   | { kind: "artboard-create"; id: string; start: Vec2 }
@@ -121,9 +121,9 @@ export interface ToolContext {
   interaction: { current: Interaction };
   preview: { current: Shape | null };
   marquee: { current: Bounds | null };
-  penDraft: { current: BezierShape | null };
+  penDraft: { current: PathShape | null };
   /** When the pen picked up an existing open path, its pre-edit original. */
-  penExtend: { current: BezierShape | null };
+  penExtend: { current: PathShape | null };
   lastInsert: { current: LastInsert | null };
   hover: { current: Vec2 | null };
   guides: { current: Guide[] };

@@ -191,3 +191,34 @@ test("SVG gradients use local coordinates without distorting their geometry", ()
     /<radialGradient id="grad1" gradientUnits="userSpaceOnUse" cx="100" cy="50" r="111.803">/
   );
 });
+
+test("SVG paths export their data-driven fill rule", () => {
+  const doc = createEmptyDocument();
+  const anchor = (x, y) => ({ p: { x, y }, hIn: null, hOut: null });
+  doc.nodes.path = {
+    id: "path",
+    name: "Even-odd path",
+    type: "path",
+    fillRule: "evenodd",
+    subpaths: [
+      {
+        anchors: [anchor(0, 0), anchor(100, 0), anchor(100, 100), anchor(0, 100)],
+        closed: true,
+      },
+      {
+        anchors: [anchor(25, 25), anchor(75, 25), anchor(75, 75), anchor(25, 75)],
+        closed: true,
+      },
+    ],
+    transform: [1, 0, 0, 1, 0, 0],
+    transformOrigin: null,
+    opacity: 1,
+    fill: { type: "solid", color: "#ff0000", alpha: 1 },
+    stroke: null,
+    strokeWidth: 0,
+  };
+  doc.rootIds = ["path"];
+
+  const svg = exportSvg(doc, { margin: 0 });
+  assert.match(svg, /<path d="[^"]+" fill-rule="evenodd"/);
+});

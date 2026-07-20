@@ -1,4 +1,4 @@
-import { subpathSegments } from "../model/bezier";
+import { subpathSegments } from "../model/path";
 import { shapeBounds } from "../model/bounds";
 import { cachedBrushEnvelope } from "../model/brushOutline";
 import { getAssetImage } from "../imageCache";
@@ -28,7 +28,7 @@ import {
   strokeJoin,
 } from "../model/stroke";
 import type {
-  BezierShape,
+  PathShape,
   Bounds,
   Document,
   DocumentAsset,
@@ -384,7 +384,7 @@ function shapeToSvg(doc: Document, shape: Shape, defs: Defs): string {
   const silhouette = shapeGeometryToSvg(
     shape,
     `fill="black" stroke="none"${
-      shape.type === "polygon" || shape.type === "compoundPath" ? ` clip-rule="evenodd"` : ""
+      shapeFillRule(shape) === "evenodd" ? ` clip-rule="evenodd"` : ""
     }`
   );
   const limitedStroke = alignment === "inside"
@@ -434,30 +434,15 @@ function shapeGeometryToSvg(shape: Shape, attrs: string): string {
         shape.x2
       )}" y2="${num(shape.y2)}" ${attrs} />`;
     case "path": {
-      const pts = shape.points.map((p) => `${num(p.x)},${num(p.y)}`).join(" ");
-      const tag = shape.closed ? "polygon" : "polyline";
-      return `<${tag} points="${pts}" ${attrs} />`;
+      const rule = shape.fillRule ? ` fill-rule="${shape.fillRule}"` : "";
+      return `<path d="${pathData(shape)}"${rule} ${attrs} />`;
     }
-    case "bezier":
-      return `<path d="${bezierPathData(shape)}" ${attrs} />`;
     case "brush": {
       const ring = cachedBrushEnvelope(shape);
       if (ring.length < 3) return "";
       const d =
         "M " + ring.map((p) => `${num(p.x)} ${num(p.y)}`).join(" L ") + " Z";
       return `<path d="${d}" fill-rule="nonzero" ${attrs} />`;
-    }
-    case "polygon": {
-      const d = shape.polys
-        .flat()
-        .map(
-          (ring) =>
-            "M " +
-            ring.map((p) => `${num(p.x)} ${num(p.y)}`).join(" L ") +
-            " Z"
-        )
-        .join(" ");
-      return `<path d="${d}" fill-rule="evenodd" ${attrs} />`;
     }
     case "compoundPath":
       return `<path d="${shape.components
@@ -514,10 +499,6 @@ function primitivePathData(shape: PrimitiveShape, matrix: Matrix): string {
     case "line":
       return `M ${point({ x: shape.x1, y: shape.y1 })} L ${point({ x: shape.x2, y: shape.y2 })}`;
     case "path":
-      return polygon(shape.points, shape.closed);
-    case "polygon":
-      return shape.polys.flat().map((ring) => polygon(ring, true)).join(" ");
-    case "bezier":
       return shape.subpaths.map((sp) => {
         if (!sp.anchors.length) return "";
         let d = `M ${point(sp.anchors[0].p)}`;
@@ -529,7 +510,7 @@ function primitivePathData(shape: PrimitiveShape, matrix: Matrix): string {
   }
 }
 
-function bezierPathData(shape: BezierShape): string {
+function pathData(shape: PathShape): string {
   const parts: string[] = [];
   for (const sp of shape.subpaths) {
     const segs = subpathSegments(sp);
@@ -558,8 +539,6 @@ function maskShapeToSvg(shape: ClippingMaskShape): string {
     case "rect":
     case "ellipse":
     case "path":
-    case "bezier":
-    case "polygon":
       d = primitivePathData(shape, [1, 0, 0, 1, 0, 0]);
       break;
     case "compoundPath":

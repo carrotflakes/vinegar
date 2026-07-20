@@ -92,14 +92,9 @@ export default function SelectionActionsSection({
     selected.every(isAreal);
   const closable = selectedGroup
     ? []
-    : selected.filter(
-        (shape) => shape.type === "path" || shape.type === "bezier"
-      );
+    : selected.filter((shape) => shape.type === "path");
   const anyOpen = closable.some((shape) =>
-    shape.type === "path"
-      ? !shape.closed
-      : shape.type === "bezier" &&
-        shape.subpaths.some((subpath) => !subpath.closed)
+    shape.subpaths.some((subpath) => !subpath.closed)
   );
   const canOutline =
     !selectedGroup &&

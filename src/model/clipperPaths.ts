@@ -33,7 +33,7 @@ export function contours(node: PolyNode): IntPoint[][] {
 }
 
 /**
- * Convert a poly tree into PolygonShape-style polys: an array of polygons,
+ * Convert a poly tree into grouped rings: an array of polygons,
  * each `[outerRing, ...holeRings]`, recursing into islands inside holes.
  */
 export function treeToPolys(tree: PolyNode): Vec2[][][] {

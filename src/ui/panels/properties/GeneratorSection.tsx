@@ -4,7 +4,7 @@ import {
   resolveGenerator,
   UNTRUSTED_ERROR,
 } from "../../../model/generators";
-import type { BezierShape } from "../../../model/types";
+import type { PathShape } from "../../../model/types";
 import { useEditor } from "../../../store/editorStore";
 import ScrubbableNumber from "../../ScrubbableNumber";
 
@@ -14,7 +14,7 @@ import ScrubbableNumber from "../../ScrubbableNumber";
  * Document-script params come from the worker-compiled `scriptMeta`, so this
  * shows a brief "Compiling…" state and never runs user code on the main thread.
  */
-export default function GeneratorSection({ shape }: { shape: BezierShape }) {
+export default function GeneratorSection({ shape }: { shape: PathShape }) {
   const setGeneratorArgs = useEditor((state) => state.setGeneratorArgs);
   const detachGenerator = useEditor((state) => state.detachGenerator);
   const trustScripts = useEditor((state) => state.trustScripts);

@@ -9,10 +9,9 @@ import { roundedRectSubpath } from "./roundedRect";
 import { strokeDetailFields } from "./stroke";
 import {
   makeId,
-  type BezierShape,
-  type BezierSubpath,
+  type PathShape,
+  type PathSubpath,
   type Shape,
-  type Vec2,
 } from "./types";
 
 export type BoolOp = "union" | "subtract" | "intersect" | "xor";
@@ -29,7 +28,7 @@ function toPaperMatrix(m: Shape["transform"]): paper.Matrix {
   return new paper.Matrix(m[0], m[1], m[2], m[3], m[4], m[5]);
 }
 
-function subpathToPath(sp: BezierSubpath): paper.Path {
+function subpathToPath(sp: PathSubpath): paper.Path {
   const segments = sp.anchors.map(
     (a) =>
       new paper.Segment(
@@ -44,15 +43,6 @@ function subpathToPath(sp: BezierSubpath): paper.Path {
   );
   const path = new paper.Path({ segments, insert: false });
   path.closed = sp.closed;
-  return path;
-}
-
-function ringToPath(ring: Vec2[]): paper.Path {
-  const path = new paper.Path({
-    segments: ring.map((p) => new paper.Point(p.x, p.y)),
-    insert: false,
-  });
-  path.closed = true;
   return path;
 }
 
@@ -91,12 +81,6 @@ function shapeToGeom(shape: Shape): paper.PathItem | null {
       break;
     }
     case "path":
-      // Open paths are filled by implicitly closing them, so they enclose an
-      // area for boolean ops too. ringToPath already closes the ring.
-      if (shape.points.length < 3) return null;
-      item = ringToPath(shape.points);
-      break;
-    case "bezier":
       item = compound(
         shape.subpaths
           .filter((sp) => sp.anchors.length >= 2)
@@ -107,17 +91,7 @@ function shapeToGeom(shape: Shape): paper.PathItem | null {
             return path;
           })
       );
-      break;
-    case "polygon":
-      item = compound(
-        shape.polys
-          .flat()
-          .filter((ring) => ring.length >= 3)
-          .map(ringToPath)
-      );
-      // Polygons render with the even-odd rule (ring winding is arbitrary),
-      // so boolean ops must read them the same way.
-      if (item) item.fillRule = "evenodd";
+      if (item) item.fillRule = shape.fillRule ?? "nonzero";
       break;
     case "compoundPath":
       item = compound(
@@ -142,12 +116,9 @@ export function isAreal(shape: Shape): boolean {
   switch (shape.type) {
     case "rect":
     case "ellipse":
-    case "polygon":
     case "compoundPath":
       return true;
     case "path":
-      return shape.points.length >= 3;
-    case "bezier":
       return shape.subpaths.some((sp) => sp.anchors.length >= 2);
     case "line":
     case "image":
@@ -165,12 +136,12 @@ const OP_NAME: Record<BoolOp, string> = {
 };
 
 /** Convert a boolean result back into editable Bézier subpaths. */
-function geomToSubpaths(item: paper.PathItem): BezierSubpath[] {
+function geomToSubpaths(item: paper.PathItem): PathSubpath[] {
   const paths =
     item instanceof paper.CompoundPath
       ? (item.children as paper.Path[])
       : [item as paper.Path];
-  const subpaths: BezierSubpath[] = [];
+  const subpaths: PathSubpath[] = [];
   for (const path of paths) {
     if (!(path instanceof paper.Path) || path.segments.length < 2) continue;
     const anchors = path.segments.map((seg) => {
@@ -196,7 +167,7 @@ function geomToSubpaths(item: paper.PathItem): BezierSubpath[] {
  * curves; the result is a (possibly compound) Bézier shape editable with the
  * node tool. Returns null if there are <2 areal inputs or the result is empty.
  */
-export function booleanShapes(shapes: Shape[], op: BoolOp): BezierShape | null {
+export function booleanShapes(shapes: Shape[], op: BoolOp): PathShape | null {
   ensurePaper();
   const geoms = shapes
     .map(shapeToGeom)
@@ -227,9 +198,9 @@ export function booleanShapes(shapes: Shape[], op: BoolOp): BezierShape | null {
 
   const base = shapes[0];
   return {
-    id: makeId("bezier"),
+    id: makeId("path"),
     name: OP_NAME[op],
-    type: "bezier",
+    type: "path",
     subpaths,
     fill: base.fill,
     stroke: base.stroke,

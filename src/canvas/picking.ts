@@ -16,7 +16,7 @@ import {
   shapesInPaintOrder,
 } from "../model/scene";
 import { collectSnapTargets, snapPoint } from "../model/snap";
-import type { BezierShape, Shape, Vec2 } from "../model/types";
+import type { PathShape, Shape, Vec2 } from "../model/types";
 import { worldToScreen } from "../model/viewport";
 import { currentSymbolScope, useEditor, type EditorState } from "../store/editorStore";
 import {
@@ -34,17 +34,17 @@ import {
 import type { FrameHit, ToolContext } from "./interaction";
 import type { NodeEditShape } from "./nodes";
 
-export function selectedBezier(state: EditorState): BezierShape | null {
+export function selectedPath(state: EditorState): PathShape | null {
   if (state.selection.length !== 1) return null;
   const s = state.doc.nodes[state.selection[0]];
-  return s && s.type === "bezier" ? s : null;
+  return s && s.type === "path" ? s : null;
 }
 
-/** The single selected shape the node tool can edit (bezier or brush). */
+/** The single selected shape the node tool can edit (path or brush). */
 export function selectedNodeShape(state: EditorState): NodeEditShape | null {
   if (state.selection.length !== 1) return null;
   const s = state.doc.nodes[state.selection[0]];
-  return s && (s.type === "bezier" || s.type === "brush") ? s : null;
+  return s && (s.type === "path" || s.type === "brush") ? s : null;
 }
 
 const isLeaf = (node: EditorState["doc"]["nodes"][string] | undefined): node is SelectionLeaf =>

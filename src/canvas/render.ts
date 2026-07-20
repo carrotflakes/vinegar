@@ -1,4 +1,4 @@
-import { subpathSegments } from "../model/bezier";
+import { subpathSegments } from "../model/path";
 import { shapeBounds } from "../model/bounds";
 import { cachedBrushEnvelope } from "../model/brushOutline";
 import {
@@ -279,14 +279,6 @@ function tracePath(ctx: CanvasRenderingContext2D, shape: Shape, begin = true): v
       break;
     }
     case "path": {
-      const pts = shape.points;
-      if (pts.length === 0) break;
-      ctx.moveTo(pts[0].x, pts[0].y);
-      for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i].x, pts[i].y);
-      if (shape.closed) ctx.closePath();
-      break;
-    }
-    case "bezier": {
       for (const sp of shape.subpaths) {
         const segs = subpathSegments(sp);
         if (segs.length === 0) {
@@ -298,18 +290,18 @@ function tracePath(ctx: CanvasRenderingContext2D, shape: Shape, begin = true): v
         }
         ctx.moveTo(segs[0].p0.x, segs[0].p0.y);
         for (const s of segs) {
-          ctx.bezierCurveTo(s.c1.x, s.c1.y, s.c2.x, s.c2.y, s.p1.x, s.p1.y);
+          if (
+            s.c1.x === s.p0.x &&
+            s.c1.y === s.p0.y &&
+            s.c2.x === s.p1.x &&
+            s.c2.y === s.p1.y
+          ) {
+            ctx.lineTo(s.p1.x, s.p1.y);
+          } else {
+            ctx.bezierCurveTo(s.c1.x, s.c1.y, s.c2.x, s.c2.y, s.p1.x, s.p1.y);
+          }
         }
         if (sp.closed) ctx.closePath();
-      }
-      break;
-    }
-    case "polygon": {
-      for (const ring of shape.polys.flat()) {
-        if (ring.length === 0) continue;
-        ctx.moveTo(ring[0].x, ring[0].y);
-        for (let i = 1; i < ring.length; i++) ctx.lineTo(ring[i].x, ring[i].y);
-        ctx.closePath();
       }
       break;
     }
@@ -378,11 +370,7 @@ export function paintShape(
     if (style) {
       withPaintAlpha(ctx, shape.opacity, shape.fill, () => {
         ctx.fillStyle = style;
-        ctx.fill(
-          shape.type === "polygon" || shape.type === "compoundPath"
-            ? "evenodd"
-            : "nonzero"
-        );
+        ctx.fill(shapeFillRule(shape));
       });
     }
   }

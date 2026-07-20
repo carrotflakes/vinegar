@@ -11,7 +11,7 @@ import { shapeWorldMatrix } from "../model/matrix";
 import { isDocumentFile, openDocumentFile } from "../io/openDocument";
 import { isGroup, scopeRootGroupId } from "../model/scene";
 import { type Guide, type Spacing } from "../model/snap";
-import type { BezierShape, Bounds, Shape, TextShape, Vec2 } from "../model/types";
+import type { PathShape, Bounds, Shape, TextShape, Vec2 } from "../model/types";
 import {
   rotateAt,
   screenToWorld,
@@ -154,8 +154,8 @@ export default function CanvasView() {
   const interactionRef = useRef<Interaction>({ kind: "none" });
   const previewRef = useRef<Shape | null>(null);
   const marqueeRef = useRef<Bounds | null>(null);
-  const penDraftRef = useRef<BezierShape | null>(null);
-  const penExtendRef = useRef<BezierShape | null>(null);
+  const penDraftRef = useRef<PathShape | null>(null);
+  const penExtendRef = useRef<PathShape | null>(null);
   const lastInsertRef = useRef<LastInsert | null>(null);
   const hoverRef = useRef<Vec2 | null>(null);
   const textEditRef = useRef<TextEditSession | null>(null);

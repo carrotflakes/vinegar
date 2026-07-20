@@ -1,4 +1,4 @@
-import { cubicPoint, type CubicSegment } from "./bezier";
+import { cubicPoint, type CubicSegment } from "./path";
 import { distToSegment } from "./hitTest";
 import { applyMatrix } from "./matrix";
 import {

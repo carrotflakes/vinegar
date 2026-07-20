@@ -1,4 +1,4 @@
-import { cubicPoint, type CubicSegment } from "./bezier";
+import { cubicPoint, type CubicSegment } from "./path";
 import type { BrushAnchor, BrushShape, Vec2 } from "./types";
 
 /** Cubic segments of a brush centerline, carrying the anchor widths. */

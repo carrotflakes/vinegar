@@ -14,7 +14,7 @@ import { isShape, parentIdOf, selectionRoots } from "./scene";
 export function canCompoundShape(shape: Shape): boolean {
   if (shape.type === "compoundPath") return shape.components.length > 0;
   if (!isAreal(shape)) return false;
-  if (shape.type === "bezier") {
+  if (shape.type === "path") {
     return shape.subpaths.length > 0 && shape.subpaths.every((sp) => sp.closed);
   }
   return true;

@@ -7,7 +7,7 @@ import {
   GENERATORS,
   type GeneratorParam,
 } from "../../model/generators";
-import type { BezierSubpath } from "../../model/types";
+import type { PathSubpath } from "../../model/types";
 import { screenToWorld } from "../../model/viewport";
 import { useEditor } from "../../store/editorStore";
 import ScrubbableNumber from "../ScrubbableNumber";
@@ -81,7 +81,7 @@ export default function GeneratorsDialog({ open, focusId, onClose }: Props) {
   // Live compile feedback for the draft, produced off the main thread (worker).
   const [draftError, setDraftError] = useState<string | undefined>(undefined);
   // Geometry drawn in the live preview, rebuilt from the tunable `args` below.
-  const [preview, setPreview] = useState<BezierSubpath[] | null>(null);
+  const [preview, setPreview] = useState<PathSubpath[] | null>(null);
   // The selected generator's parameter definitions and the live values the user
   // scrubs in the preview panel. Built-ins report params synchronously; draft
   // scripts get theirs from the worker compile.

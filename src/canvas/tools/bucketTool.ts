@@ -1,6 +1,6 @@
 import { computeBucketFill } from "../../model/bucketFill";
 import { IDENTITY } from "../../model/matrix";
-import { makeId, type PolygonShape } from "../../model/types";
+import { makeId, type PathShape } from "../../model/types";
 import type { Vec2 } from "../../model/types";
 import { useBucket } from "../../store/bucketStore";
 import type { EditorState } from "../../store/editorStore";
@@ -37,11 +37,15 @@ export function bucketFillAt(state: EditorState, world: Vec2): void {
     notify.info("There's no empty area to fill here.");
     return;
   }
-  const shape: PolygonShape = {
-    id: makeId("polygon"),
+  const shape: PathShape = {
+    id: makeId("path"),
     name: "Fill",
-    type: "polygon",
-    polys: result.polys,
+    type: "path",
+    fillRule: "evenodd",
+    subpaths: result.polys.flat().map((ring) => ({
+      anchors: ring.map((p) => ({ p, hIn: null, hOut: null })),
+      closed: true,
+    })),
     fill: paint,
     stroke: null,
     strokeWidth: 1,

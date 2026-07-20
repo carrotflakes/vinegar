@@ -67,7 +67,7 @@ function polyBounds(polys) {
   return { minX, minY, maxX, maxY };
 }
 
-/** Even-odd point-in-polys test matching how PolygonShape renders. */
+/** Even-odd point-in-polys test matching bucket-result path rendering. */
 function insidePolys(polys, pt) {
   let crossings = 0;
   for (const poly of polys) {
@@ -117,15 +117,17 @@ test("gap tolerance closes small gaps and respects small tolerances", () => {
   const c = shape({
     id: "c",
     type: "path",
-    closed: false,
-    points: [
-      { x: 40, y: 0 },
-      { x: 0, y: 0 },
-      { x: 0, y: 100 },
-      { x: 100, y: 100 },
-      { x: 100, y: 0 },
-      { x: 60, y: 0 },
-    ],
+    subpaths: [{
+      closed: false,
+      anchors: [
+        { x: 40, y: 0 },
+        { x: 0, y: 0 },
+        { x: 0, y: 100 },
+        { x: 100, y: 100 },
+        { x: 100, y: 0 },
+        { x: 60, y: 0 },
+      ].map((p) => ({ p, hIn: null, hOut: null })),
+    }],
     stroke: { type: "solid", color: "#000000", alpha: 1 },
     strokeWidth: 2,
   });

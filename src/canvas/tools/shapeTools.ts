@@ -1,7 +1,7 @@
 import { pointsToAnchors, simplifyPath } from "../../model/freehand";
 import {
   makeId,
-  type BezierShape,
+  type PathShape,
   type Shape,
   type Vec2,
 } from "../../model/types";
@@ -65,8 +65,10 @@ export function startPencil(ctx: ToolContext, state: EditorState, world: Vec2) {
     id: makeId("path"),
     name: "Path",
     type: "path",
-    points: [world],
-    closed: false,
+    subpaths: [{
+      anchors: [{ p: world, hIn: null, hOut: null }],
+      closed: false,
+    }],
     ...styleFromDefaults(state.style),
     fill: null,
   };
@@ -78,9 +80,10 @@ export function startPencil(ctx: ToolContext, state: EditorState, world: Vec2) {
 export function onPencilMove(ctx: ToolContext, world: Vec2) {
   const shape = ctx.preview.current;
   if (shape && shape.type === "path") {
-    const last = shape.points[shape.points.length - 1];
+    const anchors = shape.subpaths[0].anchors;
+    const last = anchors[anchors.length - 1]?.p;
     if (!last || Math.hypot(world.x - last.x, world.y - last.y) > 1.5) {
-      shape.points.push(world);
+      anchors.push({ p: world, hIn: null, hOut: null });
       ctx.scheduleDraw();
     }
   }
@@ -89,8 +92,8 @@ export function onPencilMove(ctx: ToolContext, world: Vec2) {
 export function finishPencil(ctx: ToolContext, state: EditorState) {
   const shape = ctx.preview.current;
   ctx.preview.current = null;
-  if (shape && shape.type === "path" && shape.points.length >= 2) {
-    state.addShape(freehandToBezier(shape.points, state));
+  if (shape && shape.type === "path" && shape.subpaths[0].anchors.length >= 2) {
+    state.addShape(freehandToPath(shape.subpaths[0].anchors.map((anchor) => anchor.p), state));
   }
   ctx.scheduleDraw();
 }
@@ -154,7 +157,7 @@ function makeCreatedShape(
  * Convert a freehand polyline into a smooth, editable Bézier shape. Closes the
  * path when the stroke ends near where it began.
  */
-function freehandToBezier(rawPoints: Vec2[], state: EditorState): BezierShape {
+function freehandToPath(rawPoints: Vec2[], state: EditorState): PathShape {
   let pts = rawPoints;
   const first = pts[0];
   const last = pts[pts.length - 1];
@@ -170,9 +173,9 @@ function freehandToBezier(rawPoints: Vec2[], state: EditorState): BezierShape {
   const simplified = simplifyPath(pts, 2 / state.viewport.scale);
   const anchors = pointsToAnchors(simplified.length >= 2 ? simplified : pts, closed);
   return {
-    id: makeId("bezier"),
+    id: makeId("path"),
     name: "Pencil",
-    type: "bezier",
+    type: "path",
     subpaths: [{ anchors, closed }],
     ...styleFromDefaults(state.style),
     fill: null,

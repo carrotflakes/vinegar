@@ -7,7 +7,7 @@
 
 import { compileScript } from "./generators";
 import type { GeneratorParam } from "./generators";
-import type { BezierSubpath } from "./types";
+import type { PathSubpath } from "./types";
 
 export interface CompileResult {
   params: GeneratorParam[];
@@ -15,7 +15,7 @@ export interface CompileResult {
 }
 
 export interface BuildResult {
-  subpaths: BezierSubpath[] | null;
+  subpaths: PathSubpath[] | null;
   /** Populated on compile error, a build failure, or a timeout. */
   error?: string;
 }
@@ -120,7 +120,7 @@ export function buildGenerator(
   args: Record<string, number>
 ): Promise<BuildResult> {
   return call({ type: "build", source, args }).then((d) => ({
-    subpaths: (d.subpaths as BezierSubpath[] | null) ?? null,
+    subpaths: (d.subpaths as PathSubpath[] | null) ?? null,
     error: d.error as string | undefined,
   }));
 }

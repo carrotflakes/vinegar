@@ -28,10 +28,6 @@ function typeName(shape: Shape): string {
       return "Line";
     case "path":
       return "Path";
-    case "bezier":
-      return "Curve";
-    case "polygon":
-      return "Shape";
     case "compoundPath":
       return "Compound Path";
     case "image":

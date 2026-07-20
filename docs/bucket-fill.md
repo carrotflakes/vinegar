@@ -1,7 +1,7 @@
 # Bucket fill — design
 
 Status: v1 shipped. The Bucket Fill tool (`G`) fills the enclosed empty region
-under a click with the current fill color, as a plain vector polygon inserted
+under a click with the current fill color, as a plain vector path inserted
 *below* the surrounding ink.
 
 ## Decisions up front
@@ -18,8 +18,9 @@ under a click with the current fill color, as a plain vector polygon inserted
   picks the hole containing the point. This finds exactly the regions a
   flood fill would, at a fraction of the complexity.
 - **The fill is a snapshot.** It does not track later edits of the bounding
-  strokes (no live re-flow). It is an ordinary `polygon` node: selectable,
-  paintable, undoable, exportable with zero new machinery.
+  strokes (no live re-flow). It is an ordinary `path` node with straight,
+  closed subpaths and `fillRule: "evenodd"`: selectable, node-editable,
+  paintable, undoable, and exportable with zero new machinery.
 - **Inserted at the back of the active drawing container** (the drilled-into
   group, else the scope root), so line art keeps painting over its fills —
   the coloring-book stacking every paint app uses.

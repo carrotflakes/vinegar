@@ -1,4 +1,4 @@
-import type { BezierAnchor, BezierShape, BezierSubpath, Vec2 } from "./types";
+import type { PathAnchor, PathShape, PathSubpath, Vec2 } from "./types";
 
 export interface CubicSegment {
   p0: Vec2;
@@ -24,7 +24,7 @@ export function cubicPoint(s: CubicSegment, t: number): Vec2 {
  * The cubic segments making up one subpath. Missing handles collapse to the
  * anchor point, which turns that segment into a straight line.
  */
-export function subpathSegments(sp: BezierSubpath): CubicSegment[] {
+export function subpathSegments(sp: PathSubpath): CubicSegment[] {
   const a = sp.anchors;
   if (a.length < 2) return [];
   const segs: CubicSegment[] = [];
@@ -43,11 +43,20 @@ export function subpathSegments(sp: BezierSubpath): CubicSegment[] {
 }
 
 /** Flatten one subpath into a polyline for hit-testing and bounds. */
-export function flattenSubpath(sp: BezierSubpath, perSegment = 18): Vec2[] {
+export function flattenSubpath(sp: PathSubpath, perSegment = 18): Vec2[] {
   const segs = subpathSegments(sp);
   if (segs.length === 0) return sp.anchors.map((an) => an.p);
   const pts: Vec2[] = [segs[0].p0];
   for (const seg of segs) {
+    if (
+      seg.c1.x === seg.p0.x &&
+      seg.c1.y === seg.p0.y &&
+      seg.c2.x === seg.p1.x &&
+      seg.c2.y === seg.p1.y
+    ) {
+      pts.push(seg.p1);
+      continue;
+    }
     for (let i = 1; i <= perSegment; i++) {
       pts.push(cubicPoint(seg, i / perSegment));
     }
@@ -55,8 +64,8 @@ export function flattenSubpath(sp: BezierSubpath, perSegment = 18): Vec2[] {
   return pts;
 }
 
-/** Every defining point of a Bézier shape, across all subpaths (flattened). */
-export function flattenBezier(shape: BezierShape, perSegment = 18): Vec2[] {
+/** Every defining point of a path shape, across all subpaths (flattened). */
+export function flattenPath(shape: PathShape, perSegment = 18): Vec2[] {
   return shape.subpaths.flatMap((sp) => flattenSubpath(sp, perSegment));
 }
 
@@ -64,7 +73,7 @@ function lerp(a: Vec2, b: Vec2, t: number): Vec2 {
   return { x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t };
 }
 
-export interface BezierLocation {
+export interface PathLocation {
   /** Index into `shape.subpaths`. */
   sub: number;
   /** Index into `subpathSegments(subpath)`; segment i runs anchor i → i+1. */
@@ -80,11 +89,11 @@ export interface BezierLocation {
  * segment followed by a ternary-search refinement — plenty accurate for
  * click targets. Returns null for shapes with no segments.
  */
-export function closestPointOnBezier(
-  shape: BezierShape,
+export function closestPointOnPath(
+  shape: PathShape,
   p: Vec2
-): BezierLocation | null {
-  let best: BezierLocation | null = null;
+): PathLocation | null {
+  let best: PathLocation | null = null;
   const COARSE = 20;
   for (let sub = 0; sub < shape.subpaths.length; sub++) {
     const segs = subpathSegments(shape.subpaths[sub]);
@@ -129,11 +138,11 @@ export function closestPointOnBezier(
  * (no handles on either side) get a plain corner anchor so they stay straight.
  */
 export function insertAnchorOnSegment(
-  shape: BezierShape,
+  shape: PathShape,
   sub: number,
   segIndex: number,
   t: number
-): BezierShape {
+): PathShape {
   const sp = shape.subpaths[sub];
   if (!sp) return shape;
   const n = sp.anchors.length;
@@ -172,16 +181,16 @@ export function insertAnchorOnSegment(
  * the single funnel for anchor/handle moves, inserts and smoothing toggles.
  */
 export function withSubpath(
-  shape: BezierShape,
+  shape: PathShape,
   sub: number,
-  next: BezierSubpath
-): BezierShape {
+  next: PathSubpath
+): PathShape {
   const subpaths = shape.subpaths.slice();
   subpaths[sub] = next;
   return { ...shape, subpaths, generator: undefined };
 }
 
-function reverseSubpath(sp: BezierSubpath): BezierSubpath {
+function reverseSubpath(sp: PathSubpath): PathSubpath {
   const anchors = sp.anchors
     .slice()
     .reverse()
@@ -190,7 +199,7 @@ function reverseSubpath(sp: BezierSubpath): BezierSubpath {
 }
 
 /** Reverse the direction of every subpath (in/out handles swap roles). */
-export function reverseBezier(shape: BezierShape): BezierShape {
+export function reversePath(shape: PathShape): PathShape {
   return { ...shape, subpaths: shape.subpaths.map(reverseSubpath) };
 }
 
@@ -201,10 +210,10 @@ export function reverseBezier(shape: BezierShape): BezierShape {
  * neighbour.
  */
 export function toggleAnchorSmooth(
-  shape: BezierShape,
+  shape: PathShape,
   sub: number,
   index: number
-): BezierShape {
+): PathShape {
   const sp = shape.subpaths[sub];
   if (!sp) return shape;
   const n = sp.anchors.length;
@@ -222,7 +231,7 @@ export function toggleAnchorSmooth(
   const next =
     index < n - 1 ? sp.anchors[index + 1] : sp.closed ? sp.anchors[0] : null;
 
-  let smoothed: BezierAnchor = a;
+  let smoothed: PathAnchor = a;
   if (prev && next) {
     const dx = next.p.x - prev.p.x;
     const dy = next.p.y - prev.p.y;

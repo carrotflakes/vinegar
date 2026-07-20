@@ -1,6 +1,6 @@
-// Creating and mutating individual shapes (geometry, style, bezier anchors).
+// Creating and mutating individual shapes (geometry, style, path anchors).
 
-import { toggleAnchorSmooth } from "../model/bezier";
+import { toggleAnchorSmooth } from "../model/path";
 import { buildGenerator, compileGenerator, type CompileResult } from "../model/generatorClient";
 import { GENERATORS, defaultArgs, type ScriptMeta } from "../model/generators";
 import { solid } from "../model/paint";
@@ -12,7 +12,7 @@ import { applyWorldTransformToNode, boundsTransform, IDENTITY, invertMatrix, mul
 import { childIdsOf, descendantShapeIds, isGroup, isInstance, isNodeHidden, isNodeLocked, isShape, parentIdOf, referencedAssetIds, scopeLeafIds, scopeRootGroupId, selectionRoots, withChildIds } from "../model/scene";
 import { clampRectCornerRadius } from "../model/roundedRect";
 import { resizeShapeToBounds, translateShape } from "../model/transforms";
-import { makeId, type BezierShape, type Bounds, type ImageShape, type SceneNode, type Shape, type Vec2 } from "../model/types";
+import { makeId, type PathShape, type Bounds, type ImageShape, type SceneNode, type Shape, type Vec2 } from "../model/types";
 import { importImageFile, importImageFiles, isImageFile } from "../io/importImage";
 import { notify } from "./toastStore";
 import { measureTextShape } from "../canvas/textLayout";
@@ -48,19 +48,19 @@ function argsEqual(a: Record<string, number>, b: Record<string, number>): boolea
 }
 
 export function createShapeActions({ set, get, transact, replaceDocumentWithoutHistory }: StoreCtx): ShapeActions {
-  // Create and select a new parametric bezier node from built geometry.
+  // Create and select a new parametric path node from built geometry.
   const placeGeneratorNode = (
     generatorId: string,
     args: Record<string, number>,
-    subpaths: BezierShape["subpaths"],
+    subpaths: PathShape["subpaths"],
     at: Vec2,
     name: string
   ) => {
     const s = get();
-    const shape: BezierShape = {
-      id: makeId("bezier"),
+    const shape: PathShape = {
+      id: makeId("path"),
       name,
-      type: "bezier",
+      type: "path",
       subpaths,
       transform: [1, 0, 0, 1, at.x, at.y],
       transformOrigin: null,
@@ -84,11 +84,11 @@ export function createShapeActions({ set, get, transact, replaceDocumentWithoutH
     id: string,
     scriptId: string,
     args: Record<string, number>,
-    subpaths: BezierShape["subpaths"]
+    subpaths: PathShape["subpaths"]
   ) => {
     if (!argsEqual(pendingArgs.get(id) ?? {}, args)) return; // a newer edit won
     const doc = get().doc; const cur = doc.nodes[id];
-    if (!isShape(cur) || cur.type !== "bezier" || !cur.generator) return;
+    if (!isShape(cur) || cur.type !== "path" || !cur.generator) return;
     if (cur.generator.scriptId !== scriptId) return; // detached or re-linked
     pendingArgs.delete(id);
     transact(
@@ -246,7 +246,7 @@ export function createShapeActions({ set, get, transact, replaceDocumentWithoutH
     },
     toggleNodeSmooth: (id, sub, index) => {
       const doc = get().doc; const shape = doc.nodes[id]; if (!isShape(shape)) return;
-      const next = shape.type === "bezier"
+      const next = shape.type === "path"
         ? toggleAnchorSmooth(shape, sub, index)
         : shape.type === "brush"
           ? toggleBrushAnchorSmooth(shape, index)
@@ -270,7 +270,7 @@ export function createShapeActions({ set, get, transact, replaceDocumentWithoutH
         }
         return;
       }
-      if (shape.type !== "bezier") return;
+      if (shape.type !== "path") return;
       const sp = shape.subpaths[editNode.sub]; if (!sp) return;
       const anchors = sp.anchors.filter((_, i) => i !== editNode.index);
       // A subpath that can no longer form a segment disappears with its anchor.
@@ -499,7 +499,7 @@ export function createShapeActions({ set, get, transact, replaceDocumentWithoutH
     },
     setGeneratorArgs: (id, args) => {
       const doc = get().doc; const shape = doc.nodes[id];
-      if (!isShape(shape) || shape.type !== "bezier" || !shape.generator) return;
+      if (!isShape(shape) || shape.type !== "path" || !shape.generator) return;
       const scriptId = shape.generator.scriptId;
       const merged = { ...shape.generator.args, ...args };
       const builtin = GENERATORS[scriptId];
@@ -552,6 +552,6 @@ export function createShapeActions({ set, get, transact, replaceDocumentWithoutH
       transact({ ...doc, nodes: { ...doc.nodes, [id]: next } }, "radius:" + id);
     },
     setImageLockAspect: (id, lock) => { const doc = get().doc; const shape = doc.nodes[id]; if (!isShape(shape) || shape.type !== "image") return; const next = { ...shape, lockAspect: lock || undefined }; transact({ ...doc, nodes: { ...doc.nodes, [id]: next } }, "lockAspect:" + id); },
-    setClosedSelected: (closed) => { const doc = get().doc; const nodes = { ...doc.nodes }; let changed = false; for (const id of selectionRoots(doc, get().selection)) { const shape = nodes[id]; if (!isShape(shape)) continue; if (shape.type === "path" && shape.closed !== closed) { nodes[id] = { ...shape, closed }; changed = true; } else if (shape.type === "bezier" && shape.subpaths.some((sp) => sp.closed !== closed)) { nodes[id] = { ...shape, subpaths: shape.subpaths.map((sp) => ({ ...sp, closed })), generator: undefined }; changed = true; } } const next = { ...doc, nodes }; if (changed && hasValidClippingMasks(next)) transact(next); },
+    setClosedSelected: (closed) => { const doc = get().doc; const nodes = { ...doc.nodes }; let changed = false; for (const id of selectionRoots(doc, get().selection)) { const shape = nodes[id]; if (!isShape(shape) || shape.type !== "path") continue; if (shape.subpaths.some((sp) => sp.closed !== closed)) { nodes[id] = { ...shape, subpaths: shape.subpaths.map((sp) => ({ ...sp, closed })), generator: undefined }; changed = true; } } const next = { ...doc, nodes }; if (changed && hasValidClippingMasks(next)) transact(next); },
   };
 }

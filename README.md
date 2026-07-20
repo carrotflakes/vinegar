@@ -28,7 +28,7 @@ pnpm test       # node --test (model, store, persistence, import and recovery)
 - Brush: pen-pressure capture with adjustable size, pressure curve, stabilizer and taper; strokes remain editable vector centerlines with a derived variable-width envelope.
   Consecutive strokes collect in an active drawing group.
 - Eraser: split or trim Brush strokes with a vector centerline eraser while preserving the surviving Bézier geometry and width profile
-- **Bucket Fill**: click an enclosed empty region to fill it with the current fill color — detected **vectorially** (no raster tracing), with an adjustable **gap-closing** tolerance for not-quite-closed line art; the fill lands as an ordinary editable polygon *below* the surrounding strokes.
+- **Bucket Fill**: click an enclosed empty region to fill it with the current fill color — detected **vectorially** (no raster tracing), with an adjustable **gap-closing** tolerance for not-quite-closed line art; the fill lands as an ordinary editable even-odd path *below* the surrounding strokes.
   Clicking a filled shape or image treats it as the region's background: the fill spreads up to its edges and the strokes drawn on top, and is inserted directly above it — paint a background, draw line art, fill in between.
   An optional **"Fill to stroke centers"** mode stops fills at stroke/brush centerlines so adjacent fills stay seamless if the line art changes later (see [docs/bucket-fill.md](docs/bucket-fill.md))
 - Pen tool: click for corner anchors, click-drag for smooth anchors; click the first anchor to close, or Enter / double-click to finish, Esc to cancel; click an endpoint of an existing open path to continue it
@@ -89,7 +89,7 @@ For editable exchange, expect to inspect and adjust the imported or exported res
 The persisted `Document` is a **unified scene tree**: a flat `nodes` map keyed by id, with `rootIds` and each group's `childIds` as the only source of hierarchy and back-to-front paint order.
 Every node carries a Canvas/SVG-compatible affine `transform` into its parent space plus a `transformOrigin`; parents, world matrices and leaf shapes are derived (not stored).
 The document also holds `symbols`, `artboards`, `assets` (embedded raster images), `settings` (unit, dpi, grid size), document-local generator `scripts`, `metadata` and namespaced `extensions`.
-The file wrapper is versioned — the current version is v20; v8–v19 files migrate automatically on load, while older versions are unsupported.
+The file wrapper is versioned — the current version is v21; v8–v20 files migrate automatically on load, while older versions are unsupported.
 See [docs/document-model.md](docs/document-model.md).
 
 ## Project layout

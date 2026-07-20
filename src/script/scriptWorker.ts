@@ -6,7 +6,7 @@
 import { shapeBounds } from "../model/bounds";
 import { transformBounds } from "../model/matrix";
 import { translateShape } from "../model/transforms";
-import type { Shape, Vec2 } from "../model/types";
+import type { PathSubpath, Shape, Vec2 } from "../model/types";
 
 // 2D affine matrix [a, b, c, d, e, f]: x' = a*x + c*y + e, y' = b*x + d*y + f
 type Mat = [number, number, number, number, number, number];
@@ -92,13 +92,6 @@ function run(code: string, snap: DocSnapshot): Changeset {
     t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
     return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
   };
-
-  const toPoints = (pts: ([number, number] | Vec2)[]): Vec2[] =>
-    pts.map((p) => {
-      const x = Array.isArray(p) ? p[0] : p.x;
-      const y = Array.isArray(p) ? p[1] : p.y;
-      return apply(matrix, x, y);
-    });
 
   const api = {
     PI: Math.PI,
@@ -209,17 +202,18 @@ function run(code: string, snap: DocSnapshot): Changeset {
         fill: null,
       });
     },
-    path: (pts: ([number, number] | Vec2)[], closed = false) => {
-      const points = toPoints(pts);
+    path: (
+      subpaths: PathSubpath[],
+      fillRule?: "nonzero" | "evenodd"
+    ) => {
       emit({
         type: "path",
         name: "Path",
-        points,
-        closed,
-        fill: closed ? style.fill : null,
+        subpaths: structuredClone(subpaths),
+        fillRule,
+        transform: [...matrix],
       });
     },
-    polygon: (pts: ([number, number] | Vec2)[]) => api.path(pts, true),
 
     // --- utilities ---
     repeat: (n: number, fn: (i: number) => void) => {

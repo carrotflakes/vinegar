@@ -15,7 +15,7 @@
 // ===========================================================================
 
 import ClipperLib, { type IntPoint, type PolyNode, type PolyTree } from "clipper-lib";
-import { flattenSubpath } from "./bezier";
+import { flattenSubpath } from "./path";
 import { brushCenterlineSamples, cachedBrushEnvelope } from "./brushOutline";
 import { shapeBounds } from "./bounds";
 import { clippingContentIds, clippingMask } from "./clippingMask";
@@ -28,7 +28,7 @@ import type { Document, Matrix, Shape, Vec2 } from "./types";
 
 export type BucketFillResult =
   /**
-   * Polys of the region (PolygonShape layout), in scope-view space. When the
+   * Grouped rings of the region, in scope-view space. When the
    * click landed on a fill-painted shape, `coverId` is that shape (topmost),
    * so the new fill can be inserted directly above it.
    */
@@ -75,20 +75,17 @@ function fillGeometry(
       return { rings: [pts], fillType: evenOdd };
     }
     case "path":
-      // Fill implicitly closes open paths, so they enclose an area here too.
-      return shape.points.length >= 3
-        ? { rings: [shape.points], fillType: evenOdd }
-        : null;
-    case "bezier": {
       const rings = shape.subpaths
         .filter((sp) => sp.anchors.length >= 2)
         .map((sp) => flattenSubpath(sp));
       return rings.length
-        ? { rings, fillType: ClipperLib.PolyFillType.pftNonZero }
+        ? {
+            rings,
+            fillType: shape.fillRule === "evenodd"
+              ? evenOdd
+              : ClipperLib.PolyFillType.pftNonZero,
+          }
         : null;
-    }
-    case "polygon":
-      return { rings: shape.polys.flat(), fillType: evenOdd };
     case "compoundPath": {
       const rings = shape.components.flatMap((component) => {
         const geom = fillGeometry(component);

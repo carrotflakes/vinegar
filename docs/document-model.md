@@ -13,6 +13,14 @@ active tool, selection, viewport and undo history does not belong in the file.
   unreachable nodes are invalid. Empty groups are valid.
 - Parent ids, ancestors, depth, leaf shapes, inherited visibility/locking and
   world matrices are derived by the Scene Index and are not persisted.
+- Leaf shape types are `rect`, `ellipse`, `line`, `path`, `compoundPath`,
+  `image`, `text`, and `brush`. A `path` is the canonical vector-outline shape:
+  it stores one or more `subpaths`, each with cubic anchors (`p`, `hIn`,
+  `hOut`) and a `closed` flag. Null handles make straight segments.
+- A path's optional `fillRule` is either `nonzero` or `evenodd`; an absent
+  value means `nonzero`. The rule applies to all subpaths consistently in
+  rendering, hit-testing, clipping, boolean input, and SVG export. Filling
+  implicitly closes open subpaths without closing their strokes.
 - Asset-bearing nodes reference entries in `assets` by id; binary data does not
   belong directly in a node. `image` nodes and `pattern` fills/strokes both
   reference an image asset; an asset survives save only while something still
@@ -38,7 +46,7 @@ active tool, selection, viewport and undo history does not belong in the file.
   area-bearing vector shape; its paint and visibility fields are preserved but
   ignored while it supplies clip geometry.
 - A brush shape is a pressure-profiled variable-width stroke. It stores an open
-  cubic-Bézier centerline as `anchors` (same anchor convention as `bezier`: an
+  cubic-Bézier centerline as `anchors` (same anchor convention as `path`: an
   absolute-handle point, `null` handles for corners) where each anchor also
   carries a width multiplier `w >= 0`. The rendered shape is the filled envelope
   of that centerline (`strokeWidth * w` wide, round end caps), painted with the
@@ -51,8 +59,8 @@ active tool, selection, viewport and undo history does not belong in the file.
   Typography is one style per node (`fontFamily`, size, weight, italic,
   line-height and alignment); line layout is derived from the text at render.
 
-The file wrapper version is deliberately strict. The current version is v19;
-supported older versions are migrated before validation. Changing the
+The file wrapper version is deliberately strict. The current version is v21;
+v8–v20 files are migrated before validation. Changing the
 persisted shape of `Document` requires bumping `CURRENT_FILE_VERSION`.
 
 ## Coordinate policy

@@ -13,8 +13,8 @@ import {
 import {
   BLEND_MODES,
   makeId,
-  type BezierShape,
-  type BezierSubpath,
+  type PathShape,
+  type PathSubpath,
   type BlendMode,
   type CompoundPathShape,
   type Group,
@@ -155,7 +155,7 @@ function point(value: paper.Point) {
   return { x: finite(value.x), y: finite(value.y) };
 }
 
-function pathSubpath(path: paper.Path, transform?: Matrix): BezierSubpath | null {
+function pathSubpath(path: paper.Path, transform?: Matrix): PathSubpath | null {
   if (path.segments.length < 2) return null;
   const anchors = path.segments.map((segment) => {
     const p = point(segment.point);
@@ -181,13 +181,14 @@ function pathSubpath(path: paper.Path, transform?: Matrix): BezierSubpath | null
   return { anchors, closed: path.closed };
 }
 
-function pathNode(path: paper.Path): BezierShape | null {
+function pathNode(path: paper.Path): PathShape | null {
   const subpath = pathSubpath(path);
   if (!subpath) return null;
   return {
-    id: makeId("bezier"),
-    type: "bezier",
+    id: makeId("path"),
+    type: "path",
     subpaths: [subpath],
+    fillRule: path.fillRule === "evenodd" ? "evenodd" : undefined,
     ...shapeStyle(path),
     ...baseNode(path, "Path"),
   };
@@ -201,9 +202,9 @@ function compoundComponents(item: paper.CompoundPath): PrimitiveShape[] {
     const subpath = pathSubpath(path);
     if (!subpath) continue;
     components.push({
-      id: makeId("bezier"),
+      id: makeId("path"),
       name: nodeName(path, "Path"),
-      type: "bezier",
+      type: "path",
       subpaths: [subpath],
       transform: matrixOf(path),
       transformOrigin: null,
@@ -218,7 +219,7 @@ function compoundComponents(item: paper.CompoundPath): PrimitiveShape[] {
 
 function compoundNode(
   item: paper.CompoundPath
-): BezierShape | CompoundPathShape | null {
+): PathShape | CompoundPathShape | null {
   if (item.fillRule === "evenodd") {
     const components = compoundComponents(item);
     if (!components.length) return null;
@@ -240,8 +241,8 @@ function compoundNode(
   });
   if (!subpaths.length) return null;
   return {
-    id: makeId("bezier"),
-    type: "bezier",
+    id: makeId("path"),
+    type: "path",
     subpaths,
     ...shapeStyle(item),
     ...baseNode(item, "Compound Path"),

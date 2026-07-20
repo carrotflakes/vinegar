@@ -35,6 +35,10 @@ after(async () => server.close());
 
 const IDENTITY = [1, 0, 0, 1, 0, 0];
 const solid = { type: "solid", color: "#f00", alpha: 1 };
+const subpath = (points, closed = true) => ({
+  anchors: points.map((p) => ({ p, hIn: null, hOut: null })),
+  closed,
+});
 
 const rect = (id, x, y, width, height, extra = {}) => ({
   id,
@@ -69,21 +73,22 @@ function clippedDocument() {
   doc.nodes.content = rect("content", 0, 0, 150, 150);
   doc.nodes.mask = {
     ...rect("mask", 0, 0, 0, 0, { fill: null, hidden: true }),
-    type: "polygon",
-    polys: [[
-      [
+    type: "path",
+    fillRule: "evenodd",
+    subpaths: [
+      subpath([
         { x: 20, y: 20 },
         { x: 120, y: 20 },
         { x: 120, y: 120 },
         { x: 20, y: 120 },
-      ],
-      [
+      ]),
+      subpath([
         { x: 50, y: 50 },
         { x: 90, y: 50 },
         { x: 90, y: 90 },
         { x: 50, y: 90 },
-      ],
-    ]],
+      ]),
+    ],
   };
   delete doc.nodes.mask.x;
   delete doc.nodes.mask.y;
@@ -94,18 +99,23 @@ function clippedDocument() {
   return doc;
 }
 
-test("clipping helpers accept only closed area shapes and preserve child order", () => {
+test("clipping helpers accept area-bearing paths and preserve child order", () => {
   const doc = clippedDocument();
   const clip = doc.nodes.clip;
   assert.equal(isClippingMaskCandidate(doc.nodes.mask), true);
   assert.equal(isClippingMaskCandidate({ ...rect("line", 0, 0, 1, 1), type: "line" }), false);
-  assert.equal(isClippingMaskCandidate({ ...rect("path", 0, 0, 1, 1), type: "path", points: [], closed: false }), false);
-  assert.equal(isClippingMaskCandidate({ ...rect("path", 0, 0, 1, 1), type: "path", points: [], closed: true }), false);
+  assert.equal(isClippingMaskCandidate({ ...rect("path", 0, 0, 1, 1), type: "path", subpaths: [] }), false);
   assert.equal(isClippingMaskCandidate({
     ...rect("path", 0, 0, 1, 1),
     type: "path",
-    points: [{ x: 0, y: 0 }, { x: 10, y: 0 }, { x: 0, y: 10 }],
-    closed: true,
+    subpaths: [subpath([{ x: 0, y: 0 }], false)],
+  }), false);
+  assert.equal(isClippingMaskCandidate({
+    ...rect("path", 0, 0, 1, 1),
+    type: "path",
+    subpaths: [subpath([
+      { x: 0, y: 0 }, { x: 10, y: 0 }, { x: 0, y: 10 },
+    ])],
   }), true);
   assert.equal(clippingMask(doc, clip)?.id, "mask");
   assert.deepEqual(clippingContentIds(doc, clip), ["content"]);
@@ -122,17 +132,16 @@ test("clipping helpers accept only closed area shapes and preserve child order",
 test("selection validation uses sibling paint order and protects an existing mask", () => {
   const doc = createEmptyDocument();
   doc.nodes.back = rect("back", 0, 0, 10, 10);
-  doc.nodes.open = {
-    ...rect("open", 0, 0, 10, 10),
+  doc.nodes.degenerate = {
+    ...rect("degenerate", 0, 0, 10, 10),
     type: "path",
-    points: [{ x: 0, y: 0 }, { x: 10, y: 10 }],
-    closed: false,
+    subpaths: [subpath([{ x: 0, y: 0 }], false)],
   };
   doc.nodes.front = rect("front", 0, 0, 10, 10);
-  doc.rootIds = ["back", "open", "front"];
+  doc.rootIds = ["back", "degenerate", "front"];
 
   assert.equal(canMakeClippingMaskSelection(doc, ["front", "back"]), true);
-  assert.equal(canMakeClippingMaskSelection(doc, ["back", "open"]), false);
+  assert.equal(canMakeClippingMaskSelection(doc, ["back", "degenerate"]), false);
 
   const clipped = clippedDocument();
   assert.equal(canMakeClippingMaskSelection(clipped, ["content", "mask"]), false);
@@ -162,17 +171,17 @@ test("clip bounds and point/marquee hits use the mask silhouette and holes", () 
   assert.equal(marqueeHitNode(doc, content, { x: 60, y: 60, width: 5, height: 5 }), false);
 });
 
-test("a bezier mask clips by its filled area (regression: flatten index leak)", () => {
-  // A bezier rectangle mask exercises containsGeometry's `bezier` branch. A
+test("a curved-path mask clips by its filled area (regression: flatten index leak)", () => {
+  // A path rectangle mask exercises containsGeometry's path branch. A
   // `.map(flattenSubpath)` there leaked the array index into `perSegment`,
   // collapsing the first ring to one point so the mask matched nothing and its
-  // whole clip group became unselectable. Polygon/rect masks never hit it.
+  // whole clip group became unselectable. Rect masks never hit it.
   const doc = createEmptyDocument();
   doc.nodes.content = rect("content", 0, 0, 150, 150);
   const anchor = (x, y) => ({ p: { x, y }, hIn: null, hOut: null });
   doc.nodes.mask = {
     ...rect("mask", 0, 0, 0, 0, { fill: null }),
-    type: "bezier",
+    type: "path",
     subpaths: [
       {
         anchors: [anchor(20, 20), anchor(120, 20), anchor(120, 120), anchor(20, 120)],

@@ -1,8 +1,8 @@
-import { cubicPoint, type CubicSegment } from "./bezier";
+import { cubicPoint, type CubicSegment } from "./path";
 import type { BrushAnchor, BrushShape, Vec2 } from "./types";
 
 // Node-tool structural edits on a brush centerline (one open run of anchors).
-// These mirror the bezier equivalents in `bezier.ts` but carry each anchor's
+// These mirror the path equivalents in `path.ts` but carry each anchor's
 // width multiplier `w` through splits and smoothing.
 
 function lerp(a: Vec2, b: Vec2, t: number): Vec2 {

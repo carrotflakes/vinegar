@@ -10,12 +10,13 @@ const STORAGE_KEY = "vinegar.script";
 
 const DEFAULT_SCRIPT = `// Drawing script — runs in a sandbox, then applies its changes in one undo.
 // Create:  rect(x,y,w,h,radius=0) ellipse(cx,cy,rx,ry) circle(cx,cy,r)
-//          line(x1,y1,x2,y2) path(points,closed) polygon(points)
+//          line(x1,y1,x2,y2) path(subpaths,fillRule?)
 //          push() pop() translate(x,y) rotate(rad) scale(s)
 //          fill(c) stroke(c) strokeWidth(w) opacity(o) blendMode('multiply')
 // Existing: shapes, selection, byType('rect'), bounds(s) -> {x,y,width,height,cx,cy}
 //          edit a shape by mutating it; move(s,dx,dy); remove(s)
 // Utils:   repeat(n, i => ...) seed(n) random(a,b) lerp(a,b,t)  DEG TAU PI
+// Path:    [{ anchors: [{ p:{x,y}, hIn:null, hOut:null }, ...], closed:true }]
 
 seed(1);
 stroke(null);

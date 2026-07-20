@@ -7,13 +7,11 @@ import {
   selectionRoots,
 } from "./scene";
 import type {
-  BezierShape,
   CompoundPathShape,
   Document,
   EllipseShape,
   Group,
   PathShape,
-  PolygonShape,
   RectShape,
   SceneNode,
   Shape,
@@ -24,8 +22,6 @@ export type ClippingMaskShape =
   | RectShape
   | EllipseShape
   | PathShape
-  | BezierShape
-  | PolygonShape
   | CompoundPathShape;
 
 /** Whether a node has area-bearing geometry suitable for clipping. Open paths
@@ -38,16 +34,12 @@ export function isClippingMaskCandidate(
     case "rect":
     case "ellipse":
       return node.width !== 0 && node.height !== 0;
-    case "polygon":
-      return node.polys.some((poly) => poly.some((ring) => ring.length >= 3));
     case "compoundPath":
       return (
         node.components.length > 0 &&
         node.components.every((component) => isClippingMaskCandidate(component))
       );
     case "path":
-      return node.points.length >= 3;
-    case "bezier":
       return (
         node.subpaths.length > 0 &&
         node.subpaths.every((subpath) => subpath.anchors.length >= 2)
@@ -92,9 +84,9 @@ export function clippingContentIds(doc: Document, group: Group): string[] {
 
 /** Fill rule used by the shared Canvas, SVG, and hit-test mask geometry. */
 export function shapeFillRule(shape: Shape): "nonzero" | "evenodd" {
-  return shape.type === "polygon" || shape.type === "compoundPath"
-    ? "evenodd"
-    : "nonzero";
+  if (shape.type === "compoundPath") return "evenodd";
+  if (shape.type === "path") return shape.fillRule ?? "nonzero";
+  return "nonzero";
 }
 
 /**

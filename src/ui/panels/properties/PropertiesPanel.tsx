@@ -101,7 +101,7 @@ export default function PropertiesPanel() {
       )}
 
       {selected.length === 1 &&
-        selected[0].type === "bezier" &&
+        selected[0].type === "path" &&
         selected[0].generator && (
           <GeneratorSection shape={selected[0]} />
         )}

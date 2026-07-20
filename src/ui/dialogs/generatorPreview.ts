@@ -1,4 +1,4 @@
-import type { BezierSubpath, Vec2 } from "../../model/types";
+import type { PathSubpath, Vec2 } from "../../model/types";
 
 /**
  * Draw generator geometry into a preview canvas, fitted and centered. All
@@ -7,7 +7,7 @@ import type { BezierSubpath, Vec2 } from "../../model/types";
  */
 export function drawGeometryPreview(
   canvas: HTMLCanvasElement | null,
-  subpaths: BezierSubpath[] | null
+  subpaths: PathSubpath[] | null
 ): void {
   if (!canvas) return;
   const ctx = canvas.getContext("2d");

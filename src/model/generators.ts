@@ -9,8 +9,8 @@
 // ===========================================================================
 
 import type {
-  BezierAnchor,
-  BezierSubpath,
+  PathAnchor,
+  PathSubpath,
   ScriptDef,
   Vec2,
 } from "./types";
@@ -34,7 +34,7 @@ export interface GeneratorDef {
   /** Standalone document-generator source for viewing, copying, and editing. */
   source: string;
   /** Pure: parameter values -> local-space subpaths centered on the origin. */
-  build: (args: Record<string, number>) => BezierSubpath[];
+  build: (args: Record<string, number>) => PathSubpath[];
 }
 
 function clamp(n: number, lo: number, hi: number) {
@@ -46,13 +46,13 @@ function clamp(n: number, lo: number, hi: number) {
  * it becomes a regular `points`-gon; below 1 the inner radius pulls in to form
  * a star. All corners are sharp (no Bézier handles).
  */
-function buildStar(args: Record<string, number>): BezierSubpath[] {
+function buildStar(args: Record<string, number>): PathSubpath[] {
   const n = Math.round(clamp(args.points, 3, 60));
   const radius = Math.max(1, args.radius ?? 80);
   const k = clamp(args.innerRatio, 0.05, 1);
   const polygon = k >= 0.999;
   const count = polygon ? n : n * 2;
-  const anchors: BezierAnchor[] = [];
+  const anchors: PathAnchor[] = [];
   for (let i = 0; i < count; i++) {
     const r = polygon || i % 2 === 0 ? radius : radius * k;
     const angle = -Math.PI / 2 + (i * Math.PI * 2) / count;
@@ -72,14 +72,14 @@ function polar(angle: number, r: number): Vec2 {
   };
 }
 
-function sharp(p: Vec2): BezierAnchor {
+function sharp(p: Vec2): PathAnchor {
   return { p, hIn: null, hOut: null };
 }
 
 /** A 4-anchor Bézier circle; `reverse` flips winding (for nonzero-fill holes). */
-function circleSubpath(r: number, reverse = false): BezierSubpath {
+function circleSubpath(r: number, reverse = false): PathSubpath {
   const k = r * 0.5522847498; // cubic-circle handle length
-  const anchors: BezierAnchor[] = [];
+  const anchors: PathAnchor[] = [];
   for (let i = 0; i < 4; i++) {
     const a = (i * Math.PI) / 2;
     const p = polar(a, r);
@@ -96,7 +96,7 @@ function circleSubpath(r: number, reverse = false): BezierSubpath {
 }
 
 /** Catmull-Rom → Bézier handles through `pts`; `closed` wraps the tangents. */
-function smoothAnchors(pts: Vec2[], closed: boolean): BezierAnchor[] {
+function smoothAnchors(pts: Vec2[], closed: boolean): PathAnchor[] {
   const n = pts.length;
   return pts.map((p, i) => {
     const prev = i > 0 ? pts[i - 1] : closed ? pts[n - 1] : p;
@@ -116,13 +116,13 @@ function smoothAnchors(pts: Vec2[], closed: boolean): BezierAnchor[] {
  * round center hole — a second, reverse-wound subpath cut out by the nonzero
  * fill. Demonstrates multiple subpaths.
  */
-function buildGear(args: Record<string, number>): BezierSubpath[] {
+function buildGear(args: Record<string, number>): PathSubpath[] {
   const teeth = Math.round(clamp(args.teeth, 3, 60));
   const radius = Math.max(1, args.radius ?? 80);
   const root = radius * (1 - clamp(args.toothDepth, 0.02, 0.6));
   const hole = clamp(args.hole, 0, 0.85);
   const step = (Math.PI * 2) / teeth;
-  const anchors: BezierAnchor[] = [];
+  const anchors: PathAnchor[] = [];
   for (let i = 0; i < teeth; i++) {
     const a = -Math.PI / 2 + i * step;
     anchors.push(sharp(polar(a, root)));
@@ -130,7 +130,7 @@ function buildGear(args: Record<string, number>): BezierSubpath[] {
     anchors.push(sharp(polar(a + step * 0.35, radius)));
     anchors.push(sharp(polar(a + step * 0.5, root)));
   }
-  const subpaths: BezierSubpath[] = [{ anchors, closed: true }];
+  const subpaths: PathSubpath[] = [{ anchors, closed: true }];
   if (hole > 0.01) subpaths.push(circleSubpath(radius * hole, true));
   return subpaths;
 }
@@ -139,7 +139,7 @@ function buildGear(args: Record<string, number>): BezierSubpath[] {
  * Archimedean spiral as an OPEN smooth path: `turns` revolutions out to
  * `radius`. Demonstrates open subpaths and Bézier handles.
  */
-function buildSpiral(args: Record<string, number>): BezierSubpath[] {
+function buildSpiral(args: Record<string, number>): PathSubpath[] {
   const turns = clamp(args.turns, 0.25, 12);
   const radius = Math.max(1, args.radius ?? 80);
   const n = Math.max(2, Math.round(turns * 16));
@@ -155,7 +155,7 @@ function buildSpiral(args: Record<string, number>): BezierSubpath[] {
  * Flower: `petals` rounded lobes swinging between the inner and outer radius as
  * one smooth closed curve. Demonstrates Bézier handles.
  */
-function buildFlower(args: Record<string, number>): BezierSubpath[] {
+function buildFlower(args: Record<string, number>): PathSubpath[] {
   const petals = Math.round(clamp(args.petals, 3, 24));
   const radius = Math.max(1, args.radius ?? 80);
   const inner = clamp(args.innerRatio, 0.05, 0.95) * radius;
@@ -175,7 +175,7 @@ function buildFlower(args: Record<string, number>): BezierSubpath[] {
  * two arcs meet in sharp cusps at the poles (the crescent's tips). Demonstrates
  * Bézier handles and elliptical arcs.
  */
-function buildMoon(args: Record<string, number>): BezierSubpath[] {
+function buildMoon(args: Record<string, number>): PathSubpath[] {
   const R = Math.max(1, args.radius ?? 80);
   const phase = clamp(args.phase, 0, 1);
   const waxing = phase <= 0.5;
@@ -184,7 +184,7 @@ function buildMoon(args: Record<string, number>): BezierSubpath[] {
   const c = 0.5522847498; // cubic handle length for a quarter arc
   const aLimb = side * R; // limb bulges a full radius
   const aTerm = side * R * (1 - 2 * illum); // terminator: +R (new) .. -R (full)
-  const anchors: BezierAnchor[] = [
+  const anchors: PathAnchor[] = [
     { p: { x: 0, y: -R }, hIn: { x: c * aTerm, y: -R }, hOut: { x: c * aLimb, y: -R } },
     { p: { x: aLimb, y: 0 }, hIn: { x: aLimb, y: -c * R }, hOut: { x: aLimb, y: c * R } },
     { p: { x: 0, y: R }, hIn: { x: c * aLimb, y: R }, hOut: { x: c * aTerm, y: R } },
@@ -295,7 +295,7 @@ export interface ResolvedGenerator {
   params: GeneratorParam[];
   status: ScriptStatus;
   /** Native builder; present for built-ins only. */
-  build?: (args: Record<string, number>) => BezierSubpath[] | null;
+  build?: (args: Record<string, number>) => PathSubpath[] | null;
   /** Compile error for a document script, if any. */
   error?: string;
 }
@@ -375,7 +375,7 @@ export function resolveGenerator(
 
 interface CompiledScript {
   params: GeneratorParam[];
-  build: (args: Record<string, number>) => BezierSubpath[] | null;
+  build: (args: Record<string, number>) => PathSubpath[] | null;
   error?: string;
 }
 
@@ -446,13 +446,13 @@ const validPoint = (value: unknown): value is Vec2 =>
 const point = (value: Vec2): Vec2 => ({ x: value.x, y: value.y });
 
 /** Coerce a script's returned geometry into validated subpaths, or null. */
-function validSubpaths(value: unknown): BezierSubpath[] | null {
+function validSubpaths(value: unknown): PathSubpath[] | null {
   if (!Array.isArray(value)) return null;
-  const subpaths: BezierSubpath[] = [];
+  const subpaths: PathSubpath[] = [];
   for (const sp of value) {
     if (!sp || typeof sp !== "object" || !Array.isArray((sp as { anchors?: unknown }).anchors))
       continue;
-    const anchors: BezierAnchor[] = [];
+    const anchors: PathAnchor[] = [];
     for (const a of (sp as { anchors: unknown[] }).anchors) {
       if (!a || !validPoint((a as { p?: unknown }).p)) continue;
       const an = a as { p: Vec2; hIn?: unknown; hOut?: unknown };

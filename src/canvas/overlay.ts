@@ -1,6 +1,6 @@
 import type { Guide, Spacing } from "../model/snap";
 import { applyMatrix } from "../model/matrix";
-import type { Artboard, Bounds, BezierShape, Matrix, Vec2 } from "../model/types";
+import type { Artboard, Bounds, PathShape, Matrix, Vec2 } from "../model/types";
 import { worldToScreen, type Viewport } from "../model/viewport";
 import { HANDLE_IDS, HANDLE_SIZE, handlePoint } from "./handles";
 import {
@@ -333,7 +333,7 @@ export function drawPenDraft(
   ctx: CanvasRenderingContext2D,
   dpr: number,
   viewport: Viewport,
-  shape: BezierShape,
+  shape: PathShape,
   transform: Matrix,
   hover: Vec2 | null
 ): void {

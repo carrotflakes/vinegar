@@ -152,6 +152,12 @@ additional effects, or other feature expansion.
   selected unit consistently in coordinates, dimensions and export settings
 - [ ] **Layer search / filtering** — find nodes by name/type and quickly reveal the
   selected result in deeply nested documents
+- [ ] **Path unification (file v21)** — merge `path` / `polygon` / `bezier` into one
+  canonical `path` type (`subpaths` + optional `fillRule`); plan in
+  docs/path-unification.md
+- [ ] **Compound paths as real nodes (file v22)** — replace inline retained
+  `components` with real `childIds` children (editable, layers-visible); depends
+  on path unification; plan in docs/compound-path-nodes.md
 
 ## Mobile / touch
 - [ ] On-screen alternatives for the remaining keyboard-only actions (delete, copy/paste, group, pen finish/cancel)
@@ -234,7 +240,7 @@ additional effects, or other feature expansion.
   fidelity and browser/touch support).
 
 ## User ideas / wishlist
-- [ ] 塗り機能
+- [x] 塗り機能
 - [ ] スクリプティングの拡充
   - [ ] 実行後に生成物へビューを自動フィット
   - [ ] DSL に bezier() を追加

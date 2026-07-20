@@ -1,7 +1,7 @@
 import {
-  closestPointOnBezier,
+  closestPointOnPath,
   insertAnchorOnSegment,
-} from "../../model/bezier";
+} from "../../model/path";
 import { closestPointOnBrush, insertBrushAnchor } from "../../model/brushEdit";
 import {
   applyMatrix,
@@ -95,8 +95,8 @@ export function onNodeDown(
       distance * localScale <= pickTolerance(ctx);
 
     let insert: { next: typeof sel; sub: number; index: number } | null = null;
-    if (sel.type === "bezier") {
-      const loc = closestPointOnBezier(sel, local);
+    if (sel.type === "path") {
+      const loc = closestPointOnPath(sel, local);
       if (loc && withinPath(loc.distance)) {
         const next = insertAnchorOnSegment(sel, loc.sub, loc.segIndex, loc.t);
         if (next !== sel) insert = { next, sub: loc.sub, index: loc.segIndex + 1 };
@@ -125,10 +125,10 @@ export function onNodeDown(
       return;
     }
   }
-  // Select another node-editable shape (bezier or brush), or clear.
+  // Select another node-editable shape (path or brush), or clear.
   const id = pickShape(ctx, world);
   const picked = id ? state.doc.nodes[id] : null;
-  if (picked && (picked.type === "bezier" || picked.type === "brush")) {
+  if (picked && (picked.type === "path" || picked.type === "brush")) {
     state.setSelection([id!]);
     state.setEditNodes([]);
   } else {
@@ -238,10 +238,10 @@ export function nodeCursor(
     return "move";
   }
   // "copy" (arrow + plus) over the path itself: a click inserts a point. Only
-  // bezier paths support inserting anchors for now.
-  if (!sel || sel.type !== "bezier") return "default";
+  // Paths support inserting anchors; brush insertion is handled on click only.
+  if (!sel || sel.type !== "path") return "default";
   const inverse = invertMatrix(shapeWorldMatrix(state.doc, sel));
-  const loc = closestPointOnBezier(sel, inverse ? applyMatrix(inverse, world) : world);
+  const loc = closestPointOnPath(sel, inverse ? applyMatrix(inverse, world) : world);
   const localScale = matrixScale(shapeWorldMatrix(state.doc, sel));
   return loc && loc.distance * localScale <= pickTolerance(ctx)
     ? "copy"

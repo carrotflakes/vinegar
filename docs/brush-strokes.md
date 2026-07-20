@@ -20,14 +20,14 @@ Inkscape PowerStroke model, not a raster brush.
 
 ## Decisions up front
 
-- **New leaf shape `type: "brush"`**, not an extension of `path`/`bezier`.
+- **New leaf shape `type: "brush"`**, not an extension of `path`.
   Variable width is incompatible with almost every uniform-stroke feature
   (dash, cap/join, inside/outside alignment, `ctx.stroke()` itself); grafting a
   width array onto existing shapes would force every stroke code path to
-  branch. A dedicated leaf keeps `path`/`bezier` untouched and slots into the
+  branch. A dedicated leaf keeps `path` untouched and slots into the
   existing switch statements as one new case each.
 - **Separate Brush tool**, keyboard `B`. The pencil keeps producing uniform
-  `bezier` lines (Illustrator also ships pencil and paintbrush side by side).
+  ordinary paths (Illustrator also ships pencil and paintbrush side by side).
 - **Width lives on the shape as a profile, paint comes from `stroke`.** The
   envelope is *filled* on screen, but semantically it is a stroke: the shape's
   `stroke` paint colors it and `strokeWidth` is the base width. Per-anchor
@@ -59,7 +59,7 @@ export interface BrushShape extends BaseShape {
 }
 ```
 
-- Geometry reuses the `bezier` anchor convention (absolute handles in local
+- Geometry reuses the `path` anchor convention (absolute handles in local
   space, `null` = corner), so `subpathSegments`-style code, the node tool and
   Catmull-Rom fitting transfer directly.
 - Effective width at an anchor is `strokeWidth × w`; between anchors `w`
@@ -69,7 +69,7 @@ export interface BrushShape extends BaseShape {
   ignored (ends are always round caps in v1). `supportsStrokeAlignment`
   returns false; the properties panel hides the stroke-detail rows for brush
   shapes.
-- Anchors stay as objects (not flat arrays) for consistency with `bezier`;
+- Anchors stay as objects (not flat arrays) for consistency with `path`;
   post-fit strokes are ~10–50 anchors, so file size is not a concern.
 
 ### Serialization
@@ -196,21 +196,21 @@ scope for v1.
   fold (`soloLeaf`) folds uniform scale into anchor geometry and multiplies
   `strokeWidth` like other stroked leaves; non-uniform scale stays in
   `transform` (widths cannot shear).
-- **Node tool** (shipped): brush anchors reuse the bezier anchor/handle
-  editing. `nodes.ts` exposes a `NodeEditShape = BezierShape | BrushShape` view
+- **Node tool** (shipped): brush anchors reuse the path anchor/handle
+  editing. `nodes.ts` exposes a `NodeEditShape = PathShape | BrushShape` view
   (`nodeSubpaths` presents a brush as one open subpath); `hitNodes` /
   `moveAnchor` / `moveHandle` and the `drawNodes` overlay all operate on it, and
   `picking.selectedNodeShape` lets the node tool pick a brush. Moves preserve
   each anchor's `w` (spread through). Structural edits live in
   `model/brushEdit.ts` (`closestPointOnBrush`, `insertBrushAnchor`,
-  `deleteBrushAnchor`, `toggleBrushAnchorSmooth`), mirroring the bezier ops but
+  `deleteBrushAnchor`, `toggleBrushAnchorSmooth`), mirroring the path ops but
   carrying `w`: clicking the path inserts an anchor (width linearly
   interpolated; de Casteljau split keeps the curve exact), Delete removes the
   active anchor (or the whole brush below two), and double-click toggles
   corner/smooth. Per-anchor width editing (an Illustrator-style width tool) is
   still deferred.
 - **Outline Stroke** on a brush: Clipper-union the envelope into a
-  `PolygonShape` (extends the existing command), which also unlocks boolean
+  data-driven even-odd `PathShape` (extends the existing command), which also unlocks boolean
   ops — brush shapes themselves stay out of `PrimitiveShape` and out of
   boolean/compound-path inputs.
 - **Vector eraser** (Eraser tool, `E`): a centerline-split eraser. The drag is

@@ -10,7 +10,7 @@ import {
   type ShapeType,
 } from "../model/types";
 
-export const CURRENT_FILE_VERSION = 20 as const;
+export const CURRENT_FILE_VERSION = 21 as const;
 
 /**
  * v8 lacked `symbols` (added as an empty registry). v8 and v9 stored fill/
@@ -24,10 +24,13 @@ export const CURRENT_FILE_VERSION = 20 as const;
  * shared `cornerRadius` to rectangles. v19 adds the `brush` leaf shape
  * (pressure-profiled variable-width strokes). v20 adds `doc.scripts` (user
  * parametric generators, backfilled as empty) and the optional `generator`
- * link on nodes. v8-v19 documents migrate unchanged; absent optional fields
- * retain their historical behavior.
+ * link on nodes. v21 unifies path, bezier, and polygon geometry as multi-
+ * subpath `path` nodes with an optional fill rule. v8-v20 documents migrate
+ * on load; absent optional fields retain their historical behavior.
  */
-const MIGRATABLE_VERSIONS = new Set<unknown>([8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19]);
+const MIGRATABLE_VERSIONS = new Set<unknown>([
+  8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20,
+]);
 
 export interface VinegarFile {
   app: "vinegar";
@@ -57,10 +60,10 @@ function usedAssets(doc: Document): Document["assets"] {
 }
 
 const NODE_TYPES = new Set<ShapeType | "group" | "instance">([
-  "group", "rect", "ellipse", "line", "path", "bezier", "polygon", "compoundPath", "instance", "image", "text", "brush",
+  "group", "rect", "ellipse", "line", "path", "compoundPath", "instance", "image", "text", "brush",
 ]);
 const COMPOUND_COMPONENT_TYPES = new Set<ShapeType>([
-  "rect", "ellipse", "path", "bezier", "polygon",
+  "rect", "ellipse", "path",
 ]);
 const isObject = (value: unknown): value is Record<string, unknown> =>
   !!value && typeof value === "object" && !Array.isArray(value);
@@ -113,8 +116,6 @@ const isEffectsOrUndefined = (value: unknown): boolean =>
   value === undefined || (Array.isArray(value) && value.every(isEffect));
 const isStrokeDashOrUndefined = (value: unknown): boolean =>
   value === undefined || (Array.isArray(value) && value.every((entry) => isNumber(entry) && entry >= 0));
-const isPoints = (value: unknown): boolean =>
-  Array.isArray(value) && value.every(isPoint);
 const isGeneratorOrUndefined = (value: unknown): boolean => {
   if (value === undefined) return true;
   if (!isObject(value) || typeof value.scriptId !== "string" || !isObject(value.args)) return false;
@@ -171,23 +172,27 @@ const isNode = (id: string, node: unknown): boolean => {
     case "line":
       return isNumber(node.x1) && isNumber(node.y1) && isNumber(node.x2) && isNumber(node.y2);
     case "path":
-      return isPoints(node.points) && typeof node.closed === "boolean";
+      return (
+        (node.fillRule === undefined ||
+          node.fillRule === "nonzero" ||
+          node.fillRule === "evenodd") &&
+        Array.isArray(node.subpaths) &&
+        node.subpaths.every((sp) =>
+          isObject(sp) && typeof sp.closed === "boolean" &&
+          Array.isArray(sp.anchors) &&
+          sp.anchors.every((anchor: unknown) =>
+            isObject(anchor) && isPoint(anchor.p) &&
+            (anchor.hIn === null || isPoint(anchor.hIn)) &&
+            (anchor.hOut === null || isPoint(anchor.hOut))
+          )
+        )
+      );
     case "brush":
       return Array.isArray(node.anchors) &&
         node.anchors.every((anchor: unknown) => isObject(anchor) && isPoint(anchor.p) &&
           (anchor.hIn === null || isPoint(anchor.hIn)) &&
           (anchor.hOut === null || isPoint(anchor.hOut)) &&
           isNumber(anchor.w) && anchor.w >= 0);
-    case "bezier":
-      return Array.isArray(node.subpaths) && node.subpaths.every((sp) =>
-        isObject(sp) && typeof sp.closed === "boolean" &&
-        Array.isArray(sp.anchors) &&
-        sp.anchors.every((anchor: unknown) => isObject(anchor) && isPoint(anchor.p) &&
-          (anchor.hIn === null || isPoint(anchor.hIn)) &&
-          (anchor.hOut === null || isPoint(anchor.hOut))));
-    case "polygon":
-      return Array.isArray(node.polys) && node.polys.every((poly) =>
-        Array.isArray(poly) && poly.every(isPoints));
     case "compoundPath":
       return node.fillRule === "evenodd" &&
         Array.isArray(node.components) && node.components.length > 0 &&
@@ -196,8 +201,7 @@ const isNode = (id: string, node: unknown): boolean => {
           COMPOUND_COMPONENT_TYPES.has(component.type as ShapeType) &&
           typeof component.id === "string" &&
           isNode(component.id, component) &&
-          (component.type !== "path" || component.closed === true) &&
-          (component.type !== "bezier" ||
+          (component.type !== "path" ||
             (component.subpaths as unknown[]).length > 0 &&
             (component.subpaths as Array<{ closed?: unknown }>).every((sp) => sp.closed === true)));
     default:
@@ -238,11 +242,62 @@ export function parseDocument(text: string): Document {
   ) {
     data.document.scripts = {};
   }
+  if (data.version !== CURRENT_FILE_VERSION && isObject(data.document)) {
+    migrateUnifiedPaths(data.document);
+  }
   if (!isCurrentDocument(data.document)) {
     throw new Error("Document data is missing or malformed.");
   }
   validateTree(data.document);
   return structuredClone(data.document);
+}
+
+/** Convert pre-v21 path/bezier/polygon nodes to the canonical path layout. */
+function migrateUnifiedPaths(doc: Record<string, unknown>): void {
+  const nodes = doc.nodes;
+  if (!isObject(nodes)) return;
+  const migrate = (node: unknown): void => {
+    if (!isObject(node)) return;
+    if (node.type === "compoundPath" && Array.isArray(node.components)) {
+      node.components.forEach(migrate);
+      return;
+    }
+    if (node.type === "bezier") {
+      node.type = "path";
+      return;
+    }
+    if (node.type === "path") {
+      const points = node.points;
+      node.subpaths = Array.isArray(points)
+        ? [{
+            anchors: points.map((p) => ({ p, hIn: null, hOut: null })),
+            closed: node.closed,
+          }]
+        : points;
+      delete node.points;
+      delete node.closed;
+      return;
+    }
+    if (node.type === "polygon") {
+      const polys = node.polys;
+      node.type = "path";
+      node.fillRule = "evenodd";
+      node.subpaths = Array.isArray(polys)
+        ? polys.flatMap((poly) =>
+            Array.isArray(poly)
+              ? poly.map((ring) => ({
+                  anchors: Array.isArray(ring)
+                    ? ring.map((p) => ({ p, hIn: null, hOut: null }))
+                    : ring,
+                  closed: true,
+                }))
+              : [{ anchors: poly, closed: true }]
+          )
+        : polys;
+      delete node.polys;
+    }
+  };
+  Object.values(nodes).forEach(migrate);
 }
 
 /** Convert pre-v10 string fill/stroke to structured Paint, in place. */

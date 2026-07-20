@@ -58,9 +58,6 @@ export function transformShape(shape: Shape, fn: (p: Vec2) => Vec2): Shape {
       return { ...shape, x1: a.x, y1: a.y, x2: b.x, y2: b.y, transformOrigin };
     }
     case "path": {
-      return { ...shape, points: shape.points.map(fn), transformOrigin };
-    }
-    case "bezier": {
       return {
         ...shape,
         subpaths: shape.subpaths.map((sp) => ({
@@ -71,13 +68,6 @@ export function transformShape(shape: Shape, fn: (p: Vec2) => Vec2): Shape {
             hOut: an.hOut ? fn(an.hOut) : null,
           })),
         })),
-        transformOrigin,
-      };
-    }
-    case "polygon": {
-      return {
-        ...shape,
-        polys: shape.polys.map((poly) => poly.map((ring) => ring.map(fn))),
         transformOrigin,
       };
     }

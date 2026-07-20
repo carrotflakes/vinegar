@@ -55,58 +55,53 @@ const pointOrNull = (v: unknown, fallback: Vec2 | null): Vec2 | null => {
     : fallback;
 };
 
-function validPoints(v: unknown): Vec2[] | null {
-  if (!Array.isArray(v)) return null;
-  const pts = v
-    .filter(
-      (p): p is Vec2 => !!p && Number.isFinite(p.x) && Number.isFinite(p.y)
-    )
-    .map((p) => ({ x: p.x, y: p.y }));
-  return pts.length >= 2 ? pts : null;
-}
-
 type AnchorLike = { p: Vec2; hIn: Vec2 | null; hOut: Vec2 | null };
 
+function validPoint(v: unknown): Vec2 | null {
+  if (!v || typeof v !== "object" || Array.isArray(v)) return null;
+  const point = v as Record<string, unknown>;
+  return Number.isFinite(point.x) && Number.isFinite(point.y)
+    ? { x: point.x as number, y: point.y as number }
+    : null;
+}
+
 function validAnchors(v: unknown): AnchorLike[] | null {
-  if (!Array.isArray(v)) return null;
-  const ok = (p: unknown): p is Vec2 =>
-    !!p &&
-    Number.isFinite((p as Vec2).x) &&
-    Number.isFinite((p as Vec2).y);
-  const anchors = v
-    .filter((a) => a && ok(a.p))
-    .map((a) => ({
-      p: { x: a.p.x, y: a.p.y },
-      hIn: ok(a.hIn) ? { x: a.hIn.x, y: a.hIn.y } : null,
-      hOut: ok(a.hOut) ? { x: a.hOut.x, y: a.hOut.y } : null,
-    }));
-  return anchors.length >= 2 ? anchors : null;
+  if (!Array.isArray(v) || v.length < 2) return null;
+  const anchors: AnchorLike[] = [];
+  for (const value of v) {
+    if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+    const anchor = value as Record<string, unknown>;
+    const p = validPoint(anchor.p);
+    const hIn = anchor.hIn === null ? null : validPoint(anchor.hIn);
+    const hOut = anchor.hOut === null ? null : validPoint(anchor.hOut);
+    if (!p || (anchor.hIn !== null && !hIn) || (anchor.hOut !== null && !hOut)) {
+      return null;
+    }
+    anchors.push({ p, hIn, hOut });
+  }
+  return anchors;
 }
 
 function validSubpaths(
   v: unknown
 ): { anchors: AnchorLike[]; closed: boolean }[] | null {
-  if (!Array.isArray(v)) return null;
-  const subpaths = v.flatMap((sp) => {
-    if (!sp || typeof sp !== "object") return [];
-    const anchors = validAnchors((sp as Record<string, unknown>).anchors);
-    return anchors
-      ? [{ anchors, closed: !!(sp as Record<string, unknown>).closed }]
-      : [];
-  });
-  return subpaths.length > 0 ? subpaths : null;
+  if (!Array.isArray(v) || v.length === 0) return null;
+  const subpaths: { anchors: AnchorLike[]; closed: boolean }[] = [];
+  for (const value of v) {
+    if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+    const subpath = value as Record<string, unknown>;
+    const anchors = validAnchors(subpath.anchors);
+    if (!anchors || typeof subpath.closed !== "boolean") return null;
+    subpaths.push({ anchors, closed: subpath.closed });
+  }
+  return subpaths;
 }
 
-function validPolys(v: unknown): Vec2[][][] | null {
-  if (!Array.isArray(v)) return null;
-  const polys = v
-    .map((poly) =>
-      Array.isArray(poly)
-        ? poly.map((ring) => validPoints(ring)).filter((r): r is Vec2[] => !!r)
-        : []
-    )
-    .filter((poly) => poly.length > 0);
-  return polys.length > 0 ? polys : null;
+function validFillRule(
+  value: unknown
+): "nonzero" | "evenodd" | undefined | null {
+  if (value === undefined) return undefined;
+  return value === "nonzero" || value === "evenodd" ? value : null;
 }
 
 /** Build a new shape from a created spec (rect/ellipse/line/path). */
@@ -161,9 +156,15 @@ function buildCreated(spec: Record<string, unknown>): Shape | null {
         y2: num(spec.y2),
       } as Shape;
     case "path": {
-      const points = validPoints(spec.points);
-      if (!points) return null;
-      return { ...base, type: "path", points, closed: !!spec.closed } as Shape;
+      const subpaths = validSubpaths(spec.subpaths);
+      const fillRule = validFillRule(spec.fillRule);
+      if (!subpaths || fillRule === null) return null;
+      return {
+        ...base,
+        type: "path",
+        subpaths,
+        fillRule,
+      } as Shape;
     }
     default:
       return null;
@@ -217,15 +218,8 @@ function reconcile(existing: Shape, edited: Record<string, unknown>): Shape {
       base.y2 = num(edited.y2, existing.y2);
       break;
     case "path":
-      base.points = validPoints(edited.points) ?? existing.points;
-      base.closed =
-        typeof edited.closed === "boolean" ? edited.closed : existing.closed;
-      break;
-    case "bezier":
       base.subpaths = validSubpaths(edited.subpaths) ?? existing.subpaths;
-      break;
-    case "polygon":
-      base.polys = validPolys(edited.polys) ?? existing.polys;
+      base.fillRule = validFillRule(edited.fillRule) ?? existing.fillRule;
       break;
   }
   return base as unknown as Shape;

@@ -1,4 +1,4 @@
-import type { BezierAnchor, Vec2 } from "./types";
+import type { PathAnchor, Vec2 } from "./types";
 
 /** Perpendicular distance from point p to the infinite line through a, b. */
 function perpDistance(p: Vec2, a: Vec2, b: Vec2): number {
@@ -43,9 +43,9 @@ export function simplifyPath(points: Vec2[], epsilon: number): Vec2[] {
  * Convert a polyline into smooth Bézier anchors using a Catmull-Rom tangent
  * (handles = ±(next − prev) / 6). The result is editable with the node tool.
  */
-export function pointsToAnchors(points: Vec2[], closed: boolean): BezierAnchor[] {
+export function pointsToAnchors(points: Vec2[], closed: boolean): PathAnchor[] {
   const n = points.length;
-  const anchors: BezierAnchor[] = [];
+  const anchors: PathAnchor[] = [];
   for (let i = 0; i < n; i++) {
     const p = points[i];
     const prev = points[i - 1] ?? (closed ? points[n - 1] : p);

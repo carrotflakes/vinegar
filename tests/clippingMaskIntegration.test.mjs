@@ -100,13 +100,17 @@ function editableDocument() {
   doc.nodes.mask = {
     id: "mask",
     name: "mask",
-    type: "polygon",
-    polys: [[[
-      { x: 20, y: 10 },
-      { x: 100, y: 10 },
-      { x: 100, y: 90 },
-      { x: 20, y: 90 },
-    ]]],
+    type: "path",
+    fillRule: "evenodd",
+    subpaths: [{
+      anchors: [
+        { x: 20, y: 10 },
+        { x: 100, y: 10 },
+        { x: 100, y: 90 },
+        { x: 20, y: 90 },
+      ].map((p) => ({ p, hIn: null, hOut: null })),
+      closed: true,
+    }],
     fill: paint("#22c55e"),
     stroke: paint("#0f172a"),
     strokeWidth: 9,
@@ -211,7 +215,7 @@ test("Canvas, SVG, bounds, and v15 serialization share the clipping model", () =
   assert.doesNotMatch(svg, /isolation:isolate/);
 
   const json = serializeDocument(doc);
-  assert.equal(JSON.parse(json).version, 20);
+  assert.equal(JSON.parse(json).version, 21);
   const loaded = parseDocument(json);
   assert.equal(loaded.nodes.clip.clip, true);
   assert.deepEqual(loaded.nodes.clip.childIds, ["content", "mask"]);
@@ -219,6 +223,11 @@ test("Canvas, SVG, bounds, and v15 serialization share the clipping model", () =
   const old = JSON.parse(json);
   old.version = 14;
   delete old.document.nodes.clip.clip;
+  const oldMask = old.document.nodes.mask;
+  oldMask.type = "polygon";
+  oldMask.polys = [[oldMask.subpaths[0].anchors.map((anchor) => anchor.p)]];
+  delete oldMask.subpaths;
+  delete oldMask.fillRule;
   assert.equal(parseDocument(JSON.stringify(old)).nodes.clip.clip, undefined);
 
   const falseClip = JSON.parse(json);
@@ -256,7 +265,7 @@ test("copy and paste retain clipping-group structure", () => {
   assert.equal(pasted.type, "group");
   assert.equal(pasted.clip, true);
   assert.equal(pasted.childIds.length, 2);
-  assert.equal(state.doc.nodes[pasted.childIds[1]].type, "polygon");
+  assert.equal(state.doc.nodes[pasted.childIds[1]].type, "path");
 });
 
 test("nested masks get distinct SVG definitions and invalid tree edits are refused", () => {

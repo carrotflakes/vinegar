@@ -32,10 +32,10 @@ const anchor = (x, y, patch = {}) => ({
   ...patch,
 });
 
-const bezier = () => ({
+const pathShape = () => ({
   id: "curve",
   name: "Curve",
-  type: "bezier",
+  type: "path",
   subpaths: [
     {
       anchors: [
@@ -69,7 +69,7 @@ const context = () => ({
 });
 
 test("Shift-click adds and removes anchors from the node selection", () => {
-  const crowded = bezier();
+  const crowded = pathShape();
   // This handle overlaps the next anchor's grab box. Shift-selection must
   // still prefer the anchor under the pointer.
   crowded.subpaths[0].anchors[0].hOut = { x: 2, y: 0 };
@@ -109,7 +109,7 @@ test("Shift-click adds and removes anchors from the node selection", () => {
 });
 
 test("cancelling a dirty node drag restores geometry and keeps the node selection", () => {
-  useEditor.getState().addShape(bezier());
+  useEditor.getState().addShape(pathShape());
   useEditor.getState().setTool("node");
   const selected = [
     { shapeId: "curve", sub: 0, index: 0 },
@@ -146,7 +146,7 @@ test("cancelling a dirty node drag restores geometry and keeps the node selectio
 });
 
 test("cancelling an inserted anchor restores the prior valid node selection", () => {
-  const wide = bezier();
+  const wide = pathShape();
   wide.subpaths[0].anchors = [
     anchor(0, 0),
     anchor(100, 0),
@@ -181,7 +181,7 @@ test("cancelling an inserted anchor restores the prior valid node selection", ()
 });
 
 test("dragging an already-selected anchor moves the full selection in one undo step", () => {
-  useEditor.getState().addShape(bezier());
+  useEditor.getState().addShape(pathShape());
   useEditor.getState().setTool("node");
   useEditor.getState().setEditNodes([
     { shapeId: "curve", sub: 0, index: 0 },

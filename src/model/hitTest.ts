@@ -1,4 +1,4 @@
-import { flattenSubpath } from "./bezier";
+import { flattenSubpath } from "./path";
 import { cachedBrushEnvelope } from "./brushOutline";
 import {
   expandBounds,
@@ -119,8 +119,6 @@ function containsGeometry(
       return nx * nx + ny * ny <= 1;
     }
     case "path":
-      return shape.points.length >= 3 && containsRings([shape.points], p, rule);
-    case "bezier":
       return containsRings(
         shape.subpaths
           .filter((subpath) => subpath.anchors.length >= 2)
@@ -130,8 +128,6 @@ function containsGeometry(
         p,
         rule
       );
-    case "polygon":
-      return containsRings(shape.polys.flat(), p, rule);
     case "brush":
       // The envelope fills with nonzero winding regardless of the caller's rule.
       return containsRings([cachedBrushEnvelope(shape)], p, "nonzero");
@@ -146,10 +142,6 @@ function containsGeometry(
     case "text":
       return false;
   }
-}
-
-function containsLocal(shape: Shape, p: Vec2): boolean {
-  return containsTransformedGeometry(shape, p, shapeFillRule(shape));
 }
 
 function strokesLocal(shape: Shape, p: Vec2, tolerance: number): boolean {
@@ -284,32 +276,18 @@ export function hitTestShape(doc: Document, shape: Shape, p: Vec2, tol: number):
       );
     }
     case "path": {
-      const inside =
-        shape.points.length >= 3 && pointInPolygon(p, shape.points);
-      if (hasFill && inside) return true;
-      return hitsStroke(distToPolyline(p, shape.points, shape.closed), inside);
-    }
-    case "bezier": {
-      const inside = shape.subpaths.reduce(
-        (acc, subpath) =>
-          subpath.anchors.length >= 2
-            ? acc !== pointInPolygon(p, flattenSubpath(subpath))
-            : acc,
-        false
+      const rings = shape.subpaths
+        .filter((subpath) => subpath.anchors.length >= 2)
+        .map((subpath) => flattenSubpath(subpath));
+      const inside = containsRings(
+        rings,
+        p,
+        shape.fillRule ?? "nonzero"
       );
       if (hasFill && inside) return true;
       return shape.subpaths.some((sp) =>
         hitsStroke(distToPolyline(p, flattenSubpath(sp), sp.closed), inside)
       );
-    }
-    case "polygon": {
-      const rings = shape.polys.flat();
-      const inside = rings.reduce((acc, ring) => acc !== pointInPolygon(p, ring), false);
-      if (hasFill && inside) return true;
-      for (const ring of rings) {
-        if (hitsStroke(distToPolyline(p, ring, true), inside)) return true;
-      }
-      return false;
     }
     case "brush": {
       // The whole nonzero-filled envelope is the visible mark; `tol` adds a
@@ -321,7 +299,8 @@ export function hitTestShape(doc: Document, shape: Shape, p: Vec2, tol: number):
     }
     case "compoundPath": {
       const inside = shape.components.reduce(
-        (inside, component) => inside !== containsLocal(component, p),
+        (inside, component) =>
+          inside !== containsTransformedGeometry(component, p, "evenodd"),
         false
       );
       if (hasFill && inside) return true;
@@ -589,16 +568,12 @@ function localPolylines(shape: Shape): WorldPolyline[] {
         closed: false,
       }];
     case "path":
-      return [{ points: shape.points, closed: shape.closed }];
-    case "bezier":
       return shape.subpaths.map((sp) => ({
         points: flattenSubpath(sp),
         closed: sp.closed,
       }));
     case "brush":
       return [{ points: cachedBrushEnvelope(shape), closed: true }];
-    case "polygon":
-      return shape.polys.flat().map((points) => ({ points, closed: true }));
     case "compoundPath":
       return shape.components.flatMap((component) =>
         localPolylines(component).map((line) => ({

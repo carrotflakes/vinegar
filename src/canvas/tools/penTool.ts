@@ -1,4 +1,4 @@
-import { reverseBezier } from "../../model/bezier";
+import { reversePath } from "../../model/path";
 import { isShapeHidden, isShapeLocked } from "../../model/groups";
 import {
   applyMatrix,
@@ -6,7 +6,7 @@ import {
   shapeWorldMatrix,
 } from "../../model/matrix";
 import { isShape, scopeLeafIds } from "../../model/scene";
-import { makeId, type BezierShape, type Shape, type Vec2 } from "../../model/types";
+import { makeId, type PathShape, type Shape, type Vec2 } from "../../model/types";
 import { worldToScreen } from "../../model/viewport";
 import {
   currentSymbolScope,
@@ -19,7 +19,7 @@ import { EMPTY_EXCLUDE, pointSnap } from "../picking";
 import { constrain45 } from "../util";
 
 /** The single subpath a pen draft works on. */
-function draftSubpath(draft: BezierShape) {
+function draftSubpath(draft: PathShape) {
   return draft.subpaths[0];
 }
 
@@ -85,7 +85,7 @@ export function pickOpenEndpoint(
   ctx: ToolContext,
   state: EditorState,
   screen: Vec2
-): { shape: BezierShape; end: "start" | "end" } | null {
+): { shape: PathShape; end: "start" | "end" } | null {
   const tol = NODE_GRAB * ctx.hitScale();
   const { doc, viewport } = state;
   const near = (shape: Shape, w: Vec2) => {
@@ -100,7 +100,7 @@ export function pickOpenEndpoint(
     const s = doc.nodes[ids[i]];
     if (
       !isShape(s) ||
-      s.type !== "bezier" ||
+      s.type !== "path" ||
       // Only single-subpath open curves can be picked up and continued.
       s.subpaths.length !== 1 ||
       s.subpaths[0].closed ||
@@ -145,7 +145,7 @@ export function onPenDown(
     const pick = pickOpenEndpoint(ctx, state, screen);
     if (pick) {
       const picked =
-        pick.end === "start" ? reverseBezier(pick.shape) : pick.shape;
+        pick.end === "start" ? reversePath(pick.shape) : pick.shape;
       // Continuing a generated path by hand overrides its geometry, so drop the
       // generator link (kept off both draft and baseline so a no-op pickup that
       // changes nothing still compares equal and leaves the shape untouched).
@@ -161,10 +161,10 @@ export function onPenDown(
       ctx.scheduleDraw();
       return;
     }
-    const shape: BezierShape = {
-      id: makeId("bezier"),
+    const shape: PathShape = {
+      id: makeId("path"),
       name: "Curve",
-      type: "bezier",
+      type: "path",
       subpaths: [
         { anchors: [{ p: world, hIn: null, hOut: null }], closed: false },
       ],
