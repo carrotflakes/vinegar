@@ -55,3 +55,7 @@ export const notify = {
   info: (message: string, timeout?: number | null) =>
     useToasts.getState().push("info", message, timeout),
 };
+
+/** Report a completed conversion that could not carry node effects forward. */
+export const notifyEffectsRemoved = () =>
+  notify.info("Some effects were removed by this operation.");

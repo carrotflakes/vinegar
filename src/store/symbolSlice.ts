@@ -34,6 +34,7 @@ import {
   type StoreCtx,
   type SymbolActions,
 } from "./state";
+import { notifyEffectsRemoved } from "./toastStore";
 
 export function createSymbolActions({ set, get, transact }: StoreCtx): SymbolActions {
   return {
@@ -83,11 +84,12 @@ export function createSymbolActions({ set, get, transact }: StoreCtx): SymbolAct
       transact(next); set({ selection: [id], ...clearTransient });
     },
     detachSelectedInstances: () => {
-      let doc = get().doc; const selected: string[] = [];
+      let doc = get().doc; const selected: string[] = []; let effectsRemoved = false;
       for (const id of selectionRoots(doc, get().selection)) {
         const inst = doc.nodes[id];
         if (!isInstance(inst)) continue;
         const def = doc.symbols[inst.symbolId]; if (!def) continue;
+        effectsRemoved ||= !!inst.effects?.length || !!doc.nodes[def.rootNodeId]?.effects?.length;
         const contentIds = childIdsOf(doc, def.rootNodeId);
         const all = contentIds.flatMap((cid) => [cid, ...descendantNodeIds(doc, cid)]);
         const payloadNodes: Record<string, SceneNode> = {};
@@ -108,7 +110,7 @@ export function createSymbolActions({ set, get, transact }: StoreCtx): SymbolAct
         doc = replaceChildren({ ...doc, nodes }, parent, order);
         selected.push(gid);
       }
-      if (selected.length) { transact(doc); set({ selection: selected, ...clearTransient }); }
+      if (selected.length) { transact(doc); set({ selection: selected, ...clearTransient }); if (effectsRemoved) notifyEffectsRemoved(); }
     },
     enterSymbolEdit: (symbolId) => { const s = get(); if (!s.doc.symbols[symbolId] || s.editingSymbols.includes(symbolId)) return; set({ editingSymbols: [...s.editingSymbols, symbolId], activeGroupId: null, selection: [], ...clearTransient }); },
     exitSymbolEdit: () => { const s = get(); if (!s.editingSymbols.length) return; set({ editingSymbols: s.editingSymbols.slice(0, -1), activeGroupId: null, selection: [], ...clearTransient }); },
