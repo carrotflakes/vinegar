@@ -1,10 +1,12 @@
 import { compoundChildren } from "./compoundPath";
+import { cachedBrushEnvelope } from "./brushOutline";
 import { ellipseSubpath } from "./ellipse";
 import { applyMatrix } from "./matrix";
 import { roundedRectSubpath } from "./roundedRect";
 import { strokeDetailFields } from "./stroke";
 import type {
   CompoundPathNode,
+  BrushShape,
   Document,
   EllipseShape,
   LineShape,
@@ -20,6 +22,7 @@ export type PathConvertibleShape =
   | RectShape
   | EllipseShape
   | LineShape
+  | BrushShape
   | CompoundPathNode;
 
 export function canConvertShapeToPath(
@@ -28,6 +31,7 @@ export function canConvertShapeToPath(
   return node?.type === "rect" ||
     node?.type === "ellipse" ||
     node?.type === "line" ||
+    node?.type === "brush" ||
     node?.type === "compoundPath";
 }
 
@@ -65,6 +69,15 @@ function transformSubpath(subpath: PathSubpath, matrix: Matrix): PathSubpath {
   };
 }
 
+function brushSubpaths(shape: BrushShape): PathSubpath[] {
+  const ring = cachedBrushEnvelope(shape);
+  if (ring.length < 3) return [];
+  return [{
+    closed: true,
+    anchors: ring.map((p) => ({ p: { ...p }, hIn: null, hOut: null })),
+  }];
+}
+
 /** Convert supported shape geometry to an editable path without changing appearance. */
 export function convertShapeToPath(
   shape: PathConvertibleShape,
@@ -76,16 +89,23 @@ export function convertShapeToPath(
           transformSubpath(subpath, child.transform)
         )
       )
-    : primitiveSubpaths(shape);
+    : shape.type === "brush"
+      ? brushSubpaths(shape)
+      : primitiveSubpaths(shape);
+  const brush = shape.type === "brush";
   return {
     id: shape.id,
     name: shape.name,
     type: "path",
     subpaths,
-    fillRule: shape.type === "compoundPath" ? "evenodd" : undefined,
-    fill: shape.fill,
-    stroke: shape.stroke,
-    strokeWidth: shape.strokeWidth,
+    fillRule: shape.type === "compoundPath"
+      ? "evenodd"
+      : brush
+        ? "nonzero"
+        : undefined,
+    fill: brush ? shape.stroke : shape.fill,
+    stroke: brush ? null : shape.stroke,
+    strokeWidth: brush ? 0 : shape.strokeWidth,
     ...strokeDetailFields(shape),
     opacity: shape.opacity,
     blendMode: shape.blendMode,

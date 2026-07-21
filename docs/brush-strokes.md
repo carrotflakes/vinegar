@@ -6,9 +6,9 @@ sampling, pressure curve, EMA stabilizer, taper, width-aware fit, minimal palm
 rejection) all landed, plus stroke collection into an active drawing group
 (see "Stroke container" below), the vector eraser, and node-tool editing of
 brush anchors (move/insert/delete/smooth-toggle with the width preserved; a
-brush is treated as one open subpath). Phase 3 remainder: per-anchor width
-editing (a width tool), Outline Stroke conversion, and an incremental preview
-envelope. Deviations from the original draft below: brush
+brush is treated as one open subpath). Brush envelopes can also be converted to
+ordinary nonzero-filled paths. Phase 3 remainder: per-anchor width editing (a
+width tool) and an incremental preview envelope. Deviations from the original draft below: brush
 size lives in a dedicated persisted `brushStore` (not the shared style
 `strokeWidth`); the Brush tool binds `B` and Pencil moved to `Shift+B`.
 
@@ -209,10 +209,12 @@ scope for v1.
   active anchor (or the whole brush below two), and double-click toggles
   corner/smooth. Per-anchor width editing (an Illustrator-style width tool) is
   still deferred.
-- **Outline Stroke** on a brush: Clipper-union the envelope into a
-  data-driven even-odd `PathShape` (extends the existing command), which also unlocks boolean
-  ops — brush shapes themselves stay out of `PrimitiveShape` and out of
-  boolean/compound-path inputs.
+- **Convert to path** on a brush (shipped): copy the same cached envelope used
+  by rendering and hit-testing into a data-driven nonzero `PathShape`. This
+  preserves self-intersections exactly as rendered and unlocks ordinary path
+  editing and boolean operations; the pressure-aware centerline is discarded.
+  Brush shapes themselves stay out of `PrimitiveShape` and out of boolean/
+  compound-path inputs until converted.
 - **Vector eraser** (Eraser tool, `E`): a centerline-split eraser. The drag is
   a world-space path of radius `eraserSize / 2`; `eraseBrush` (`model/eraser.ts`)
   samples each overlapped centerline adaptively to locate entry/exit parameters,

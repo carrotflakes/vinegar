@@ -277,7 +277,7 @@ export interface StructureActions {
   releaseClippingMaskSelected: () => void;
   alignSelected: (type: AlignType) => void;
   distributeSelected: (axis: "h" | "v") => void;
-  /** Replace selected primitives and compound paths with editable paths. */
+  /** Replace selected primitives, brushes and compound paths with editable paths. */
   convertSelectedToPaths: () => void;
   outlineStrokeSelected: () => void;
   booleanSelected: (op: BoolOp) => void;

@@ -4,6 +4,7 @@ import { createServer } from "vite";
 
 let server;
 let canConvertShapeToPath;
+let cachedBrushEnvelope;
 let convertShapeToPath;
 let createEmptyDocument;
 let shapeBounds;
@@ -13,6 +14,8 @@ before(async () => {
   server = await createServer({ server: { middlewareMode: true } });
   ({ canConvertShapeToPath, convertShapeToPath } =
     await server.ssrLoadModule("/src/model/convertToPath.ts"));
+  ({ cachedBrushEnvelope } =
+    await server.ssrLoadModule("/src/model/brushOutline.ts"));
   ({ createEmptyDocument } =
     await server.ssrLoadModule("/src/model/types.ts"));
   ({ shapeBounds } = await server.ssrLoadModule("/src/model/bounds.ts"));
@@ -55,6 +58,32 @@ const rect = (id, patch = {}) => ({
   height: 40,
   cornerRadius: 8,
   ...appearance(),
+  ...patch,
+});
+
+const brush = (id, patch = {}) => ({
+  id,
+  name: id,
+  type: "brush",
+  anchors: [
+    {
+      p: { x: 0, y: 0 },
+      hIn: null,
+      hOut: { x: 15, y: -5 },
+      w: 0.5,
+    },
+    {
+      p: { x: 40, y: 20 },
+      hIn: { x: 25, y: 25 },
+      hOut: null,
+      w: 1.5,
+    },
+  ],
+  ...appearance({
+    fill: solid("#abcdef"),
+    stroke: solid("#8844ff"),
+    strokeWidth: 12,
+  }),
   ...patch,
 });
 
@@ -166,6 +195,33 @@ test("compound conversion bakes visible child transforms into even-odd subpaths"
   assert.deepEqual(path.effects, doc.nodes.compound.effects);
 });
 
+test("brush conversion expands the rendered envelope into a nonzero filled path", () => {
+  const doc = createEmptyDocument();
+  const source = brush("Pressure stroke");
+  const ring = cachedBrushEnvelope(source);
+
+  assert.equal(canConvertShapeToPath(source), true);
+  assert.ok(ring.length > source.anchors.length);
+  const path = convertShapeToPath(source, doc);
+
+  assert.equal(path.fillRule, "nonzero");
+  assert.deepEqual(path.fill, source.stroke);
+  assert.equal(path.stroke, null);
+  assert.equal(path.strokeWidth, 0);
+  assert.equal(path.subpaths.length, 1);
+  assert.equal(path.subpaths[0].closed, true);
+  assert.deepEqual(
+    path.subpaths[0].anchors.map((anchor) => anchor.p),
+    ring
+  );
+  assert.ok(path.subpaths[0].anchors.every((anchor) =>
+    anchor.hIn === null && anchor.hOut === null
+  ));
+  assert.deepEqual(shapeBounds(path), shapeBounds(source));
+  assert.deepEqual(path.transform, source.transform);
+  assert.deepEqual(path.effects, source.effects);
+});
+
 test("store conversion removes compound children in one undoable transaction", () => {
   const doc = createEmptyDocument();
   doc.nodes.a = rect("a", { transform: [...IDENTITY] });
@@ -204,4 +260,30 @@ test("store conversion removes compound children in one undoable transaction", (
   assert.equal(state.doc.nodes.compound.type, "path");
   assert.equal(state.doc.nodes.a, undefined);
   assert.equal(state.doc.nodes.b, undefined);
+});
+
+test("store conversion replaces a brush in one undoable transaction", () => {
+  const doc = createEmptyDocument();
+  doc.nodes.brush = brush("brush");
+  doc.rootIds = ["brush"];
+
+  useEditor.getState().loadDocument(doc);
+  useEditor.getState().setSelection(["brush"]);
+  const historyLength = useEditor.getState().history.past.length;
+  useEditor.getState().convertSelectedToPaths();
+
+  let state = useEditor.getState();
+  assert.equal(state.history.past.length, historyLength + 1);
+  assert.deepEqual(state.selection, ["brush"]);
+  assert.equal(state.doc.nodes.brush.type, "path");
+  assert.deepEqual(state.doc.nodes.brush.fill, doc.nodes.brush.stroke);
+  assert.equal(state.doc.nodes.brush.stroke, null);
+
+  state.undo();
+  state = useEditor.getState();
+  assert.equal(state.doc.nodes.brush.type, "brush");
+  assert.equal(state.doc.nodes.brush.strokeWidth, 12);
+
+  state.redo();
+  assert.equal(useEditor.getState().doc.nodes.brush.type, "path");
 });
