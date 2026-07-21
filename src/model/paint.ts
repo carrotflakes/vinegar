@@ -152,7 +152,7 @@ export function sortedStops(stops: GradientStop[]): GradientStop[] {
 }
 
 /** Parse `#rgb`/`#rrggbb` to 0-255 channels (black on malformed input). */
-function hexToRgb(hex: string): { r: number; g: number; b: number } {
+export function hexToRgb(hex: string): { r: number; g: number; b: number } {
   let h = hex.trim().replace("#", "").toLowerCase();
   if (h.length === 3) h = h.split("").map((c) => c + c).join("");
   const n = parseInt(h, 16);

@@ -26,7 +26,7 @@ export const isContainer = (
 export const isShape = (node: SceneNode | undefined): node is Shape =>
   !!node && node.type !== "group" && node.type !== "instance";
 
-const childIdsOfNode = (
+export const childIdsOfNode = (
   node: SceneNode | undefined
 ): string[] => isContainer(node) ? node.childIds : [];
 
@@ -144,7 +144,7 @@ export function scopeRootIds(doc: Document, scope: string | null): string[] {
 }
 
 /** Symbol ids reachable from `symbolId`'s definition, including itself. */
-function reachableSymbols(doc: Document, symbolId: string): Set<string> {
+export function reachableSymbols(doc: Document, symbolId: string): Set<string> {
   const seen = new Set<string>();
   const visitSymbol = (id: string) => {
     if (seen.has(id)) return;
