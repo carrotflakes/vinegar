@@ -48,12 +48,17 @@ ids for its endpoints:
 
 ```typescript
 interface HistoryEntry {
+  label?: string;
   patches: DocumentPatch[];
   inversePatches: DocumentPatch[];
   beforeRevision: number;
   afterRevision: number;
 }
 ```
+
+Callers may attach a short semantic `label` when committing a transaction or
+starting a pointer interaction. The History panel uses it when present and
+falls back to deriving a generic label from the patches for unlabeled entries.
 
 Map-like fields (`nodes`, `symbols`, `assets` and `extensions`) are patched by
 key. `rootIds` and `artboards` use a single changed-range splice. Small

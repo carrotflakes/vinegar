@@ -5,11 +5,14 @@ import { createServer } from "vite";
 let server;
 let createEmptyDocument;
 let hasUnsavedChanges;
+let labelForEntry;
 let useEditor;
 
 before(async () => {
   server = await createServer({ server: { middlewareMode: true } });
   ({ createEmptyDocument } = await server.ssrLoadModule("/src/model/types.ts"));
+  ({ labelForEntry } =
+    await server.ssrLoadModule("/src/ui/panels/history/historyLabels.ts"));
   ({ hasUnsavedChanges, useEditor } =
     await server.ssrLoadModule("/src/store/editorStore.ts"));
 });
@@ -75,6 +78,57 @@ test("history patches omit unchanged document payloads", () => {
   assert.equal(useEditor.getState().doc.assets[asset.id], asset);
   useEditor.getState().redo();
   assert.equal(useEditor.getState().doc.assets[asset.id], asset);
+});
+
+test("semantic history labels survive undo and redo", () => {
+  useEditor.getState().addShape(rect("rect-1"));
+  assert.equal(useEditor.getState().history.past.at(-1).label, "Add shape");
+
+  useEditor.getState().undo();
+  assert.equal(useEditor.getState().history.future[0].label, "Add shape");
+
+  useEditor.getState().redo();
+  assert.equal(useEditor.getState().history.past.at(-1).label, "Add shape");
+});
+
+test("coalesced transactions retain their semantic label", () => {
+  useEditor.getState().addShape(rect("rect-1"));
+  const historyLength = useEditor.getState().history.past.length;
+
+  useEditor.getState().updateSelectedStyle({ opacity: 0.8 });
+  useEditor.getState().updateSelectedStyle({ opacity: 0.6 });
+
+  assert.equal(useEditor.getState().history.past.length, historyLength + 1);
+  assert.equal(useEditor.getState().history.past.at(-1).label, "Edit style");
+});
+
+test("an interaction commits its semantic label", () => {
+  useEditor.getState().addShape(rect("rect-1"));
+  const before = useEditor.getState().doc;
+
+  useEditor.getState().beginInteraction("Move selection");
+  useEditor.getState().applyShapes({
+    "rect-1": { ...before.nodes["rect-1"], x: 30 },
+  });
+  useEditor.getState().endInteraction();
+
+  assert.equal(useEditor.getState().history.past.at(-1).label, "Move selection");
+});
+
+test("unlabeled entries retain the patch-derived fallback label", () => {
+  const node = rect("rect-1");
+  const entry = {
+    patches: [
+      { type: "map", field: "nodes", set: [[node.id, node]], remove: [] },
+    ],
+    inversePatches: [
+      { type: "map", field: "nodes", set: [], remove: [node.id] },
+    ],
+    beforeRevision: 1,
+    afterRevision: 2,
+  };
+
+  assert.equal(labelForEntry(entry), "Add 1 shape");
 });
 
 test("undo and redo return to the correct saved revision", () => {

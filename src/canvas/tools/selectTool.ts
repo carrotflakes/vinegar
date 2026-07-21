@@ -70,7 +70,7 @@ export function onSelectDown(
   const hit = hitFrameHandle(ctx, screen);
   if (hit?.type === "corner-radius") {
     const control = hit.control;
-    state.beginInteraction();
+    state.beginInteraction("Adjust corner radius");
     ctx.interaction.current = {
       kind: "corner-radius",
       shapeId: control.shapeId,
@@ -89,7 +89,7 @@ export function onSelectDown(
         ? state.doc.nodes[state.selection[0]]
         : null;
     const persistent = !!group || !!shape;
-    if (persistent) state.beginInteraction();
+    if (persistent) state.beginInteraction("Move transform origin");
     ctx.interaction.current = {
       kind: "pivot",
       groupId: group?.id,
@@ -105,7 +105,7 @@ export function onSelectDown(
     if (transient && !state.selectionPivot) {
       state.setSelectionPivot(frame.pivot);
     }
-    state.beginInteraction();
+    state.beginInteraction("Rotate selection");
     ctx.interaction.current = {
       kind: "rotate",
       pivot: frame.pivot,
@@ -127,7 +127,7 @@ export function onSelectDown(
       state.selection.length === 1 ? state.doc.nodes[state.selection[0]] : null;
     const lockAspect =
       !!single && isShape(single) && single.type === "image" && !!single.lockAspect;
-    state.beginInteraction();
+    state.beginInteraction("Resize selection");
     ctx.interaction.current = {
       kind: "resize",
       handle: hit.id,
@@ -178,7 +178,7 @@ export function onSelectDown(
         (s): s is Shape =>
           !selectedLeafIds.has(s.id) && !isShapeHidden(state.doc, s)
       );
-    state.beginInteraction();
+    state.beginInteraction("Move selection");
     ctx.interaction.current = {
       kind: "move",
       start: world,

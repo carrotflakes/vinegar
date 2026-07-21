@@ -40,18 +40,27 @@ export function createArtboardActions({ set, get, transact }: StoreCtx): Artboar
       const x = (at?.x ?? 0) - w / 2;
       const y = (at?.y ?? 0) - h / 2;
       const board = makeArtboard(x, y, w, h, `Artboard ${doc.artboards.length + 1}`);
-      transact({ ...doc, artboards: [...doc.artboards, board] });
+      transact(
+        { ...doc, artboards: [...doc.artboards, board] },
+        { label: "Add artboard" }
+      );
       set({ selectedArtboardId: board.id, selection: [] });
     },
     updateArtboard: (id, patch) => {
       const next = patchArtboard(get().doc, id, patch);
       if (next === get().doc) return;
-      transact(next, `artboard:${id}:${Object.keys(patch).sort().join(",")}`);
+      transact(next, {
+        label: "Edit artboard",
+        coalesceKey: `artboard:${id}:${Object.keys(patch).sort().join(",")}`,
+      });
     },
     deleteArtboard: (id) => {
       const { doc } = get();
       if (!doc.artboards.some((ab) => ab.id === id)) return;
-      transact({ ...doc, artboards: doc.artboards.filter((ab) => ab.id !== id) });
+      transact(
+        { ...doc, artboards: doc.artboards.filter((ab) => ab.id !== id) },
+        { label: "Delete artboard" }
+      );
       if (get().selectedArtboardId === id) set({ selectedArtboardId: null });
     },
     selectArtboard: (id) => {
@@ -66,7 +75,10 @@ export function createArtboardActions({ set, get, transact }: StoreCtx): Artboar
       const clamped = Math.max(0, Math.min(toIndex, artboards.length));
       if (clamped === from) return;
       artboards.splice(clamped, 0, moved);
-      transact({ ...doc, artboards }, `artboard:${id}:reorder`);
+      transact(
+        { ...doc, artboards },
+        { label: "Reorder artboard", coalesceKey: `artboard:${id}:reorder` }
+      );
     },
   };
 }

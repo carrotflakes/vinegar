@@ -48,7 +48,14 @@ export function createClipboardActions({ set, get, transact }: StoreCtx): Clipbo
         const bounds = unionNodeWorldBounds(temp, pasted.rootIds);
         if (bounds) { const dx = at.x - bounds.x - bounds.width / 2; const dy = at.y - bounds.y - bounds.height / 2; for (const id of pasted.rootIds) pasted.nodes[id] = { ...pasted.nodes[id], transform: multiply(translationMatrix(dx, dy), pasted.nodes[id].transform) }; }
       }
-      transact(appendToScope({ ...doc, nodes: { ...doc.nodes, ...pasted.nodes } }, scope, pasted.rootIds));
+      transact(
+        appendToScope(
+          { ...doc, nodes: { ...doc.nodes, ...pasted.nodes } },
+          scope,
+          pasted.rootIds
+        ),
+        { label: "Paste" }
+      );
       set({ selection: pasted.rootIds, ...clearTransient });
     },
     duplicateSelected: () => {
@@ -69,7 +76,7 @@ export function createClipboardActions({ set, get, transact }: StoreCtx): Clipbo
         for (const id of dup.rootIds) moved[id] = applyWorldTransformToNode(next, moved[id], translationMatrix(PASTE_OFFSET, PASTE_OFFSET));
         next = { ...next, nodes: moved }; allNew.push(...dup.rootIds);
       }
-      transact(next); set({ selection: allNew, ...clearTransient });
+      transact(next, { label: "Duplicate selection" }); set({ selection: allNew, ...clearTransient });
     },
   };
 }

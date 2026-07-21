@@ -105,7 +105,9 @@ export function createStructureActions({ set, get, transact }: StoreCtx): Struct
       if (!roots.length) return;
       const next = removeRoots(doc, roots);
       if (!hasValidSceneContainers(next)) return;
-      transact(next);
+      transact(next, {
+        label: roots.length === 1 ? "Delete shape" : `Delete ${roots.length} shapes`,
+      });
       set({ selection: [], ...clearTransient });
     },
     bringToFront: () => {
@@ -122,7 +124,7 @@ export function createStructureActions({ set, get, transact }: StoreCtx): Struct
         ]);
       }
       if (!hasValidSceneContainers(doc)) return;
-      transact(doc);
+      transact(doc, { label: "Bring to front" });
     },
     sendToBack: () => {
       let doc = get().doc;
@@ -138,14 +140,14 @@ export function createStructureActions({ set, get, transact }: StoreCtx): Struct
         ]);
       }
       if (!hasValidSceneContainers(doc)) return;
-      transact(doc);
+      transact(doc, { label: "Send to back" });
     },
     groupSelected: () => {
       const { doc } = get(); const roots = selectionRoots(doc, get().selection); if (roots.length < 2) return;
       const parent = parentIdOf(doc, roots[0]); if (!roots.every((id) => parentIdOf(doc, id) === parent)) return;
       const selected = new Set(roots); const siblings = childIdsOf(doc, parent); const members = siblings.filter((id) => selected.has(id)); const insert = siblings.indexOf(members[members.length - 1]); const rest = siblings.filter((id) => !selected.has(id)); const below = siblings.slice(0, insert).filter((id) => !selected.has(id)).length;
       const id = makeId("group"); rest.splice(below, 0, id);
-      let next = { ...doc, nodes: { ...doc.nodes, [id]: groupNode(id, members) } }; next = replaceChildren(next, parent, rest); if (!hasValidSceneContainers(next)) return; transact(next); set({ selection: [id], ...clearTransient });
+      let next = { ...doc, nodes: { ...doc.nodes, [id]: groupNode(id, members) } }; next = replaceChildren(next, parent, rest); if (!hasValidSceneContainers(next)) return; transact(next, { label: "Group selection" }); set({ selection: [id], ...clearTransient });
     },
     ungroupSelected: () => {
       const state = get();
@@ -155,7 +157,7 @@ export function createStructureActions({ set, get, transact }: StoreCtx): Struct
         roots
       );
       if (!result.selected.length || !hasValidSceneContainers(result.doc)) return;
-      transact(result.doc);
+      transact(result.doc, { label: "Ungroup selection" });
       set({
         selection: result.selected,
         activeGroupId:
@@ -195,7 +197,7 @@ export function createStructureActions({ set, get, transact }: StoreCtx): Struct
       };
       next = replaceChildren(next, parent, rest);
       if (!hasValidSceneContainers(next)) return;
-      transact(next);
+      transact(next, { label: "Make clipping mask" });
       set({ selection: [id], ...clearTransient });
     },
     releaseClippingMaskSelected: () => {
@@ -207,7 +209,7 @@ export function createStructureActions({ set, get, transact }: StoreCtx): Struct
       );
       const result = releaseGroups(doc, roots);
       if (!result.selected.length || !hasValidSceneContainers(result.doc)) return;
-      transact(result.doc);
+      transact(result.doc, { label: "Release clipping mask" });
       set({
         selection: result.selected,
         activeGroupId:
@@ -221,12 +223,18 @@ export function createStructureActions({ set, get, transact }: StoreCtx): Struct
     alignSelected: (type) => {
       const doc = get().doc; const items = selectionItems(doc, get().selection); const union = unionNodeWorldBounds(doc, items.map((i) => i.id)); if (items.length < 2 || !union) return; const nodes = { ...doc.nodes };
       for (const item of items) { const b = item.bounds; let dx = 0, dy = 0; if (type === "left") dx = union.x - b.x; if (type === "hcenter") dx = union.x + union.width / 2 - b.x - b.width / 2; if (type === "right") dx = union.x + union.width - b.x - b.width; if (type === "top") dy = union.y - b.y; if (type === "vmiddle") dy = union.y + union.height / 2 - b.y - b.height / 2; if (type === "bottom") dy = union.y + union.height - b.y - b.height; if (dx || dy) nodes[item.id] = applyWorldTransformToNode(doc, nodes[item.id], translationMatrix(dx, dy)); }
-      transact({ ...doc, nodes }); set(clearTransient);
+      transact(
+        { ...doc, nodes },
+        { label: `Align ${type === "hcenter" ? "horizontal centers" : type === "vmiddle" ? "vertical centers" : type}` }
+      ); set(clearTransient);
     },
     distributeSelected: (axis) => {
       const doc = get().doc; const items = selectionItems(doc, get().selection); if (items.length < 3) return; const horizontal = axis === "h"; const start = (b: Bounds) => horizontal ? b.x : b.y; const size = (b: Bounds) => horizontal ? b.width : b.height; const sorted = [...items].sort((a, b) => start(a.bounds) - start(b.bounds)); const last = sorted[sorted.length - 1]; const span = start(last.bounds) + size(last.bounds) - start(sorted[0].bounds); const gap = (span - sorted.reduce((n, x) => n + size(x.bounds), 0)) / (sorted.length - 1); const nodes = { ...doc.nodes }; let cursor = start(sorted[0].bounds) + size(sorted[0].bounds) + gap;
       for (const item of sorted.slice(1, -1)) { const d = cursor - start(item.bounds); nodes[item.id] = applyWorldTransformToNode(doc, nodes[item.id], translationMatrix(horizontal ? d : 0, horizontal ? 0 : d)); cursor += size(item.bounds) + gap; }
-      transact({ ...doc, nodes }); set(clearTransient);
+      transact(
+        { ...doc, nodes },
+        { label: `Distribute ${axis === "h" ? "horizontally" : "vertically"}` }
+      ); set(clearTransient);
     },
     convertSelectedToPaths: () => {
       const doc = get().doc;
@@ -249,7 +257,9 @@ export function createStructureActions({ set, get, transact }: StoreCtx): Struct
       }
       const next = { ...doc, nodes };
       if (!hasValidSceneContainers(next)) return;
-      transact(next);
+      transact(next, {
+        label: convertible.length === 1 ? "Convert to path" : "Convert to paths",
+      });
       set(clearTransient);
     },
     outlineStrokeSelected: () => {
@@ -262,10 +272,10 @@ export function createStructureActions({ set, get, transact }: StoreCtx): Struct
         if (isAreal(shape) && shape.fill) { const gid = makeId("group"); nodes[id] = { ...shape, stroke: null }; nodes[outline.id] = outline; nodes[gid] = groupNode(gid, [id, outline.id]); const order = [...siblings]; order.splice(at, 1, gid); doc = replaceChildren({ ...doc, nodes }, parent, order); selected.push(gid); }
         else { effectsRemoved ||= !!shape.effects?.length; for (const removed of [id, ...descendantNodeIds(doc, id)]) delete nodes[removed]; nodes[outline.id] = outline; const order = [...siblings]; order.splice(at, 1, outline.id); doc = replaceChildren({ ...doc, nodes }, parent, order); selected.push(outline.id); }
       }
-      if (selected.length && hasValidSceneContainers(doc)) { transact(doc); set({ selection: selected, ...clearTransient }); if (effectsRemoved) notifyEffectsRemoved(); }
+      if (selected.length && hasValidSceneContainers(doc)) { transact(doc, { label: "Outline stroke" }); set({ selection: selected, ...clearTransient }); if (effectsRemoved) notifyEffectsRemoved(); }
     },
     booleanSelected: (op) => {
-      const doc = get().doc; const roots = selectionRoots(doc, get().selection); if (roots.length < 2 || !roots.every((id) => isShape(doc.nodes[id]))) return; const parent = parentIdOf(doc, roots[0]); if (!roots.every((id) => parentIdOf(doc, id) === parent)) return; const siblings = childIdsOf(doc, parent); const selected = new Set(roots); const ordered = siblings.filter((id) => selected.has(id)); const effectsRemoved = ordered.some((id) => !!doc.nodes[id]?.effects?.length); const result = booleanShapes(ordered.map((id) => doc.nodes[id] as Shape), op, doc); if (!result) return; const nodes = { ...doc.nodes }; for (const id of roots.flatMap((root) => [root, ...descendantNodeIds(doc, root)])) delete nodes[id]; nodes[result.id] = result; const order = siblings.filter((id) => !selected.has(id)); order.splice(siblings.slice(0, siblings.indexOf(ordered[0])).filter((id) => !selected.has(id)).length, 0, result.id); const next = replaceChildren({ ...doc, nodes }, parent, order); if (!hasValidSceneContainers(next)) return; transact(next); set({ selection: [result.id], ...clearTransient }); if (effectsRemoved) notifyEffectsRemoved();
+      const doc = get().doc; const roots = selectionRoots(doc, get().selection); if (roots.length < 2 || !roots.every((id) => isShape(doc.nodes[id]))) return; const parent = parentIdOf(doc, roots[0]); if (!roots.every((id) => parentIdOf(doc, id) === parent)) return; const siblings = childIdsOf(doc, parent); const selected = new Set(roots); const ordered = siblings.filter((id) => selected.has(id)); const effectsRemoved = ordered.some((id) => !!doc.nodes[id]?.effects?.length); const result = booleanShapes(ordered.map((id) => doc.nodes[id] as Shape), op, doc); if (!result) return; const nodes = { ...doc.nodes }; for (const id of roots.flatMap((root) => [root, ...descendantNodeIds(doc, root)])) delete nodes[id]; nodes[result.id] = result; const order = siblings.filter((id) => !selected.has(id)); order.splice(siblings.slice(0, siblings.indexOf(ordered[0])).filter((id) => !selected.has(id)).length, 0, result.id); const next = replaceChildren({ ...doc, nodes }, parent, order); if (!hasValidSceneContainers(next)) return; transact(next, { label: `Boolean ${op}` }); set({ selection: [result.id], ...clearTransient }); if (effectsRemoved) notifyEffectsRemoved();
     },
     makeCompoundPathSelected: () => {
       const doc = get().doc;
@@ -299,7 +309,7 @@ export function createStructureActions({ set, get, transact }: StoreCtx): Struct
       order.splice(at, 0, compound.id);
       const next = replaceChildren({ ...doc, nodes }, parent, order);
       if (!hasValidSceneContainers(next)) return;
-      transact(next);
+      transact(next, { label: "Make compound path" });
       set({ selection: [compound.id], ...clearTransient });
       if (effectsRemoved) notifyEffectsRemoved();
     },
@@ -326,22 +336,22 @@ export function createStructureActions({ set, get, transact }: StoreCtx): Struct
         selected.push(...released.map((shape) => shape.id));
       }
       if (selected.length && hasValidSceneContainers(doc)) {
-        transact(doc);
+        transact(doc, { label: "Release compound path" });
         set({ selection: selected, ...clearTransient });
         if (effectsRemoved) notifyEffectsRemoved();
       }
     },
-    toggleHidden: (id) => { const doc = get().doc, node = doc.nodes[id]; if (!node) return; transact({ ...doc, nodes: { ...doc.nodes, [id]: { ...node, hidden: !node.hidden } } }); if (!node.hidden) { const affected = new Set([id, ...descendantNodeIds(doc, id)]); set({ selection: get().selection.filter((x) => !affected.has(x)), ...clearTransient }); } },
-    toggleLocked: (id) => { const doc = get().doc, node = doc.nodes[id]; if (!node) return; transact({ ...doc, nodes: { ...doc.nodes, [id]: { ...node, locked: !node.locked } } }); if (!node.locked) { const affected = new Set([id, ...descendantNodeIds(doc, id)]); set({ selection: get().selection.filter((x) => !affected.has(x)), ...clearTransient }); } },
-    renameNode: (id, name) => { const doc = get().doc, node = doc.nodes[id]; if (!node) return; transact({ ...doc, nodes: { ...doc.nodes, [id]: { ...node, name } } }); },
-    updateNodeStyle: (id, patch) => { const doc = get().doc, node = doc.nodes[id]; if (!isGroup(node) && !isInstance(node)) return; transact({ ...doc, nodes: { ...doc.nodes, [id]: { ...node, ...patch } } }, "nstyle:" + id + ":" + Object.keys(patch).sort().join(",")); if (patch.hidden || patch.locked) { const affected = new Set([id, ...descendantNodeIds(doc, id)]); set({ selection: get().selection.filter((x) => !affected.has(x)), ...clearTransient }); } },
+    toggleHidden: (id) => { const doc = get().doc, node = doc.nodes[id]; if (!node) return; transact({ ...doc, nodes: { ...doc.nodes, [id]: { ...node, hidden: !node.hidden } } }, { label: node.hidden ? "Show layer" : "Hide layer" }); if (!node.hidden) { const affected = new Set([id, ...descendantNodeIds(doc, id)]); set({ selection: get().selection.filter((x) => !affected.has(x)), ...clearTransient }); } },
+    toggleLocked: (id) => { const doc = get().doc, node = doc.nodes[id]; if (!node) return; transact({ ...doc, nodes: { ...doc.nodes, [id]: { ...node, locked: !node.locked } } }, { label: node.locked ? "Unlock layer" : "Lock layer" }); if (!node.locked) { const affected = new Set([id, ...descendantNodeIds(doc, id)]); set({ selection: get().selection.filter((x) => !affected.has(x)), ...clearTransient }); } },
+    renameNode: (id, name) => { const doc = get().doc, node = doc.nodes[id]; if (!node) return; transact({ ...doc, nodes: { ...doc.nodes, [id]: { ...node, name } } }, { label: "Rename layer" }); },
+    updateNodeStyle: (id, patch) => { const doc = get().doc, node = doc.nodes[id]; if (!isGroup(node) && !isInstance(node)) return; transact({ ...doc, nodes: { ...doc.nodes, [id]: { ...node, ...patch } } }, { label: "Edit layer style", coalesceKey: "nstyle:" + id + ":" + Object.keys(patch).sort().join(",") }); if (patch.hidden || patch.locked) { const affected = new Set([id, ...descendantNodeIds(doc, id)]); set({ selection: get().selection.filter((x) => !affected.has(x)), ...clearTransient }); } },
     setNodeEffects: (id, effects) => {
       const doc = get().doc;
       const node = doc.nodes[id];
       if (!node) return;
       transact(
         { ...doc, nodes: { ...doc.nodes, [id]: { ...node, effects: effects.length ? effects : undefined } } },
-        "effects:" + id
+        { label: "Edit effects", coalesceKey: "effects:" + id }
       );
     },
     moveNode: (id, parent, index) => {
@@ -405,7 +415,7 @@ export function createStructureActions({ set, get, transact }: StoreCtx): Struct
         notify.error("That move would create an invalid scene container.");
         return;
       }
-      transact(next);
+      transact(next, { label: "Move layer" });
     },
   };
 }

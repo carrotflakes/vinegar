@@ -29,6 +29,7 @@ export type {
   AlignType,
   EditNode,
   EditorState,
+  HistoryTransactionOptions,
   StyleDefaults,
   StyleStylableFields,
   ToolId,

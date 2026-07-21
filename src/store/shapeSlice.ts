@@ -71,7 +71,7 @@ export function createShapeActions({ set, get, transact, replaceDocumentWithoutH
       generator: { scriptId: generatorId, args },
     };
     const doc = { ...s.doc, nodes: { ...s.doc.nodes, [shape.id]: shape } };
-    transact(appendToScope(doc, currentSymbolScope(s), [shape.id]));
+    transact(appendToScope(doc, currentSymbolScope(s), [shape.id]), { label: "Add generator" });
     set({ selection: [shape.id], ...clearTransient });
   };
   // In-flight target args per node while its script build is running. Kept out
@@ -93,7 +93,7 @@ export function createShapeActions({ set, get, transact, replaceDocumentWithoutH
     pendingArgs.delete(id);
     transact(
       { ...doc, nodes: { ...doc.nodes, [id]: { ...cur, subpaths, generator: { ...cur.generator, args } } } },
-      `gen:${id}`
+      { label: "Edit generator", coalesceKey: `gen:${id}` }
     );
   };
 
@@ -126,15 +126,15 @@ export function createShapeActions({ set, get, transact, replaceDocumentWithoutH
   };
 
   return {
-    addShape: (shape, select = true) => { const s = get(); const doc = { ...s.doc, nodes: { ...s.doc.nodes, [shape.id]: shape } }; transact(appendToScope(doc, currentSymbolScope(s), [shape.id])); if (select) set({ selection: [shape.id], ...clearTransient }); },
-    addShapes: (shapes, select = true) => { if (!shapes.length) return; const s = get(); const doc = { ...s.doc, nodes: { ...s.doc.nodes, ...Object.fromEntries(shapes.map((sh) => [sh.id, sh])) } }; transact(appendToScope(doc, currentSymbolScope(s), shapes.map((sh) => sh.id))); if (select) set({ selection: shapes.map((sh) => sh.id), ...clearTransient }); },
+    addShape: (shape, select = true) => { const s = get(); const doc = { ...s.doc, nodes: { ...s.doc.nodes, [shape.id]: shape } }; transact(appendToScope(doc, currentSymbolScope(s), [shape.id]), { label: "Add shape" }); if (select) set({ selection: [shape.id], ...clearTransient }); },
+    addShapes: (shapes, select = true) => { if (!shapes.length) return; const s = get(); const doc = { ...s.doc, nodes: { ...s.doc.nodes, ...Object.fromEntries(shapes.map((sh) => [sh.id, sh])) } }; transact(appendToScope(doc, currentSymbolScope(s), shapes.map((sh) => sh.id)), { label: `Add ${shapes.length} shapes` }); if (select) set({ selection: shapes.map((sh) => sh.id), ...clearTransient }); },
     addBrushStroke: (shape) => {
       const s = get();
       const doc = { ...s.doc, nodes: { ...s.doc.nodes, [shape.id]: shape } };
       const active =
         s.activeGroupId && isGroup(doc.nodes[s.activeGroupId]) ? s.activeGroupId : null;
       if (active) {
-        transact(withChildIds(doc, active, [...childIdsOf(doc, active), shape.id]));
+        transact(withChildIds(doc, active, [...childIdsOf(doc, active), shape.id]), { label: "Draw brush stroke" });
         set({ selection: [shape.id], ...clearTransient });
         return;
       }
@@ -143,7 +143,7 @@ export function createShapeActions({ set, get, transact, replaceDocumentWithoutH
       const groupId = makeId("group");
       const group = { ...groupNode(groupId, [shape.id]), name: "Drawing" };
       const withGroup = { ...doc, nodes: { ...doc.nodes, [groupId]: group } };
-      transact(appendToScope(withGroup, currentSymbolScope(s), [groupId]));
+      transact(appendToScope(withGroup, currentSymbolScope(s), [groupId]), { label: "Draw brush stroke" });
       set({ selection: [shape.id], activeGroupId: groupId, ...clearTransient });
     },
     addFillShape: (shape, aboveId) => {
@@ -174,7 +174,8 @@ export function createShapeActions({ set, get, transact, replaceDocumentWithoutH
           ...siblings.slice(0, index),
           placed.id,
           ...siblings.slice(index),
-        ])
+        ]),
+        { label: "Fill area" }
       );
       set({ selection: [placed.id], ...clearTransient });
     },
@@ -220,17 +221,20 @@ export function createShapeActions({ set, get, transact, replaceDocumentWithoutH
         );
         next = withChildIds(next, parent, children);
       }
-      transact(next);
+      transact(next, { label: "Erase brush strokes" });
       set({ selection: get().selection.filter((id) => next.nodes[id]), ...clearTransient });
     },
-    updateShape: (shape, select = true) => { const doc = get().doc; if (!isShape(doc.nodes[shape.id])) return; const next = { ...doc, nodes: { ...doc.nodes, [shape.id]: shape } }; if (!hasValidSceneContainers(next)) return; transact(next); if (select) set({ selection: [shape.id], ...clearTransient }); },
+    updateShape: (shape, select = true) => { const doc = get().doc; if (!isShape(doc.nodes[shape.id])) return; const next = { ...doc, nodes: { ...doc.nodes, [shape.id]: shape } }; if (!hasValidSceneContainers(next)) return; transact(next, { label: "Edit shape" }); if (select) set({ selection: [shape.id], ...clearTransient }); },
     updateTextShape: (id, patch) => {
       const doc = get().doc; const shape = doc.nodes[id];
       if (!isShape(shape) || shape.type !== "text") return;
       const next = measureTextShape({ ...shape, ...patch });
       transact(
         { ...doc, nodes: { ...doc.nodes, [id]: next } },
-        `text:${id}:${Object.keys(patch).sort().join(",")}`
+        {
+          label: "Edit text",
+          coalesceKey: `text:${id}:${Object.keys(patch).sort().join(",")}`,
+        }
       );
     },
     remeasureTextShapes: () => {
@@ -252,7 +256,7 @@ export function createShapeActions({ set, get, transact, replaceDocumentWithoutH
           ? toggleBrushAnchorSmooth(shape, index)
           : null;
       if (!next) return;
-      transact({ ...doc, nodes: { ...doc.nodes, [id]: next } });
+      transact({ ...doc, nodes: { ...doc.nodes, [id]: next } }, { label: "Toggle smooth node" });
     },
     deleteEditNode: () => {
       const { doc, editNodes } = get();
@@ -264,9 +268,9 @@ export function createShapeActions({ set, get, transact, replaceDocumentWithoutH
         if (next === null) {
           const removed = removeRoots(doc, [shape.id]);
           if (!hasValidSceneContainers(removed)) return;
-          transact(removed); set({ selection: [], ...clearTransient });
+          transact(removed, { label: "Delete path node" }); set({ selection: [], ...clearTransient });
         } else {
-          transact({ ...doc, nodes: { ...doc.nodes, [shape.id]: next } }); set({ editNodes: [] });
+          transact({ ...doc, nodes: { ...doc.nodes, [shape.id]: next } }, { label: "Delete path node" }); set({ editNodes: [] });
         }
         return;
       }
@@ -277,8 +281,8 @@ export function createShapeActions({ set, get, transact, replaceDocumentWithoutH
       const subpaths = anchors.length < 2
         ? shape.subpaths.filter((_, i) => i !== editNode.sub)
         : shape.subpaths.map((s, i) => (i === editNode.sub ? { ...s, anchors } : s));
-      if (subpaths.length === 0) { const next = removeRoots(doc, [shape.id]); if (!hasValidSceneContainers(next)) return; transact(next); set({ selection: [], ...clearTransient }); }
-      else { const next = { ...doc, nodes: { ...doc.nodes, [shape.id]: { ...shape, subpaths, generator: undefined } } }; if (!hasValidSceneContainers(next)) return; transact(next); set({ editNodes: [] }); }
+      if (subpaths.length === 0) { const next = removeRoots(doc, [shape.id]); if (!hasValidSceneContainers(next)) return; transact(next, { label: "Delete path node" }); set({ selection: [], ...clearTransient }); }
+      else { const next = { ...doc, nodes: { ...doc.nodes, [shape.id]: { ...shape, subpaths, generator: undefined } } }; if (!hasValidSceneContainers(next)) return; transact(next, { label: "Delete path node" }); set({ editNodes: [] }); }
     },
     placeImageFiles: async (files, at, fitWithin) => {
       const images = await importImageFiles(files);
@@ -318,7 +322,7 @@ export function createShapeActions({ set, get, transact, replaceDocumentWithoutH
         ids.push(shape.id);
       });
       const doc = { ...s.doc, nodes, assets };
-      transact(appendToScope(doc, currentSymbolScope(s), ids));
+      transact(appendToScope(doc, currentSymbolScope(s), ids), { label: ids.length === 1 ? "Place image" : `Place ${ids.length} images` });
       set({ selection: ids, ...clearTransient });
     },
     placeImportedSvg: (imported, at, fitWithin) => {
@@ -361,7 +365,7 @@ export function createShapeActions({ set, get, transact, replaceDocumentWithoutH
         currentSymbolScope(s),
         [root.id]
       );
-      transact(doc);
+      transact(doc, { label: "Place SVG" });
       set({ selection: [root.id], ...clearTransient });
     },
     addPatternImage: async (file) => {
@@ -372,7 +376,7 @@ export function createShapeActions({ set, get, transact, replaceDocumentWithoutH
         return null;
       }
       const s = get();
-      transact({ ...s.doc, assets: { ...s.doc.assets, [img.asset.id]: img.asset } });
+      transact({ ...s.doc, assets: { ...s.doc.assets, [img.asset.id]: img.asset } }, { label: "Add image asset" });
       return img.asset.id;
     },
     importImageAssets: async (files) => {
@@ -388,7 +392,7 @@ export function createShapeActions({ set, get, transact, replaceDocumentWithoutH
         assets[img.asset.id] = img.asset;
         ids.push(img.asset.id);
       });
-      transact({ ...s.doc, assets });
+      transact({ ...s.doc, assets }, { label: images.length === 1 ? "Import image asset" : `Import ${images.length} image assets` });
       return ids;
     },
     placeAssetImage: async (assetId, at, fitWithin) => {
@@ -422,14 +426,14 @@ export function createShapeActions({ set, get, transact, replaceDocumentWithoutH
         strokeWidth: 0,
       };
       const doc = { ...s.doc, nodes: { ...s.doc.nodes, [shape.id]: shape } };
-      transact(appendToScope(doc, currentSymbolScope(s), [shape.id]));
+      transact(appendToScope(doc, currentSymbolScope(s), [shape.id]), { label: "Place image" });
       set({ selection: [shape.id], ...clearTransient });
     },
     deleteAsset: (assetId) => {
       const doc = get().doc;
       if (!doc.assets[assetId] || referencedAssetIds(doc).has(assetId)) return;
       const assets = { ...doc.assets }; delete assets[assetId];
-      transact({ ...doc, assets });
+      transact({ ...doc, assets }, { label: "Delete asset" });
     },
     deleteUnusedAssets: () => {
       const doc = get().doc;
@@ -437,7 +441,7 @@ export function createShapeActions({ set, get, transact, replaceDocumentWithoutH
       const assets = { ...doc.assets };
       let removed = 0;
       for (const id of Object.keys(assets)) if (!used.has(id)) { delete assets[id]; removed++; }
-      if (removed) transact({ ...doc, assets });
+      if (removed) transact({ ...doc, assets }, { label: removed === 1 ? "Delete unused asset" : `Delete ${removed} unused assets` });
       return removed;
     },
     // Scripts operate on the scene scope; created shapes join the scene roots.
@@ -449,7 +453,7 @@ export function createShapeActions({ set, get, transact, replaceDocumentWithoutH
       for (const shape of created) nodes[shape.id] = shape;
       doc = { ...doc, nodes, rootIds: [...doc.rootIds, ...created.map((s) => s.id)] };
       if (!hasValidSceneContainers(doc)) return;
-      transact(doc); set({ selection: [...updated.filter((s) => !del.has(s.id)).map((s) => s.id), ...created.map((s) => s.id)], ...clearTransient });
+      transact(doc, { label: "Run script" }); set({ selection: [...updated.filter((s) => !del.has(s.id)).map((s) => s.id), ...created.map((s) => s.id)], ...clearTransient });
     },
     updateSelectedStyle: (patch) => {
       const doc = get().doc; const nodes = { ...doc.nodes }; let changed = false;
@@ -458,9 +462,69 @@ export function createShapeActions({ set, get, transact, replaceDocumentWithoutH
         const ids = isShape(nodes[root]) ? [root] : descendantShapeIds(doc, root);
         for (const id of ids) { nodes[id] = { ...(nodes[id] as Shape), ...patch } as Shape; changed = true; }
       }
-      if (changed) transact({ ...doc, nodes }, `style:${roots.join(",")}:${Object.keys(patch).sort().join(",")}`);
+      if (changed) transact({ ...doc, nodes }, { label: "Edit style", coalesceKey: `style:${roots.join(",")}:${Object.keys(patch).sort().join(",")}` });
     },
-    setShapeGeometry: (id, patch) => { const doc = get().doc; const shape = doc.nodes[id]; if (isInstance(shape)) { const wf = instanceWorldBounds(doc, shape); if (!wf) return; const to = { x: patch.x ?? wf.x, y: patch.y ?? wf.y, width: Math.max(1, patch.width ?? wf.width), height: Math.max(1, patch.height ?? wf.height) }; const next = applyWorldTransformToNode(doc, shape, boundsTransform(wf, to)); transact({ ...doc, nodes: { ...doc.nodes, [id]: next } }, "geom:" + id); return; } if (!isShape(shape)) return; if (shape.generator || shape.type === "compoundPath") { const wf = worldShapeBounds(doc, shape); const to = { x: patch.x ?? wf.x, y: patch.y ?? wf.y, width: Math.max(1, patch.width ?? wf.width), height: Math.max(1, patch.height ?? wf.height) }; const next = applyWorldTransformToNode(doc, shape, boundsTransform(wf, to)); transact({ ...doc, nodes: { ...doc.nodes, [id]: next } }, "geom:" + id); return; } const b = shapeBounds(shape, doc); if (shape.type === "text") { const moved = translateShape(shape, (patch.x ?? b.x) - b.x, (patch.y ?? b.y) - b.y); if (moved.type !== "text") return; const next = measureTextShape({ ...moved, width: shape.textMode === "area" ? Math.max(1, patch.width ?? shape.width) : shape.width }); transact({ ...doc, nodes: { ...doc.nodes, [id]: next } }, "geom:" + id); return; } let next = resizeShapeToBounds(shape, b, { x: b.x, y: b.y, width: Math.max(1, patch.width ?? b.width), height: Math.max(1, patch.height ?? b.height) }); next = translateShape(next, (patch.x ?? b.x) - b.x, (patch.y ?? b.y) - b.y); transact({ ...doc, nodes: { ...doc.nodes, [id]: next } }, "geom:" + id); },
+    setShapeGeometry: (id, patch) => {
+      const doc = get().doc;
+      const shape = doc.nodes[id];
+      const options = { label: "Edit geometry", coalesceKey: "geom:" + id };
+      if (isInstance(shape)) {
+        const wf = instanceWorldBounds(doc, shape);
+        if (!wf) return;
+        const to = {
+          x: patch.x ?? wf.x,
+          y: patch.y ?? wf.y,
+          width: Math.max(1, patch.width ?? wf.width),
+          height: Math.max(1, patch.height ?? wf.height),
+        };
+        const next = applyWorldTransformToNode(doc, shape, boundsTransform(wf, to));
+        transact({ ...doc, nodes: { ...doc.nodes, [id]: next } }, options);
+        return;
+      }
+      if (!isShape(shape)) return;
+      if (shape.generator || shape.type === "compoundPath") {
+        const wf = worldShapeBounds(doc, shape);
+        const to = {
+          x: patch.x ?? wf.x,
+          y: patch.y ?? wf.y,
+          width: Math.max(1, patch.width ?? wf.width),
+          height: Math.max(1, patch.height ?? wf.height),
+        };
+        const next = applyWorldTransformToNode(doc, shape, boundsTransform(wf, to));
+        transact({ ...doc, nodes: { ...doc.nodes, [id]: next } }, options);
+        return;
+      }
+      const b = shapeBounds(shape, doc);
+      if (shape.type === "text") {
+        const moved = translateShape(
+          shape,
+          (patch.x ?? b.x) - b.x,
+          (patch.y ?? b.y) - b.y
+        );
+        if (moved.type !== "text") return;
+        const next = measureTextShape({
+          ...moved,
+          width:
+            shape.textMode === "area"
+              ? Math.max(1, patch.width ?? shape.width)
+              : shape.width,
+        });
+        transact({ ...doc, nodes: { ...doc.nodes, [id]: next } }, options);
+        return;
+      }
+      let next = resizeShapeToBounds(shape, b, {
+        x: b.x,
+        y: b.y,
+        width: Math.max(1, patch.width ?? b.width),
+        height: Math.max(1, patch.height ?? b.height),
+      });
+      next = translateShape(
+        next,
+        (patch.x ?? b.x) - b.x,
+        (patch.y ?? b.y) - b.y
+      );
+      transact({ ...doc, nodes: { ...doc.nodes, [id]: next } }, options);
+    },
     insertGenerator: (generatorId, at) => {
       const s = get();
       const builtin = GENERATORS[generatorId];
@@ -506,7 +570,10 @@ export function createShapeActions({ set, get, transact, replaceDocumentWithoutH
       if (builtin) {
         const subpaths = builtin.build(merged);
         if (!subpaths) return;
-        transact({ ...doc, nodes: { ...doc.nodes, [id]: { ...shape, subpaths, generator: { ...shape.generator, args: merged } } } }, `gen:${id}`);
+        transact(
+          { ...doc, nodes: { ...doc.nodes, [id]: { ...shape, subpaths, generator: { ...shape.generator, args: merged } } } },
+          { label: "Edit generator", coalesceKey: `gen:${id}` }
+        );
         return;
       }
       if (!get().scriptsTrusted) return;
@@ -524,12 +591,12 @@ export function createShapeActions({ set, get, transact, replaceDocumentWithoutH
     detachGenerator: (id) => {
       const doc = get().doc; const shape = doc.nodes[id];
       if (!isShape(shape) || !shape.generator) return;
-      transact({ ...doc, nodes: { ...doc.nodes, [id]: { ...shape, generator: undefined } } });
+      transact({ ...doc, nodes: { ...doc.nodes, [id]: { ...shape, generator: undefined } } }, { label: "Detach generator" });
     },
     addScript: (name, source) => {
       const id = makeId("script");
       const doc = get().doc;
-      transact({ ...doc, scripts: { ...doc.scripts, [id]: { id, name, source } } });
+      transact({ ...doc, scripts: { ...doc.scripts, [id]: { id, name, source } } }, { label: "Add script" });
       // Authoring a script implies trusting this document's generators.
       set({ scriptsTrusted: true });
       return id;
@@ -537,21 +604,27 @@ export function createShapeActions({ set, get, transact, replaceDocumentWithoutH
     updateScript: (id, patch) => {
       const doc = get().doc; const script = doc.scripts[id];
       if (!script) return;
-      transact({ ...doc, scripts: { ...doc.scripts, [id]: { ...script, ...patch } } }, `script:${id}`);
+      transact(
+        { ...doc, scripts: { ...doc.scripts, [id]: { ...script, ...patch } } },
+        { label: "Edit script", coalesceKey: `script:${id}` }
+      );
     },
     deleteScript: (id) => {
       const doc = get().doc; if (!doc.scripts[id]) return;
       const scripts = { ...doc.scripts }; delete scripts[id];
-      transact({ ...doc, scripts });
+      transact({ ...doc, scripts }, { label: "Delete script" });
     },
     trustScripts: () => set({ scriptsTrusted: true }),
     setRectCornerRadius: (id, radius) => {
       const doc = get().doc; const shape = doc.nodes[id];
       if (!isShape(shape) || shape.type !== "rect" || !Number.isFinite(radius)) return;
       const next = { ...shape, cornerRadius: clampRectCornerRadius(shape, radius) };
-      transact({ ...doc, nodes: { ...doc.nodes, [id]: next } }, "radius:" + id);
+      transact(
+        { ...doc, nodes: { ...doc.nodes, [id]: next } },
+        { label: "Edit corner radius", coalesceKey: "radius:" + id }
+      );
     },
-    setImageLockAspect: (id, lock) => { const doc = get().doc; const shape = doc.nodes[id]; if (!isShape(shape) || shape.type !== "image") return; const next = { ...shape, lockAspect: lock || undefined }; transact({ ...doc, nodes: { ...doc.nodes, [id]: next } }, "lockAspect:" + id); },
-    setClosedSelected: (closed) => { const doc = get().doc; const nodes = { ...doc.nodes }; let changed = false; for (const id of selectionRoots(doc, get().selection)) { const shape = nodes[id]; if (!isShape(shape) || shape.type !== "path") continue; if (shape.subpaths.some((sp) => sp.closed !== closed)) { nodes[id] = { ...shape, subpaths: shape.subpaths.map((sp) => ({ ...sp, closed })), generator: undefined }; changed = true; } } const next = { ...doc, nodes }; if (changed && hasValidSceneContainers(next)) transact(next); },
+    setImageLockAspect: (id, lock) => { const doc = get().doc; const shape = doc.nodes[id]; if (!isShape(shape) || shape.type !== "image") return; const next = { ...shape, lockAspect: lock || undefined }; transact({ ...doc, nodes: { ...doc.nodes, [id]: next } }, { label: lock ? "Lock aspect ratio" : "Unlock aspect ratio", coalesceKey: "lockAspect:" + id }); },
+    setClosedSelected: (closed) => { const doc = get().doc; const nodes = { ...doc.nodes }; let changed = false; for (const id of selectionRoots(doc, get().selection)) { const shape = nodes[id]; if (!isShape(shape) || shape.type !== "path") continue; if (shape.subpaths.some((sp) => sp.closed !== closed)) { nodes[id] = { ...shape, subpaths: shape.subpaths.map((sp) => ({ ...sp, closed })), generator: undefined }; changed = true; } } const next = { ...doc, nodes }; if (changed && hasValidSceneContainers(next)) transact(next, { label: closed ? "Close path" : "Open path" }); },
   };
 }

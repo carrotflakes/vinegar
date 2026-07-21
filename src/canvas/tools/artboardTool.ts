@@ -81,7 +81,7 @@ export function onArtboardDown(
   if (selected) {
     const handle = hitHandle(artboardBounds(selected), screen, state, ctx.hitScale());
     if (handle) {
-      state.beginInteraction();
+      state.beginInteraction("Resize artboard");
       ctx.interaction.current = {
         kind: "artboard-resize",
         id: selected.id,
@@ -95,7 +95,7 @@ export function onArtboardDown(
   const hit = pickArtboard(state.doc.artboards, world);
   if (hit) {
     state.selectArtboard(hit.id);
-    state.beginInteraction();
+    state.beginInteraction("Move artboard");
     ctx.interaction.current = {
       kind: "artboard-move",
       id: hit.id,
@@ -113,7 +113,7 @@ export function onArtboardDown(
     0,
     `Artboard ${state.doc.artboards.length + 1}`
   );
-  state.beginInteraction();
+  state.beginInteraction("Add artboard");
   state.setDoc({ ...state.doc, artboards: [...state.doc.artboards, board] });
   state.selectArtboard(board.id);
   ctx.interaction.current = { kind: "artboard-create", id: board.id, start: world };

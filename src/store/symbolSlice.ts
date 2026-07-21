@@ -67,7 +67,7 @@ export function createSymbolActions({ set, get, transact }: StoreCtx): SymbolAct
       };
       next = replaceChildren(next, parent, rest);
       if (!hasValidSceneContainers(next)) return;
-      transact(next); set({ selection: [instId], ...clearTransient });
+      transact(next, { label: "Create symbol" }); set({ selection: [instId], ...clearTransient });
     },
     placeSymbolInstance: (symbolId, at) => {
       const s = get(); const doc = s.doc;
@@ -81,7 +81,7 @@ export function createSymbolActions({ set, get, transact }: StoreCtx): SymbolAct
       }
       const id = makeId("instance");
       const next = appendToScope({ ...doc, nodes: { ...doc.nodes, [id]: instanceNode(id, symbolId, transform) } }, scope, [id]);
-      transact(next); set({ selection: [id], ...clearTransient });
+      transact(next, { label: "Place symbol instance" }); set({ selection: [id], ...clearTransient });
     },
     detachSelectedInstances: () => {
       let doc = get().doc; const selected: string[] = []; let effectsRemoved = false;
@@ -110,11 +110,11 @@ export function createSymbolActions({ set, get, transact }: StoreCtx): SymbolAct
         doc = replaceChildren({ ...doc, nodes }, parent, order);
         selected.push(gid);
       }
-      if (selected.length) { transact(doc); set({ selection: selected, ...clearTransient }); if (effectsRemoved) notifyEffectsRemoved(); }
+      if (selected.length) { transact(doc, { label: "Detach symbol instance" }); set({ selection: selected, ...clearTransient }); if (effectsRemoved) notifyEffectsRemoved(); }
     },
     enterSymbolEdit: (symbolId) => { const s = get(); if (!s.doc.symbols[symbolId] || s.editingSymbols.includes(symbolId)) return; set({ editingSymbols: [...s.editingSymbols, symbolId], activeGroupId: null, selection: [], ...clearTransient }); },
     exitSymbolEdit: () => { const s = get(); if (!s.editingSymbols.length) return; set({ editingSymbols: s.editingSymbols.slice(0, -1), activeGroupId: null, selection: [], ...clearTransient }); },
-    renameSymbol: (symbolId, name) => { const doc = get().doc; const def = doc.symbols[symbolId]; if (!def) return; transact({ ...doc, symbols: { ...doc.symbols, [symbolId]: { ...def, name } } }); },
+    renameSymbol: (symbolId, name) => { const doc = get().doc; const def = doc.symbols[symbolId]; if (!def) return; transact({ ...doc, symbols: { ...doc.symbols, [symbolId]: { ...def, name } } }, { label: "Rename symbol" }); },
     deleteSymbol: (symbolId) => {
       const s = get(); const doc = s.doc; const def = doc.symbols[symbolId]; if (!def) return;
       if (s.editingSymbols.includes(symbolId)) return;
@@ -124,7 +124,7 @@ export function createSymbolActions({ set, get, transact }: StoreCtx): SymbolAct
       for (const id of remove) delete nodes[id];
       const symbols = { ...doc.symbols };
       delete symbols[symbolId];
-      transact({ ...doc, nodes, symbols });
+      transact({ ...doc, nodes, symbols }, { label: "Delete symbol" });
       set({ selection: get().selection.filter((id) => !remove.has(id)), ...clearTransient });
     },
   };

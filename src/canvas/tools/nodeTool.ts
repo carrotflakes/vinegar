@@ -133,7 +133,7 @@ export function onNodeDown(
         selected = [node];
       }
       state.setEditNodes(selected);
-      state.beginInteraction();
+      state.beginInteraction("Edit path nodes");
       ctx.interaction.current =
         hit.part === "anchor"
           ? {
@@ -180,7 +180,7 @@ export function onNodeDown(
     }
     if (insert) {
       const { next, sub, index } = insert;
-      state.beginInteraction();
+      state.beginInteraction("Insert path node");
       state.applyShapes({ [sel.id]: next });
       state.setEditNodes([{ shapeId: sel.id, sub, index }]);
       ctx.lastInsert.current = { shapeId: sel.id, sub, index, time: Date.now() };

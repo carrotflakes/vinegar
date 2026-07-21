@@ -13,6 +13,7 @@ import {
   type HistoryActions,
   type HistoryEntry,
   type HistoryState,
+  type HistoryTransactionOptions,
   type StoreGet,
   type StoreSet,
 } from "./state";
@@ -45,10 +46,22 @@ function prependFuture(future: HistoryEntry[], entry: HistoryEntry): HistoryEntr
   return [entry, ...future].slice(0, historyLimit());
 }
 
-function createEntry(before: Document, after: Document, beforeRevision: number, afterRevision?: number): HistoryEntry | null {
+function createEntry(
+  before: Document,
+  after: Document,
+  beforeRevision: number,
+  afterRevision?: number,
+  label?: string
+): HistoryEntry | null {
   const { patches, inversePatches } = diffDocument(before, after);
   if (!patches.length) return null;
-  return { patches, inversePatches, beforeRevision, afterRevision: afterRevision ?? nextRevision() };
+  return {
+    label,
+    patches,
+    inversePatches,
+    beforeRevision,
+    afterRevision: afterRevision ?? nextRevision(),
+  };
 }
 
 type MapPatch = Extract<DocumentPatch, { type: "map" }>;
@@ -105,7 +118,7 @@ function restoredEditorState(doc: Document, get: StoreGet) {
 
 export interface HistorySlice {
   /** Commit a document change as one undo step (optionally coalesced). */
-  transact: (next: Document, coalesceKey?: string) => void;
+  transact: (next: Document, options?: HistoryTransactionOptions) => void;
   /** Publish a deliberate non-undoable document replacement. */
   replaceDocumentWithoutHistory: (next: Document, additionalState?: Partial<Pick<EditorData, "gridSize">>) => void;
   resetCoalesce: () => void;
@@ -145,24 +158,37 @@ export function createHistory(set: StoreSet, get: StoreGet): HistorySlice {
     const state = get(), interaction = state._interaction;
     if (!interaction) return false;
     if (!interaction.dirty) { set({ _interaction: null }); return false; }
-    const entry = createEntry(interaction.before, state.doc, interaction.beforeRevision, interaction.afterRevision ?? undefined);
+    const entry = createEntry(
+      interaction.before,
+      state.doc,
+      interaction.beforeRevision,
+      interaction.afterRevision ?? undefined,
+      interaction.label
+    );
     if (!entry) { set({ _interaction: null, _revision: revisionForDocument(state.doc, { ...state._revision, history: interaction.beforeRevision }, state) }); return false; }
     set({ history: { past: appendPast(state.history.past, entry), future: [] }, _interaction: null, _revision: { ...state._revision, history: entry.afterRevision } });
     return true;
   };
-  const transact = (next: Document, key?: string) => {
+  const transact = (next: Document, options: HistoryTransactionOptions = {}) => {
+    const { coalesceKey: key, label } = options;
     let state = get();
     if (next === state.doc || !hasValidSceneContainers(next)) return;
     if (state._interaction) { resetCoalesce(); finishInteraction(); state = get(); }
     const now = Date.now(), last = state.history.past[state.history.past.length - 1];
     if (key && key === coalesceKey && coalesceBase && last?.afterRevision === coalesceAfterRevision && now - coalesceTime < 600) {
-      const entry = createEntry(coalesceBase, next, coalesceBeforeRevision, coalesceAfterRevision);
+      const entry = createEntry(
+        coalesceBase,
+        next,
+        coalesceBeforeRevision,
+        coalesceAfterRevision,
+        label ?? last.label
+      );
       if (!entry) { set({ doc: next, history: { past: state.history.past.slice(0, -1), future: [] }, _revision: revisionForDocument(next, { ...state._revision, history: coalesceBeforeRevision }, state) }); resetCoalesce(); return; }
       set({ doc: next, history: { past: [...state.history.past.slice(0, -1), entry], future: [] }, _revision: { ...state._revision, history: entry.afterRevision } });
       refreshCoalesce(now); return;
     }
     resetCoalesce();
-    const entry = createEntry(state.doc, next, state._revision.history);
+    const entry = createEntry(state.doc, next, state._revision.history, undefined, label);
     if (!entry) return;
     set({ doc: next, history: { past: appendPast(state.history.past, entry), future: [] }, _revision: { ...state._revision, history: entry.afterRevision } });
     if (key) armCoalesce(key, state.doc, entry.beforeRevision, entry.afterRevision, now);
@@ -192,7 +218,7 @@ export function createHistory(set: StoreSet, get: StoreGet): HistorySlice {
     loadDocument: (doc) => { resetCoalesce(); set({ ...documentReset(doc, true), savedDoc: doc }); },
     recoverDocument: (doc) => { resetCoalesce(); set({ ...documentReset(doc, false), savedDoc: doc }); },
     markSaved: () => { resetCoalesce(); finishInteraction(); const state = get(); set({ savedDoc: state.doc, _savedRevision: state._revision }); },
-    beginInteraction: () => {
+    beginInteraction: (label) => {
       const state = get();
       if (!state._interaction) {
         set({
@@ -201,6 +227,7 @@ export function createHistory(set: StoreSet, get: StoreGet): HistorySlice {
             beforeEditNodes: [...state.editNodes],
             beforeRevision: state._revision.history,
             afterRevision: null,
+            label,
             dirty: false,
           },
         });

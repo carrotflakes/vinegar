@@ -42,9 +42,23 @@ export interface StyleDefaults {
   strokeAlignment: StrokeAlignment;
 }
 
-export interface HistoryEntry { patches: DocumentPatch[]; inversePatches: DocumentPatch[]; beforeRevision: number; afterRevision: number }
+export interface HistoryEntry {
+  /** Human-readable action name. Older or generic entries may omit it. */
+  label?: string;
+  patches: DocumentPatch[];
+  inversePatches: DocumentPatch[];
+  beforeRevision: number;
+  afterRevision: number;
+}
 export interface HistoryState { past: HistoryEntry[]; future: HistoryEntry[] }
 export interface DocumentRevision { history: number; maintenance: number }
+
+export interface HistoryTransactionOptions {
+  /** Human-readable action name shown in the History panel. */
+  label?: string;
+  /** Repeated edits with the same key may collapse into one undo step. */
+  coalesceKey?: string;
+}
 
 export interface StyleStylableFields {
   fill: Paint | null;
@@ -115,6 +129,8 @@ export interface EditorData {
     beforeEditNodes: EditNode[];
     beforeRevision: number;
     afterRevision: number | null;
+    /** Human-readable action name for the eventual undo step. */
+    label?: string;
     /** Whether an intermediate document has been published. */
     dirty: boolean;
   } | null;
@@ -156,7 +172,7 @@ export interface HistoryActions {
   recoverDocument: (doc: Document) => void;
   /** Mark the current document as saved (clears the unsaved-changes flag). */
   markSaved: () => void;
-  beginInteraction: () => void;
+  beginInteraction: (label?: string) => void;
   applyShapes: (next: Record<string, SceneNode>) => void;
   /** Replace the document during an active interaction; committed by endInteraction. */
   setDoc: (doc: Document) => void;
@@ -343,7 +359,7 @@ export interface StoreCtx {
   set: StoreSet;
   get: StoreGet;
   /** Commit a document change as one undo step (optionally coalesced). */
-  transact: (next: Document, coalesceKey?: string) => void;
+  transact: (next: Document, options?: HistoryTransactionOptions) => void;
   /** Publish a deliberate non-undoable document replacement. */
   replaceDocumentWithoutHistory: (
     next: Document,
