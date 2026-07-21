@@ -18,6 +18,7 @@ import {
   canMakeCompoundPathSelection,
   canReleaseCompoundPathSelection,
 } from "../../../model/compoundPath";
+import { canConvertShapeToPath } from "../../../model/convertToPath";
 import {
   canGroupSelection,
   selectionUnits,
@@ -68,6 +69,9 @@ export default function SelectionActionsSection({
   const outlineStrokeSelected = useEditor(
     (state) => state.outlineStrokeSelected
   );
+  const convertSelectedToPaths = useEditor(
+    (state) => state.convertSelectedToPaths
+  );
   const makeCompoundPathSelected = useEditor(
     (state) => state.makeCompoundPathSelected
   );
@@ -105,6 +109,9 @@ export default function SelectionActionsSection({
         shape.stroke !== null &&
         shape.strokeWidth > 0
     );
+  const canConvertToPath = rootIds.some((id) =>
+    canConvertShapeToPath(doc.nodes[id])
+  );
   const canMakeCompound = canMakeCompoundPathSelection(doc, selection);
   const canReleaseCompound =
     canReleaseCompoundPathSelection(doc, selection);
@@ -191,6 +198,16 @@ export default function SelectionActionsSection({
                 onClick={() => setClosedSelected(anyOpen)}
               >
                 {anyOpen ? "Close path" : "Open path"}
+              </button>
+            </div>
+          )}
+          {canConvertToPath && (
+            <div className="btn-row">
+              <button
+                className="ghost-btn"
+                onClick={convertSelectedToPaths}
+              >
+                Convert to path
               </button>
             </div>
           )}

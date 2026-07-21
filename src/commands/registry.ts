@@ -15,6 +15,7 @@ import {
   canReleaseCompoundPathSelection,
   canMakeCompoundPathSelection,
 } from "../model/compoundPath";
+import { canConvertShapeToPath } from "../model/convertToPath";
 import {
   canMakeClippingMaskSelection,
   canReleaseClippingMaskSelection,
@@ -123,6 +124,7 @@ function sel(s: EditorState) {
     canReleaseClippingMask: canReleaseClippingMaskSelection(s.doc, s.selection),
     canMakeCompound: canMakeCompoundPathSelection(s.doc, s.selection),
     canReleaseCompound: canReleaseCompoundPathSelection(s.doc, s.selection),
+    canConvertToPath: roots.some((id) => canConvertShapeToPath(s.doc.nodes[id])),
     canMakeSymbol: roots.length >= 1 && parents.size === 1,
     hasInstances: instanceRoots.length > 0,
     singleInstance:
@@ -323,6 +325,13 @@ export const COMMANDS: Command[] = [
     keys: [{ key: "8", mod: true, alt: true }],
     enabled: (s) => sel(s).canReleaseCompound,
     run: (s) => s.releaseCompoundPathSelected(),
+  },
+  {
+    id: "structure.convertToPath",
+    label: "Convert to path",
+    group: "Path",
+    enabled: (s) => sel(s).canConvertToPath,
+    run: (s) => s.convertSelectedToPaths(),
   },
   {
     id: "structure.bringToFront",

@@ -277,6 +277,7 @@ export interface StructureActions {
   releaseClippingMaskSelected: () => void;
   alignSelected: (type: AlignType) => void;
   distributeSelected: (axis: "h" | "v") => void;
+  convertSelectedToPaths: () => void;
   outlineStrokeSelected: () => void;
   booleanSelected: (op: BoolOp) => void;
   makeCompoundPathSelected: () => void;

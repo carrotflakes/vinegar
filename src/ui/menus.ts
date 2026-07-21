@@ -47,6 +47,7 @@ export function selectionMenu(): MenuEntry[] {
     item("structure.releaseClippingMask"),
     item("structure.makeCompound"),
     item("structure.releaseCompound"),
+    item("structure.convertToPath"),
     "separator",
     item("symbol.create"),
   ];

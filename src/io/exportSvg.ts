@@ -21,6 +21,7 @@ import {
 } from "../model/paint";
 import { isGroup, isShape } from "../model/scene";
 import { effectiveRectCornerRadius, roundedRectSubpath } from "../model/roundedRect";
+import { ellipseSubpath } from "../model/ellipse";
 import {
   effectiveStrokeAlignment,
   normalizeStrokeDash,
@@ -491,18 +492,13 @@ function primitivePathData(shape: PrimitiveShape, matrix: Matrix): string {
       ], true);
     }
     case "ellipse": {
-      const b = shapeBounds(shape);
-      const cx = b.x + b.width / 2, cy = b.y + b.height / 2;
-      const rx = b.width / 2, ry = b.height / 2;
-      const k = 0.5522847498307936;
-      const a = { x: cx + rx, y: cy };
-      const curves = [
-        [{ x: cx + rx, y: cy + k * ry }, { x: cx + k * rx, y: cy + ry }, { x: cx, y: cy + ry }],
-        [{ x: cx - k * rx, y: cy + ry }, { x: cx - rx, y: cy + k * ry }, { x: cx - rx, y: cy }],
-        [{ x: cx - rx, y: cy - k * ry }, { x: cx - k * rx, y: cy - ry }, { x: cx, y: cy - ry }],
-        [{ x: cx + k * rx, y: cy - ry }, { x: cx + rx, y: cy - k * ry }, a],
-      ];
-      return `M ${point(a)} ${curves.map(([c1, c2, p]) => `C ${point(c1)} ${point(c2)} ${point(p)}`).join(" ")} Z`;
+      const segments = subpathSegments(ellipseSubpath(shape));
+      if (!segments.length) return "";
+      return `M ${point(segments[0].p0)} ${segments
+        .map((segment) =>
+          `C ${point(segment.c1)} ${point(segment.c2)} ${point(segment.p1)}`
+        )
+        .join(" ")} Z`;
     }
     case "line":
       return `M ${point({ x: shape.x1, y: shape.y1 })} L ${point({ x: shape.x2, y: shape.y2 })}`;

@@ -3,8 +3,8 @@ import * as paperNs from "paper";
 // either on the namespace itself or on its `default`.
 const paper: typeof paperNs =
   (paperNs as { default?: typeof paperNs }).default ?? paperNs;
-import { shapeBounds } from "./bounds";
 import { compoundChildren } from "./compoundPath";
+import { ellipseSubpath } from "./ellipse";
 import { IDENTITY } from "./matrix";
 import { roundedRectSubpath } from "./roundedRect";
 import { strokeDetailFields } from "./stroke";
@@ -74,12 +74,7 @@ function shapeToGeom(shape: Shape, doc?: Document): paper.PathItem | null {
       break;
     }
     case "ellipse": {
-      const b = shapeBounds(shape, doc);
-      item = new paper.Path.Ellipse({
-        point: [b.x, b.y],
-        size: [Math.max(b.width, 0), Math.max(b.height, 0)],
-        insert: false,
-      });
+      item = subpathToPath(ellipseSubpath(shape));
       break;
     }
     case "path":

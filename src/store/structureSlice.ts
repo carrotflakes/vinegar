@@ -15,6 +15,10 @@ import {
   canReleaseClippingMaskSelection,
   isClippingGroup,
 } from "../model/clippingMask";
+import {
+  canConvertShapeToPath,
+  convertShapeToPath,
+} from "../model/convertToPath";
 import { hasValidSceneContainers } from "../model/sceneValidation";
 import {
   IDENTITY,
@@ -223,6 +227,25 @@ export function createStructureActions({ set, get, transact }: StoreCtx): Struct
       const doc = get().doc; const items = selectionItems(doc, get().selection); if (items.length < 3) return; const horizontal = axis === "h"; const start = (b: Bounds) => horizontal ? b.x : b.y; const size = (b: Bounds) => horizontal ? b.width : b.height; const sorted = [...items].sort((a, b) => start(a.bounds) - start(b.bounds)); const last = sorted[sorted.length - 1]; const span = start(last.bounds) + size(last.bounds) - start(sorted[0].bounds); const gap = (span - sorted.reduce((n, x) => n + size(x.bounds), 0)) / (sorted.length - 1); const nodes = { ...doc.nodes }; let cursor = start(sorted[0].bounds) + size(sorted[0].bounds) + gap;
       for (const item of sorted.slice(1, -1)) { const d = cursor - start(item.bounds); nodes[item.id] = applyWorldTransformToNode(doc, nodes[item.id], translationMatrix(horizontal ? d : 0, horizontal ? 0 : d)); cursor += size(item.bounds) + gap; }
       transact({ ...doc, nodes }); set(clearTransient);
+    },
+    convertSelectedToPaths: () => {
+      const doc = get().doc;
+      const roots = selectionRoots(doc, get().selection);
+      const convertible = roots.filter((id) =>
+        canConvertShapeToPath(doc.nodes[id])
+      );
+      if (!convertible.length) return;
+      const nodes = { ...doc.nodes };
+      for (const id of convertible) {
+        const shape = nodes[id];
+        if (canConvertShapeToPath(shape)) {
+          nodes[id] = convertShapeToPath(shape);
+        }
+      }
+      const next = { ...doc, nodes };
+      if (!hasValidSceneContainers(next)) return;
+      transact(next);
+      set(clearTransient);
     },
     outlineStrokeSelected: () => {
       let doc = get().doc; const selected: string[] = []; let effectsRemoved = false;
