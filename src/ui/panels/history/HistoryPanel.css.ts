@@ -39,8 +39,35 @@ globalStyle(".history-row.current .history-dot", {
 });
 
 globalStyle(".history-label", {
+  flex: "1",
+  minWidth: "0",
   overflow: "hidden",
   textOverflow: "ellipsis",
   whiteSpace: "nowrap",
   fontSize: "12px",
+});
+
+globalStyle(".history-inspect", {
+  display: "grid",
+  placeItems: "center",
+  flex: "none",
+  width: "20px",
+  height: "20px",
+  padding: "0",
+  border: "none",
+  borderRadius: "4px",
+  color: "inherit",
+  background: "transparent",
+  cursor: "pointer",
+  opacity: "0.45",
+});
+
+globalStyle(".history-inspect:hover, .history-inspect:focus-visible", {
+  background: vars.accentWeak,
+  opacity: "1",
+});
+
+globalStyle(".history-inspect svg", {
+  width: "13px",
+  height: "13px",
 });

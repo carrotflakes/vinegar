@@ -168,8 +168,11 @@ export default function App() {
   const generatorsFocusId = useUi((s) => s.generatorsFocusId);
   const openGenerators = useUi((s) => s.openGenerators);
   const closeGenerators = useUi((s) => s.closeGenerators);
+  const showInspector = useUi((s) => s.inspectorOpen);
+  const inspectorFocusPath = useUi((s) => s.inspectorFocusPath);
+  const openInspector = useUi((s) => s.openInspector);
+  const closeInspector = useUi((s) => s.closeInspector);
   const [showScript, setShowScript] = useState(false);
-  const [showInspector, setShowInspector] = useState(false);
   const [showPanel, setShowPanel] = useState(false);
   const [showPalette, setShowPalette] = useState(false);
 
@@ -294,7 +297,7 @@ export default function App() {
           <button className={barButton()} onClick={() => openGenerators()}>
             Generators
           </button>
-          <button className={barButton()} onClick={() => setShowInspector(true)}>
+          <button className={barButton()} onClick={() => openInspector()}>
             Inspect
           </button>
         </div>
@@ -373,12 +376,8 @@ export default function App() {
       </div>
 
       <ScriptPanel open={showScript} onClose={() => setShowScript(false)} />
-      <GeneratorsDialog
-        open={showGenerators}
-        focusId={generatorsFocusId}
-        onClose={closeGenerators}
-      />
-      <Inspector open={showInspector} onClose={() => setShowInspector(false)} />
+      <GeneratorsDialog open={showGenerators} focusId={generatorsFocusId} onClose={closeGenerators} />
+      <Inspector open={showInspector} focusPath={inspectorFocusPath} onClose={closeInspector} />
       <CommandPalette open={showPalette} onClose={() => setShowPalette(false)} />
       <PreferencesDialog open={showPreferences} onClose={closePreferences} />
       <ExportDialog open={showExport} onClose={closeExport} />

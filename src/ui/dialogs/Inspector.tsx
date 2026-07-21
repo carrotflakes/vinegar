@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { LuX } from "react-icons/lu";
 import { useEditor } from "../../store/editorStore";
 import "../Modal.css";
@@ -13,13 +13,20 @@ import "./Inspector.css";
 
 interface Props {
   open: boolean;
+  focusPath?: string[] | null;
   onClose: () => void;
 }
 
-export default function Inspector({ open, onClose }: Props) {
+export default function Inspector({ open, focusPath = null, onClose }: Props) {
   // Subscribe to the whole store so the tree stays live as state changes.
   const state = useEditor();
   const [query, setQuery] = useState("");
+  const focusKey = focusPath?.join("\u0000") ?? "";
+
+  useEffect(() => {
+    if (open && focusPath?.length) setQuery("");
+  }, [focusKey, open]);
+
   if (!open) return null;
 
   const q = query.trim().toLowerCase();
@@ -45,7 +52,7 @@ export default function Inspector({ open, onClose }: Props) {
           onChange={(e) => setQuery(e.target.value)}
         />
         <div className="inspector-tree">
-          {renderChildren(state, 0, new Set(), q, false)}
+          {renderChildren(state, 0, new Set(), q, false, [], focusPath ?? [])}
         </div>
         <div className="modal-foot">
           <span className="script-status">Read-only snapshot of the store</span>
@@ -67,11 +74,31 @@ interface NodeProps {
   query: string;
   /** True when an ancestor key matched: show this whole subtree unfiltered. */
   forceShow: boolean;
+  path: string[];
+  focusPath: string[];
 }
 
-function Node({ name, value, depth, ancestors, query, forceShow }: NodeProps) {
+function Node({
+  name,
+  value,
+  depth,
+  ancestors,
+  query,
+  forceShow,
+  path,
+  focusPath,
+}: NodeProps) {
   const expandable = isExpandable(value) && !ancestors.has(value);
-  const [open, setOpen] = useState(depth < 1);
+  const focused = pathsEqual(path, focusPath);
+  const focusInBranch =
+    path.length < focusPath.length && pathIsPrefix(path, focusPath);
+  const [open, setOpen] = useState(depth < 1 || focused);
+  const focusKey = focusPath.join("\u0000");
+  const focusedRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (focused) focusedRef.current?.scrollIntoView({ block: "center" });
+  }, [focusKey, focused]);
 
   const active = query.length > 0;
   const keyMatch = name.toLowerCase().includes(query);
@@ -82,7 +109,11 @@ function Node({ name, value, depth, ancestors, query, forceShow }: NodeProps) {
       return null;
     }
     return (
-      <div className="ins-row" style={pad}>
+      <div
+        ref={focused ? focusedRef : undefined}
+        className={`ins-row${focused ? " ins-focused" : ""}`}
+        style={pad}
+      >
         <span className="ins-toggle ins-leaf" />
         <span className="ins-key">{name}</span>
         <span className="ins-colon">:</span>
@@ -97,12 +128,13 @@ function Node({ name, value, depth, ancestors, query, forceShow }: NodeProps) {
   }
   // When a key matches, reveal its whole subtree; otherwise keep filtering.
   const childForce = forceShow || keyMatch;
-  const isOpen = active ? true : open;
+  const isOpen = active || focusInBranch ? true : open;
 
   return (
     <>
       <div
-        className="ins-row ins-branch"
+        ref={focused ? focusedRef : undefined}
+        className={`ins-row ins-branch${focused ? " ins-focused" : ""}`}
         style={pad}
         onClick={() => setOpen((v) => !v)}
       >
@@ -111,7 +143,16 @@ function Node({ name, value, depth, ancestors, query, forceShow }: NodeProps) {
         <span className="ins-colon">:</span>
         <span className="ins-summary">{summarize(value)}</span>
       </div>
-      {isOpen && renderChildren(value, depth + 1, next, query, childForce)}
+      {isOpen &&
+        renderChildren(
+          value,
+          depth + 1,
+          next,
+          query,
+          childForce,
+          path,
+          focusPath
+        )}
     </>
   );
 }
@@ -121,19 +162,37 @@ function renderChildren(
   depth: number,
   ancestors: Set<object>,
   query: string,
-  forceShow: boolean
+  forceShow: boolean,
+  parentPath: string[],
+  focusPath: string[]
 ) {
-  return entries(value).map(([name, child]) => (
-    <Node
-      key={name}
-      name={name}
-      value={child}
-      depth={depth}
-      ancestors={ancestors}
-      query={query}
-      forceShow={forceShow}
-    />
-  ));
+  return entries(value).map(([name, child]) => {
+    const path = [...parentPath, name];
+    return (
+      <Node
+        key={name}
+        name={name}
+        value={child}
+        depth={depth}
+        ancestors={ancestors}
+        query={query}
+        forceShow={forceShow}
+        path={path}
+        focusPath={focusPath}
+      />
+    );
+  });
+}
+
+function pathsEqual(a: string[], b: string[]): boolean {
+  return a.length === b.length && a.every((part, i) => part === b[i]);
+}
+
+function pathIsPrefix(prefix: string[], path: string[]): boolean {
+  return (
+    prefix.length <= path.length &&
+    prefix.every((part, i) => part === path[i])
+  );
 }
 
 /** Whether a key or leaf value anywhere under `value` matches the query. */

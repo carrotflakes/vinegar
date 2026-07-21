@@ -48,6 +48,12 @@ globalStyle(".ins-branch:hover", {
   background: vars.accentWeak,
 });
 
+globalStyle(".ins-row.ins-focused", {
+  background: vars.accentWeak,
+  outline: `1px solid ${vars.accent}`,
+  outlineOffset: "-1px",
+});
+
 globalStyle(".ins-toggle", {
   flex: "none",
   width: "12px",

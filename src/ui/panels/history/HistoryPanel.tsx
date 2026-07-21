@@ -1,5 +1,7 @@
 import { useEffect, useRef } from "react";
+import { LuSearch } from "react-icons/lu";
 import { useEditor } from "../../../store/editorStore";
+import { useUi } from "../../../store/uiStore";
 import "../../Panel.css";
 import "../PanelList.css";
 import "./HistoryPanel.css";
@@ -15,6 +17,7 @@ export default function HistoryPanel() {
   const future = useEditor((s) => s.history.future);
   const undo = useEditor((s) => s.undo);
   const redo = useEditor((s) => s.redo);
+  const openInspector = useUi((s) => s.openInspector);
 
   const current = past.length;
   const currentRef = useRef<HTMLDivElement>(null);
@@ -30,16 +33,18 @@ export default function HistoryPanel() {
   };
 
   const rows = [
-    { key: "start", label: "Start", count: 0 },
+    { key: "start", label: "Start", count: 0, inspectPath: ["history"] },
     ...past.map((e, i) => ({
       key: `p${i}-${e.afterRevision}`,
       label: labelForEntry(e),
       count: i + 1,
+      inspectPath: ["history", "past", String(i)],
     })),
     ...future.map((e, i) => ({
       key: `f${i}-${e.afterRevision}`,
       label: labelForEntry(e),
       count: current + 1 + i,
+      inspectPath: ["history", "future", String(i)],
     })),
   ];
 
@@ -66,6 +71,18 @@ export default function HistoryPanel() {
             >
               <span className="history-dot" />
               <span className="history-label">{row.label}</span>
+              <button
+                type="button"
+                className="history-inspect"
+                onClick={(event) => {
+                  event.stopPropagation();
+                  openInspector(row.inspectPath);
+                }}
+                title="Inspect history entry"
+                aria-label={`Inspect ${row.label}`}
+              >
+                <LuSearch aria-hidden />
+              </button>
             </div>
           );
         })}

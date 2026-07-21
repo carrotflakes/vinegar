@@ -16,6 +16,11 @@ export interface UiState {
   generatorsFocusId: string | null;
   openGenerators: (focusId?: string) => void;
   closeGenerators: () => void;
+  /** Debug store inspector; `inspectorFocusPath` reveals one tree node. */
+  inspectorOpen: boolean;
+  inspectorFocusPath: string[] | null;
+  openInspector: (focusPath?: string[]) => void;
+  closeInspector: () => void;
 }
 
 export const useUi = create<UiState>((set) => ({
@@ -30,4 +35,13 @@ export const useUi = create<UiState>((set) => ({
   openGenerators: (focusId) =>
     set({ generatorsOpen: true, generatorsFocusId: focusId ?? null }),
   closeGenerators: () => set({ generatorsOpen: false, generatorsFocusId: null }),
+  inspectorOpen: false,
+  inspectorFocusPath: null,
+  openInspector: (focusPath) =>
+    set({
+      inspectorOpen: true,
+      inspectorFocusPath: focusPath ? [...focusPath] : null,
+    }),
+  closeInspector: () =>
+    set({ inspectorOpen: false, inspectorFocusPath: null }),
 }));
