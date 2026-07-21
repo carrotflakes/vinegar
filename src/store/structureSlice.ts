@@ -239,7 +239,12 @@ export function createStructureActions({ set, get, transact }: StoreCtx): Struct
       for (const id of convertible) {
         const shape = nodes[id];
         if (canConvertShapeToPath(shape)) {
-          nodes[id] = convertShapeToPath(shape);
+          if (shape.type === "compoundPath") {
+            for (const childId of descendantNodeIds(doc, id)) {
+              delete nodes[childId];
+            }
+          }
+          nodes[id] = convertShapeToPath(shape, doc);
         }
       }
       const next = { ...doc, nodes };

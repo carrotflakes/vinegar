@@ -195,6 +195,10 @@ additional effects, or other feature expansion.
       Figma-style image fills
 - [ ] Swatches saved in the document (currently localStorage, color-only)
 - [ ] System clipboard integration (paste across tabs/apps)
+- [x] Convert compound paths to a single editable path (bake child transforms
+  into subpaths and preserve the even-odd fill rule)
+- [ ] Convert brush strokes to filled paths (expand the variable-width envelope;
+  the result no longer has pressure/centerline editing)
 - [ ] Distribution: match an existing gap (not just centering)
 - [ ] Configurable pencil smoothing strength
 - [ ] Status bar: color swatch under the cursor (eyedropper-style; watch getImageData cost)
