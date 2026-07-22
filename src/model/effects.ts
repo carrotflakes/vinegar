@@ -27,8 +27,23 @@ const DEFAULT_DROP_SHADOW: Effect = {
 
 const DEFAULT_BLUR: Effect = { type: "blur", radius: 4 };
 
+const DEFAULT_COLOR_ADJUST: Effect = {
+  type: "color-adjust",
+  brightness: 1,
+  contrast: 1,
+  saturation: 1,
+  hue: 0,
+};
+
 export function defaultEffect(type: Effect["type"]): Effect {
-  return type === "blur" ? { ...DEFAULT_BLUR } : { ...DEFAULT_DROP_SHADOW };
+  switch (type) {
+    case "blur":
+      return { ...DEFAULT_BLUR };
+    case "color-adjust":
+      return { ...DEFAULT_COLOR_ADJUST };
+    default:
+      return { ...DEFAULT_DROP_SHADOW };
+  }
 }
 
 export function hasEffects(effects: Effect[] | undefined): effects is Effect[] {
@@ -46,9 +61,10 @@ export function effectsMargin(effects: Effect[] | undefined): number {
   for (const effect of effects) {
     if (effect.type === "blur") {
       margin += effect.radius * BLUR_REACH;
-    } else {
+    } else if (effect.type === "drop-shadow") {
       margin += Math.hypot(effect.offsetX, effect.offsetY) + effect.blur * BLUR_REACH;
     }
+    // color-adjust is unitless: it never extends the visual bounds.
   }
   return margin;
 }

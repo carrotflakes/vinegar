@@ -222,3 +222,37 @@ test("SVG paths export their data-driven fill rule", () => {
   const svg = exportSvg(doc, { margin: 0 });
   assert.match(svg, /<path d="[^"]+" fill-rule="evenodd"/);
 });
+
+test("SVG color-adjust exports a chained feColorMatrix filter in sRGB", () => {
+  const doc = createEmptyDocument();
+  doc.nodes.rect = {
+    id: "rect",
+    name: "Adjusted",
+    type: "rect",
+    x: 0,
+    y: 0,
+    width: 100,
+    height: 100,
+    transform: [1, 0, 0, 1, 0, 0],
+    transformOrigin: null,
+    opacity: 1,
+    fill: { type: "solid", color: "#ff0000", alpha: 1 },
+    stroke: null,
+    strokeWidth: 0,
+    effects: [
+      { type: "color-adjust", brightness: 1.2, contrast: 1.1, saturation: 0.5, hue: 30 },
+    ],
+  };
+  doc.rootIds = ["rect"];
+
+  const svg = exportSvg(doc, { margin: 0 });
+  // Brightness/contrast matrices, then saturate, then hueRotate — the same
+  // order the canvas preview applies, all in sRGB to match CSS filters.
+  assert.match(svg, /<filter id="fx0"[^>]*>[\s\S]*<\/filter>/);
+  assert.match(svg, /type="matrix" values="1.2 0 0 0 0/);
+  assert.match(svg, /type="saturate" values="0.5"/);
+  assert.match(svg, /type="hueRotate" values="30"/);
+  assert.match(svg, /color-interpolation-filters="sRGB"/);
+  // The rect references the generated filter.
+  assert.match(svg, /filter="url\(#fx0\)"/);
+});

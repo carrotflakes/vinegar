@@ -9,7 +9,9 @@ import { useEditor } from "../../../store/editorStore";
 import ScrubbableNumber from "../../ScrubbableNumber";
 
 function effectLabel(type: Effect["type"]): string {
-  return type === "blur" ? "Blur" : "Drop Shadow";
+  if (type === "blur") return "Blur";
+  if (type === "color-adjust") return "Color Adjust";
+  return "Drop Shadow";
 }
 
 export default function EffectsSection({ node }: { node: SceneNode }) {
@@ -106,6 +108,36 @@ export default function EffectsSection({ node }: { node: SceneNode }) {
                 { min: 0 }
               )}
             </div>
+          ) : effect.type === "color-adjust" ? (
+            <div className="geometry-grid">
+              {numField(
+                "Brightness",
+                effect.brightness,
+                (value) =>
+                  replace(index, { ...effect, brightness: Math.max(0, value) }),
+                { min: 0, step: 0.1 }
+              )}
+              {numField(
+                "Contrast",
+                effect.contrast,
+                (value) =>
+                  replace(index, { ...effect, contrast: Math.max(0, value) }),
+                { min: 0, step: 0.1 }
+              )}
+              {numField(
+                "Saturation",
+                effect.saturation,
+                (value) =>
+                  replace(index, { ...effect, saturation: Math.max(0, value) }),
+                { min: 0, step: 0.1 }
+              )}
+              {numField(
+                "Hue",
+                effect.hue,
+                (value) => replace(index, { ...effect, hue: value }),
+                { step: 1 }
+              )}
+            </div>
           ) : (
             <>
               <div className="geometry-grid">
@@ -170,6 +202,7 @@ export default function EffectsSection({ node }: { node: SceneNode }) {
           <option value="">Add effect…</option>
           <option value="drop-shadow">Drop Shadow</option>
           <option value="blur">Blur</option>
+          <option value="color-adjust">Color Adjust</option>
         </select>
       </div>
     </div>

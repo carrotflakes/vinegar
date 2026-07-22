@@ -34,6 +34,7 @@ import type {
   Bounds,
   Document,
   DocumentAsset,
+  ColorAdjustEffect,
   Effect,
   Matrix,
   PrimitiveShape,
@@ -81,11 +82,32 @@ function effectPrimitive(effect: Effect): string {
   if (effect.type === "blur") {
     return `<feGaussianBlur stdDeviation="${num(effect.radius)}" />`;
   }
+  if (effect.type === "color-adjust") {
+    return colorAdjustPrimitives(effect);
+  }
   return `<feDropShadow dx="${num(effect.offsetX)}" dy="${num(
     effect.offsetY
   )}" stdDeviation="${num(effect.blur * SHADOW_BLUR_TO_STDDEV)}" flood-color="${
     effect.color
   }" flood-opacity="${num(effect.alpha)}" />`;
+}
+
+/**
+ * Colour adjustment as a chain of `feColorMatrix` primitives, one per CSS
+ * `filter` function and in the same order the canvas applies them. They run in
+ * sRGB (feColorMatrix defaults to linearRGB) to match the CSS-filter preview.
+ */
+function colorAdjustPrimitives(effect: ColorAdjustEffect): string {
+  const { brightness: b, contrast: c, saturation: s, hue: h } = effect;
+  const i = num(0.5 - 0.5 * c); // contrast intercept around mid-grey
+  const cm = (attrs: string) =>
+    `<feColorMatrix color-interpolation-filters="sRGB" ${attrs} />`;
+  return [
+    cm(`type="matrix" values="${num(b)} 0 0 0 0 0 ${num(b)} 0 0 0 0 0 ${num(b)} 0 0 0 0 0 1 0"`),
+    cm(`type="matrix" values="${num(c)} 0 0 0 ${i} 0 ${num(c)} 0 0 ${i} 0 0 ${num(c)} 0 ${i} 0 0 0 1 0"`),
+    cm(`type="saturate" values="${num(s)}"`),
+    cm(`type="hueRotate" values="${num(h)}"`),
+  ].join("");
 }
 
 function makeDefs(doc: Document): Defs {

@@ -78,9 +78,27 @@ export interface BlurEffect {
   radius: number;
 }
 
-export type Effect = DropShadowEffect | BlurEffect;
+/**
+ * Unitless colour adjustment (maps 1:1 to CSS `filter` functions for preview and
+ * to chained `feColorMatrix` primitives for SVG export). Multipliers are 1 = no
+ * change; `hue` is a rotation in degrees. Being unitless, it does not scale with
+ * the node's transform and adds nothing to the effect margin.
+ */
+export interface ColorAdjustEffect {
+  type: "color-adjust";
+  /** RGB multiplier, ≥ 0 (1 = unchanged). */
+  brightness: number;
+  /** Contrast multiplier around mid-grey, ≥ 0 (1 = unchanged). */
+  contrast: number;
+  /** Saturation multiplier, ≥ 0 (0 = greyscale, 1 = unchanged). */
+  saturation: number;
+  /** Hue rotation in degrees. */
+  hue: number;
+}
 
-export const EFFECT_TYPES = ["drop-shadow", "blur"] as const;
+export type Effect = DropShadowEffect | BlurEffect | ColorAdjustEffect;
+
+export const EFFECT_TYPES = ["drop-shadow", "blur", "color-adjust"] as const;
 
 /** Fields shared by every persisted scene node. */
 export interface BaseNode {

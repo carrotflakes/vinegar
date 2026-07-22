@@ -206,6 +206,12 @@ function compositeEffects(
     if (effect.type === "blur") {
       nctx.filter = `blur(${effect.radius * scale}px)`;
       nctx.drawImage(src, 0, 0);
+    } else if (effect.type === "color-adjust") {
+      // Unitless, so no `scale`. Order matches the SVG feColorMatrix chain.
+      nctx.filter =
+        `brightness(${effect.brightness}) contrast(${effect.contrast}) ` +
+        `saturate(${effect.saturation}) hue-rotate(${effect.hue}deg)`;
+      nctx.drawImage(src, 0, 0);
     } else {
       nctx.shadowColor = rgba(effect.color, effect.alpha);
       nctx.shadowBlur = effect.blur * scale;

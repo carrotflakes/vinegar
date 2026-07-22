@@ -110,6 +110,12 @@ const isEffect = (value: unknown): boolean => {
       isNumber(value.blur) && value.blur >= 0 &&
       isNumber(value.offsetX) && isNumber(value.offsetY);
   }
+  if (value.type === "color-adjust") {
+    return isNumber(value.brightness) && value.brightness >= 0 &&
+      isNumber(value.contrast) && value.contrast >= 0 &&
+      isNumber(value.saturation) && value.saturation >= 0 &&
+      isNumber(value.hue);
+  }
   return false;
 };
 const isEffectsOrUndefined = (value: unknown): boolean =>
