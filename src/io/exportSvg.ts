@@ -13,6 +13,7 @@ import { hasEffects, SHADOW_BLUR_TO_STDDEV } from "../model/effects";
 import { applyMatrix, isIdentity } from "../model/matrix";
 import {
   gradientToSvg,
+  hexToRgb,
   paintToSvgAttrs,
   patternMode,
   patternPlacement,
@@ -35,6 +36,7 @@ import type {
   Document,
   DocumentAsset,
   ColorAdjustEffect,
+  ColorOverlayEffect,
   Effect,
   Matrix,
   PrimitiveShape,
@@ -85,6 +87,9 @@ function effectPrimitive(effect: Effect): string {
   if (effect.type === "color-adjust") {
     return colorAdjustPrimitives(effect);
   }
+  if (effect.type === "color-overlay") {
+    return colorOverlayPrimitive(effect);
+  }
   return `<feDropShadow dx="${num(effect.offsetX)}" dy="${num(
     effect.offsetY
   )}" stdDeviation="${num(effect.blur * SHADOW_BLUR_TO_STDDEV)}" flood-color="${
@@ -108,6 +113,22 @@ function colorAdjustPrimitives(effect: ColorAdjustEffect): string {
     cm(`type="saturate" values="${num(s)}"`),
     cm(`type="hueRotate" values="${num(h)}"`),
   ].join("");
+}
+
+/**
+ * Colour overlay as a single `feColorMatrix` computing `mix(src, colour, alpha)`
+ * per channel while preserving the source alpha — the sRGB counterpart of the
+ * canvas `source-atop` tint.
+ */
+function colorOverlayPrimitive(effect: ColorOverlayEffect): string {
+  const { r, g, b } = hexToRgb(effect.color);
+  const a = Math.max(0, Math.min(1, effect.alpha));
+  const k = num(1 - a);
+  const t = (channel: number) => num((a * channel) / 255);
+  return (
+    `<feColorMatrix color-interpolation-filters="sRGB" type="matrix" values="` +
+    `${k} 0 0 0 ${t(r)} 0 ${k} 0 0 ${t(g)} 0 0 ${k} 0 ${t(b)} 0 0 0 1 0" />`
+  );
 }
 
 function makeDefs(doc: Document): Defs {

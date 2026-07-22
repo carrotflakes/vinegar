@@ -212,6 +212,14 @@ function compositeEffects(
         `brightness(${effect.brightness}) contrast(${effect.contrast}) ` +
         `saturate(${effect.saturation}) hue-rotate(${effect.hue}deg)`;
       nctx.drawImage(src, 0, 0);
+    } else if (effect.type === "color-overlay") {
+      // Tint masked by the content's own alpha: source-atop keeps the layer's
+      // silhouette while mixing in `alpha` worth of the flood colour.
+      nctx.drawImage(src, 0, 0);
+      nctx.globalCompositeOperation = "source-atop";
+      nctx.globalAlpha = Math.max(0, Math.min(1, effect.alpha));
+      nctx.fillStyle = effect.color;
+      nctx.fillRect(0, 0, next.canvas.width, next.canvas.height);
     } else {
       nctx.shadowColor = rgba(effect.color, effect.alpha);
       nctx.shadowBlur = effect.blur * scale;

@@ -35,12 +35,20 @@ const DEFAULT_COLOR_ADJUST: Effect = {
   hue: 0,
 };
 
+const DEFAULT_COLOR_OVERLAY: Effect = {
+  type: "color-overlay",
+  color: "#ff3366",
+  alpha: 1,
+};
+
 export function defaultEffect(type: Effect["type"]): Effect {
   switch (type) {
     case "blur":
       return { ...DEFAULT_BLUR };
     case "color-adjust":
       return { ...DEFAULT_COLOR_ADJUST };
+    case "color-overlay":
+      return { ...DEFAULT_COLOR_OVERLAY };
     default:
       return { ...DEFAULT_DROP_SHADOW };
   }
@@ -64,7 +72,7 @@ export function effectsMargin(effects: Effect[] | undefined): number {
     } else if (effect.type === "drop-shadow") {
       margin += Math.hypot(effect.offsetX, effect.offsetY) + effect.blur * BLUR_REACH;
     }
-    // color-adjust is unitless: it never extends the visual bounds.
+    // color-adjust / color-overlay are unitless: they never extend the bounds.
   }
   return margin;
 }

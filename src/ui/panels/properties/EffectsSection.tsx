@@ -11,6 +11,7 @@ import ScrubbableNumber from "../../ScrubbableNumber";
 function effectLabel(type: Effect["type"]): string {
   if (type === "blur") return "Blur";
   if (type === "color-adjust") return "Color Adjust";
+  if (type === "color-overlay") return "Color Overlay";
   return "Drop Shadow";
 }
 
@@ -138,6 +139,31 @@ export default function EffectsSection({ node }: { node: SceneNode }) {
                 { step: 1 }
               )}
             </div>
+          ) : effect.type === "color-overlay" ? (
+            <div className="field-inline">
+              <label>Color</label>
+              <div className="num-suffix">
+                <input
+                  type="color"
+                  value={effect.color}
+                  onChange={(event) =>
+                    replace(index, { ...effect, color: event.target.value })
+                  }
+                />
+                <ScrubbableNumber
+                  className="num"
+                  min={0}
+                  max={100}
+                  step={1}
+                  value={Math.round(effect.alpha * 100)}
+                  onChange={(value) =>
+                    replace(index, { ...effect, alpha: value / 100 })
+                  }
+                  aria-label="Overlay opacity"
+                />
+                <span className="unit">%</span>
+              </div>
+            </div>
           ) : (
             <>
               <div className="geometry-grid">
@@ -203,6 +229,7 @@ export default function EffectsSection({ node }: { node: SceneNode }) {
           <option value="drop-shadow">Drop Shadow</option>
           <option value="blur">Blur</option>
           <option value="color-adjust">Color Adjust</option>
+          <option value="color-overlay">Color Overlay</option>
         </select>
       </div>
     </div>

@@ -256,3 +256,33 @@ test("SVG color-adjust exports a chained feColorMatrix filter in sRGB", () => {
   // The rect references the generated filter.
   assert.match(svg, /filter="url\(#fx0\)"/);
 });
+
+test("SVG color-overlay exports a mix feColorMatrix preserving alpha", () => {
+  const doc = createEmptyDocument();
+  doc.nodes.rect = {
+    id: "rect",
+    name: "Tinted",
+    type: "rect",
+    x: 0,
+    y: 0,
+    width: 100,
+    height: 100,
+    transform: [1, 0, 0, 1, 0, 0],
+    transformOrigin: null,
+    opacity: 1,
+    fill: { type: "solid", color: "#ffffff", alpha: 1 },
+    stroke: null,
+    strokeWidth: 0,
+    effects: [{ type: "color-overlay", color: "#0000ff", alpha: 0.5 }],
+  };
+  doc.rootIds = ["rect"];
+
+  const svg = exportSvg(doc, { margin: 0 });
+  // mix(src, #0000ff, 0.5): diagonal 0.5, blue channel offset 0.5, alpha kept.
+  assert.match(
+    svg,
+    /type="matrix" values="0.5 0 0 0 0 0 0.5 0 0 0 0 0 0.5 0 0.5 0 0 0 1 0"/
+  );
+  assert.match(svg, /color-interpolation-filters="sRGB"/);
+  assert.match(svg, /filter="url\(#fx0\)"/);
+});

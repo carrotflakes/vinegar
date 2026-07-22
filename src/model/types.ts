@@ -96,9 +96,32 @@ export interface ColorAdjustEffect {
   hue: number;
 }
 
-export type Effect = DropShadowEffect | BlurEffect | ColorAdjustEffect;
+/**
+ * Solid-colour tint, masked by the node's own alpha and mixed over its content
+ * by `alpha` (0 = untouched, 1 = fully recoloured within the silhouette). Maps
+ * to a canvas `source-atop` fill for preview and a single `feColorMatrix` for
+ * SVG export; being unitless it adds nothing to the effect margin.
+ */
+export interface ColorOverlayEffect {
+  type: "color-overlay";
+  /** Overlay colour (`#rrggbb`). */
+  color: string;
+  /** 0..1 mix amount. */
+  alpha: number;
+}
 
-export const EFFECT_TYPES = ["drop-shadow", "blur", "color-adjust"] as const;
+export type Effect =
+  | DropShadowEffect
+  | BlurEffect
+  | ColorAdjustEffect
+  | ColorOverlayEffect;
+
+export const EFFECT_TYPES = [
+  "drop-shadow",
+  "blur",
+  "color-adjust",
+  "color-overlay",
+] as const;
 
 /** Fields shared by every persisted scene node. */
 export interface BaseNode {
