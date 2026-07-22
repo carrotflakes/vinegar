@@ -12,7 +12,7 @@ import {
   type ShapeType,
 } from "../model/types";
 
-export const CURRENT_FILE_VERSION = 22 as const;
+export const CURRENT_FILE_VERSION = 23 as const;
 
 /**
  * v8 lacked `symbols` (added as an empty registry). v8 and v9 stored fill/
@@ -28,11 +28,13 @@ export const CURRENT_FILE_VERSION = 22 as const;
  * parametric generators, backfilled as empty) and the optional `generator`
  * link on nodes. v21 unifies path, bezier, and polygon geometry as multi-
  * subpath `path` nodes with an optional fill rule. v22 moves compound-path
- * members into `nodes` and owns them through `childIds`. v8-v21 documents
- * migrate on load; absent optional fields retain their historical behavior.
+ * members into `nodes` and owns them through `childIds`. v23 adds document-level
+ * global colours (`doc.swatches`/`swatchOrder`, backfilled empty) and the
+ * `swatch` fill/stroke reference. v8-v22 documents migrate on load; absent
+ * optional fields retain their historical behavior.
  */
 const MIGRATABLE_VERSIONS = new Set<unknown>([
-  8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21,
+  8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22,
 ]);
 
 export interface VinegarFile {
@@ -98,8 +100,17 @@ const isPaint = (value: unknown): boolean => {
       isNumber(value.scale) && isNumber(value.rotation) && isPoint(value.offset) &&
       isNumber(value.alpha) && value.alpha >= 0 && value.alpha <= 1;
   }
+  if (value.type === "swatch") {
+    return typeof value.swatchId === "string" &&
+      (value.alpha === undefined ||
+        (isNumber(value.alpha) && value.alpha >= 0 && value.alpha <= 1));
+  }
   return false;
 };
+/** A concrete solid paint (a Swatch's stored value; never a reference). */
+const isSolidPaint = (value: unknown): boolean =>
+  isObject(value) && value.type === "solid" && typeof value.color === "string" &&
+  isNumber(value.alpha) && value.alpha >= 0 && value.alpha <= 1;
 const isPaintOrNull = (value: unknown): boolean => value === null || isPaint(value);
 const isEffect = (value: unknown): boolean => {
   if (!isObject(value) || !EFFECT_TYPES.includes(value.type as never)) return false;
@@ -245,6 +256,10 @@ export function parseDocument(text: string): Document {
   ) {
     data.document.scripts = {};
   }
+  if (data.version !== CURRENT_FILE_VERSION && isObject(data.document)) {
+    if (data.document.swatches === undefined) data.document.swatches = {};
+    if (data.document.swatchOrder === undefined) data.document.swatchOrder = [];
+  }
   if (typeof data.version === "number" && data.version <= 20 && isObject(data.document)) {
     migrateUnifiedPaths(data.document);
   }
@@ -371,6 +386,12 @@ function isCurrentDocument(value: unknown): value is Document {
     Object.entries(value.symbols).every(([id, def]) =>
       isObject(def) && def.id === id &&
       typeof def.name === "string" && typeof def.rootNodeId === "string") &&
+    isObject(value.swatches) &&
+    Object.entries(value.swatches).every(([id, sw]) =>
+      isObject(sw) && sw.id === id &&
+      typeof sw.name === "string" && isSolidPaint(sw.paint)) &&
+    Array.isArray(value.swatchOrder) &&
+    value.swatchOrder.every((id) => typeof id === "string") &&
     isObject(value.scripts) &&
     Object.entries(value.scripts).every(([id, def]) =>
       isObject(def) && def.id === id &&
@@ -443,6 +464,11 @@ function validateTree(doc: Document): void {
     for (const childId of node.childIds) visit(childId);
     visiting.delete(id);
   };
+  // Global colours: `swatchOrder` and `swatches` must be a bijection.
+  if (doc.swatchOrder.length !== Object.keys(doc.swatches).length ||
+      doc.swatchOrder.some((id) => !doc.swatches[id])) {
+    throw new Error("Global colors order does not match the swatch registry.");
+  }
   for (const id of doc.rootIds) visit(id);
   for (const def of Object.values(doc.symbols)) {
     const root = doc.nodes[def.rootNodeId];

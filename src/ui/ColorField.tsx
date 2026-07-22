@@ -7,16 +7,19 @@ import {
 } from "@floating-ui/react-dom";
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { LuPipette, LuPlus } from "react-icons/lu";
+import { LuLink2Off, LuPipette, LuPlus } from "react-icons/lu";
 import {
   isGradient,
+  isSwatchRef,
   linearGradient,
   paintToCss,
   pattern,
   patternMode,
   radialGradient,
+  resolvePaintRef,
   solid,
   stopsToCssBar,
+  swatchRef,
   type GradientStop,
   type Paint,
   type PatternMode,
@@ -70,22 +73,44 @@ export default function ColorField({ label, value, onChange }: Props) {
   const removeSwatch = useEditor((s) => s.removeSwatch);
   const assets = useEditor((s) => s.doc.assets);
   const addPatternImage = useEditor((s) => s.addPatternImage);
+  // Document colours (global swatches) referenced by the current paint.
+  const docSwatches = useEditor((s) => s.doc.swatches);
+  const swatchOrder = useEditor((s) => s.doc.swatchOrder);
+  const createSwatch = useEditor((s) => s.createSwatch);
+  const updateSwatch = useEditor((s) => s.updateSwatch);
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
   const enabled = value !== null;
-  const kind = value === null ? "none" : value.type; // none|solid|linear|radial|pattern
+  // A `swatch` reference resolves to the document swatch's concrete paint; the
+  // whole field then behaves as that paint, but edits flow to the global.
+  const ref = isSwatchRef(value) ? value : null;
+  const linkedSwatch = ref ? docSwatches[ref.swatchId] : null;
+  const concrete = resolvePaintRef(value, docSwatches);
+  const kind = value === null ? "none" : concrete?.type ?? "solid"; // none|solid|linear|radial|pattern
   // Colour and alpha are edited independently; a paint keeps its alpha when the
   // colour changes (and vice-versa). Swatches/recents/palette store colours.
-  const gradient = value && isGradient(value) ? value : null;
+  const gradient = concrete && isGradient(concrete) ? concrete : null;
   const color =
-    value && value.type === "solid"
-      ? value.color
+    concrete && concrete.type === "solid"
+      ? concrete.color
       : gradient
         ? gradient.stops[0]?.color ?? "#888888"
         : "#888888";
-  const alpha = value && value.type === "solid" ? value.alpha : 1;
-  const setColor = (hex: string) => onChange(solid(hex, alpha));
-  const setAlpha = (a: number) => onChange(solid(color, a));
+  const alpha = concrete && concrete.type === "solid" ? concrete.alpha : 1;
+  // While linked, colour/alpha edits update the global swatch (re-tinting every
+  // use); otherwise they set this field's own paint.
+  const setColor = (hex: string) =>
+    ref && linkedSwatch
+      ? updateSwatch(ref.swatchId, { paint: solid(hex, alpha) })
+      : onChange(solid(hex, alpha));
+  const setAlpha = (a: number) =>
+    ref && linkedSwatch
+      ? updateSwatch(ref.swatchId, { paint: solid(color, a) })
+      : onChange(solid(color, a));
+  // Save the current concrete colour as a new document colour and link to it.
+  const createDocColor = () => onChange(swatchRef(createSwatch("", solid(color, alpha))));
+  // Detach: bake the reference back to its concrete paint on this field only.
+  const unlink = () => onChange(concrete);
   const hasEyeDropper = typeof window !== "undefined" && !!window.EyeDropper;
 
   // ---- gradient editing --------------------------------------------------
@@ -95,7 +120,7 @@ export default function ColorField({ label, value, onChange }: Props) {
         { offset: 0, color, alpha: 1 },
         { offset: 1, color: "#ffffff", alpha: 1 },
       ];
-  const angle = value && value.type === "linear" ? value.angle : 0;
+  const angle = concrete && concrete.type === "linear" ? concrete.angle : 0;
   const setStops = (next: GradientStop[]) =>
     onChange(kind === "radial" ? radialGradient(next) : linearGradient(next, angle));
   const updateStop = (i: number, patch: Partial<GradientStop>) =>
@@ -106,7 +131,7 @@ export default function ColorField({ label, value, onChange }: Props) {
     stops.length > 2 && setStops(stops.filter((_, j) => j !== i));
 
   // ---- pattern (raster fill) editing -------------------------------------
-  const patternPaint = value && value.type === "pattern" ? value : null;
+  const patternPaint = concrete && concrete.type === "pattern" ? concrete : null;
   // Remember the last chosen pattern so toggling away and back keeps its image.
   const lastPattern = useRef<PatternPaint | null>(null);
   if (patternPaint) lastPattern.current = patternPaint;
@@ -129,7 +154,8 @@ export default function ColorField({ label, value, onChange }: Props) {
 
   const setKind = (next: "none" | "solid" | "linear" | "radial" | "pattern") => {
     if (next === "none") return onChange(null);
-    if (next === "solid") return onChange(solid(color, alpha));
+    // Keep an existing document-colour link when "Solid" is (re)selected.
+    if (next === "solid") return ref && linkedSwatch ? undefined : onChange(solid(color, alpha));
     if (next === "linear") return onChange(linearGradient(stops, angle));
     if (next === "radial") return onChange(radialGradient(stops));
     // Pattern: reuse a remembered image, else the first existing asset, else
@@ -201,29 +227,31 @@ export default function ColorField({ label, value, onChange }: Props) {
           onClick={() => setOpen((o) => !o)}
           title="Edit color"
         >
-          {value && (
+          {concrete && (
             <span
               className="swatch-fill"
               style={
                 patternPaint && patternUrl
                   ? { backgroundImage: `url(${patternUrl})`, backgroundSize: "cover" }
-                  : { background: paintToCss(value) }
+                  : { background: paintToCss(concrete) }
               }
             />
           )}
         </button>
         <span className="swatch-text">
-          {kind === "none"
-            ? "none"
-            : kind === "solid"
-              ? alpha < 1
-                ? `${color} · ${Math.round(alpha * 100)}%`
-                : color
-              : kind === "linear"
-                ? "Linear"
-                : kind === "radial"
-                  ? "Radial"
-                  : "Image"}
+          {ref
+            ? linkedSwatch?.name ?? "Missing color"
+            : kind === "none"
+              ? "none"
+              : kind === "solid"
+                ? alpha < 1
+                  ? `${color} · ${Math.round(alpha * 100)}%`
+                  : color
+                : kind === "linear"
+                  ? "Linear"
+                  : kind === "radial"
+                    ? "Radial"
+                    : "Image"}
         </span>
       </div>
 
@@ -253,6 +281,20 @@ export default function ColorField({ label, value, onChange }: Props) {
               </button>
             ))}
           </div>
+
+          {ref && (
+            <div className="swatch-link-badge">
+              <LuLink2Off aria-hidden />
+              <span className="swatch-link-name">
+                {linkedSwatch
+                  ? `Linked to “${linkedSwatch.name}”`
+                  : "Linked color is missing"}
+              </span>
+              <button className="swatch-unlink" title="Unlink" onClick={unlink}>
+                Unlink
+              </button>
+            </div>
+          )}
 
           {kind === "solid" && (
             <>
@@ -353,6 +395,39 @@ export default function ColorField({ label, value, onChange }: Props) {
                     onClick={() => setColor(c)}
                   />
                 ))}
+              </div>
+
+              <div className="color-pop-label">
+                Global colors
+                {!ref && (
+                  <button
+                    className="swatch-add"
+                    title="Save as a document color and link"
+                    onClick={createDocColor}
+                  >
+                    +
+                  </button>
+                )}
+              </div>
+              <div className="swatch-grid">
+                {swatchOrder.length === 0 && (
+                  <span className="swatch-hint">Shared colors that update every use</span>
+                )}
+                {swatchOrder.map((id) => {
+                  const sw = docSwatches[id];
+                  if (!sw) return null;
+                  return (
+                    <button
+                      key={id}
+                      className={
+                        "mini-swatch" + (ref?.swatchId === id ? " selected" : "")
+                      }
+                      style={{ background: paintToCss(sw.paint) }}
+                      title={sw.name}
+                      onClick={() => onChange(swatchRef(id))}
+                    />
+                  );
+                })}
               </div>
             </>
           )}

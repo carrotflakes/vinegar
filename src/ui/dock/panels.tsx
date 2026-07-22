@@ -5,6 +5,7 @@ import GeneratorsPanel from "../panels/generators/GeneratorsPanel";
 import HistoryPanel from "../panels/history/HistoryPanel";
 import LayersPanel from "../panels/layers/LayersPanel";
 import PropertiesPanel from "../panels/properties/PropertiesPanel";
+import SwatchesPanel from "../panels/swatches/SwatchesPanel";
 import SymbolsPanel from "../panels/symbols/SymbolsPanel";
 
 /** A dockable panel: a stable id, a tab label, and how to render its body. */
@@ -19,6 +20,7 @@ export const PANELS: PanelDef[] = [
   { id: "properties", title: "Properties", render: () => <PropertiesPanel /> },
   { id: "layers", title: "Layers", render: () => <LayersPanel /> },
   { id: "symbols", title: "Symbols", render: () => <SymbolsPanel /> },
+  { id: "swatches", title: "Global colors", render: () => <SwatchesPanel /> },
   { id: "generators", title: "Generators", render: () => <GeneratorsPanel /> },
   { id: "assets", title: "Assets", render: () => <AssetsPanel /> },
   { id: "artboards", title: "Artboards", render: () => <ArtboardsPanel /> },

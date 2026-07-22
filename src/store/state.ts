@@ -6,7 +6,7 @@
 
 import type { BoolOp } from "../model/boolean";
 import type { ScriptMeta } from "../model/generators";
-import type { Paint } from "../model/paint";
+import type { Paint, SolidPaint } from "../model/paint";
 import type {
   Artboard,
   BaseNode,
@@ -17,6 +17,7 @@ import type {
   SceneNode,
   ScriptDef,
   Shape,
+  Swatch,
   StrokeAlignment,
   StrokeCap,
   StrokeJoin,
@@ -329,6 +330,25 @@ export interface ClipboardActions {
   duplicateSelected: () => void;
 }
 
+/** Global colours ("document colours"): named swatches referenced by nodes. */
+export interface SwatchActions {
+  /** Create a swatch from a concrete paint; resolves its new id. */
+  createSwatch: (name: string, paint: SolidPaint) => string;
+  /** Create a swatch from the selection's current fill (fallback: stroke) and
+   *  replace that paint with a reference in one undoable step. */
+  createSwatchFromSelection: () => void;
+  /** Rename or re-colour a swatch; every reference re-tints on next render. */
+  updateSwatch: (id: string, patch: Partial<Pick<Swatch, "name" | "paint">>) => void;
+  /** Set the selected shapes' fill/stroke to a reference to swatch `id`. */
+  applySwatch: (id: string, target: "fill" | "stroke") => void;
+  /** Bake references on the given nodes/target back to concrete paint. */
+  unlinkPaint: (nodeIds: Iterable<string>, target: "fill" | "stroke") => void;
+  /** Bake every reference to concrete paint, then remove the swatch. */
+  deleteSwatch: (id: string) => void;
+  /** Move a swatch to `index` in the panel display order. */
+  reorderSwatch: (id: string, index: number) => void;
+}
+
 export interface SymbolActions {
   createSymbolFromSelection: () => void;
   placeSymbolInstance: (symbolId: string, at?: Vec2) => void;
@@ -347,6 +367,7 @@ export type EditorState = EditorData &
   StructureActions &
   ArtboardActions &
   ClipboardActions &
+  SwatchActions &
   SymbolActions;
 
 export type StoreSet = (

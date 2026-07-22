@@ -298,7 +298,7 @@ test("v20 paths unify and inline compound components migrate to real nodes", () 
   assert.equal(loaded.nodes[migratedCompound.childIds[2]].fillRule, "evenodd");
   assert.ok(migratedCompound.childIds.every((id) => parentIdOf(loaded, id) === "compound"));
   assert.notEqual(migratedCompound.childIds[0], "polyline");
-  assert.equal(JSON.parse(serializeDocument(loaded)).version, 22);
+  assert.equal(JSON.parse(serializeDocument(loaded)).version, 23);
 });
 
 test("boolean ops keep curves and produce editable multi-subpath paths", () => {

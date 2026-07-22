@@ -6,7 +6,7 @@
 // means "no paint".
 // ===========================================================================
 
-import type { Bounds, Vec2 } from "./types";
+import type { Bounds, Swatch, Vec2 } from "./types";
 
 export interface SolidPaint {
   type: "solid";
@@ -111,9 +111,57 @@ export function patternPlacement(
   };
 }
 
-export type Paint = SolidPaint | GradientPaint | PatternPaint;
+/**
+ * A reference to a document-level global colour ({@link Swatch}). The concrete
+ * paint lives once in `doc.swatches`; every referencing fill/stroke resolves it
+ * at paint time (see {@link resolvePaintRef}), so editing the swatch re-tints
+ * every use live. Only appears in documents authored after global colours ship.
+ */
+export interface SwatchRefPaint {
+  type: "swatch";
+  /** Id of a Swatch in doc.swatches. */
+  swatchId: string;
+  /** Optional per-use tint 0..1, multiplied onto the swatch's own alpha. */
+  alpha?: number;
+}
+
+export type Paint = SolidPaint | GradientPaint | PatternPaint | SwatchRefPaint;
+
+/** A concrete paint — anything that is not an unresolved swatch reference. */
+export type ConcretePaint = Exclude<Paint, SwatchRefPaint>;
 
 const clamp01 = (n: number) => Math.max(0, Math.min(1, n));
+
+export function swatchRef(swatchId: string, alpha?: number): SwatchRefPaint {
+  return alpha == null
+    ? { type: "swatch", swatchId }
+    : { type: "swatch", swatchId, alpha: clamp01(alpha) };
+}
+
+/** Whether a paint is an (unresolved) reference to a document swatch. */
+export function isSwatchRef(paint: Paint | null | undefined): paint is SwatchRefPaint {
+  return !!paint && paint.type === "swatch";
+}
+
+/**
+ * Resolve a possibly-referential paint to a concrete one. Returns null for a
+ * dangling reference so callers can fall back (render: skip; export: omit).
+ * A non-referential paint is returned unchanged.
+ */
+export function resolvePaintRef(
+  paint: Paint | null,
+  swatches: Record<string, Swatch>
+): ConcretePaint | null {
+  if (paint == null) return null;
+  if (paint.type !== "swatch") return paint;
+  const s = swatches[paint.swatchId];
+  if (!s) return null; // dangling — treat as no paint
+  const base = s.paint;
+  if (paint.alpha != null && base.type === "solid") {
+    return { ...base, alpha: clamp01(base.alpha * paint.alpha) };
+  }
+  return base;
+}
 
 export function solid(color: string, alpha = 1): SolidPaint {
   return { type: "solid", color, alpha: clamp01(alpha) };
@@ -172,6 +220,9 @@ export function paintToCss(paint: Paint): string {
   // Patterns need the decoded asset to preview; callers that can resolve it
   // (ColorField) render their own swatch. Fall back to a neutral fill here.
   if (paint.type === "pattern") return "#8a9099";
+  // Swatch references are resolved by callers that can see the document; this
+  // pure helper never receives one. Fall back to a neutral fill defensively.
+  if (paint.type === "swatch") return "#8a9099";
   const stops = sortedStops(paint.stops)
     .map((s) => `${rgba(s.color, s.alpha)} ${round(s.offset * 100)}%`)
     .join(", ");
@@ -203,6 +254,8 @@ export function resolvePaint(
   // Patterns are resolved by the canvas renderer (it owns the asset cache);
   // this pure helper only knows solids and gradients.
   if (paint.type === "pattern") return "transparent";
+  // Swatch references are resolved by the caller before reaching here.
+  if (paint.type === "swatch") return "transparent";
   const b = bounds ?? { x: 0, y: 0, width: 0, height: 0 };
   const cx = b.x + b.width / 2;
   const cy = b.y + b.height / 2;

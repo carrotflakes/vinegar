@@ -17,6 +17,7 @@ import {
   paintToSvgAttrs,
   patternMode,
   patternPlacement,
+  resolvePaintRef,
   type Paint,
   type PatternPaint,
 } from "../model/paint";
@@ -178,6 +179,11 @@ function makeDefs(doc: Document): Defs {
     items,
     nextId,
     paintAttrs(paint, kind, bounds) {
+      // Bake `swatch` references to concrete paint; a dangling ref emits
+      // `${kind}="none"` (harmless for stroke; suppresses the default black fill).
+      const resolved = resolvePaintRef(paint, doc.swatches);
+      if (!resolved) return [`${kind}="none"`];
+      paint = resolved;
       if (paint.type === "solid") return paintToSvgAttrs(paint, kind);
       if (paint.type === "pattern") {
         const asset = doc.assets[paint.assetId];

@@ -1,7 +1,7 @@
 import type { Document } from "../model/types";
 
-export type DocumentMapField = "nodes" | "symbols" | "scripts" | "assets" | "extensions";
-export type DocumentArrayField = "rootIds" | "artboards";
+export type DocumentMapField = "nodes" | "symbols" | "swatches" | "scripts" | "assets" | "extensions";
+export type DocumentArrayField = "rootIds" | "swatchOrder" | "artboards";
 export type DocumentValueField = "settings" | "metadata";
 
 type MapValue<F extends DocumentMapField> = Document[F] extends Record<string, infer V> ? V : never;
@@ -17,8 +17,8 @@ export interface DocumentPatchPair {
   inversePatches: DocumentPatch[];
 }
 
-const MAP_FIELDS = ["nodes", "symbols", "scripts", "assets", "extensions"] as const;
-const ARRAY_FIELDS = ["rootIds", "artboards"] as const;
+const MAP_FIELDS = ["nodes", "symbols", "swatches", "scripts", "assets", "extensions"] as const;
+const ARRAY_FIELDS = ["rootIds", "swatchOrder", "artboards"] as const;
 const VALUE_FIELDS = ["settings", "metadata"] as const;
 type PatchedDocumentField = (typeof MAP_FIELDS)[number] | (typeof ARRAY_FIELDS)[number] | (typeof VALUE_FIELDS)[number];
 const allDocumentFieldsPatched: [Exclude<keyof Document, PatchedDocumentField>] extends [never] ? true : never = true;
@@ -96,35 +96,26 @@ function replaceRange<T>(array: readonly T[], index: number, deleteCount: number
 
 export function applyDocumentPatches(doc: Document, patches: readonly DocumentPatch[]): Document {
   if (!patches.length) return doc;
-  let nodes: Document["nodes"] | null = null, symbols: Document["symbols"] | null = null, scripts: Document["scripts"] | null = null, assets: Document["assets"] | null = null, extensions: Document["extensions"] | null = null;
-  let rootIds: Document["rootIds"] | null = null, artboards: Document["artboards"] | null = null;
-  let settings: Document["settings"] | null = null, metadata: Document["metadata"] | null = null;
+  // Copy only the fields a patch touches, lazily, and mutate the copies in
+  // place; merge them onto `doc` once at the end. Field-agnostic, so new
+  // Document fields need no changes here (only the field-name unions above).
+  const changed: Partial<Record<keyof Document, unknown>> = {};
+  const copyMap = (field: DocumentMapField) =>
+    (changed[field] ??= { ...doc[field] }) as Record<string, unknown>;
   for (const patch of patches) {
     if (patch.type === "map") {
-      let target: Record<string, unknown>;
-      if (patch.field === "nodes") { nodes ??= { ...doc.nodes }; target = nodes; }
-      else if (patch.field === "symbols") { symbols ??= { ...doc.symbols }; target = symbols; }
-      else if (patch.field === "scripts") { scripts ??= { ...doc.scripts }; target = scripts; }
-      else if (patch.field === "assets") { assets ??= { ...doc.assets }; target = assets; }
-      else { extensions ??= { ...doc.extensions }; target = extensions; }
+      const target = copyMap(patch.field);
       for (const key of patch.remove) delete target[key];
       for (const [key, value] of patch.set) setOwn(target, key, value);
     } else if (patch.type === "splice") {
-      if (patch.field === "rootIds") rootIds = replaceRange(rootIds ?? doc.rootIds, patch.index, patch.deleteCount, patch.items);
-      else artboards = replaceRange(artboards ?? doc.artboards, patch.index, patch.deleteCount, patch.items);
-    } else if (patch.field === "settings") settings = patch.value as Document["settings"];
-    else metadata = patch.value as Document["metadata"];
+      // replaceRange (not variadic splice) so a huge `items` can't blow the stack.
+      changed[patch.field] = replaceRange(
+        (changed[patch.field] as unknown[]) ?? doc[patch.field],
+        patch.index, patch.deleteCount, patch.items as unknown[]
+      );
+    } else {
+      changed[patch.field] = patch.value;
+    }
   }
-  return {
-    ...doc,
-    ...(nodes ? { nodes } : {}),
-    ...(symbols ? { symbols } : {}),
-    ...(scripts ? { scripts } : {}),
-    ...(assets ? { assets } : {}),
-    ...(extensions ? { extensions } : {}),
-    ...(rootIds ? { rootIds } : {}),
-    ...(artboards ? { artboards } : {}),
-    ...(settings ? { settings } : {}),
-    ...(metadata ? { metadata } : {}),
-  };
+  return { ...doc, ...changed } as Document;
 }

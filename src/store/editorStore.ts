@@ -22,6 +22,7 @@ import {
   type StyleDefaults,
 } from "./state";
 import { createStructureActions } from "./structureSlice";
+import { createSwatchActions } from "./swatchSlice";
 import { createSymbolActions } from "./symbolSlice";
 
 export { currentSymbolScope };
@@ -72,6 +73,7 @@ export const useEditor = create<EditorState>((set, get) => {
     ...createStructureActions(ctx),
     ...createArtboardActions(ctx),
     ...createClipboardActions(ctx),
+    ...createSwatchActions(ctx),
     ...createSymbolActions(ctx),
   };
 });

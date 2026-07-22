@@ -1,6 +1,6 @@
 # Vinegar
 
-Vinegar is a browser-based vector graphics editor for precise drawing and illustration, with Bézier editing, pressure-sensitive brushes, reusable symbols, artboards, and flexible export.
+Vinegar is a browser-based vector graphics editor for precise drawing and illustration, with Bézier editing, pressure-sensitive brushes, reusable symbols, global colors, artboards, and flexible export.
 
 ## Stack
 
@@ -47,8 +47,9 @@ pnpm test       # node --test (model, store, persistence, import and recovery)
   Solids and gradients export to SVG; pattern SVG export is intentionally limited (see SVG interoperability below).
   Swatch popover with preset palette, recent colors, saved swatches, hex input, "none" and the **eyedropper**.
 - Stroke width plus **dash pattern/offset, cap, join and inside/center/outside alignment** (closed vectors and text), opacity, and per-node **blend modes** (multiply, screen, overlay, … — shapes and groups)
-- **Effects**: non-destructive, Illustrator-style **ordered effect stack** on any node (shape / group / instance) — **Drop Shadow** and **Gaussian Blur**, applied after content but before opacity/blend, scaling with the transform and zoom; rendered on Canvas, exported to SVG (`<filter>`) and raster images, with export bounds grown so shadows/blur aren't cropped
+- **Effects**: non-destructive, Illustrator-style **ordered effect stack** on any node (shape / group / instance) — **Drop Shadow**, **Gaussian Blur**, **Color Adjust** (brightness / contrast / saturation / hue) and **Color Overlay** (solid tint masked by the content's alpha), applied after content but before opacity/blend; the length-based effects (shadow, blur) scale with the transform and zoom, the color effects are unitless; rendered on Canvas, exported to SVG (`<filter>`/`feColorMatrix`) and raster images, with export bounds grown so shadows/blur aren't cropped
 - **Symbols** (reusable components): create from a selection, place instances (the panel's + button or drag a row onto the canvas), edit in an isolated view (double-click an instance), detach / rename / delete
+- **Global colors** (document color swatches): named solid colors stored on the document that a fill/stroke can *reference* by id — edit the color once and every use re-tints live. The **Global colors panel** creates a color from the selection, renames, applies it to the selection's fill/stroke, and deletes it (baking every reference back to its concrete color first, so nothing dangles). The color popover can link a paint to a global color or unlink it; SVG export bakes references to concrete colors.
 - **Artboards**: non-owning frames on the infinite plane — create/move/resize with the Artboard tool, per-board PNG/SVG export and all-board PNG export
 - **Raster images**: place via File ▸ Place image…, the canvas context menu, or drag & drop; images select/move/resize/rotate and take opacity/blend like any shape; embedded in the file as document assets.
   The **Assets panel** (hidden by default; add it from the dock's panel menu) lists embedded assets with a thumbnail and reference count, places an asset back onto the canvas without re-importing (+ button or drag a row), and can delete unused ones.
@@ -88,8 +89,8 @@ For editable exchange, expect to inspect and adjust the imported or exported res
 
 The persisted `Document` is a **unified scene tree**: a flat `nodes` map keyed by id, with `rootIds` and each group/compound-path container's `childIds` as the only source of hierarchy and back-to-front paint order.
 Every node carries a Canvas/SVG-compatible affine `transform` into its parent space plus a `transformOrigin`; parents, world matrices and leaf shapes are derived (not stored).
-The document also holds `symbols`, `artboards`, `assets` (embedded raster images), `settings` (unit, dpi, grid size), document-local generator `scripts`, `metadata` and namespaced `extensions`.
-The file wrapper is versioned — the current version is v22; v8–v21 files migrate automatically on load, while older versions are unsupported.
+The document also holds `symbols`, global-color `swatches` (with a `swatchOrder`), `artboards`, `assets` (embedded raster images), `settings` (unit, dpi, grid size), document-local generator `scripts`, `metadata` and namespaced `extensions`.
+The file wrapper is versioned — the current version is v23; v8–v22 files migrate automatically on load, while older versions are unsupported.
 See [docs/document-model.md](docs/document-model.md).
 
 ## Project layout

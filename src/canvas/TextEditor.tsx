@@ -1,5 +1,6 @@
 import { useEffect, useRef } from "react";
 import { multiply, shapeWorldMatrix, translation } from "../model/matrix";
+import { resolvePaintRef } from "../model/paint";
 import type { TextShape } from "../model/types";
 import { viewportMatrix } from "../model/viewport";
 import { useEditor } from "../store/editorStore";
@@ -31,6 +32,9 @@ export default function TextEditor({ shape, onChange, onCommit, onCancel }: Prop
     multiply(shapeWorldMatrix(doc, shape), translation(shape.x, shape.y))
   );
 
+  // Resolve a `swatch` fill reference so the overlay matches the painted colour.
+  const fill = resolvePaintRef(shape.fill, doc.swatches);
+
   return (
     <textarea
       ref={textarea}
@@ -50,7 +54,7 @@ export default function TextEditor({ shape, onChange, onCommit, onCancel }: Prop
         lineHeight: String(shape.lineHeight),
         textAlign: shape.align,
         whiteSpace: shape.textMode === "point" ? "pre" : "pre-wrap",
-        color: shape.fill?.type === "solid" ? shape.fill.color : "#111827",
+        color: fill?.type === "solid" ? fill.color : "#111827",
       }}
       onChange={(event) => onChange(event.target.value)}
       onCompositionStart={() => { composing.current = true; }}

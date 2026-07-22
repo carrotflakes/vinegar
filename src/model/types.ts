@@ -3,7 +3,7 @@
 // transform into its parent coordinate space.
 // ===========================================================================
 
-import type { Paint } from "./paint";
+import type { Paint, SolidPaint } from "./paint";
 
 export type Vec2 = { x: number; y: number };
 
@@ -147,6 +147,18 @@ export interface BaseNode {
    * so nodes without it need no migration.
    */
   generator?: GeneratorRef;
+}
+
+/**
+ * A named global colour ("document colour") stored on the document. Nodes
+ * reference it by id through a `swatch` Paint variant; editing the swatch once
+ * re-tints every referencing fill/stroke live. See docs/global-colors.md.
+ */
+export interface Swatch {
+  id: string;
+  name: string;
+  /** Concrete paint. v1: SolidPaint. Never a swatch reference (no chains). */
+  paint: SolidPaint;
 }
 
 /** A node's link to the generator that produced its geometry. */
@@ -450,6 +462,10 @@ export interface Document {
   rootIds: string[];
   /** Symbol definitions; their content lives in `nodes` outside `rootIds`. */
   symbols: Record<string, SymbolDef>;
+  /** Named global colours referenced by node `swatch` fills/strokes. */
+  swatches: Record<string, Swatch>;
+  /** Panel display order. Every id here exists in `swatches` and vice versa. */
+  swatchOrder: string[];
   /** User-authored parametric generators referenced by node `generator` links. */
   scripts: Record<string, ScriptDef>;
   /** Export/layout regions on the plane, in export order. */
@@ -467,6 +483,8 @@ export function createEmptyDocument(): Document {
     nodes: {},
     rootIds: [],
     symbols: {},
+    swatches: {},
+    swatchOrder: [],
     scripts: {},
     artboards: [],
     settings: { unit: "px", dpi: 96, gridSize: 50 },

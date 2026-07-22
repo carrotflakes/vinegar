@@ -292,6 +292,45 @@ globalStyle(".mini-swatch:hover", {
   outlineOffset: "1px",
 });
 
+globalStyle(".mini-swatch.selected", {
+  outline: `2px solid ${vars.accent}`,
+  outlineOffset: "1px",
+});
+
+globalStyle(".swatch-link-badge", {
+  display: "flex",
+  alignItems: "center",
+  gap: "6px",
+  margin: "8px 0 4px",
+  padding: "6px 8px",
+  fontSize: "12px",
+  color: vars.muted,
+  border: `1px solid ${vars.border}`,
+  borderRadius: "6px",
+});
+
+globalStyle(".swatch-link-name", {
+  flex: "1",
+  overflow: "hidden",
+  whiteSpace: "nowrap",
+  textOverflow: "ellipsis",
+});
+
+globalStyle(".swatch-unlink", {
+  padding: "2px 8px",
+  fontSize: "11px",
+  color: vars.text,
+  border: `1px solid ${vars.border}`,
+  borderRadius: "4px",
+  background: "transparent",
+  cursor: "pointer",
+});
+
+globalStyle(".swatch-unlink:hover", {
+  borderColor: vars.accent,
+  color: vars.accent,
+});
+
 globalStyle(".align-btn", {
   fontSize: "15px",
   lineHeight: "1",

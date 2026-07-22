@@ -10,9 +10,11 @@ import {
 import { hasEffects } from "../model/effects";
 import { isIdentity } from "../model/matrix";
 import {
+  isSwatchRef,
   patternMode,
   patternPlacement,
   resolvePaint,
+  resolvePaintRef,
   type Paint,
   type PatternPaint,
 } from "../model/paint";
@@ -357,11 +359,22 @@ function tracePath(
 /** Paint one shape (fill then stroke) in world coordinates. */
 export function paintShape(
   ctx: CanvasRenderingContext2D,
-  shape: Shape,
+  input: Shape,
   assets: Record<string, DocumentAsset> = {},
   doc?: Document,
   preview?: Shape | null
 ): void {
+  // Resolve `swatch` fill/stroke references to concrete paint at the boundary,
+  // so everything downstream stays reference-blind. A dangling ref becomes null
+  // (no paint), matching the "skip" fallback. Only clone when a ref is present.
+  const shape =
+    doc && (isSwatchRef(input.fill) || isSwatchRef(input.stroke))
+      ? ({
+          ...input,
+          fill: resolvePaintRef(input.fill, doc.swatches),
+          stroke: resolvePaintRef(input.stroke, doc.swatches),
+        } as Shape)
+      : input;
   ctx.save();
   ctx.globalAlpha = shape.opacity;
   if (shape.blendMode && shape.blendMode !== "normal") {
