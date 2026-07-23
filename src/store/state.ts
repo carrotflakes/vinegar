@@ -300,6 +300,10 @@ export interface StructureActions {
   convertSelectedToPaths: () => void;
   outlineStrokeSelected: () => void;
   booleanSelected: (op: BoolOp) => void;
+  /** Split overlapping selected shapes into their distinct faces (Pathfinder Divide). */
+  divideSelected: () => void;
+  /** Weld selected paths' open endpoints into continuous contours. */
+  joinSelected: () => void;
   makeCompoundPathSelected: () => void;
   releaseCompoundPathSelected: () => void;
   toggleHidden: (id: string) => void;

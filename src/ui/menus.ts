@@ -89,10 +89,11 @@ export function selectionMenu(): MenuEntry[] {
     "path.smooth",
     "path.flatten",
     "path.reverse",
+    "path.join",
   ]
     .filter(enabled)
     .map((id) => item(id));
-  const boolItems = ["path.union", "path.subtract", "path.intersect", "path.exclude"]
+  const boolItems = ["path.union", "path.subtract", "path.intersect", "path.exclude", "path.divide"]
     .filter(enabled)
     .map((id) => item(id));
   if (pathItems.length || boolItems.length) {

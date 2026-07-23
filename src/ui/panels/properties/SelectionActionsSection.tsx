@@ -222,6 +222,17 @@ export default function SelectionActionsSection({
               </div>
             </>
           )}
+          {can("path.join") && (
+            <div className="btn-row">
+              <button
+                className="ghost-btn"
+                title="Connect open path ends that meet"
+                onClick={() => runCommand("path.join")}
+              >
+                Join
+              </button>
+            </div>
+          )}
           {canConvertToPath && (
             <div className="btn-row">
               <button
@@ -358,6 +369,15 @@ export default function SelectionActionsSection({
               onClick={() => runCommand("path.exclude")}
             >
               Exclude
+            </button>
+          </div>
+          <div className="btn-row">
+            <button
+              className="ghost-btn"
+              title="Split overlapping shapes into separate faces"
+              onClick={() => runCommand("path.divide")}
+            >
+              Divide
             </button>
           </div>
         </div>

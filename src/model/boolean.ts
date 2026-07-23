@@ -213,3 +213,86 @@ export function booleanShapes(
     transformOrigin: null,
   };
 }
+
+// Faces smaller than this (in parent-space units²) are numeric slivers along
+// shared edges, not real regions; drop them.
+const DIVIDE_AREA_EPSILON = 0.01;
+
+// Divide enumerates 2^n coverage subsets, so the cost grows exponentially with
+// the input count. Cap it to keep a click responsive; callers surface a message
+// past the limit rather than freezing on a huge selection.
+export const DIVIDE_MAX_INPUTS = 10;
+
+/** Signed area of a boolean region (defined on Path/CompoundPath, not the base). */
+function regionArea(item: paper.PathItem): number {
+  return (item as paper.Path).area ?? 0;
+}
+
+/** Build a face path shape from a boolean region, styled by `style`. */
+function faceShape(region: paper.PathItem, style: Shape): PathShape | null {
+  const subpaths = geomToSubpaths(region);
+  if (subpaths.length === 0) return null;
+  return {
+    id: makeId("path"),
+    name: "Divide",
+    type: "path",
+    subpaths,
+    fillRule: "evenodd",
+    fill: style.fill,
+    stroke: style.stroke,
+    strokeWidth: style.strokeWidth,
+    ...strokeDetailFields(style),
+    opacity: style.opacity,
+    blendMode: style.blendMode,
+    transform: [...IDENTITY],
+    transformOrigin: null,
+  };
+}
+
+/**
+ * Split overlapping areal shapes into their distinct faces (the Pathfinder
+ * "Divide"). Every maximal region covered by the same subset of inputs becomes
+ * one face, styled by the frontmost (latest in document order) shape covering
+ * it. Curves are preserved. The inputs must be in back-to-front order. Returns
+ * the faces back-to-front, or null with fewer than two areal inputs / no faces.
+ *
+ * Enumerates the 2^n coverage subsets, so callers cap the input count.
+ */
+export function divideShapes(shapes: Shape[], doc?: Document): PathShape[] | null {
+  ensurePaper();
+  const entries = shapes
+    .map((shape, index) => ({ index, shape, geom: shapeToGeom(shape, doc) }))
+    .filter((e): e is { index: number; shape: Shape; geom: paper.PathItem } =>
+      e.geom !== null
+    );
+  const n = entries.length;
+  if (n < 2 || n > DIVIDE_MAX_INPUTS) return null;
+
+  const faces: PathShape[] = [];
+  for (let mask = 1; mask < 1 << n; mask++) {
+    const inS: number[] = [];
+    for (let k = 0; k < n; k++) if (mask & (1 << k)) inS.push(k);
+    // Region covered by every shape in S: intersect them.
+    let region: paper.PathItem = entries[inS[0]].geom.clone({ insert: false });
+    for (let t = 1; t < inS.length; t++) {
+      region = region.intersect(entries[inS[t]].geom, { insert: false });
+      if (Math.abs(regionArea(region)) < DIVIDE_AREA_EPSILON) break;
+    }
+    if (Math.abs(regionArea(region)) < DIVIDE_AREA_EPSILON) continue;
+    // ...and by no shape outside S: subtract the rest.
+    for (
+      let k = 0;
+      k < n && Math.abs(regionArea(region)) >= DIVIDE_AREA_EPSILON;
+      k++
+    ) {
+      if (!(mask & (1 << k))) {
+        region = region.subtract(entries[k].geom, { insert: false });
+      }
+    }
+    if (Math.abs(regionArea(region)) < DIVIDE_AREA_EPSILON) continue;
+    const top = entries[inS[inS.length - 1]].shape;
+    const face = faceShape(region, top);
+    if (face) faces.push(face);
+  }
+  return faces.length ? faces : null;
+}

@@ -23,6 +23,7 @@ import {
 import { createDemoDocument } from "../demo/createDemoDocument";
 import { canGroupSelection, selectionUnits } from "../model/groups";
 import { isAreal } from "../model/boolean";
+import { joinableSubpathCount } from "../model/joinPath";
 import { isInstance, isShape, parentIdOf, selectionRoots } from "../model/scene";
 import { unionNodeWorldBounds } from "../model/bounds";
 import {
@@ -128,6 +129,15 @@ function sel(s: EditorState) {
     canReleaseCompound: canReleaseCompoundPathSelection(s.doc, s.selection),
     canConvertToPath: roots.some((id) => canConvertShapeToPath(s.doc.nodes[id])),
     canPathOp: shapeRoots.some((sh) => sh.type === "path"),
+    canJoin:
+      roots.length >= 1 &&
+      shapeRoots.length === roots.length &&
+      shapeRoots.every((sh) => sh.type === "path") &&
+      parents.size === 1 &&
+      shapeRoots.reduce(
+        (n, sh) => n + (sh.type === "path" ? joinableSubpathCount(sh) : 0),
+        0
+      ) >= 2,
     canBoolean:
       shapeRoots.length === roots.length &&
       roots.length >= 2 &&
@@ -384,6 +394,13 @@ export const COMMANDS: Command[] = [
     run: (s) => s.pathOpSelected("reverse"),
   },
   {
+    id: "path.join",
+    label: "Join path",
+    group: "Path",
+    enabled: (s) => sel(s).canJoin,
+    run: (s) => s.joinSelected(),
+  },
+  {
     id: "path.union",
     label: "Union",
     group: "Boolean",
@@ -410,6 +427,13 @@ export const COMMANDS: Command[] = [
     group: "Boolean",
     enabled: (s) => sel(s).canBoolean,
     run: (s) => s.booleanSelected("xor"),
+  },
+  {
+    id: "path.divide",
+    label: "Divide",
+    group: "Boolean",
+    enabled: (s) => sel(s).canBoolean,
+    run: (s) => s.divideSelected(),
   },
   {
     id: "structure.bringToFront",

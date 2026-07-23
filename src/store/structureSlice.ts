@@ -1,7 +1,8 @@
 // Scene-tree structure: hierarchy, z-order, per-node flags, alignment and
 // shape conversions (boolean ops, outline stroke, compound paths).
 
-import { booleanShapes, isAreal } from "../model/boolean";
+import { booleanShapes, divideShapes, DIVIDE_MAX_INPUTS, isAreal } from "../model/boolean";
+import { joinShapes } from "../model/joinPath";
 import { nodeWorldBounds, unionNodeWorldBounds } from "../model/bounds";
 import {
   canMakeCompoundPathSelection,
@@ -41,7 +42,7 @@ import {
   parentIdOf,
   selectionRoots,
 } from "../model/scene";
-import { makeId, type Bounds, type Document, type Shape } from "../model/types";
+import { makeId, type Bounds, type Document, type PathShape, type Shape } from "../model/types";
 import { groupNode, removeRoots, replaceChildren } from "./docOps";
 import {
   clearTransient,
@@ -276,6 +277,74 @@ export function createStructureActions({ set, get, transact }: StoreCtx): Struct
     },
     booleanSelected: (op) => {
       const doc = get().doc; const roots = selectionRoots(doc, get().selection); if (roots.length < 2 || !roots.every((id) => isShape(doc.nodes[id]))) return; const parent = parentIdOf(doc, roots[0]); if (!roots.every((id) => parentIdOf(doc, id) === parent)) return; const siblings = childIdsOf(doc, parent); const selected = new Set(roots); const ordered = siblings.filter((id) => selected.has(id)); const effectsRemoved = ordered.some((id) => !!doc.nodes[id]?.effects?.length); const result = booleanShapes(ordered.map((id) => doc.nodes[id] as Shape), op, doc); if (!result) return; const nodes = { ...doc.nodes }; for (const id of roots.flatMap((root) => [root, ...descendantNodeIds(doc, root)])) delete nodes[id]; nodes[result.id] = result; const order = siblings.filter((id) => !selected.has(id)); order.splice(siblings.slice(0, siblings.indexOf(ordered[0])).filter((id) => !selected.has(id)).length, 0, result.id); const next = replaceChildren({ ...doc, nodes }, parent, order); if (!hasValidSceneContainers(next)) return; transact(next, { label: `Boolean ${op}` }); set({ selection: [result.id], ...clearTransient }); if (effectsRemoved) notifyEffectsRemoved();
+    },
+    divideSelected: () => {
+      const doc = get().doc;
+      const roots = selectionRoots(doc, get().selection);
+      if (
+        roots.length < 2 ||
+        !roots.every((id) => {
+          const node = doc.nodes[id];
+          return isShape(node) && isAreal(node);
+        })
+      )
+        return;
+      const parent = parentIdOf(doc, roots[0]);
+      if (!roots.every((id) => parentIdOf(doc, id) === parent)) return;
+      const siblings = childIdsOf(doc, parent);
+      const selected = new Set(roots);
+      const ordered = siblings.filter((id) => selected.has(id));
+      if (ordered.length > DIVIDE_MAX_INPUTS) {
+        notify.error(
+          `Divide is limited to ${DIVIDE_MAX_INPUTS} shapes at once.`
+        );
+        return;
+      }
+      const effectsRemoved = ordered.some((id) => !!doc.nodes[id]?.effects?.length);
+      const faces = divideShapes(ordered.map((id) => doc.nodes[id] as Shape), doc);
+      if (!faces) return;
+      const nodes = { ...doc.nodes };
+      for (const id of ordered.flatMap((r) => [r, ...descendantNodeIds(doc, r)]))
+        delete nodes[id];
+      for (const face of faces) nodes[face.id] = face;
+      const gid = makeId("group");
+      nodes[gid] = groupNode(gid, faces.map((face) => face.id));
+      const order = siblings.filter((id) => !selected.has(id));
+      const at = siblings.slice(0, siblings.indexOf(ordered[0])).filter((id) => !selected.has(id)).length;
+      order.splice(at, 0, gid);
+      const next = replaceChildren({ ...doc, nodes }, parent, order);
+      if (!hasValidSceneContainers(next)) return;
+      transact(next, { label: "Divide" });
+      set({ selection: [gid], ...clearTransient });
+      if (effectsRemoved) notifyEffectsRemoved();
+    },
+    joinSelected: () => {
+      const doc = get().doc;
+      const roots = selectionRoots(doc, get().selection);
+      const pathRoots = roots.filter((id) => doc.nodes[id]?.type === "path");
+      if (!pathRoots.length || pathRoots.length !== roots.length) return;
+      const parent = parentIdOf(doc, pathRoots[0]);
+      if (!pathRoots.every((id) => parentIdOf(doc, id) === parent)) return;
+      const siblings = childIdsOf(doc, parent);
+      const selected = new Set(pathRoots);
+      const ordered = siblings.filter((id) => selected.has(id));
+      const effectsRemoved = ordered.some((id) => !!doc.nodes[id]?.effects?.length);
+      const result = joinShapes(ordered.map((id) => doc.nodes[id] as PathShape));
+      if (!result) {
+        notify.error("No path ends were close enough to join.");
+        return;
+      }
+      const nodes = { ...doc.nodes };
+      for (const id of ordered) delete nodes[id];
+      nodes[result.id] = result;
+      const order = siblings.filter((id) => !selected.has(id));
+      const at = siblings.slice(0, siblings.indexOf(ordered[0])).filter((id) => !selected.has(id)).length;
+      order.splice(at, 0, result.id);
+      const next = replaceChildren({ ...doc, nodes }, parent, order);
+      if (!hasValidSceneContainers(next)) return;
+      transact(next, { label: "Join path" });
+      set({ selection: [result.id], ...clearTransient });
+      if (effectsRemoved) notifyEffectsRemoved();
     },
     makeCompoundPathSelected: () => {
       const doc = get().doc;
