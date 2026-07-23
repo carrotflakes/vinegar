@@ -42,12 +42,9 @@ globalStyle(".snap-menu-trigger svg", {
   flex: "0 0 auto",
 });
 
-globalStyle(".menu-popover.snap-menu-popover", {
-  // Anchored in the bottom status bar, so open upward and align to the right.
-  top: "auto",
-  bottom: "calc(100% + 6px)",
-  left: "auto",
-  right: "0",
+globalStyle(".snap-menu-popover", {
+  // Placement (open upward, right-aligned) is handled by Floating UI; see
+  // SnapMenu's `placement="top-end"`.
   minWidth: "190px",
 });
 

@@ -84,9 +84,9 @@ globalStyle(".zoom-menu-knob line", {
   strokeLinecap: "round",
 });
 
-globalStyle(".menu-popover.zoom-menu-popover", {
-  right: "0",
-  left: "auto",
+globalStyle(".zoom-menu-popover", {
+  // Placement (right-aligned) is handled by Floating UI; see ZoomMenu's
+  // `placement="bottom-end"`.
   minWidth: "260px",
 });
 

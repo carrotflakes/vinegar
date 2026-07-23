@@ -3,13 +3,13 @@ import { globalStyle } from "@vanilla-extract/css";
 
 globalStyle(".menu-root", {
   position: "relative",
+  display: "flex",
 });
 
+// Positioning (position/top/left) is applied inline by Floating UI (see
+// ui/menu/Popover.tsx); this only styles the panel surface.
 globalStyle(".menu-popover", {
-  position: "absolute",
-  top: "calc(100% + 6px)",
-  left: "0",
-  zIndex: "20",
+  zIndex: "100",
   minWidth: "170px",
   padding: "5px",
   background: `${vars.panel2}`,
@@ -18,6 +18,7 @@ globalStyle(".menu-popover", {
   boxShadow: `0 8px 28px ${vars.shadow}`,
   display: "flex",
   flexDirection: "column",
+  outline: "none",
 });
 
 globalStyle(".menu-item", {
@@ -36,7 +37,7 @@ globalStyle(".menu-item:disabled", {
   cursor: "default",
 });
 
-globalStyle(".menu-item:hover:not(:disabled),\n.menu-item.active", {
+globalStyle(".menu-item:hover:not(:disabled)", {
   background: vars.accentWeak,
   color: vars.accent,
 });
@@ -44,24 +45,6 @@ globalStyle(".menu-item:hover:not(:disabled),\n.menu-item.active", {
 globalStyle(".menu-divider", {
   margin: "5px 6px",
   borderTop: `1px solid ${vars.border}`,
-});
-
-globalStyle(".menu-sub", {
-  position: "relative",
-  display: "flex",
-  flexDirection: "column",
-});
-
-globalStyle(".submenu-trigger", {
-  display: "flex",
-  alignItems: "center",
-  justifyContent: "space-between",
-  gap: "8px",
-});
-
-globalStyle(".menu-popover-sub", {
-  top: "-6px",
-  left: "100%",
 });
 
 globalStyle(".menu-caret", {
