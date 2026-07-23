@@ -5,10 +5,10 @@ Vinegar is a browser-based vector graphics editor for precise drawing and illust
 ## Stack
 
 - React 19 + TypeScript + Vite
-- Zustand for state (with undo/redo history)
+- Zustand for state
 - Canvas 2D rendering (no SVG/WebGL)
 - Paper.js for boolean path operations; `clipper-lib` for stroke outlining
-- `react-icons` (Lucide) for the toolbar; `@floating-ui/react-dom` for popovers
+- `react-icons` (Lucide) for the toolbar; `@floating-ui/react` for menus and popovers
 - Package manager: **pnpm**
 
 ## Getting started
@@ -40,7 +40,8 @@ pnpm test       # node --test (model, store, persistence, import and recovery)
 - **Clipping masks**: use the frontmost closed vector shape to clip a group; nested masks work in Canvas, PNG and SVG output and can be released for editing
 - Multi-select (shift-click & marquee)
 - Copy / cut / paste / duplicate (groups stay grouped on paste; **Paste here** from the canvas context menu)
-- **Boolean operations**: union, subtract, intersect, exclude (Paper.js; curve-preserving — the result is a node-editable compound Bézier)
+- **Boolean operations**: union, subtract, intersect, exclude (Paper.js; curve-preserving — the result is a node-editable compound Bézier); **Divide** splits overlapping shapes into their distinct faces, each styled by the frontmost covering shape and grouped
+- **Path ops**: **Join** (⌘J) welds selected open paths' nearby endpoints into continuous contours (closing a contour whose ends meet); **Cut** breaks a contour at selected anchors (the exact inverse of Join); and one-shot **Simplify / Smooth / Flatten / Reverse** cleanup
 - **Compound paths**: own real, nested layer nodes for their closed source shapes, paint them through one shared even-odd appearance, allow path-anchor and hide/reorder editing, and release back to the original shape types
 - **Outline stroke**: convert a shape's stroke into a filled path (`clipper-lib`)
 - **Paint model** for fill/stroke: solid colors with **per-color alpha** and **gradients** (linear & radial, with a stop editor), plus tiled raster **patterns** — rendered on Canvas.
@@ -58,7 +59,7 @@ pnpm test       # node --test (model, store, persistence, import and recovery)
 - Arrange: bring to front / send to back
 - **Layers panel**: tree view of groups (collapse, show/hide, lock/unlock), z-order list, click to select, drag to reorder (across parents), double-click to rename
 - **Command registry**: one source of truth for actions, driving keyboard shortcuts, the File menu, context menus and the **command palette** (Ctrl/⌘+K — shortcuts are discoverable there and in the menus)
-- **Context menus** on the canvas and layers panel
+- **Menus**: the File menu and canvas/layers **context menus** share one data model and Floating UI-based renderer, with submenus, keyboard navigation + typeahead, shortcut hints and flip/shift overflow handling
 - **Snapping**: edges/centers snap to other shapes (magenta alignment guides), equal-spacing distribution between neighbours (spacing markers), and an optional grid (adjustable size).
   Works while moving, **drawing, resizing, and editing pen vertices** — toggle "Snap" / "Grid" in the status bar.
 - **Scripting**: a one-shot drawing DSL that runs in a sandboxed Web Worker and applies its changes in a single undo step; can create shapes and read/edit existing ones (open via the "Script" button in the app bar)
@@ -97,10 +98,11 @@ See [docs/document-model.md](docs/document-model.md).
 
 ```
 src/
-  model/     types, geometry, hit-testing, matrix/affine transforms, bounds,
-             scene index, groups, paint, snapping, freehand/brush geometry,
-             erasing, boolean, compound paths, generators, outlineStroke,
-             bucketFill
+  model/     types + scene index, groups, paint, bucketFill, plus subfolders:
+             geometry/ (matrix/affine transforms, bounds, hit-testing,
+             snapping, viewport), path/ (paths, boolean, compound paths,
+             join/cut, path cleanup ops, outlineStroke, freehand),
+             brush/ (brush geometry + erasing), generators/
   store/     zustand editor store split into slices (shapes, selection,
              structure, symbols, artboards, clipboard, history, prefs),
              pointer & menu stores
@@ -118,6 +120,8 @@ src/
 docs/        document model and feature design notes
 tests/       node --test model/store/persistence tests via Vite SSR
 ```
+
+Imports into `src/` use the `@/` path alias (e.g. `@/model/path/boolean`); same-folder siblings stay relative.
 
 ## Roadmap
 

@@ -244,7 +244,6 @@ additional effects, or other feature expansion.
   fidelity and browser/touch support).
 
 ## User ideas / wishlist
-- [x] 塗り機能
 - [ ] スクリプティングの拡充
   - [ ] 実行後に生成物へビューを自動フィット
   - [ ] DSL に bezier() を追加
@@ -313,4 +312,5 @@ additional effects, or other feature expansion.
 - [ ] generatorの編集ロック prefへ
 - [ ] ドックのフローティング、マルチカラム化
 - [ ] Assetという名前は問題ないか。raster imageではないか。
-- [ ] Fileメニューとコンテキストメニュー一本化
+- [ ] nodeツール矩形選択
+- [ ] subpath分割コマンド、統合コマンド
