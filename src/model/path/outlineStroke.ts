@@ -1,18 +1,18 @@
 import ClipperLib, { type PolyNode } from "clipper-lib";
 import { flattenSubpath } from "./path";
-import { shapeBounds } from "./bounds";
+import { shapeBounds } from "@/model/geometry/bounds";
 import { compoundChildren } from "./compoundPath";
 import { contours, intPath, SCALE, treeToPolys } from "./clipperPaths";
-import { applyMatrix } from "./matrix";
-import { roundedRectPolyline } from "./roundedRect";
+import { applyMatrix } from "@/model/geometry/matrix";
+import { roundedRectPolyline } from "../roundedRect";
 import {
   effectiveStrokeAlignment,
   normalizeStrokeDash,
   STROKE_MITER_LIMIT,
   strokeCap,
   strokeJoin,
-} from "./stroke";
-import type { Document, Shape, Vec2 } from "./types";
+} from "../stroke";
+import type { Document, Shape, Vec2 } from "../types";
 
 interface Polyline {
   points: Vec2[];

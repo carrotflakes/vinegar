@@ -11,7 +11,7 @@ import {
   type Bounds,
   type Vec2,
 } from "../../model/types";
-import { worldToScreen } from "../../model/viewport";
+import { worldToScreen } from "@/model/geometry/viewport";
 import { CLICK_SLOP, type Interaction, type ToolContext } from "../interaction";
 import {
   HANDLE_IDS,

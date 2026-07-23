@@ -1,6 +1,6 @@
 import { createEmptyDocument, makeArtboard, type DocumentAsset, type SceneNode, type Vec2 } from "../model/types";
 import { linearGradient, pattern, radialGradient, solid } from "../model/paint";
-import { IDENTITY, multiply, rotation, translation } from "../model/matrix";
+import { IDENTITY, multiply, rotation, translation } from "@/model/geometry/matrix";
 
 // A tiny seamless polka-dot tile, embedded as an SVG data URL so the demo has
 // a texture asset without any external file. Dots at (6,6) and (18,18) on a

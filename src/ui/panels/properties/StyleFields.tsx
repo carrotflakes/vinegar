@@ -2,7 +2,7 @@ import {
   BLEND_MODES,
   type BlendMode,
 } from "../../../model/types";
-import ScrubbableNumber from "../../ScrubbableNumber";
+import ScrubbableNumber from "@/ui/controls/ScrubbableNumber";
 
 function blendLabel(mode: BlendMode): string {
   const words = mode.replace(/-/g, " ");

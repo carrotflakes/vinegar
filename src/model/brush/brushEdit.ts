@@ -1,6 +1,6 @@
 import { brushSegments } from "./brushSegments";
-import { cubicPoint } from "./path";
-import type { BrushAnchor, BrushShape, Vec2 } from "./types";
+import { cubicPoint } from "@/model/path/path";
+import type { BrushAnchor, BrushShape, Vec2 } from "../types";
 
 // Node-tool structural edits on a brush centerline (one open run of anchors).
 // These mirror the path equivalents in `path.ts` but carry each anchor's

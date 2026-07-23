@@ -3,7 +3,7 @@
 // (bucketFill.ts).
 
 import type { IntPoint, PolyNode } from "clipper-lib";
-import type { Vec2 } from "./types";
+import type { Vec2 } from "../types";
 
 /** Clipper works in integers; scale world units up for sub-pixel precision. */
 export const SCALE = 1000;

@@ -1,5 +1,5 @@
-import { brushAnchor } from "../../model/brushOutline";
-import { IDENTITY } from "../../model/matrix";
+import { brushAnchor } from "@/model/brush/brushOutline";
+import { IDENTITY } from "@/model/geometry/matrix";
 import { type BrushShape, type Vec2 } from "../../model/types";
 import { useBrush } from "../../store/brushStore";
 import type { EditorState } from "../../store/editorStore";

@@ -24,11 +24,11 @@ import {
   type Paint,
   type PatternMode,
   type PatternPaint,
-} from "../model/paint";
-import { pickImageFiles } from "../io/importImage";
+} from "@/model/paint";
+import { pickImageFiles } from "@/io/importImage";
 import ScrubbableNumber from "./ScrubbableNumber";
-import { useEditor } from "../store/editorStore";
-import "./Panel.css";
+import { useEditor } from "@/store/editorStore";
+import "@/ui/Panel.css";
 import "./ColorField.css";
 
 /** A curated default palette (grayscale + a hue wheel + tints). */

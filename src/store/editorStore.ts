@@ -6,7 +6,7 @@
 // ===========================================================================
 
 import { create } from "zustand";
-import { IDENTITY } from "../model/matrix";
+import { IDENTITY } from "@/model/geometry/matrix";
 import { createEmptyDocument, type Shape } from "../model/types";
 import { createArtboardActions } from "./artboardSlice";
 import { createClipboardActions } from "./clipboardSlice";

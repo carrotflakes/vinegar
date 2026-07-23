@@ -1,19 +1,19 @@
 // Creating and mutating individual shapes (geometry, style, path anchors).
 
-import { toggleAnchorSmooth } from "../model/path";
-import { cutPathAtNodes } from "../model/cutPath";
-import { PATH_OP_LABEL, pathOpShape } from "../model/pathOps";
-import { buildGenerator, compileGenerator, type CompileResult } from "../model/generatorClient";
-import { GENERATORS, defaultArgs, type ScriptMeta } from "../model/generators";
+import { toggleAnchorSmooth } from "@/model/path/path";
+import { cutPathAtNodes } from "@/model/path/cutPath";
+import { PATH_OP_LABEL, pathOpShape } from "@/model/path/pathOps";
+import { buildGenerator, compileGenerator, type CompileResult } from "@/model/generators/generatorClient";
+import { GENERATORS, defaultArgs, type ScriptMeta } from "@/model/generators/generators";
 import { solid } from "../model/paint";
-import { deleteBrushAnchor, toggleBrushAnchorSmooth } from "../model/brushEdit";
-import { expandBounds, instanceWorldBounds, intersectBounds, shapeBounds, unionNodeWorldBounds, worldShapeBounds } from "../model/bounds";
+import { deleteBrushAnchor, toggleBrushAnchorSmooth } from "@/model/brush/brushEdit";
+import { expandBounds, instanceWorldBounds, intersectBounds, shapeBounds, unionNodeWorldBounds, worldShapeBounds } from "@/model/geometry/bounds";
 import { hasValidSceneContainers } from "../model/sceneValidation";
-import { eraseBrush } from "../model/eraser";
-import { applyWorldTransformToNode, boundsTransform, IDENTITY, invertMatrix, multiply, nodeWorldMatrix, shapeWorldMatrix, translation } from "../model/matrix";
+import { eraseBrush } from "@/model/brush/eraser";
+import { applyWorldTransformToNode, boundsTransform, IDENTITY, invertMatrix, multiply, nodeWorldMatrix, shapeWorldMatrix, translation } from "@/model/geometry/matrix";
 import { childIdsOf, descendantShapeIds, isGroup, isInstance, isNodeHidden, isNodeLocked, isShape, parentIdOf, referencedAssetIds, scopeLeafIds, scopeRootGroupId, selectionRoots, withChildIds } from "../model/scene";
 import { clampRectCornerRadius } from "../model/roundedRect";
-import { resizeShapeToBounds, translateShape } from "../model/transforms";
+import { resizeShapeToBounds, translateShape } from "@/model/geometry/transforms";
 import { makeId, type PathShape, type Bounds, type ImageShape, type SceneNode, type Shape, type Vec2 } from "../model/types";
 import { importImageFile, importImageFiles, isImageFile } from "../io/importImage";
 import { notify } from "./toastStore";

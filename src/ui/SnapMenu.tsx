@@ -1,6 +1,6 @@
 import { LuChevronDown, LuMagnet } from "react-icons/lu";
 import { useEditor } from "../store/editorStore";
-import ScrubbableNumber from "./ScrubbableNumber";
+import ScrubbableNumber from "@/ui/controls/ScrubbableNumber";
 import { barButton } from "./AppBar.css";
 import { Popover } from "./menu/Popover";
 import "./menus.css";

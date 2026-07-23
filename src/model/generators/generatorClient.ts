@@ -7,7 +7,7 @@
 
 import { compileScript } from "./generators";
 import type { GeneratorParam } from "./generators";
-import type { PathSubpath } from "./types";
+import type { PathSubpath } from "../types";
 
 export interface CompileResult {
   params: GeneratorParam[];

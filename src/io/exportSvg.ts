@@ -1,7 +1,7 @@
-import { subpathSegments } from "../model/path";
-import { shapeBounds } from "../model/bounds";
-import { cachedBrushEnvelope } from "../model/brushOutline";
-import { compoundChildren } from "../model/compoundPath";
+import { subpathSegments } from "@/model/path/path";
+import { shapeBounds } from "@/model/geometry/bounds";
+import { cachedBrushEnvelope } from "@/model/brush/brushOutline";
+import { compoundChildren } from "@/model/path/compoundPath";
 import { getAssetImage } from "../imageCache";
 import {
   clippingContentIds,
@@ -10,7 +10,7 @@ import {
   type ClippingMaskShape,
 } from "../model/clippingMask";
 import { hasEffects, SHADOW_BLUR_TO_STDDEV } from "../model/effects";
-import { applyMatrix, isIdentity } from "../model/matrix";
+import { applyMatrix, isIdentity } from "@/model/geometry/matrix";
 import {
   gradientToSvg,
   hexToRgb,

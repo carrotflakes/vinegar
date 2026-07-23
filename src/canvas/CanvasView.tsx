@@ -1,16 +1,16 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { subscribeImageCache } from "../imageCache";
-import { unionNodeWorldBounds } from "../model/bounds";
+import { unionNodeWorldBounds } from "@/model/geometry/bounds";
 import {
   drillScopeRoot,
   exactlySelectedGroup,
   expandToGroups,
   isWithinGroup,
 } from "../model/groups";
-import { shapeWorldMatrix } from "../model/matrix";
+import { shapeWorldMatrix } from "@/model/geometry/matrix";
 import { isDocumentFile, openDocumentFile } from "../io/openDocument";
 import { isGroup, scopeRootGroupId } from "../model/scene";
-import { type Guide, type Spacing } from "../model/snap";
+import { type Guide, type Spacing } from "@/model/geometry/snap";
 import type { PathShape, Bounds, Shape, TextShape, Vec2 } from "../model/types";
 import {
   rotateAt,
@@ -18,7 +18,7 @@ import {
   snapAngleToQuarter,
   zoomAt,
   type Viewport,
-} from "../model/viewport";
+} from "@/model/geometry/viewport";
 import { currentSymbolScope, useEditor } from "../store/editorStore";
 import { readModifiers, useInput } from "../store/inputStore";
 import { openContextMenu } from "../store/menuStore";

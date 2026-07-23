@@ -2,9 +2,9 @@
 // outside rootIds); instances are atomic leaves. Local-view editing is
 // tracked by the editingSymbols stack.
 
-import { symbolContentBounds } from "../model/bounds";
+import { symbolContentBounds } from "@/model/geometry/bounds";
 import { hasValidSceneContainers } from "../model/sceneValidation";
-import { IDENTITY, translation as translationMatrix } from "../model/matrix";
+import { IDENTITY, translation as translationMatrix } from "@/model/geometry/matrix";
 import {
   childIdsOf,
   descendantNodeIds,

@@ -1,6 +1,6 @@
-import { flattenSubpath } from "./path";
-import { cachedBrushEnvelope } from "./brushOutline";
-import { compoundChildren } from "./compoundPath";
+import { flattenSubpath } from "@/model/path/path";
+import { cachedBrushEnvelope } from "@/model/brush/brushOutline";
+import { compoundChildren } from "@/model/path/compoundPath";
 import {
   expandBounds,
   instanceWorldBounds,
@@ -15,12 +15,12 @@ import {
   isNodeVisibleForHitTesting,
   shapeFillRule,
   type ClippingMaskShape,
-} from "./clippingMask";
+} from "../clippingMask";
 import { invertMatrix, matrixScale, nodeWorldMatrix, shapeWorldMatrix, transformBounds } from "./matrix";
-import { isInstance, isShape, scopeLeafIds } from "./scene";
-import { pointInRoundedRect, roundedRectPolyline } from "./roundedRect";
-import { effectiveStrokeAlignment, strokeOutset } from "./stroke";
-import type { Bounds, Document, Shape, SymbolInstance, Vec2 } from "./types";
+import { isInstance, isShape, scopeLeafIds } from "../scene";
+import { pointInRoundedRect, roundedRectPolyline } from "../roundedRect";
+import { effectiveStrokeAlignment, strokeOutset } from "../stroke";
+import type { Bounds, Document, Shape, SymbolInstance, Vec2 } from "../types";
 import { applyMatrix } from "./matrix";
 
 /** Even-odd point-in-polygon test. */

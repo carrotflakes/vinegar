@@ -9,7 +9,7 @@ import {
   matrixAngle,
   nodeWorldMatrix,
   rotationAbout,
-} from "../../../model/matrix";
+} from "@/model/geometry/matrix";
 import {
   type Document,
   type Group,

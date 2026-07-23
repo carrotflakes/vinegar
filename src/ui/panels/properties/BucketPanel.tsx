@@ -1,5 +1,5 @@
 import { useBucket } from "../../../store/bucketStore";
-import ScrubbableNumber from "../../ScrubbableNumber";
+import ScrubbableNumber from "@/ui/controls/ScrubbableNumber";
 import "../../Panel.css";
 
 /** Tool options for the Bucket Fill tool. Shown while the tool is active. */

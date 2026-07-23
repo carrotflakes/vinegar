@@ -7,7 +7,7 @@ import {
   getCommand,
   runCommand,
 } from "../commands/registry";
-import { rotateAt } from "../model/viewport";
+import { rotateAt } from "@/model/geometry/viewport";
 import { useEditor } from "../store/editorStore";
 import { usePreferences } from "../store/preferencesStore";
 import { barButton } from "./AppBar.css";

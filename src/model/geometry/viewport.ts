@@ -1,5 +1,5 @@
 import { rotateAbout } from "./rotate";
-import type { Matrix, Bounds, Vec2 } from "./types";
+import type { Matrix, Bounds, Vec2 } from "../types";
 
 /**
  * Viewport maps world coordinates to screen pixels:

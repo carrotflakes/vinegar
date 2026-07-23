@@ -6,7 +6,7 @@ import type {
   SceneNode,
 } from "../../../model/types";
 import { useEditor } from "../../../store/editorStore";
-import ScrubbableNumber from "../../ScrubbableNumber";
+import ScrubbableNumber from "@/ui/controls/ScrubbableNumber";
 
 function effectLabel(type: Effect["type"]): string {
   if (type === "blur") return "Blur";

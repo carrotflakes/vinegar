@@ -3,10 +3,10 @@ import {
   GENERATORS,
   resolveGenerator,
   UNTRUSTED_ERROR,
-} from "../../../model/generators";
+} from "@/model/generators/generators";
 import type { PathShape } from "../../../model/types";
 import { useEditor } from "../../../store/editorStore";
-import ScrubbableNumber from "../../ScrubbableNumber";
+import ScrubbableNumber from "@/ui/controls/ScrubbableNumber";
 
 /**
  * Parameter controls for a parametric node. Editing a value regenerates the

@@ -2,7 +2,7 @@
 // used by the panels that originate the drag/click and by the canvas that
 // receives the drop.
 
-import { screenToWorld } from "../model/viewport";
+import { screenToWorld } from "@/model/geometry/viewport";
 import type { Vec2 } from "../model/types";
 import { useEditor } from "../store/editorStore";
 

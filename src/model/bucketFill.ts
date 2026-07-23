@@ -15,14 +15,14 @@
 // ===========================================================================
 
 import ClipperLib, { type IntPoint, type PolyNode, type PolyTree } from "clipper-lib";
-import { flattenSubpath } from "./path";
-import { brushCenterlineSamples, cachedBrushEnvelope } from "./brushOutline";
-import { shapeBounds } from "./bounds";
-import { compoundChildren } from "./compoundPath";
+import { flattenSubpath } from "@/model/path/path";
+import { brushCenterlineSamples, cachedBrushEnvelope } from "@/model/brush/brushOutline";
+import { shapeBounds } from "@/model/geometry/bounds";
+import { compoundChildren } from "@/model/path/compoundPath";
 import { clippingContentIds, clippingMask } from "./clippingMask";
-import { contours, intPath, SCALE, treeToPolys } from "./clipperPaths";
-import { applyMatrix, IDENTITY, multiply } from "./matrix";
-import { strokeOutline } from "./outlineStroke";
+import { contours, intPath, SCALE, treeToPolys } from "@/model/path/clipperPaths";
+import { applyMatrix, IDENTITY, multiply } from "@/model/geometry/matrix";
+import { strokeOutline } from "@/model/path/outlineStroke";
 import { roundedRectPolyline } from "./roundedRect";
 import { isGroup, isInstance, isShape, scopeRootIds } from "./scene";
 import type { Document, Matrix, Shape, Vec2 } from "./types";

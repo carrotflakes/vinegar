@@ -1,5 +1,5 @@
 import { clippingMask } from "../model/clippingMask";
-import { isCompoundChild } from "../model/compoundPath";
+import { isCompoundChild } from "@/model/path/compoundPath";
 import { paintFromLegacy } from "../model/paint";
 import { referencedAssetIds } from "../model/scene";
 import {

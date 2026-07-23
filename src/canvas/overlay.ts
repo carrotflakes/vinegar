@@ -1,7 +1,7 @@
-import type { Guide, Spacing } from "../model/snap";
-import { applyMatrix } from "../model/matrix";
+import type { Guide, Spacing } from "@/model/geometry/snap";
+import { applyMatrix } from "@/model/geometry/matrix";
 import type { Artboard, Bounds, PathShape, Matrix, Vec2 } from "../model/types";
-import { worldToScreen, type Viewport } from "../model/viewport";
+import { worldToScreen, type Viewport } from "@/model/geometry/viewport";
 import { HANDLE_IDS, HANDLE_SIZE, handlePoint } from "./handles";
 import {
   frameCorners,

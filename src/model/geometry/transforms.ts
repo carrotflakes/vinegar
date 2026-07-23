@@ -1,7 +1,7 @@
 import { normalizeRect } from "./bounds";
 import { boundsTransform, multiply, translation } from "./matrix";
-import { clampRectCornerRadius } from "./roundedRect";
-import type { Bounds, Shape, Vec2 } from "./types";
+import { clampRectCornerRadius } from "../roundedRect";
+import type { Bounds, Shape, Vec2 } from "../types";
 
 /**
  * Apply a point-mapping function to every defining point of a shape and

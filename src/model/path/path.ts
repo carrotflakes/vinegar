@@ -1,4 +1,4 @@
-import type { PathAnchor, PathShape, PathSubpath, Vec2 } from "./types";
+import type { PathAnchor, PathShape, PathSubpath, Vec2 } from "../types";
 
 export interface CubicSegment {
   p0: Vec2;

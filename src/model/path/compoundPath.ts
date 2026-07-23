@@ -1,6 +1,6 @@
-import { IDENTITY, multiply } from "./matrix";
+import { IDENTITY, multiply } from "@/model/geometry/matrix";
 import { isAreal } from "./boolean";
-import { strokeDetailFields } from "./stroke";
+import { strokeDetailFields } from "../stroke";
 import {
   makeId,
   type CompoundPathNode,
@@ -8,13 +8,13 @@ import {
   type SceneNode,
   type Shape,
   type Document,
-} from "./types";
+} from "../types";
 import {
   isCompoundPath,
   isShape,
   parentIdOf,
   selectionRoots,
-} from "./scene";
+} from "../scene";
 
 export function isCompoundChild(
   node: SceneNode | undefined

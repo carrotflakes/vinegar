@@ -3,7 +3,7 @@ import {
   fitBrushAnchors,
   simplifyWidthSamples,
   type WidthSample,
-} from "../../model/brushOutline";
+} from "@/model/brush/brushOutline";
 import {
   makeId,
   type BrushAnchor,

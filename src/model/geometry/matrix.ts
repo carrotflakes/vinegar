@@ -1,5 +1,5 @@
-import type { Bounds, Document, Matrix, SceneNode, Shape, Vec2 } from "./types";
-import { parentIdOf, sceneIndex } from "./scene";
+import type { Bounds, Document, Matrix, SceneNode, Shape, Vec2 } from "../types";
+import { parentIdOf, sceneIndex } from "../scene";
 
 export const IDENTITY: Matrix = [1, 0, 0, 1, 0, 0];
 

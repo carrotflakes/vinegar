@@ -14,19 +14,19 @@
 import {
   canReleaseCompoundPathSelection,
   canMakeCompoundPathSelection,
-} from "../model/compoundPath";
-import { canConvertShapeToPath } from "../model/convertToPath";
+} from "@/model/path/compoundPath";
+import { canConvertShapeToPath } from "@/model/path/convertToPath";
 import {
   canMakeClippingMaskSelection,
   canReleaseClippingMaskSelection,
 } from "../model/clippingMask";
 import { createDemoDocument } from "../demo/createDemoDocument";
 import { canGroupSelection, selectionUnits } from "../model/groups";
-import { isAreal } from "../model/boolean";
-import { joinableSubpathCount } from "../model/joinPath";
-import { hasCuttableNodes } from "../model/cutPath";
+import { isAreal } from "@/model/path/boolean";
+import { joinableSubpathCount } from "@/model/path/joinPath";
+import { hasCuttableNodes } from "@/model/path/cutPath";
 import { isInstance, isShape, parentIdOf, selectionRoots } from "../model/scene";
-import { unionNodeWorldBounds } from "../model/bounds";
+import { unionNodeWorldBounds } from "@/model/geometry/bounds";
 import {
   artboardBounds,
   type Artboard,
@@ -41,7 +41,7 @@ import {
   screenToWorld,
   zoomAt,
   type ViewportSize,
-} from "../model/viewport";
+} from "@/model/geometry/viewport";
 import {
   downloadBlob,
   downloadText,

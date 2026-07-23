@@ -3,7 +3,7 @@ import * as paperNs from "paper";
 // either on the namespace itself or on its `default`.
 const paper: typeof paperNs =
   (paperNs as { default?: typeof paperNs }).default ?? paperNs;
-import type { PathShape, PathSubpath } from "./types";
+import type { PathShape, PathSubpath } from "../types";
 
 /** In-place geometry cleanups that map a path onto a new path of the same shape. */
 export type PathOp = "reverse" | "simplify" | "smooth" | "flatten";

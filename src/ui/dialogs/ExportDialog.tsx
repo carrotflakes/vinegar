@@ -28,7 +28,7 @@ import { useEditor } from "../../store/editorStore";
 import { notify } from "../../store/toastStore";
 import "../Modal.css";
 import "./DialogForm.css";
-import ScrubbableNumber from "../ScrubbableNumber";
+import ScrubbableNumber from "@/ui/controls/ScrubbableNumber";
 import "./ExportDialog.css";
 
 interface Props {

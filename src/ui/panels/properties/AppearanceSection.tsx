@@ -8,8 +8,8 @@ import {
 } from "../../../model/stroke";
 import { type Shape } from "../../../model/types";
 import { useEditor } from "../../../store/editorStore";
-import ColorField from "../../ColorField";
-import ScrubbableNumber from "../../ScrubbableNumber";
+import ColorField from "@/ui/controls/ColorField";
+import ScrubbableNumber from "@/ui/controls/ScrubbableNumber";
 import StrokeDetailControls, {
   type StrokeDetailsValue,
 } from "./StrokeDetailControls";

@@ -1,4 +1,4 @@
-import { leafLocalBounds, unionNodeWorldBounds } from "../model/bounds";
+import { leafLocalBounds, unionNodeWorldBounds } from "@/model/geometry/bounds";
 import {
   applyMatrix,
   groupWorldMatrix,
@@ -7,7 +7,7 @@ import {
   multiply,
   nodeWorldMatrix,
   transformBounds,
-} from "../model/matrix";
+} from "@/model/geometry/matrix";
 import type { Bounds, Document, Group, Matrix, Shape, SymbolInstance, Vec2 } from "../model/types";
 import { handlePoint, type HandleId } from "./handles";
 

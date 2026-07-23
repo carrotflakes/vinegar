@@ -1,4 +1,4 @@
-import { unionNodeWorldBounds, worldShapeBounds } from "../../model/bounds";
+import { unionNodeWorldBounds, worldShapeBounds } from "@/model/geometry/bounds";
 import {
   drillScopeRoot,
   exactlySelectedGroup,
@@ -6,7 +6,7 @@ import {
   isShapeHidden,
   isWithinGroup,
 } from "../../model/groups";
-import { marqueeHitNode } from "../../model/hitTest";
+import { marqueeHitNode } from "@/model/geometry/hitTest";
 import {
   applyMatrix,
   applyWorldTransformToNode,
@@ -17,9 +17,9 @@ import {
   rotationAbout as matrixRotationAbout,
   shapeWorldMatrix,
   translation as translationMatrix,
-} from "../../model/matrix";
-import { magnetAngle, snapAngle } from "../../model/rotate";
-import { resizeShapeToBounds } from "../../model/transforms";
+} from "@/model/geometry/matrix";
+import { magnetAngle, snapAngle } from "@/model/geometry/rotate";
+import { resizeShapeToBounds } from "@/model/geometry/transforms";
 import {
   descendantShapeIds,
   isGroup,
@@ -31,9 +31,9 @@ import {
   selectionRoots,
   shapesInPaintOrder,
 } from "../../model/scene";
-import { collectSnapTargets, computeSnap } from "../../model/snap";
+import { collectSnapTargets, computeSnap } from "@/model/geometry/snap";
 import type { SceneNode, Shape, Vec2 } from "../../model/types";
-import { worldToScreen } from "../../model/viewport";
+import { worldToScreen } from "@/model/geometry/viewport";
 import { currentSymbolScope, useEditor, type EditorState } from "../../store/editorStore";
 import { setReadout } from "../../store/pointerStore";
 import { constrainAspectRatio, handleCursorRotated, resizeBounds } from "../handles";

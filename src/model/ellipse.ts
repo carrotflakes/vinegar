@@ -1,4 +1,4 @@
-import { shapeBounds } from "./bounds";
+import { shapeBounds } from "@/model/geometry/bounds";
 import type { EllipseShape, PathSubpath } from "./types";
 
 /** Four cubic arcs approximating an ellipse in the shape's local space. */

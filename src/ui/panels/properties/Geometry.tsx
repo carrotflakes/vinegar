@@ -2,7 +2,7 @@ import {
   instanceWorldBounds,
   shapeBounds,
   worldShapeBounds,
-} from "../../../model/bounds";
+} from "@/model/geometry/bounds";
 import {
   effectiveRectCornerRadius,
   maxRectCornerRadius,
@@ -10,7 +10,7 @@ import {
 import { isInstance } from "../../../model/scene";
 import type { Shape, SymbolInstance } from "../../../model/types";
 import { useEditor } from "../../../store/editorStore";
-import ScrubbableNumber from "../../ScrubbableNumber";
+import ScrubbableNumber from "@/ui/controls/ScrubbableNumber";
 
 export default function Geometry({
   node,

@@ -1,14 +1,14 @@
 import { brushSegments, type BrushSegment } from "./brushSegments";
-import { cubicPoint } from "./path";
-import { distToSegment } from "./hitTest";
-import { applyMatrix } from "./matrix";
+import { cubicPoint } from "@/model/path/path";
+import { distToSegment } from "@/model/geometry/hitTest";
+import { applyMatrix } from "@/model/geometry/matrix";
 import {
   makeId,
   type BrushAnchor,
   type BrushShape,
   type Matrix,
   type Vec2,
-} from "./types";
+} from "../types";
 
 interface ParameterInterval {
   start: number;

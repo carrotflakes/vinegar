@@ -1,4 +1,4 @@
-import type { PathAnchor, PathShape, PathSubpath } from "./types";
+import type { PathAnchor, PathShape, PathSubpath } from "../types";
 
 /**
  * Split the anchor at `index` into two coincident endpoints, severing the

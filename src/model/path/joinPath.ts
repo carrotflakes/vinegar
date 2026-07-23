@@ -1,5 +1,5 @@
-import { applyMatrix, IDENTITY } from "./matrix";
-import { strokeDetailFields } from "./stroke";
+import { applyMatrix, IDENTITY } from "@/model/geometry/matrix";
+import { strokeDetailFields } from "../stroke";
 import {
   makeId,
   type Matrix,
@@ -7,7 +7,7 @@ import {
   type PathShape,
   type PathSubpath,
   type Vec2,
-} from "./types";
+} from "../types";
 
 /**
  * Default weld tolerance in the paths' shared (parent) coordinate space. Open

@@ -7,7 +7,7 @@ import type {
   StrokeCap,
   StrokeJoin,
 } from "../../../model/types";
-import ScrubbableNumber from "../../ScrubbableNumber";
+import ScrubbableNumber from "@/ui/controls/ScrubbableNumber";
 
 export interface StrokeDetailsValue {
   dash: number[];

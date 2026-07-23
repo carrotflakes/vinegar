@@ -1,11 +1,11 @@
-import { shapeBounds } from "../model/bounds";
-import { applyMatrix, shapeWorldMatrix } from "../model/matrix";
+import { shapeBounds } from "@/model/geometry/bounds";
+import { applyMatrix, shapeWorldMatrix } from "@/model/geometry/matrix";
 import {
   effectiveRectCornerRadius,
   maxRectCornerRadius,
 } from "../model/roundedRect";
 import type { Document, Vec2 } from "../model/types";
-import { worldToScreen, type Viewport } from "../model/viewport";
+import { worldToScreen, type Viewport } from "@/model/geometry/viewport";
 
 export const CORNER_RADIUS_HANDLE_SIZE = 7;
 const HANDLE_INSET = 14;

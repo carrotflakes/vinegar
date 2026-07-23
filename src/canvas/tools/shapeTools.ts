@@ -1,4 +1,4 @@
-import { pointsToAnchors, simplifyPath } from "../../model/freehand";
+import { pointsToAnchors, simplifyPath } from "@/model/path/freehand";
 import {
   makeId,
   type PathShape,

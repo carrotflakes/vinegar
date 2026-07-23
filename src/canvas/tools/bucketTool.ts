@@ -1,6 +1,6 @@
 import { computeBucketFill } from "../../model/bucketFill";
-import { IDENTITY } from "../../model/matrix";
-import { ringsToSubpaths } from "../../model/path";
+import { IDENTITY } from "@/model/geometry/matrix";
+import { ringsToSubpaths } from "@/model/path/path";
 import { makeId, type PathShape } from "../../model/types";
 import type { Vec2 } from "../../model/types";
 import { useBucket } from "../../store/bucketStore";

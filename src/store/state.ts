@@ -4,9 +4,9 @@
 // composed into EditorState by editorStore.ts.
 // ===========================================================================
 
-import type { BoolOp } from "../model/boolean";
-import type { PathOp } from "../model/pathOps";
-import type { ScriptMeta } from "../model/generators";
+import type { BoolOp } from "@/model/path/boolean";
+import type { PathOp } from "@/model/path/pathOps";
+import type { ScriptMeta } from "@/model/generators/generators";
 import type { Paint, SolidPaint } from "../model/paint";
 import type {
   Artboard,
@@ -25,7 +25,7 @@ import type {
   TextShape,
   Vec2,
 } from "../model/types";
-import type { Viewport } from "../model/viewport";
+import type { Viewport } from "@/model/geometry/viewport";
 import type { ImportedSvg } from "../io/importSvg";
 import type { ClipboardPayload } from "./docOps";
 import type { DocumentPatch } from "./documentPatches";

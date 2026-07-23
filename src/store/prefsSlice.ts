@@ -1,7 +1,7 @@
 // Tool, viewport and persisted user preferences (colors, swatches, snapping).
 
 import { solid } from "../model/paint";
-import { initialViewport } from "../model/viewport";
+import { initialViewport } from "@/model/geometry/viewport";
 import {
   clearTransient,
   type EditorData,

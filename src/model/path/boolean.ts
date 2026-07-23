@@ -4,17 +4,17 @@ import * as paperNs from "paper";
 const paper: typeof paperNs =
   (paperNs as { default?: typeof paperNs }).default ?? paperNs;
 import { compoundChildren } from "./compoundPath";
-import { ellipseSubpath } from "./ellipse";
-import { IDENTITY } from "./matrix";
-import { roundedRectSubpath } from "./roundedRect";
-import { strokeDetailFields } from "./stroke";
+import { ellipseSubpath } from "../ellipse";
+import { IDENTITY } from "@/model/geometry/matrix";
+import { roundedRectSubpath } from "../roundedRect";
+import { strokeDetailFields } from "../stroke";
 import {
   makeId,
   type PathShape,
   type PathSubpath,
   type Shape,
   type Document,
-} from "./types";
+} from "../types";
 
 export type BoolOp = "union" | "subtract" | "intersect" | "xor";
 

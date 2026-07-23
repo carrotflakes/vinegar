@@ -13,7 +13,7 @@ import type {
   PathSubpath,
   ScriptDef,
   Vec2,
-} from "./types";
+} from "../types";
 
 /** One tunable parameter, driving a generic numeric control in the UI. */
 export interface GeneratorParam {

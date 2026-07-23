@@ -1,5 +1,5 @@
 import { useBrush } from "../../../store/brushStore";
-import ScrubbableNumber from "../../ScrubbableNumber";
+import ScrubbableNumber from "@/ui/controls/ScrubbableNumber";
 import "../../Panel.css";
 
 /** Tool options for the Brush tool. Shown while the brush tool is active. */

@@ -1,16 +1,16 @@
 // Scene-tree structure: hierarchy, z-order, per-node flags, alignment and
 // shape conversions (boolean ops, outline stroke, compound paths).
 
-import { booleanShapes, divideShapes, DIVIDE_MAX_INPUTS, isAreal } from "../model/boolean";
-import { joinShapes } from "../model/joinPath";
-import { nodeWorldBounds, unionNodeWorldBounds } from "../model/bounds";
+import { booleanShapes, divideShapes, DIVIDE_MAX_INPUTS, isAreal } from "@/model/path/boolean";
+import { joinShapes } from "@/model/path/joinPath";
+import { nodeWorldBounds, unionNodeWorldBounds } from "@/model/geometry/bounds";
 import {
   canMakeCompoundPathSelection,
   canCompoundShape,
   canReleaseCompoundPathSelection,
   makeCompoundPath,
   releaseCompoundPath,
-} from "../model/compoundPath";
+} from "@/model/path/compoundPath";
 import {
   canMakeClippingMaskSelection,
   canReleaseClippingMaskSelection,
@@ -19,7 +19,7 @@ import {
 import {
   canConvertShapeToPath,
   convertShapeToPath,
-} from "../model/convertToPath";
+} from "@/model/path/convertToPath";
 import { hasValidSceneContainers } from "../model/sceneValidation";
 import {
   IDENTITY,
@@ -28,9 +28,9 @@ import {
   multiply,
   nodeWorldMatrix,
   translation as translationMatrix,
-} from "../model/matrix";
-import { strokeOutline } from "../model/outlineStroke";
-import { ringsToSubpaths } from "../model/path";
+} from "@/model/geometry/matrix";
+import { strokeOutline } from "@/model/path/outlineStroke";
+import { ringsToSubpaths } from "@/model/path/path";
 import {
   childIdsOf,
   descendantNodeIds,

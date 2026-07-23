@@ -2,10 +2,10 @@ import {
   intersectBounds,
   nodeWorldBounds,
   worldShapeBounds,
-} from "../model/bounds";
+} from "@/model/geometry/bounds";
 import { clippingMask } from "../model/clippingMask";
 import { effectsMargin } from "../model/effects";
-import { matrixScale, nodeWorldMatrix, shapeWorldMatrix } from "../model/matrix";
+import { matrixScale, nodeWorldMatrix, shapeWorldMatrix } from "@/model/geometry/matrix";
 import { strokeOutset } from "../model/stroke";
 import {
   ancestorIds,

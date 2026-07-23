@@ -1,6 +1,6 @@
 import { brushSegments } from "./brushSegments";
-import { cubicPoint } from "./path";
-import type { BrushAnchor, BrushShape, Vec2 } from "./types";
+import { cubicPoint } from "@/model/path/path";
+import type { BrushAnchor, BrushShape, Vec2 } from "../types";
 
 /** One sample of the flattened centerline: position and (base-scaled) width. */
 interface Sample {

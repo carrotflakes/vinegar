@@ -1,5 +1,5 @@
-import { flattenSubpath } from "./path";
-import { shapeBounds } from "./bounds";
+import { flattenSubpath } from "@/model/path/path";
+import { shapeBounds } from "@/model/geometry/bounds";
 import type { PathSubpath, RectShape, Vec2 } from "./types";
 
 /** Maximum circular radius that fits inside the rectangle. */

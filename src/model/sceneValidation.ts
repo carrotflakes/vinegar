@@ -1,5 +1,5 @@
 import { hasValidClippingMasks } from "./clippingMask";
-import { isCompoundChild } from "./compoundPath";
+import { isCompoundChild } from "@/model/path/compoundPath";
 import type { Document } from "./types";
 
 /** Whether every hierarchy-owning node preserves its structural invariant. */

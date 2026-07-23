@@ -1,9 +1,9 @@
 import { compoundChildren } from "./compoundPath";
-import { cachedBrushEnvelope } from "./brushOutline";
-import { ellipseSubpath } from "./ellipse";
-import { applyMatrix } from "./matrix";
-import { roundedRectSubpath } from "./roundedRect";
-import { strokeDetailFields } from "./stroke";
+import { cachedBrushEnvelope } from "@/model/brush/brushOutline";
+import { ellipseSubpath } from "../ellipse";
+import { applyMatrix } from "@/model/geometry/matrix";
+import { roundedRectSubpath } from "../roundedRect";
+import { strokeDetailFields } from "../stroke";
 import type {
   CompoundPathNode,
   BrushShape,
@@ -16,7 +16,7 @@ import type {
   PrimitiveShape,
   RectShape,
   SceneNode,
-} from "./types";
+} from "../types";
 
 export type PathConvertibleShape =
   | RectShape

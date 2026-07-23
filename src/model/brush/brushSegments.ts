@@ -1,5 +1,5 @@
-import type { CubicSegment } from "./path";
-import type { BrushShape } from "./types";
+import type { CubicSegment } from "@/model/path/path";
+import type { BrushShape } from "../types";
 
 /** One cubic segment of a brush centerline, including endpoint widths. */
 export interface BrushSegment extends CubicSegment {

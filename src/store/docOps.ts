@@ -8,7 +8,7 @@ import {
   multiply,
   nodeWorldMatrix,
   translation as translationMatrix,
-} from "../model/matrix";
+} from "@/model/geometry/matrix";
 import {
   childIdsOf,
   descendantNodeIds,

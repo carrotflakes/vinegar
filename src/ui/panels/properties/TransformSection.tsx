@@ -1,11 +1,11 @@
-import { leafLocalBounds } from "../../../model/bounds";
+import { leafLocalBounds } from "@/model/geometry/bounds";
 import {
   applyMatrix,
   applyWorldTransformToNode,
   matrixAngle,
   nodeWorldMatrix,
   rotationAbout,
-} from "../../../model/matrix";
+} from "@/model/geometry/matrix";
 import { isInstance } from "../../../model/scene";
 import type { Shape, SymbolInstance } from "../../../model/types";
 import { useEditor } from "../../../store/editorStore";

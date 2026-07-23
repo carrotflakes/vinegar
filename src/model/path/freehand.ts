@@ -1,4 +1,4 @@
-import type { PathAnchor, Vec2 } from "./types";
+import type { PathAnchor, Vec2 } from "../types";
 
 /** Perpendicular distance from point p to the infinite line through a, b. */
 function perpDistance(p: Vec2, a: Vec2, b: Vec2): number {

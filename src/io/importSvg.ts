@@ -2,7 +2,7 @@
 
 import * as paperNs from "paper";
 import { isClippingMaskCandidate } from "../model/clippingMask";
-import { applyMatrix, IDENTITY } from "../model/matrix";
+import { applyMatrix, IDENTITY } from "@/model/geometry/matrix";
 import {
   linearGradient,
   radialGradient,

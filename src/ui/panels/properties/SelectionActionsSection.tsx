@@ -8,7 +8,7 @@ import {
   LuAlignStartVertical,
   LuAlignVerticalDistributeCenter,
 } from "react-icons/lu";
-import { nodeWorldBounds } from "../../../model/bounds";
+import { nodeWorldBounds } from "@/model/geometry/bounds";
 import {
   canMakeClippingMaskSelection,
   canReleaseClippingMaskSelection,
@@ -16,7 +16,7 @@ import {
 import {
   canMakeCompoundPathSelection,
   canReleaseCompoundPathSelection,
-} from "../../../model/compoundPath";
+} from "@/model/path/compoundPath";
 import {
   canGroupSelection,
   selectionUnits,

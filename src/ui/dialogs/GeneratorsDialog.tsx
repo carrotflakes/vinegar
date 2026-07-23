@@ -1,16 +1,16 @@
 import { useEffect, useRef, useState } from "react";
 import { LuX } from "react-icons/lu";
 import { canvasCenter } from "../../commands/registry";
-import { buildGenerator, compileGenerator } from "../../model/generatorClient";
+import { buildGenerator, compileGenerator } from "@/model/generators/generatorClient";
 import {
   defaultArgs,
   GENERATORS,
   type GeneratorParam,
-} from "../../model/generators";
+} from "@/model/generators/generators";
 import type { PathSubpath } from "../../model/types";
-import { screenToWorld } from "../../model/viewport";
+import { screenToWorld } from "@/model/geometry/viewport";
 import { useEditor } from "../../store/editorStore";
-import ScrubbableNumber from "../ScrubbableNumber";
+import ScrubbableNumber from "@/ui/controls/ScrubbableNumber";
 import { drawGeometryPreview } from "./generatorPreview";
 import "../Modal.css";
 import "./ScriptPanel.css";

@@ -2,12 +2,12 @@
 // payload whose roots carry world transforms, so pastes land where the
 // source appeared regardless of its original parent.
 
-import { unionNodeWorldBounds } from "../model/bounds";
+import { unionNodeWorldBounds } from "@/model/geometry/bounds";
 import {
   applyWorldTransformToNode,
   multiply,
   translation as translationMatrix,
-} from "../model/matrix";
+} from "@/model/geometry/matrix";
 import {
   childIdsOf,
   parentIdOf,

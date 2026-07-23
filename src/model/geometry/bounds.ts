@@ -1,10 +1,10 @@
-import { flattenPath } from "./path";
-import { cachedBrushEnvelope } from "./brushOutline";
-import { clippingMask } from "./clippingMask";
-import { compoundChildren } from "./compoundPath";
+import { flattenPath } from "@/model/path/path";
+import { cachedBrushEnvelope } from "@/model/brush/brushOutline";
+import { clippingMask } from "../clippingMask";
+import { compoundChildren } from "@/model/path/compoundPath";
 import { nodeWorldMatrix, shapeWorldMatrix, transformBounds } from "./matrix";
-import { isGroup, isInstance, isShape } from "./scene";
-import type { Bounds, Document, Shape, SymbolInstance, Vec2 } from "./types";
+import { isGroup, isInstance, isShape } from "../scene";
+import type { Bounds, Document, Shape, SymbolInstance, Vec2 } from "../types";
 
 function pointsBounds(points: Vec2[]): Bounds {
   if (points.length === 0) return { x: 0, y: 0, width: 0, height: 0 };

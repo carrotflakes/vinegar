@@ -1,4 +1,4 @@
-import type { Guide, SnapTargets, Spacing } from "../model/snap";
+import type { Guide, SnapTargets, Spacing } from "@/model/geometry/snap";
 import type {
   PathShape,
   Bounds,

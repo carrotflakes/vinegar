@@ -1,14 +1,14 @@
 import {
   closestPointOnPath,
   insertAnchorOnSegment,
-} from "../../model/path";
-import { closestPointOnBrush, insertBrushAnchor } from "../../model/brushEdit";
+} from "@/model/path/path";
+import { closestPointOnBrush, insertBrushAnchor } from "@/model/brush/brushEdit";
 import {
   applyMatrix,
   invertMatrix,
   matrixScale,
   shapeWorldMatrix,
-} from "../../model/matrix";
+} from "@/model/geometry/matrix";
 import { isShape } from "../../model/scene";
 import type { Vec2 } from "../../model/types";
 import { useEditor, type EditorState } from "../../store/editorStore";

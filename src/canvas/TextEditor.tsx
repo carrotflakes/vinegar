@@ -1,8 +1,8 @@
 import { useEffect, useRef } from "react";
-import { multiply, shapeWorldMatrix, translation } from "../model/matrix";
+import { multiply, shapeWorldMatrix, translation } from "@/model/geometry/matrix";
 import { resolvePaintRef } from "../model/paint";
 import type { TextShape } from "../model/types";
-import { viewportMatrix } from "../model/viewport";
+import { viewportMatrix } from "@/model/geometry/viewport";
 import { useEditor } from "../store/editorStore";
 import { fontStack } from "../fonts";
 import "./TextEditor.css";

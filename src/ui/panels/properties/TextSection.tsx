@@ -1,7 +1,7 @@
 import type { TextShape } from "../../../model/types";
 import { useEditor } from "../../../store/editorStore";
 import { FONT_OPTIONS } from "../../../fonts";
-import ScrubbableNumber from "../../ScrubbableNumber";
+import ScrubbableNumber from "@/ui/controls/ScrubbableNumber";
 
 const FONT_WEIGHTS = [100, 200, 300, 400, 500, 600, 700, 800, 900];
 

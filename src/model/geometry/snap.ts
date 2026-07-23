@@ -1,5 +1,5 @@
 import { worldShapeBounds } from "./bounds";
-import type { Bounds, Document, Shape, Vec2 } from "./types";
+import type { Bounds, Document, Shape, Vec2 } from "../types";
 
 /** A line other shapes can snap to, with the perpendicular extent of its source. */
 interface Candidate {

@@ -3,7 +3,7 @@ import {
   clippingMask,
   isNodeVisibleForHitTesting,
 } from "../model/clippingMask";
-import { hitTestNode } from "../model/hitTest";
+import { hitTestNode } from "@/model/geometry/hitTest";
 import {
   descendantNodeIds,
   isGroup,
@@ -16,9 +16,9 @@ import {
   selectionRoots,
   shapesInPaintOrder,
 } from "../model/scene";
-import { collectSnapTargets, snapPoint } from "../model/snap";
+import { collectSnapTargets, snapPoint } from "@/model/geometry/snap";
 import type { Shape, Vec2 } from "../model/types";
-import { worldToScreen } from "../model/viewport";
+import { worldToScreen } from "@/model/geometry/viewport";
 import { currentSymbolScope, useEditor, type EditorState } from "../store/editorStore";
 import {
   frameHandlePoint,

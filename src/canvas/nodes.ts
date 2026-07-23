@@ -1,7 +1,7 @@
-import { withSubpath } from "../model/path";
-import { applyMatrix } from "../model/matrix";
+import { withSubpath } from "@/model/path/path";
+import { applyMatrix } from "@/model/geometry/matrix";
 import type { PathShape, BrushShape, Matrix, Vec2 } from "../model/types";
-import { worldToScreen, type Viewport } from "../model/viewport";
+import { worldToScreen, type Viewport } from "@/model/geometry/viewport";
 
 export type NodePart = "anchor" | "in" | "out";
 

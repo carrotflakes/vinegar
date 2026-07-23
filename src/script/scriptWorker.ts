@@ -3,9 +3,9 @@
 // shapes, and returns a changeset. Running off the main thread means infinite
 // loops can be terminated.
 
-import { shapeBounds } from "../model/bounds";
-import { transformBounds } from "../model/matrix";
-import { translateShape } from "../model/transforms";
+import { shapeBounds } from "@/model/geometry/bounds";
+import { transformBounds } from "@/model/geometry/matrix";
+import { translateShape } from "@/model/geometry/transforms";
 import type { PathSubpath, Shape, Vec2 } from "../model/types";
 
 // 2D affine matrix [a, b, c, d, e, f]: x' = a*x + c*y + e, y' = b*x + d*y + f

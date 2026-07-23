@@ -1,4 +1,4 @@
-import type { Vec2 } from "./types";
+import type { Vec2 } from "../types";
 
 /** Rotate point `p` by `angle` radians around the origin. */
 export function rotateVec(p: Vec2, angle: number): Vec2 {

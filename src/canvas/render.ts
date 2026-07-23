@@ -1,14 +1,14 @@
-import { subpathSegments } from "../model/path";
-import { shapeBounds } from "../model/bounds";
-import { cachedBrushEnvelope } from "../model/brushOutline";
-import { isCompoundChild } from "../model/compoundPath";
+import { subpathSegments } from "@/model/path/path";
+import { shapeBounds } from "@/model/geometry/bounds";
+import { cachedBrushEnvelope } from "@/model/brush/brushOutline";
+import { isCompoundChild } from "@/model/path/compoundPath";
 import {
   clippingContentIds,
   clippingMask,
   shapeFillRule,
 } from "../model/clippingMask";
 import { hasEffects } from "../model/effects";
-import { isIdentity } from "../model/matrix";
+import { isIdentity } from "@/model/geometry/matrix";
 import {
   isSwatchRef,
   patternMode,
@@ -28,7 +28,7 @@ import {
   strokeJoin,
 } from "../model/stroke";
 import type { Artboard, Bounds, Document, DocumentAsset, Effect, ImageShape, Shape } from "../model/types";
-import { screenToWorld, worldToScreen, type Viewport } from "../model/viewport";
+import { screenToWorld, worldToScreen, type Viewport } from "@/model/geometry/viewport";
 import { getAssetImage } from "../imageCache";
 import { layoutTextWithCanvas } from "./textLayout";
 

@@ -1,13 +1,13 @@
-import { reversePath } from "../../model/path";
+import { reversePath } from "@/model/path/path";
 import { isShapeHidden, isShapeLocked } from "../../model/groups";
 import {
   applyMatrix,
   invertMatrix,
   shapeWorldMatrix,
-} from "../../model/matrix";
+} from "@/model/geometry/matrix";
 import { isShape, scopeLeafIds } from "../../model/scene";
 import { makeId, type PathShape, type Shape, type Vec2 } from "../../model/types";
-import { worldToScreen } from "../../model/viewport";
+import { worldToScreen } from "@/model/geometry/viewport";
 import {
   currentSymbolScope,
   styleFromDefaults,
