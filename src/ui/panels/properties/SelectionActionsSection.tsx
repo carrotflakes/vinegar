@@ -9,7 +9,6 @@ import {
   LuAlignVerticalDistributeCenter,
 } from "react-icons/lu";
 import { nodeWorldBounds } from "../../../model/bounds";
-import { isAreal } from "../../../model/boolean";
 import {
   canMakeClippingMaskSelection,
   canReleaseClippingMaskSelection,
@@ -18,17 +17,20 @@ import {
   canMakeCompoundPathSelection,
   canReleaseCompoundPathSelection,
 } from "../../../model/compoundPath";
-import { canConvertShapeToPath } from "../../../model/convertToPath";
 import {
   canGroupSelection,
   selectionUnits,
 } from "../../../model/groups";
-import { parentIdOf } from "../../../model/scene";
 import type {
   Document,
   Group,
   Shape,
 } from "../../../model/types";
+import {
+  commandEnabled,
+  getCommand,
+  runCommand,
+} from "../../../commands/registry";
 import { useEditor } from "../../../store/editorStore";
 
 export default function SelectionActionsSection({
@@ -62,15 +64,8 @@ export default function SelectionActionsSection({
   const duplicateSelected = useEditor(
     (state) => state.duplicateSelected
   );
-  const booleanSelected = useEditor((state) => state.booleanSelected);
   const setClosedSelected = useEditor(
     (state) => state.setClosedSelected
-  );
-  const outlineStrokeSelected = useEditor(
-    (state) => state.outlineStrokeSelected
-  );
-  const convertSelectedToPaths = useEditor(
-    (state) => state.convertSelectedToPaths
   );
   const makeCompoundPathSelected = useEditor(
     (state) => state.makeCompoundPathSelected
@@ -79,39 +74,29 @@ export default function SelectionActionsSection({
     (state) => state.releaseCompoundPathSelected
   );
 
+  // Path / boolean / convert / outline actions are registry commands: read
+  // their live enabled state and run them by id so enablement has a single
+  // source of truth (shared with the context menu and command palette).
+  const can = (id: string) => {
+    const cmd = getCommand(id);
+    return cmd ? commandEnabled(cmd) : false;
+  };
+
   const hasSelection = rootIds.length > 0;
-  const allRootsAreShapes = selected.length === rootIds.length;
-  const sameParent =
-    rootIds.length > 0 &&
-    new Set(rootIds.map((id) => parentIdOf(doc, id))).size === 1;
   const alignableCount = rootIds.filter(
     (id) => nodeWorldBounds(doc, id) !== null
   ).length;
   const canGroup = canGroupSelection(doc, selection);
   const canUngroup = selectionUnits(doc, selection).groups.length > 0;
-  const canBoolean =
-    allRootsAreShapes &&
-    sameParent &&
-    selected.length >= 2 &&
-    selected.every(isAreal);
+  const canBoolean = can("path.union");
   const closable = selectedGroup
     ? []
     : selected.filter((shape) => shape.type === "path");
   const anyOpen = closable.some((shape) =>
     shape.subpaths.some((subpath) => !subpath.closed)
   );
-  const canOutline =
-    !selectedGroup &&
-    selected.some(
-      (shape) =>
-        shape.type !== "text" &&
-        shape.type !== "image" &&
-        shape.stroke !== null &&
-        shape.strokeWidth > 0
-    );
-  const canConvertToPath = rootIds.some((id) =>
-    canConvertShapeToPath(doc.nodes[id])
-  );
+  const canOutline = can("path.outlineStroke");
+  const canConvertToPath = can("structure.convertToPath");
   const canMakeCompound = canMakeCompoundPathSelection(doc, selection);
   const canReleaseCompound =
     canReleaseCompoundPathSelection(doc, selection);
@@ -201,11 +186,47 @@ export default function SelectionActionsSection({
               </button>
             </div>
           )}
+          {can("path.simplify") && (
+            <>
+              <div className="btn-row">
+                <button
+                  className="ghost-btn"
+                  title="Reduce anchors while keeping the curve shape"
+                  onClick={() => runCommand("path.simplify")}
+                >
+                  Simplify
+                </button>
+                <button
+                  className="ghost-btn"
+                  title="Fit smooth curves through the anchors"
+                  onClick={() => runCommand("path.smooth")}
+                >
+                  Smooth
+                </button>
+              </div>
+              <div className="btn-row">
+                <button
+                  className="ghost-btn"
+                  title="Convert curves to straight segments"
+                  onClick={() => runCommand("path.flatten")}
+                >
+                  Flatten
+                </button>
+                <button
+                  className="ghost-btn"
+                  title="Reverse the path direction"
+                  onClick={() => runCommand("path.reverse")}
+                >
+                  Reverse
+                </button>
+              </div>
+            </>
+          )}
           {canConvertToPath && (
             <div className="btn-row">
               <button
                 className="ghost-btn"
-                onClick={convertSelectedToPaths}
+                onClick={() => runCommand("structure.convertToPath")}
               >
                 Convert to path
               </button>
@@ -216,7 +237,7 @@ export default function SelectionActionsSection({
               <button
                 className="ghost-btn"
                 title="Convert stroke to a filled path"
-                onClick={outlineStrokeSelected}
+                onClick={() => runCommand("path.outlineStroke")}
               >
                 Outline stroke
               </button>
@@ -314,13 +335,13 @@ export default function SelectionActionsSection({
           <div className="btn-row">
             <button
               className="ghost-btn"
-              onClick={() => booleanSelected("union")}
+              onClick={() => runCommand("path.union")}
             >
               Union
             </button>
             <button
               className="ghost-btn"
-              onClick={() => booleanSelected("subtract")}
+              onClick={() => runCommand("path.subtract")}
             >
               Subtract
             </button>
@@ -328,13 +349,13 @@ export default function SelectionActionsSection({
           <div className="btn-row">
             <button
               className="ghost-btn"
-              onClick={() => booleanSelected("intersect")}
+              onClick={() => runCommand("path.intersect")}
             >
               Intersect
             </button>
             <button
               className="ghost-btn"
-              onClick={() => booleanSelected("xor")}
+              onClick={() => runCommand("path.exclude")}
             >
               Exclude
             </button>

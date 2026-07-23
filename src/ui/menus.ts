@@ -47,10 +47,28 @@ export function selectionMenu(): MenuEntry[] {
     item("structure.releaseClippingMask"),
     item("structure.makeCompound"),
     item("structure.releaseCompound"),
-    item("structure.convertToPath"),
-    "separator",
-    item("symbol.create"),
   ];
+  // Group path & boolean ops into submenus so the top level stays short; each
+  // submenu lists only its currently-applicable items (omitted entirely if none).
+  const pathItems = [
+    "structure.convertToPath",
+    "path.outlineStroke",
+    "path.simplify",
+    "path.smooth",
+    "path.flatten",
+    "path.reverse",
+  ]
+    .filter(enabled)
+    .map((id) => item(id));
+  const boolItems = ["path.union", "path.subtract", "path.intersect", "path.exclude"]
+    .filter(enabled)
+    .map((id) => item(id));
+  if (pathItems.length || boolItems.length) {
+    entries.push("separator");
+    if (pathItems.length) entries.push({ label: "Path", submenu: pathItems });
+    if (boolItems.length) entries.push({ label: "Boolean", submenu: boolItems });
+  }
+  entries.push("separator", item("symbol.create"));
   if (enabled("symbol.editSelected")) entries.push(item("symbol.editSelected"));
   if (enabled("symbol.detach")) entries.push(item("symbol.detach"));
   entries.push(

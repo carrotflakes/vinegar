@@ -16,7 +16,19 @@ export interface MenuItem {
   onSelect: () => void;
 }
 
-export type MenuEntry = MenuItem | "separator";
+/** A parent item that expands into a nested menu on hover. */
+export interface MenuSubmenu {
+  label: string;
+  disabled?: boolean;
+  submenu: MenuEntry[];
+}
+
+export type MenuEntry = MenuItem | MenuSubmenu | "separator";
+
+/** Narrow a non-separator entry to a submenu. */
+export function isSubmenu(entry: MenuEntry): entry is MenuSubmenu {
+  return entry !== "separator" && "submenu" in entry;
+}
 
 interface MenuState {
   menu: { x: number; y: number; entries: MenuEntry[] } | null;

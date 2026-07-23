@@ -296,5 +296,21 @@ additional effects, or other feature expansion.
 - [ ] 左右反転のUIリファイン
 - [ ] generator、コードを変更したときに、それを使っているインスタンスのパラメータを保持したまま再生成する方法
 - [ ] ソロ編集
-- [ ] パスの単純化
-- [ ] パスのオフセット
+- [x] パスの単純化 — one-shot Simplify / Smooth / Flatten / Reverse
+  (`model/pathOps.ts`, paper.js per-subpath, preserves open/closed + transform +
+  style, drops the generator link). Path ops + boolean + outline stroke are now
+  registry commands (`path.*`, `structure.outlineStroke`) so they appear in the
+  context menu + command palette, not just panel buttons.
+  - [ ] **Path modifier stack (Blender-like, non-destructive)** — the agreed
+    direction for tolerance: path ops become re-editable modifiers extending the
+    generator concept. Plan in `docs/path-modifiers.md` (model like `effects`,
+    `subpaths` = base, cached `resolvedSubpaths()` feeds render/hit-test/bounds/
+    export). Phase 1 = vertical slice (Simplify + live tolerance). The one-shot
+    ops above become "Apply/bake".
+  - [ ] Join (connect open paths), Average — see the path-ops proposal
+- [ ] パスのオフセット (candidate first modifier once the stack lands)
+- [ ] ColorField のリファクタリング（特にコンポーネントわけ）
+- [ ] generatorの編集ロック prefへ
+- [ ] ドックのフローティング、マルチカラム化
+- [ ] Assetという名前は問題ないか。raster imageではないか。
+- [ ] Fileメニューとコンテキストメニュー一本化

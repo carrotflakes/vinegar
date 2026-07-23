@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
-import { useMenu, type MenuEntry } from "../store/menuStore";
+import { isSubmenu, useMenu, type MenuEntry } from "../store/menuStore";
 import "./ContextMenu.css";
 
 /** Renders the app-wide context menu; mount once at the App root. */
@@ -72,16 +72,31 @@ function Menu({ x, y, entries, onClose }: MenuProps) {
       style={{ left: pos.x, top: pos.y }}
       onContextMenu={(e) => e.preventDefault()}
     >
+      <EntryList entries={entries} onClose={onClose} />
+    </div>
+  );
+}
+
+/** Renders a list of entries (shared by the root menu and every submenu). */
+function EntryList({
+  entries,
+  onClose,
+}: {
+  entries: MenuEntry[];
+  onClose: () => void;
+}) {
+  return (
+    <>
       {entries.map((entry, i) =>
         entry === "separator" ? (
           <div key={i} className="context-menu-sep" />
+        ) : isSubmenu(entry) ? (
+          <SubmenuItem key={i} entry={entry} onClose={onClose} />
         ) : (
           <button
             key={i}
             role="menuitem"
-            className={
-              "context-menu-item" + (entry.danger ? " danger" : "")
-            }
+            className={"context-menu-item" + (entry.danger ? " danger" : "")}
             disabled={entry.disabled}
             onClick={() => {
               onClose();
@@ -94,6 +109,63 @@ function Menu({ x, y, entries, onClose }: MenuProps) {
             )}
           </button>
         )
+      )}
+    </>
+  );
+}
+
+/** A parent item that expands its nested menu to the side on hover. */
+function SubmenuItem({
+  entry,
+  onClose,
+}: {
+  entry: Extract<MenuEntry, { submenu: MenuEntry[] }>;
+  onClose: () => void;
+}) {
+  const ref = useRef<HTMLDivElement>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
+  const [open, setOpen] = useState(false);
+  // Flip to the left when the submenu would overflow the right edge.
+  const [side, setSide] = useState<"right" | "left">("right");
+
+  useLayoutEffect(() => {
+    if (!open) return;
+    const item = ref.current;
+    const panel = panelRef.current;
+    if (!item || !panel) return;
+    const r = item.getBoundingClientRect();
+    const w = panel.getBoundingClientRect().width;
+    setSide(r.right + w + 4 > window.innerWidth ? "left" : "right");
+  }, [open]);
+
+  return (
+    <div
+      ref={ref}
+      className="context-menu-subitem"
+      onPointerEnter={() => !entry.disabled && setOpen(true)}
+      onPointerLeave={() => setOpen(false)}
+    >
+      <button
+        role="menuitem"
+        aria-haspopup="menu"
+        aria-expanded={open}
+        className="context-menu-item"
+        disabled={entry.disabled}
+      >
+        <span className="context-menu-label">{entry.label}</span>
+        <span className="context-menu-caret" aria-hidden>
+          ▸
+        </span>
+      </button>
+      {open && (
+        <div
+          ref={panelRef}
+          className="context-menu context-menu-nested"
+          role="menu"
+          style={side === "right" ? { left: "100%" } : { right: "100%" }}
+        >
+          <EntryList entries={entry.submenu} onClose={onClose} />
+        </div>
       )}
     </div>
   );

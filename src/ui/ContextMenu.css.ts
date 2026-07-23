@@ -55,3 +55,22 @@ globalStyle(".context-menu-sep", {
   margin: "4px 6px",
   background: vars.border,
 });
+
+globalStyle(".context-menu-subitem", {
+  position: "relative",
+});
+
+// Highlight the parent row while its submenu is open (hover covers the rest).
+globalStyle(".context-menu-subitem:hover > .context-menu-item:not(:disabled)", {
+  background: vars.bg,
+});
+
+globalStyle(".context-menu-caret", {
+  fontSize: "10px",
+  color: vars.muted,
+});
+
+globalStyle(".context-menu-nested", {
+  position: "absolute",
+  top: "-5px",
+});

@@ -1,6 +1,7 @@
 // Creating and mutating individual shapes (geometry, style, path anchors).
 
 import { toggleAnchorSmooth } from "../model/path";
+import { PATH_OP_LABEL, pathOpShape } from "../model/pathOps";
 import { buildGenerator, compileGenerator, type CompileResult } from "../model/generatorClient";
 import { GENERATORS, defaultArgs, type ScriptMeta } from "../model/generators";
 import { solid } from "../model/paint";
@@ -626,5 +627,6 @@ export function createShapeActions({ set, get, transact, replaceDocumentWithoutH
     },
     setImageLockAspect: (id, lock) => { const doc = get().doc; const shape = doc.nodes[id]; if (!isShape(shape) || shape.type !== "image") return; const next = { ...shape, lockAspect: lock || undefined }; transact({ ...doc, nodes: { ...doc.nodes, [id]: next } }, { label: lock ? "Lock aspect ratio" : "Unlock aspect ratio", coalesceKey: "lockAspect:" + id }); },
     setClosedSelected: (closed) => { const doc = get().doc; const nodes = { ...doc.nodes }; let changed = false; for (const id of selectionRoots(doc, get().selection)) { const shape = nodes[id]; if (!isShape(shape) || shape.type !== "path") continue; if (shape.subpaths.some((sp) => sp.closed !== closed)) { nodes[id] = { ...shape, subpaths: shape.subpaths.map((sp) => ({ ...sp, closed })), generator: undefined }; changed = true; } } const next = { ...doc, nodes }; if (changed && hasValidSceneContainers(next)) transact(next, { label: closed ? "Close path" : "Open path" }); },
+    pathOpSelected: (op) => { const doc = get().doc; const nodes = { ...doc.nodes }; let changed = false; for (const id of selectionRoots(doc, get().selection)) { const shape = nodes[id]; if (!isShape(shape) || shape.type !== "path") continue; const result = pathOpShape(shape, op); if (result) { nodes[id] = result; changed = true; } } const next = { ...doc, nodes }; if (changed && hasValidSceneContainers(next)) transact(next, { label: PATH_OP_LABEL[op] }); },
   };
 }

@@ -22,7 +22,8 @@ import {
 } from "../model/clippingMask";
 import { createDemoDocument } from "../demo/createDemoDocument";
 import { canGroupSelection, selectionUnits } from "../model/groups";
-import { isInstance, parentIdOf, selectionRoots } from "../model/scene";
+import { isAreal } from "../model/boolean";
+import { isInstance, isShape, parentIdOf, selectionRoots } from "../model/scene";
 import { unionNodeWorldBounds } from "../model/bounds";
 import {
   artboardBounds,
@@ -111,6 +112,7 @@ export interface Command {
 function sel(s: EditorState) {
   const roots = selectionRoots(s.doc, s.selection);
   const parents = new Set(roots.map((id) => parentIdOf(s.doc, id)));
+  const shapeRoots = roots.map((id) => s.doc.nodes[id]).filter(isShape);
   const instanceRoots = roots.filter((id) => isInstance(s.doc.nodes[id]));
   const singleInstanceNode =
     roots.length === 1 && isInstance(s.doc.nodes[roots[0]])
@@ -125,6 +127,19 @@ function sel(s: EditorState) {
     canMakeCompound: canMakeCompoundPathSelection(s.doc, s.selection),
     canReleaseCompound: canReleaseCompoundPathSelection(s.doc, s.selection),
     canConvertToPath: roots.some((id) => canConvertShapeToPath(s.doc.nodes[id])),
+    canPathOp: shapeRoots.some((sh) => sh.type === "path"),
+    canBoolean:
+      shapeRoots.length === roots.length &&
+      roots.length >= 2 &&
+      parents.size === 1 &&
+      shapeRoots.every(isAreal),
+    canOutline: shapeRoots.some(
+      (sh) =>
+        sh.type !== "text" &&
+        sh.type !== "image" &&
+        sh.stroke !== null &&
+        sh.strokeWidth > 0
+    ),
     canMakeSymbol: roots.length >= 1 && parents.size === 1,
     hasInstances: instanceRoots.length > 0,
     singleInstance:
@@ -332,6 +347,69 @@ export const COMMANDS: Command[] = [
     group: "Path",
     enabled: (s) => sel(s).canConvertToPath,
     run: (s) => s.convertSelectedToPaths(),
+  },
+  {
+    id: "path.outlineStroke",
+    label: "Outline stroke",
+    group: "Path",
+    enabled: (s) => sel(s).canOutline,
+    run: (s) => s.outlineStrokeSelected(),
+  },
+  {
+    id: "path.simplify",
+    label: "Simplify path",
+    group: "Path",
+    enabled: (s) => sel(s).canPathOp,
+    run: (s) => s.pathOpSelected("simplify"),
+  },
+  {
+    id: "path.smooth",
+    label: "Smooth path",
+    group: "Path",
+    enabled: (s) => sel(s).canPathOp,
+    run: (s) => s.pathOpSelected("smooth"),
+  },
+  {
+    id: "path.flatten",
+    label: "Flatten path",
+    group: "Path",
+    enabled: (s) => sel(s).canPathOp,
+    run: (s) => s.pathOpSelected("flatten"),
+  },
+  {
+    id: "path.reverse",
+    label: "Reverse path",
+    group: "Path",
+    enabled: (s) => sel(s).canPathOp,
+    run: (s) => s.pathOpSelected("reverse"),
+  },
+  {
+    id: "path.union",
+    label: "Union",
+    group: "Boolean",
+    enabled: (s) => sel(s).canBoolean,
+    run: (s) => s.booleanSelected("union"),
+  },
+  {
+    id: "path.subtract",
+    label: "Subtract",
+    group: "Boolean",
+    enabled: (s) => sel(s).canBoolean,
+    run: (s) => s.booleanSelected("subtract"),
+  },
+  {
+    id: "path.intersect",
+    label: "Intersect",
+    group: "Boolean",
+    enabled: (s) => sel(s).canBoolean,
+    run: (s) => s.booleanSelected("intersect"),
+  },
+  {
+    id: "path.exclude",
+    label: "Exclude",
+    group: "Boolean",
+    enabled: (s) => sel(s).canBoolean,
+    run: (s) => s.booleanSelected("xor"),
   },
   {
     id: "structure.bringToFront",

@@ -5,6 +5,7 @@
 // ===========================================================================
 
 import type { BoolOp } from "../model/boolean";
+import type { PathOp } from "../model/pathOps";
 import type { ScriptMeta } from "../model/generators";
 import type { Paint, SolidPaint } from "../model/paint";
 import type {
@@ -281,6 +282,7 @@ export interface ShapeActions {
   ensureScriptCompiled: (scriptId: string) => void | Promise<void>;
   setImageLockAspect: (id: string, lock: boolean) => void;
   setClosedSelected: (closed: boolean) => void;
+  pathOpSelected: (op: PathOp) => void;
 }
 
 /** Scene-tree structure: hierarchy, order, per-node flags and conversions. */
