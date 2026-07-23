@@ -173,7 +173,17 @@ export default function Dock() {
             >
               {splitTop && <div className="dock-split-drop top" />}
               {splitBottom && <div className="dock-split-drop bottom" />}
-              <div className="dock-tabs" data-dock-tabs={group.id}>
+              <div
+                className="dock-tabs"
+                data-dock-tabs={group.id}
+                onWheel={(e) => {
+                  // Translate vertical wheel into horizontal scroll so the tab
+                  // bar can be panned without holding Shift.
+                  if (e.deltaX === 0 && e.deltaY !== 0) {
+                    e.currentTarget.scrollLeft += e.deltaY;
+                  }
+                }}
+              >
                 {group.tabs.map((id, idx) => (
                   <Fragment key={id}>
                     {dropTarget?.kind === "tab" &&
