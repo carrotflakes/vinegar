@@ -24,6 +24,7 @@ import { createDemoDocument } from "../demo/createDemoDocument";
 import { canGroupSelection, selectionUnits } from "../model/groups";
 import { isAreal } from "../model/boolean";
 import { joinableSubpathCount } from "../model/joinPath";
+import { hasCuttableNodes } from "../model/cutPath";
 import { isInstance, isShape, parentIdOf, selectionRoots } from "../model/scene";
 import { unionNodeWorldBounds } from "../model/bounds";
 import {
@@ -57,6 +58,7 @@ import { loadDocumentText } from "../io/openDocument";
 import { serializeDocument } from "../io/serialize";
 import { currentSymbolScope, hasUnsavedChanges, useEditor } from "../store/editorStore";
 import { useUi } from "../store/uiStore";
+import { groupEditNodesByShape } from "../store/state";
 import type { EditorState } from "../store/state";
 import { notify } from "../store/toastStore";
 import { toggleFullscreen } from "../fullscreen";
@@ -157,6 +159,16 @@ function sel(s: EditorState) {
         ? singleInstanceNode
         : null,
   };
+}
+
+/** Whether the current node selection has an anchor that would cut a contour. */
+function canCutNodes(s: EditorState): boolean {
+  for (const [shapeId, cuts] of groupEditNodesByShape(s.editNodes)) {
+    const shape = s.doc.nodes[shapeId];
+    if (isShape(shape) && shape.type === "path" && hasCuttableNodes(shape, cuts))
+      return true;
+  }
+  return false;
 }
 
 /** The currently selected artboard, or null. */
@@ -399,6 +411,13 @@ export const COMMANDS: Command[] = [
     group: "Path",
     enabled: (s) => sel(s).canJoin,
     run: (s) => s.joinSelected(),
+  },
+  {
+    id: "path.cut",
+    label: "Cut path",
+    group: "Path",
+    enabled: (s) => canCutNodes(s),
+    run: (s) => s.cutSelectedNodes(),
   },
   {
     id: "path.union",

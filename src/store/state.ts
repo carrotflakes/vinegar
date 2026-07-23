@@ -248,6 +248,7 @@ export interface ShapeActions {
   remeasureTextShapes: () => void;
   toggleNodeSmooth: (shapeId: string, sub: number, index: number) => void;
   deleteEditNode: () => void;
+  cutSelectedNodes: () => void;
   applyScriptChanges: (changes: { created: Shape[]; updated: Shape[]; deleted: string[] }) => void;
   updateSelectedStyle: (patch: Partial<StyleStylableFields>) => void;
   setShapeGeometry: (id: string, patch: Partial<{ x: number; y: number; width: number; height: number }>) => void;
@@ -414,4 +415,17 @@ export function currentSymbolScope(
   s: Pick<EditorData, "editingSymbols">
 ): string | null {
   return s.editingSymbols[s.editingSymbols.length - 1] ?? null;
+}
+
+/** Bucket the flat edit-node selection by its owning shape id. */
+export function groupEditNodesByShape(
+  editNodes: EditNode[]
+): Map<string, { sub: number; index: number }[]> {
+  const byShape = new Map<string, { sub: number; index: number }[]>();
+  for (const { shapeId, sub, index } of editNodes) {
+    const list = byShape.get(shapeId);
+    if (list) list.push({ sub, index });
+    else byShape.set(shapeId, [{ sub, index }]);
+  }
+  return byShape;
 }

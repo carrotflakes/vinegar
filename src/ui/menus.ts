@@ -90,6 +90,7 @@ export function selectionMenu(): MenuEntry[] {
     "path.flatten",
     "path.reverse",
     "path.join",
+    "path.cut",
   ]
     .filter(enabled)
     .map((id) => item(id));

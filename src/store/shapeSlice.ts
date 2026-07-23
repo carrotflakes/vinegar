@@ -1,6 +1,7 @@
 // Creating and mutating individual shapes (geometry, style, path anchors).
 
 import { toggleAnchorSmooth } from "../model/path";
+import { cutPathAtNodes } from "../model/cutPath";
 import { PATH_OP_LABEL, pathOpShape } from "../model/pathOps";
 import { buildGenerator, compileGenerator, type CompileResult } from "../model/generatorClient";
 import { GENERATORS, defaultArgs, type ScriptMeta } from "../model/generators";
@@ -22,6 +23,7 @@ import { appendToScope, groupNode, removeRoots } from "./docOps";
 import {
   clearTransient,
   currentSymbolScope,
+  groupEditNodesByShape,
   type ShapeActions,
   type StoreCtx,
 } from "./state";
@@ -284,6 +286,23 @@ export function createShapeActions({ set, get, transact, replaceDocumentWithoutH
         : shape.subpaths.map((s, i) => (i === editNode.sub ? { ...s, anchors } : s));
       if (subpaths.length === 0) { const next = removeRoots(doc, [shape.id]); if (!hasValidSceneContainers(next)) return; transact(next, { label: "Delete path node" }); set({ selection: [], ...clearTransient }); }
       else { const next = { ...doc, nodes: { ...doc.nodes, [shape.id]: { ...shape, subpaths, generator: undefined } } }; if (!hasValidSceneContainers(next)) return; transact(next, { label: "Delete path node" }); set({ editNodes: [] }); }
+    },
+    cutSelectedNodes: () => {
+      const { doc, editNodes } = get();
+      const byShape = groupEditNodesByShape(editNodes);
+      const nodes = { ...doc.nodes };
+      let cut = false;
+      for (const [shapeId, cuts] of byShape) {
+        const shape = doc.nodes[shapeId];
+        if (!isShape(shape) || shape.type !== "path") continue;
+        const next = cutPathAtNodes(shape, cuts);
+        if (!next) continue;
+        nodes[shapeId] = { ...next, generator: undefined };
+        cut = true;
+      }
+      if (!cut) return;
+      transact({ ...doc, nodes }, { label: "Cut path" });
+      set({ editNodes: [] });
     },
     placeImageFiles: async (files, at, fitWithin) => {
       const images = await importImageFiles(files);
