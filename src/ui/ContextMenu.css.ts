@@ -1,8 +1,9 @@
 import { vars } from "../styles/theme.css";
 import { globalStyle } from "@vanilla-extract/css";
 
+// Positioning (top/left/position) is applied inline by Floating UI; this only
+// styles the surface and its contents.
 globalStyle(".context-menu", {
-  position: "fixed",
   zIndex: "100",
   minWidth: "190px",
   padding: "4px",
@@ -10,6 +11,9 @@ globalStyle(".context-menu", {
   border: `1px solid ${vars.border}`,
   borderRadius: "9px",
   boxShadow: `0 8px 28px ${vars.shadow}`,
+  // The container is focusable (Floating UI focuses it on open); suppress the
+  // UA focus ring so it doesn't flicker as focus moves between it and items.
+  outline: "none",
 });
 
 globalStyle(".context-menu-item", {
@@ -25,11 +29,18 @@ globalStyle(".context-menu-item", {
   fontSize: "13px",
   textAlign: "left",
   cursor: "default",
+  outline: "none",
 });
 
-globalStyle(".context-menu-item:hover:not(:disabled)", {
-  background: vars.bg,
-});
+// Highlight on pointer hover, keyboard focus, or while a submenu is open.
+globalStyle(
+  ".context-menu-item:hover:not(:disabled),\n" +
+    ".context-menu-item:focus:not(:disabled),\n" +
+    '.context-menu-item[aria-expanded="true"]:not(:disabled)',
+  {
+    background: vars.bg,
+  }
+);
 
 globalStyle(".context-menu-item:disabled", {
   opacity: "0.4",
@@ -56,21 +67,7 @@ globalStyle(".context-menu-sep", {
   background: vars.border,
 });
 
-globalStyle(".context-menu-subitem", {
-  position: "relative",
-});
-
-// Highlight the parent row while its submenu is open (hover covers the rest).
-globalStyle(".context-menu-subitem:hover > .context-menu-item:not(:disabled)", {
-  background: vars.bg,
-});
-
 globalStyle(".context-menu-caret", {
-  fontSize: "10px",
+  fontSize: "14px",
   color: vars.muted,
-});
-
-globalStyle(".context-menu-nested", {
-  position: "absolute",
-  top: "-5px",
 });

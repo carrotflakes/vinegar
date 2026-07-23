@@ -34,6 +34,38 @@ function enabled(id: string): boolean {
   return cmd ? commandEnabled(cmd) : false;
 }
 
+/**
+ * The application File menu (AppBar dropdown). Organised into groups and an
+ * Export submenu rather than mirroring registry order. Shares the context-menu
+ * data model and renderer, so labels/enabled/shortcuts stay in sync.
+ */
+export function fileMenu(): MenuEntry[] {
+  // Inside the Export submenu the "Export " prefix is redundant with the parent.
+  const exportItem = (id: string): MenuItem => {
+    const it = item(id);
+    return { ...it, label: it.label.replace(/^Export /, "") };
+  };
+  return [
+    item("file.new"),
+    item("file.open"),
+    item("file.importSvg"),
+    item("file.placeImage"),
+    "separator",
+    item("file.save"),
+    {
+      label: "Export",
+      submenu: [
+        exportItem("file.exportImage"),
+        exportItem("file.exportSvg"),
+        exportItem("file.exportArtboardSvg"),
+        exportItem("file.exportAllArtboardsPng"),
+      ],
+    },
+    "separator",
+    item("app.preferences"),
+  ];
+}
+
 /** Actions on the current selection (clipboard, grouping, z-order, delete). */
 export function selectionMenu(): MenuEntry[] {
   const entries: MenuEntry[] = [

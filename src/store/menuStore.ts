@@ -50,3 +50,17 @@ export function openContextMenu(
 ): void {
   useMenu.getState().openMenu(x, y, entries);
 }
+
+// Dropdown menus (e.g. the File menu) live in local component state rather than
+// the store above. This counter lets the app's global Escape handler tell when
+// *any* menu is open so it can yield (the menu closes itself via useDismiss).
+let dropdownOpenCount = 0;
+
+export function setDropdownOpen(open: boolean): void {
+  dropdownOpenCount = Math.max(0, dropdownOpenCount + (open ? 1 : -1));
+}
+
+/** True while any menu (context menu or dropdown) is open. */
+export function anyMenuOpen(): boolean {
+  return useMenu.getState().menu != null || dropdownOpenCount > 0;
+}

@@ -625,6 +625,7 @@ export const COMMANDS: Command[] = [
     id: "file.save",
     label: "Save (.json)",
     group: "File",
+    keys: [{ key: "s", mod: true }],
     run: (s) => {
       const json = serializeDocument(s.doc);
       downloadText(json, "drawing.vinegar.json", "application/json");

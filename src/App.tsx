@@ -15,6 +15,7 @@ import {
 } from "./io/recovery";
 import { scopeLeafIds } from "./model/scene";
 import { currentSymbolScope, hasUnsavedChanges, useEditor, type ToolId } from "./store/editorStore";
+import { anyMenuOpen } from "./store/menuStore";
 import { usePointer } from "./store/pointerStore";
 import { usePreferences } from "./store/preferencesStore";
 import { useRecoveryStatus } from "./store/recoveryStore";
@@ -160,7 +161,6 @@ export default function App() {
   const recoveryMaxWaitMs = usePreferences((s) => s.recovery.maxWaitMs);
   const previousRecoveryEnabled = useRef(recoveryEnabled);
   const showPreferences = useUi((s) => s.preferencesOpen);
-  const openPreferences = useUi((s) => s.openPreferences);
   const closePreferences = useUi((s) => s.closePreferences);
   const showExport = useUi((s) => s.exportOpen);
   const closeExport = useUi((s) => s.closeExport);
@@ -215,6 +215,8 @@ export default function App() {
         return;
       }
       if (e.key === "Escape") {
+        // An open menu owns Escape (Floating UI closes it); don't also act.
+        if (anyMenuOpen()) return;
         if (s.selection.length || s.editNodes.length) s.clearSelection();
         else if (s.activeGroupId) s.exitGroup();
         else if (s.editingSymbols.length) s.exitSymbolEdit();
@@ -290,7 +292,7 @@ export default function App() {
             <span className="brand-word">Vinegar</span>
           </div>
           <span className="appbar-sep" />
-          <FileMenu onOpenPreferences={openPreferences} />
+          <FileMenu />
           <button className={barButton()} onClick={() => setShowScript(true)}>
             Script
           </button>
