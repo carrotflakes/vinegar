@@ -108,7 +108,10 @@ export function paintCanvas(input: PaintInput): void {
         : null,
   });
 
-  if (tool === "artboard" && scope === null) {
+  if (
+    scope === null &&
+    (tool === "artboard" || (tool === "select" && state.selectedArtboardId))
+  ) {
     drawArtboardChrome(
       ctx2d,
       dpr,

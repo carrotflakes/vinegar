@@ -36,7 +36,19 @@ import type { SceneNode, Shape, Vec2 } from "../../model/types";
 import { screenToWorld, worldToScreen } from "@/model/geometry/viewport";
 import { currentSymbolScope, useEditor, type EditorState } from "../../store/editorStore";
 import { setReadout } from "../../store/pointerStore";
-import { constrainAspectRatio, handleCursorRotated, resizeBounds } from "../handles";
+import {
+  HANDLE_SIZE,
+  constrainAspectRatio,
+  handleCursor,
+  handleCursorRotated,
+  resizeBounds,
+} from "../handles";
+import {
+  beginArtboardMove,
+  beginArtboardResize,
+  hitArtboardHandle,
+  pickArtboardBorder,
+} from "./artboardTool";
 import type { Interaction, ToolContext } from "../interaction";
 import {
   hitFrameHandle,
@@ -142,6 +154,20 @@ export function onSelectDown(
     return;
   }
 
+  // Artboards join the Select tool: a selected board's handles resize it, and
+  // any board can be grabbed by its border (interior clicks fall through to
+  // shape picking / marquee, so selecting content inside a board still works).
+  const selectedBoard = state.doc.artboards.find(
+    (ab) => ab.id === state.selectedArtboardId
+  );
+  if (selectedBoard) {
+    const handle = hitArtboardHandle(state, selectedBoard, screen, ctx.hitScale());
+    if (handle) {
+      beginArtboardResize(ctx, state, selectedBoard, handle);
+      return;
+    }
+  }
+
   const symbolRoot = scopeRootGroupId(state.doc, currentSymbolScope(state));
   const activeGroup =
     state.activeGroupId && isGroup(state.doc.nodes[state.activeGroupId])
@@ -149,6 +175,8 @@ export function onSelectDown(
       : null;
   const hitId = pickShape(ctx, world);
   if (hitId) {
+    // Selecting scene content drops any artboard selection.
+    if (state.selectedArtboardId) state.selectArtboard(null);
     // While drilled into a group, hits inside it resolve to its direct
     // children; a hit outside steps back out to the top level.
     const insideActive =
@@ -199,8 +227,18 @@ export function onSelectDown(
     return;
   }
 
+  // No shape hit: grabbing a board's border selects and moves it.
+  const borderTol =
+    ((HANDLE_SIZE / 2 + 3) * ctx.hitScale()) / state.viewport.scale;
+  const borderBoard = pickArtboardBorder(state.doc.artboards, world, borderTol);
+  if (borderBoard) {
+    beginArtboardMove(ctx, state, borderBoard, world);
+    return;
+  }
+
   if (!shiftKey) {
     state.clearSelection();
+    if (state.selectedArtboardId) state.selectArtboard(null);
     if (activeGroup) state.setActiveGroup(null);
   }
   ctx.interaction.current = {
@@ -506,5 +544,17 @@ export function selectCursor(
     const frame = selectionFrame();
     return handleCursorRotated(hit.id, frame?.rotation ?? 0);
   }
-  return pickShape(ctx, world) ? "move" : "default";
+  const state = useEditor.getState();
+  const board = state.doc.artboards.find(
+    (ab) => ab.id === state.selectedArtboardId
+  );
+  if (board) {
+    const handle = hitArtboardHandle(state, board, screen, ctx.hitScale());
+    if (handle) return handleCursor(handle);
+  }
+  if (pickShape(ctx, world)) return "move";
+  const borderTol =
+    ((HANDLE_SIZE / 2 + 3) * ctx.hitScale()) / state.viewport.scale;
+  if (pickArtboardBorder(state.doc.artboards, world, borderTol)) return "move";
+  return "default";
 }

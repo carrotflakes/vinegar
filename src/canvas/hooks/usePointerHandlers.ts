@@ -299,7 +299,7 @@ export function usePointerHandlers(deps: PointerHandlerDeps): PointerHandlers {
       case "artboard-create":
       case "artboard-move":
       case "artboard-resize":
-        onArtboardMove(ctx, state, inter, world);
+        onArtboardMove(ctx, state, inter, world, mod.shift, mod.alt);
         break;
     }
   };

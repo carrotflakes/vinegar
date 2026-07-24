@@ -10,10 +10,14 @@ Ordered by agreed priority. These are the biggest gaps toward a "real" vector ed
    - Rough edges (fix soon):
      - [x] Delete key removes a selected artboard (`edit.delete` handles
        `selectedArtboardId`)
-     - [ ] Boards are only selectable/movable in the Artboard tool — let the Select
-       tool hit/move them too (or clarify the split)
-     - [ ] No snapping or modifier keys on board create/move/resize (grid + shapes +
-       other boards; Shift = square, Alt = from center)
+     - [x] Boards are also selectable/movable in the Select tool: a selected
+       board's handles resize it, and any board can be grabbed by its border
+       (interior clicks fall through to shape picking / marquee). Shared
+       `beginArtboardMove`/`beginArtboardResize` builders; chrome drawn in the
+       Select tool while a board is selected.
+     - [x] Snapping + modifier keys on board create/move/resize: snaps to grid,
+       other boards and scene shapes (reuses `computeSnap`/`snapPoint`, new
+       `boundsSnapTargets`), Shift = square / keep aspect, Alt = from center.
      - [ ] "Export all artboards" fires N sequential downloads (filenames are
        deduplicated); consider a zip
    - Follow-ups:
@@ -97,11 +101,7 @@ Ordered by agreed priority. These are the biggest gaps toward a "real" vector ed
    - [ ] Deferred: rich text (style runs), text on path, vertical text,
      letter-spacing, outline-on-export, fixed-height clipping boxes,
      Google Fonts loading
-6. [x] **Stroke detail options** — shipped in file v17: custom dash pattern +
-   offset, butt/round/square caps, miter/round/bevel joins, and inside/center/
-   outside alignment for closed vector shapes and live text. Open paths remain
-   center-aligned; Canvas/PNG, SVG export, bounds/hit-testing and Outline Stroke
-   share the same appearance fields.
+6. [x] **Stroke detail options**
 7. [x] **Bucket fill** — shipped (`G`; see docs/bucket-fill.md). Click an
    enclosed empty region to fill it with the current fill color. Vector
    region detection (`model/bucketFill.ts`): all visible ink is unioned with
@@ -132,20 +132,8 @@ and performance work. Treat these as release gates ahead of animation, MCP,
 additional effects, or other feature expansion.
 
 - [ ] Alignment guides during resize and rotate (currently move only)
-- [x] **SVG import / placement** — open or place existing vector artwork while
-  preserving paths, transforms, groups, fills/strokes and gradients where possible
 - [ ] **Rulers and draggable guides** — horizontal/vertical rulers, persistent
   document guides, snapping, lock/hide/clear actions
-- [x] **Fit navigation** — zoom to selection and fit all drawing content in the
-  viewport (in addition to the planned fit-to-artboard action)
-- [x] **Document recovery** — autosave a local recovery snapshot, restore after a
-  crash/reload, and warn before closing or replacing a document with unsaved changes
-  - [x] Unsaved-changes warning — `savedDoc` reference on the store (`doc !==
-    savedDoc` ⇒ dirty, since edits are immutable); `beforeunload` warns on
-    close/reload, and New / Open / Open demo confirm only when dirty. Save marks
-    clean (`markSaved`). Undo back to the saved state stays "dirty" (history
-    holds clones) — conservative, acceptable for a safety valve.
-  - [x] Autosave a local recovery snapshot + restore after crash/reload
 - [ ] **Document identity and save workflow** — editable document name, Save As,
   recent files, and overwrite the opened file where the File System Access API permits
 - [ ] **Document settings UI** — edit unit and DPI as well as grid size; show the
@@ -203,14 +191,9 @@ additional effects, or other feature expansion.
   - [ ] Follow-up: embed the native vinegar payload in the SVG metadata so
     cross-tab paste keeps symbol/generator links and effects (same root as the
     generator/symbol clipboard gaps)
-- [x] Convert compound paths to a single editable path (bake child transforms
-  into subpaths and preserve the even-odd fill rule)
-- [x] Convert brush strokes to filled paths (expand the variable-width envelope;
-  the result no longer has pressure/centerline editing)
 - [ ] Distribution: match an existing gap (not just centering)
 - [ ] Configurable pencil smoothing strength
 - [ ] Status bar: color swatch under the cursor (eyedropper-style; watch getImageData cost)
-- [x] Status bar: unsaved-changes indicator (or autosave status)
 
 ## Known issues / polish
 - [ ] Transform manual smoke test: nested rotated group → move → resize → rotate → undo/redo → SVG/PNG export
@@ -283,8 +266,6 @@ additional effects, or other feature expansion.
   - [ ] Script API: expose instances (currently scene shapes only)
   - [ ] Export bounds: include stroke extents of instance content
 - [ ] MCPサーバー化
-- [x] assetを確認できるビュー — Assets dock panel (`AssetsPanel`, hidden by
-  default; thumbnail + name + format/size + reference count)
 - [ ] テキストのパス化
 - [ ] 保存形式の検討 zip化?
 - [ ] タッチ操作、ちょっと選択するだけで移動となってしまう問題
@@ -320,6 +301,5 @@ additional effects, or other feature expansion.
 - [ ] generatorの編集ロック prefへ
 - [ ] ドックのフローティング、マルチカラム化
 - [ ] Assetという名前は問題ないか。raster imageではないか。
-- [x] nodeツール矩形選択
 - [ ] subpath分割コマンド、統合コマンド
 - [ ] apple pencilで短時間の連続したストロークを描くと2本目が反応しない

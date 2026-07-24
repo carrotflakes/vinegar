@@ -73,6 +73,19 @@ export function collectSnapTargets(doc: Document, shapes: Shape[]): SnapTargets 
   return { x, y };
 }
 
+/** Snap lines (left/center/right, top/middle/bottom) from raw AABBs — used for
+ * non-shape targets such as artboards. */
+export function boundsSnapTargets(boxes: Bounds[]): SnapTargets {
+  const x: Candidate[] = [];
+  const y: Candidate[] = [];
+  for (const b of boxes) {
+    const c = boxCandidates(b);
+    x.push(...c.x);
+    y.push(...c.y);
+  }
+  return { x, y };
+}
+
 // ---- per-axis snap candidates ---------------------------------------------
 
 type AxisSnap =

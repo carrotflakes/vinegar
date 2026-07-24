@@ -103,9 +103,22 @@ export type Interaction =
        */
       original: { shapeId: string; sub: number; index: number }[];
     }
-  | { kind: "artboard-create"; id: string; start: Vec2 }
-  | { kind: "artboard-move"; id: string; grab: Vec2; orig: Bounds }
-  | { kind: "artboard-resize"; id: string; handle: HandleId; orig: Bounds };
+  | { kind: "artboard-create"; id: string; start: Vec2; snap: ArtboardSnap }
+  | { kind: "artboard-move"; id: string; grab: Vec2; orig: Bounds; snap: ArtboardSnap }
+  | {
+      kind: "artboard-resize";
+      id: string;
+      handle: HandleId;
+      orig: Bounds;
+      snap: ArtboardSnap;
+    };
+
+/** Precomputed snap data for an artboard drag: alignment lines from other
+ * boards + scene shapes, and other boards' AABBs for equal-spacing. */
+export interface ArtboardSnap {
+  targets: SnapTargets;
+  boxes: Bounds[];
+}
 
 /** Distance below which a created shape is considered an accidental click. */
 export const CLICK_SLOP = 3;
