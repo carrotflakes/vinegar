@@ -7,7 +7,7 @@ let pathOpShape;
 
 before(async () => {
   server = await createServer({ server: { middlewareMode: true } });
-  ({ pathOpShape } = await server.ssrLoadModule("/src/model/pathOps.ts"));
+  ({ pathOpShape } = await server.ssrLoadModule("/src/model/path/pathOps.ts"));
 });
 
 after(async () => server.close());

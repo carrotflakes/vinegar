@@ -10,9 +10,9 @@ let joinShapes;
 before(async () => {
   server = await createServer({ server: { middlewareMode: true } });
   ({ cutPathAtNodes, hasCuttableNodes } = await server.ssrLoadModule(
-    "/src/model/cutPath.ts"
+    "/src/model/path/cutPath.ts"
   ));
-  ({ joinShapes } = await server.ssrLoadModule("/src/model/joinPath.ts"));
+  ({ joinShapes } = await server.ssrLoadModule("/src/model/path/joinPath.ts"));
 });
 
 after(async () => server.close());

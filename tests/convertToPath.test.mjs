@@ -13,12 +13,12 @@ let useEditor;
 before(async () => {
   server = await createServer({ server: { middlewareMode: true } });
   ({ canConvertShapeToPath, convertShapeToPath } =
-    await server.ssrLoadModule("/src/model/convertToPath.ts"));
+    await server.ssrLoadModule("/src/model/path/convertToPath.ts"));
   ({ cachedBrushEnvelope } =
-    await server.ssrLoadModule("/src/model/brushOutline.ts"));
+    await server.ssrLoadModule("/src/model/brush/brushOutline.ts"));
   ({ createEmptyDocument } =
     await server.ssrLoadModule("/src/model/types.ts"));
-  ({ shapeBounds } = await server.ssrLoadModule("/src/model/bounds.ts"));
+  ({ shapeBounds } = await server.ssrLoadModule("/src/model/geometry/bounds.ts"));
   ({ useEditor } = await server.ssrLoadModule("/src/store/editorStore.ts"));
 });
 

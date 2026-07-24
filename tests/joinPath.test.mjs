@@ -7,7 +7,7 @@ let joinShapes;
 
 before(async () => {
   server = await createServer({ server: { middlewareMode: true } });
-  ({ joinShapes } = await server.ssrLoadModule("/src/model/joinPath.ts"));
+  ({ joinShapes } = await server.ssrLoadModule("/src/model/path/joinPath.ts"));
 });
 
 after(async () => server.close());

@@ -26,7 +26,7 @@ before(async () => {
     zoomAt,
     rotateAt,
     snapAngleToQuarter,
-  } = await server.ssrLoadModule("/src/model/viewport.ts"));
+  } = await server.ssrLoadModule("/src/model/geometry/viewport.ts"));
 });
 
 after(async () => server.close());

@@ -17,8 +17,8 @@ before(async () => {
   server = await createServer({ server: { middlewareMode: true } });
   ({ createEmptyDocument } = await server.ssrLoadModule("/src/model/types.ts"));
   ({ parseDocument, serializeDocument } = await server.ssrLoadModule("/src/io/serialize.ts"));
-  ({ resolveGenerator, compileScript, GENERATORS, defaultArgs } = await server.ssrLoadModule("/src/model/generators.ts"));
-  ({ withSubpath } = await server.ssrLoadModule("/src/model/path.ts"));
+  ({ resolveGenerator, compileScript, GENERATORS, defaultArgs } = await server.ssrLoadModule("/src/model/generators/generators.ts"));
+  ({ withSubpath } = await server.ssrLoadModule("/src/model/path/path.ts"));
   ({ useEditor } = await server.ssrLoadModule("/src/store/editorStore.ts"));
 });
 

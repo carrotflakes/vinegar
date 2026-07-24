@@ -7,7 +7,7 @@ let strokeOutline;
 
 before(async () => {
   server = await createServer({ server: { middlewareMode: true } });
-  ({ strokeOutline } = await server.ssrLoadModule("/src/model/outlineStroke.ts"));
+  ({ strokeOutline } = await server.ssrLoadModule("/src/model/path/outlineStroke.ts"));
 });
 
 after(async () => {

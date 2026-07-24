@@ -19,10 +19,10 @@ before(async () => {
   ({ convertSvgItem } =
     await server.ssrLoadModule("/src/io/importSvg.ts"));
   ({ nodeWorldBounds } =
-    await server.ssrLoadModule("/src/model/bounds.ts"));
+    await server.ssrLoadModule("/src/model/geometry/bounds.ts"));
   ({ useEditor } =
     await server.ssrLoadModule("/src/store/editorStore.ts"));
-  ({ isAreal } = await server.ssrLoadModule("/src/model/boolean.ts"));
+  ({ isAreal } = await server.ssrLoadModule("/src/model/path/boolean.ts"));
 });
 
 beforeEach(() => {

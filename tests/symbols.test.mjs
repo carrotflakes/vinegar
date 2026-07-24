@@ -20,8 +20,8 @@ before(async () => {
   server = await createServer({ server: { middlewareMode: true } });
   ({ useEditor, currentSymbolScope } = await server.ssrLoadModule("/src/store/editorStore.ts"));
   ({ nodeWorldBounds, instanceWorldBounds, symbolContentBounds } =
-    await server.ssrLoadModule("/src/model/bounds.ts"));
-  ({ hitTestNode } = await server.ssrLoadModule("/src/model/hitTest.ts"));
+    await server.ssrLoadModule("/src/model/geometry/bounds.ts"));
+  ({ hitTestNode } = await server.ssrLoadModule("/src/model/geometry/hitTest.ts"));
   ({ scopeLeafIds, parentIdOf, isInstance } = await server.ssrLoadModule("/src/model/scene.ts"));
   ({ serializeDocument, parseDocument } = await server.ssrLoadModule("/src/io/serialize.ts"));
   ({ exportSvg } = await server.ssrLoadModule("/src/io/exportSvg.ts"));

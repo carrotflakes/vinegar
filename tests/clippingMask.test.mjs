@@ -27,8 +27,8 @@ before(async () => {
     canReleaseClippingMaskSelection,
     hasValidClippingMasks,
   } = await server.ssrLoadModule("/src/model/clippingMask.ts"));
-  ({ nodeWorldBounds } = await server.ssrLoadModule("/src/model/bounds.ts"));
-  ({ hitTestNode, marqueeHitNode } = await server.ssrLoadModule("/src/model/hitTest.ts"));
+  ({ nodeWorldBounds } = await server.ssrLoadModule("/src/model/geometry/bounds.ts"));
+  ({ hitTestNode, marqueeHitNode } = await server.ssrLoadModule("/src/model/geometry/hitTest.ts"));
 });
 
 after(async () => server.close());

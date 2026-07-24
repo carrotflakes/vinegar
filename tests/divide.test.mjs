@@ -7,7 +7,7 @@ let divideShapes;
 
 before(async () => {
   server = await createServer({ server: { middlewareMode: true } });
-  ({ divideShapes } = await server.ssrLoadModule("/src/model/boolean.ts"));
+  ({ divideShapes } = await server.ssrLoadModule("/src/model/path/boolean.ts"));
 });
 
 after(async () => server.close());
