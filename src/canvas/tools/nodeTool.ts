@@ -10,9 +10,15 @@ import {
   shapeWorldMatrix,
 } from "@/model/geometry/matrix";
 import { isShape } from "../../model/scene";
-import type { Vec2 } from "../../model/types";
+import type { Bounds, Vec2 } from "../../model/types";
+import { worldToScreen } from "@/model/geometry/viewport";
 import { useEditor, type EditorState } from "../../store/editorStore";
-import { NODE_GRAB, type Interaction, type ToolContext } from "../interaction";
+import {
+  CLICK_SLOP,
+  NODE_GRAB,
+  type Interaction,
+  type ToolContext,
+} from "../interaction";
 import {
   hitNodes,
   moveAnchors,
@@ -27,12 +33,48 @@ import {
   selectedNodeShape,
   selectedNodeShapes,
 } from "../picking";
-import { constrain45 } from "../util";
+import { boundsFromPoints, constrain45 } from "../util";
 
 export type NodeInteraction = Extract<
   Interaction,
   { kind: "node-anchor" | "node-handle" }
 >;
+
+type NodeMarquee = Extract<Interaction, { kind: "node-marquee" }>;
+
+type NodeRef = { shapeId: string; sub: number; index: number };
+
+/**
+ * Anchors of the edited shapes whose *screen* position falls inside the
+ * screen-space marquee `rect`. Testing in screen space keeps the hit region
+ * exactly the rectangle the user drew, even when the viewport is rotated.
+ */
+function nodesInRect(state: EditorState, rect: Bounds): NodeRef[] {
+  const hits: NodeRef[] = [];
+  for (const shape of selectedNodeShapes(state)) {
+    const matrix = shapeWorldMatrix(state.doc, shape);
+    nodeSubpaths(shape).forEach((subpath, sub) => {
+      subpath.anchors.forEach((anchor, index) => {
+        const p = worldToScreen(state.viewport, applyMatrix(matrix, anchor.p));
+        if (
+          p.x >= rect.x &&
+          p.x <= rect.x + rect.width &&
+          p.y >= rect.y &&
+          p.y <= rect.y + rect.height
+        ) {
+          hits.push({ shapeId: shape.id, sub, index });
+        }
+      });
+    });
+  }
+  return hits;
+}
+
+/** Marquee hits, unioned with the pre-drag selection on Shift; store dedupes. */
+function marqueeSelection(state: EditorState, inter: NodeMarquee, screen: Vec2) {
+  const hits = nodesInRect(state, boundsFromPoints(inter.startScreen, screen));
+  return inter.additive ? [...inter.original, ...hits] : hits;
+}
 
 interface SegmentTarget {
   shape: NodeEditShape;
@@ -195,15 +237,67 @@ export function onNodeDown(
       return;
     }
   }
-  // Select another node-editable shape (path or brush), or clear.
-  const id = pickShape(ctx, world);
-  const picked = id ? state.doc.nodes[id] : null;
-  if (picked && (picked.type === "path" || picked.type === "brush")) {
-    state.setSelection([id!]);
-    state.setEditNodes([]);
-  } else {
-    state.clearSelection();
+  // Empty space: start a marquee that selects anchors of the edited shape(s).
+  // A plain click (no drag) instead re-picks the shape under the cursor; that
+  // fallback lives in onNodeMarqueeUp.
+  ctx.interaction.current = {
+    kind: "node-marquee",
+    start: world,
+    startScreen: screen,
+    additive: shiftKey,
+    original: state.editNodes.map(({ shapeId, sub, index }) => ({ shapeId, sub, index })),
+  };
+  ctx.marquee.current = { x: screen.x, y: screen.y, width: 0, height: 0 };
+}
+
+function draggedPast(startScreen: Vec2, screen: Vec2): boolean {
+  return (
+    Math.abs(screen.x - startScreen.x) > CLICK_SLOP ||
+    Math.abs(screen.y - startScreen.y) > CLICK_SLOP
+  );
+}
+
+export function onNodeMarqueeMove(
+  ctx: ToolContext,
+  state: EditorState,
+  inter: NodeMarquee,
+  screen: Vec2
+) {
+  ctx.marquee.current = boundsFromPoints(inter.startScreen, screen);
+  // Only touch the selection once past the click slop, so an accidental
+  // sub-pixel drag before a click doesn't clobber the current anchors.
+  if (draggedPast(inter.startScreen, screen)) {
+    state.setEditNodes(marqueeSelection(state, inter, screen));
   }
+  ctx.scheduleDraw();
+}
+
+export function onNodeMarqueeUp(
+  ctx: ToolContext,
+  state: EditorState,
+  inter: NodeMarquee,
+  screen: Vec2,
+  world: Vec2
+) {
+  ctx.marquee.current = null;
+  if (draggedPast(inter.startScreen, screen)) {
+    state.setEditNodes(marqueeSelection(state, inter, screen));
+    ctx.scheduleDraw();
+    return;
+  }
+  // Treated as a click on empty space. Shift-click keeps the current anchors;
+  // a plain click re-picks a node-editable shape, or clears the selection.
+  if (!inter.additive) {
+    const id = pickShape(ctx, world);
+    const picked = id ? state.doc.nodes[id] : null;
+    if (picked && (picked.type === "path" || picked.type === "brush")) {
+      state.setSelection([id!]);
+      state.setEditNodes([]);
+    } else {
+      state.clearSelection();
+    }
+  }
+  ctx.scheduleDraw();
 }
 
 export function onNodeMove(

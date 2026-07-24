@@ -312,5 +312,5 @@ additional effects, or other feature expansion.
 - [ ] generatorの編集ロック prefへ
 - [ ] ドックのフローティング、マルチカラム化
 - [ ] Assetという名前は問題ないか。raster imageではないか。
-- [ ] nodeツール矩形選択
+- [x] nodeツール矩形選択
 - [ ] subpath分割コマンド、統合コマンド

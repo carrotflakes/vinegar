@@ -92,6 +92,17 @@ export type Interaction =
       orig: PathShape | BrushShape;
     }
   | { kind: "marquee"; start: Vec2; additive: boolean }
+  | {
+      kind: "node-marquee";
+      start: Vec2;
+      startScreen: Vec2;
+      additive: boolean;
+      /**
+       * Anchor selection at drag start. Union base for Shift-drag, and the
+       * state restored if the drag is cancelled (selection updates live).
+       */
+      original: { shapeId: string; sub: number; index: number }[];
+    }
   | { kind: "artboard-create"; id: string; start: Vec2 }
   | { kind: "artboard-move"; id: string; grab: Vec2; orig: Bounds }
   | { kind: "artboard-resize"; id: string; handle: HandleId; orig: Bounds };

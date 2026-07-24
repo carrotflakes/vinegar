@@ -33,7 +33,7 @@ import {
 } from "../../model/scene";
 import { collectSnapTargets, computeSnap } from "@/model/geometry/snap";
 import type { SceneNode, Shape, Vec2 } from "../../model/types";
-import { worldToScreen } from "@/model/geometry/viewport";
+import { screenToWorld, worldToScreen } from "@/model/geometry/viewport";
 import { currentSymbolScope, useEditor, type EditorState } from "../../store/editorStore";
 import { setReadout } from "../../store/pointerStore";
 import { constrainAspectRatio, handleCursorRotated, resizeBounds } from "../handles";
@@ -45,7 +45,7 @@ import {
   pointSnap,
   selectionFrame,
 } from "../picking";
-import { boundsFromPoints, formatAngle, formatSize } from "../util";
+import { boundsFromCorners, formatAngle, formatSize } from "../util";
 
 export type SelectInteraction = Extract<
   Interaction,
@@ -432,7 +432,22 @@ export function onMarqueeUp(
   inter: Extract<Interaction, { kind: "marquee" }>,
   end: Vec2
 ) {
-  const region = boundsFromPoints(inter.start, end);
+  // The drawn marquee is axis-aligned in screen space, so under a rotated
+  // viewport its world footprint is a rotated rectangle. Build the region from
+  // all four screen corners (not just the two diagonal ones) so the world AABB
+  // actually encloses what the user drew. Like rotated instances, this can
+  // over-select slightly at the corners; exact oriented-rect hit-testing would
+  // mean reworking the shared marquee test in hitTest.ts.
+  const a = worldToScreen(state.viewport, inter.start);
+  const b = worldToScreen(state.viewport, end);
+  const region = boundsFromCorners(
+    [
+      { x: a.x, y: a.y },
+      { x: b.x, y: a.y },
+      { x: b.x, y: b.y },
+      { x: a.x, y: b.y },
+    ].map((corner) => screenToWorld(state.viewport, corner))
+  );
   const scope = currentSymbolScope(state);
   const drillRoot = drillScopeRoot(
     state.doc,

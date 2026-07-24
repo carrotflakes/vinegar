@@ -75,6 +75,8 @@ import {
   nodeCursor,
   onNodeDoubleClick,
   onNodeDown,
+  onNodeMarqueeMove,
+  onNodeMarqueeUp,
   onNodeMove,
 } from "./tools/nodeTool";
 import {
@@ -493,6 +495,11 @@ export default function CanvasView() {
       case "marquee":
         marqueeRef.current = null;
         break;
+      case "node-marquee":
+        // Selection is updated live during the drag; roll it back.
+        marqueeRef.current = null;
+        state.setEditNodes(inter.original);
+        break;
       // "pan" / "pen-anchor" / "none": nothing to undo.
     }
     scheduleDraw();
@@ -720,6 +727,9 @@ export default function CanvasView() {
       case "node-handle":
         onNodeMove(ctx, state, inter, world, mod.shift, mod.alt);
         break;
+      case "node-marquee":
+        onNodeMarqueeMove(ctx, state, inter, screen);
+        break;
       case "artboard-create":
       case "artboard-move":
       case "artboard-resize":
@@ -794,6 +804,11 @@ export default function CanvasView() {
           screenToWorld(state.viewport, screenPoint(e))
         );
         break;
+      case "node-marquee": {
+        const screen = screenPoint(e);
+        onNodeMarqueeUp(ctx, state, inter, screen, screenToWorld(state.viewport, screen));
+        break;
+      }
       case "artboard-create":
       case "artboard-move":
       case "artboard-resize":

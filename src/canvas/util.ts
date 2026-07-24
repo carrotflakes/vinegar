@@ -32,6 +32,20 @@ export function boundsFromPoints(a: Vec2, b: Vec2): Bounds {
   };
 }
 
+/** Axis-aligned bounds enclosing every point (e.g. a rotated marquee's corners). */
+export function boundsFromCorners(points: Vec2[]): Bounds {
+  const xs = points.map((p) => p.x);
+  const ys = points.map((p) => p.y);
+  const minX = Math.min(...xs);
+  const minY = Math.min(...ys);
+  return {
+    x: minX,
+    y: minY,
+    width: Math.max(...xs) - minX,
+    height: Math.max(...ys) - minY,
+  };
+}
+
 export function isTypingTarget(target: EventTarget | null): boolean {
   const el = target as HTMLElement | null;
   if (!el) return false;
