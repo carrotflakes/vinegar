@@ -14,6 +14,7 @@ import { useCanvasTheme } from "./hooks/useCanvasTheme";
 import { useCoarsePointer } from "./hooks/useCoarsePointer";
 import { usePointerHandlers } from "./hooks/usePointerHandlers";
 import { useTextEditing } from "./hooks/useTextEditing";
+import { useTouchDrawFix } from "./hooks/useTouchDrawFix";
 import { useWheelZoom } from "./hooks/useWheelZoom";
 import {
   TOUCH_HIT_SCALE,
@@ -146,10 +147,11 @@ export default function CanvasView() {
 
   useCoarsePointer(coarseRef, scheduleDraw);
   useWheelZoom(canvasRef);
+  useTouchDrawFix(canvasRef, wrapRef);
   useCanvasKeyboard(ctx, canvasRef, spaceRef);
 
   return (
-    <div className="canvas-wrap" ref={wrapRef}>
+    <div className="canvas-wrap" ref={wrapRef} tabIndex={-1}>
       <canvas
         ref={canvasRef}
         className="canvas"
