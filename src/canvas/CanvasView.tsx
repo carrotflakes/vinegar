@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef } from "react";
 import { subscribeImageCache } from "../imageCache";
 import {
   drillScopeRoot,
@@ -8,28 +8,24 @@ import {
 import { isDocumentFile, openDocumentFile } from "../io/openDocument";
 import { isGroup, scopeRootGroupId } from "../model/scene";
 import { type Guide, type Spacing } from "@/model/geometry/snap";
-import type { PathShape, Bounds, Shape, TextShape, Vec2 } from "../model/types";
-import {
-  rotateAt,
-  screenToWorld,
-  snapAngleToQuarter,
-  zoomAt,
-  type Viewport,
-} from "@/model/geometry/viewport";
+import type { PathShape, Bounds, Shape, Vec2 } from "../model/types";
+import { screenToWorld } from "@/model/geometry/viewport";
 import { currentSymbolScope, useEditor } from "../store/editorStore";
 import { readModifiers } from "../store/inputStore";
 import { openContextMenu } from "../store/menuStore";
 import { setPointer, setReadout } from "../store/pointerStore";
-import { usePreferences } from "../store/preferencesStore";
 import { canvasMenu, selectionMenu } from "../ui/menus";
 import "./CanvasView.css";
 import { readCanvasTheme, type CanvasTheme } from "./canvasTheme";
 import { resolveCursor } from "./cursor";
+import { cancelActiveInteraction } from "./interactionLifecycle";
 import { paintCanvas } from "./paint";
+import { useCanvasGestures } from "./hooks/useCanvasGestures";
 import { useCanvasKeyboard } from "./hooks/useCanvasKeyboard";
 import { useCanvasSizing } from "./hooks/useCanvasSizing";
 import { useCanvasTheme } from "./hooks/useCanvasTheme";
 import { useCoarsePointer } from "./hooks/useCoarsePointer";
+import { useTextEditing } from "./hooks/useTextEditing";
 import { useWheelZoom } from "./hooks/useWheelZoom";
 import {
   TOUCH_HIT_SCALE,
@@ -40,25 +36,14 @@ import {
 import ModifierBar from "./ModifierBar";
 import { pickShape } from "./picking";
 import TextEditor from "./TextEditor";
-import { measureTextShape } from "./textLayout";
 import {
   finishArtboard,
   onArtboardDown,
   onArtboardMove,
 } from "./tools/artboardTool";
-import {
-  cancelBrush,
-  finishBrush,
-  onBrushMove,
-  startBrush,
-} from "./tools/brushTool";
+import { finishBrush, onBrushMove, startBrush } from "./tools/brushTool";
 import { bucketFillAt } from "./tools/bucketTool";
-import {
-  cancelEraser,
-  finishEraser,
-  onEraserMove,
-  startEraser,
-} from "./tools/eraserTool";
+import { finishEraser, onEraserMove, startEraser } from "./tools/eraserTool";
 import {
   onNodeDoubleClick,
   onNodeDown,
@@ -92,12 +77,6 @@ import {
   startTextCreate,
 } from "./tools/textTool";
 
-interface TextEditSession {
-  shape: TextShape;
-  original: TextShape | null;
-  previousSelection: string[];
-}
-
 export default function CanvasView() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const wrapRef = useRef<HTMLDivElement>(null);
@@ -115,22 +94,11 @@ export default function CanvasView() {
   const penExtendRef = useRef<PathShape | null>(null);
   const lastInsertRef = useRef<LastInsert | null>(null);
   const hoverRef = useRef<Vec2 | null>(null);
-  const textEditRef = useRef<TextEditSession | null>(null);
-  const [textEdit, setTextEditState] = useState<TextEditSession | null>(null);
   const guidesRef = useRef<Guide[]>([]);
   const spacingsRef = useRef<Spacing[]>([]);
   const rafRef = useRef<number | null>(null);
   const themeRef = useRef<CanvasTheme>(readCanvasTheme());
   const spaceRef = useRef(false);
-  // Active pointers (screen coords, canvas-relative) for multi-touch gestures.
-  const pointersRef = useRef<Map<number, Vec2>>(new Map());
-  // Two-finger pinch/pan gesture snapshot, or null when no gesture is active.
-  const gestureRef = useRef<{
-    startDist: number;
-    startAngle: number;
-    startCenter: Vec2;
-    startViewport: Viewport;
-  } | null>(null);
   const coarseRef = useRef(
     typeof matchMedia === "function" && matchMedia("(pointer: coarse)").matches
   );
@@ -166,59 +134,14 @@ export default function CanvasView() {
     });
   }, [draw]);
 
-  const setTextEdit = useCallback((session: TextEditSession | null) => {
-    textEditRef.current = session;
-    setTextEditState(session);
-    scheduleDraw();
-  }, [scheduleDraw]);
-
-  const beginTextEdit = useCallback((shape: TextShape, original: TextShape | null) => {
-    const state = useEditor.getState();
-    const previousSelection = state.selection;
-    state.setSelection([shape.id]);
-    setTextEdit({ shape, original, previousSelection });
-  }, [setTextEdit]);
-
-  const commitTextEdit = useCallback((expectedId?: string) => {
-    const session = textEditRef.current;
-    if (!session || (expectedId && session.shape.id !== expectedId)) return;
-    textEditRef.current = null;
-    setTextEditState(null);
-    const state = useEditor.getState();
-    const isEmpty = session.shape.text.trim() === "";
-    if (session.original) {
-      if (isEmpty) {
-        // Emptying an existing text removes it rather than leaving an
-        // invisible, unselectable node behind.
-        state.setSelection([session.shape.id]);
-        state.deleteSelected();
-      } else if (JSON.stringify(session.shape) !== JSON.stringify(session.original)) {
-        // Skip the no-op history entry when nothing actually changed.
-        state.updateShape(session.shape);
-      }
-    } else if (!isEmpty) {
-      state.addShape(session.shape);
-    } else {
-      // A freshly created text left empty never becomes a document node.
-      state.setSelection(session.previousSelection);
-    }
-    scheduleDraw();
-  }, [scheduleDraw]);
-
-  const cancelTextEdit = useCallback((expectedId?: string) => {
-    const session = textEditRef.current;
-    if (!session || (expectedId && session.shape.id !== expectedId)) return;
-    setTextEdit(null);
-    if (session && !session.original) {
-      useEditor.getState().setSelection(session.previousSelection);
-    }
-  }, [setTextEdit]);
-
-  const changeTextEdit = useCallback((text: string) => {
-    const session = textEditRef.current;
-    if (!session) return;
-    setTextEdit({ ...session, shape: measureTextShape({ ...session.shape, text }) });
-  }, [setTextEdit]);
+  const {
+    textEdit,
+    textEditRef,
+    beginTextEdit,
+    commitTextEdit,
+    cancelTextEdit,
+    changeTextEdit,
+  } = useTextEditing(scheduleDraw);
 
   // Mutable state shared with the tool modules (see ToolContext).
   const ctx = useMemo<ToolContext>(
@@ -238,6 +161,9 @@ export default function CanvasView() {
     [scheduleDraw]
   );
 
+  const { pointersRef, gestureRef, beginGesture, updateGesture } =
+    useCanvasGestures(ctx);
+
   // Redraw on any store change; commit a pending pen path when leaving the tool.
   useEffect(
     () =>
@@ -252,139 +178,11 @@ export default function CanvasView() {
   useEffect(() => subscribeImageCache(scheduleDraw), [scheduleDraw]);
 
   useCanvasTheme(themeRef, scheduleDraw);
-
-  // Font metrics can change after the document first paints. Refresh the
-  // persisted text bounds without creating an undo entry.
-  useEffect(() => {
-    if (!("fonts" in document)) return;
-    let active = true;
-    const refresh = () => {
-      if (!active) return;
-      useEditor.getState().remeasureTextShapes();
-      const session = textEditRef.current;
-      if (session) setTextEdit({ ...session, shape: measureTextShape(session.shape) });
-      scheduleDraw();
-    };
-    void document.fonts.ready.then(refresh);
-    document.fonts.addEventListener("loadingdone", refresh);
-    return () => {
-      active = false;
-      document.fonts.removeEventListener("loadingdone", refresh);
-    };
-  }, [scheduleDraw, setTextEdit]);
-
   useCanvasSizing(wrapRef, canvasRef, sizeRef, draw);
 
   const screenPoint = (e: { clientX: number; clientY: number }): Vec2 => {
     const rect = canvasRef.current!.getBoundingClientRect();
     return { x: e.clientX - rect.left, y: e.clientY - rect.top };
-  };
-
-  // ---- multi-touch gestures (pinch-zoom / two-finger pan) ----------------
-
-  /** The centroid, spread and angle of the first two active pointers. */
-  const twoPointerMetrics = ():
-    | { center: Vec2; dist: number; angle: number }
-    | null => {
-    const pts = [...pointersRef.current.values()];
-    if (pts.length < 2) return null;
-    const [a, b] = pts;
-    return {
-      center: { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 },
-      dist: Math.hypot(a.x - b.x, a.y - b.y),
-      angle: Math.atan2(b.y - a.y, b.x - a.x),
-    };
-  };
-
-  /** Discard any in-progress single-pointer tool op, rolling back the doc. */
-  const cancelActiveInteraction = () => {
-    const inter = interactionRef.current;
-    interactionRef.current = { kind: "none" };
-    const state = useEditor.getState();
-    guidesRef.current = [];
-    spacingsRef.current = [];
-    setReadout(null);
-    switch (inter.kind) {
-      case "move":
-      case "resize":
-      case "rotate":
-      case "corner-radius":
-      case "pivot":
-      case "node-anchor":
-      case "node-handle":
-      case "artboard-move":
-      case "artboard-resize":
-        // These commit through begin/endInteraction; roll back the snapshot.
-        state.cancelInteraction();
-        break;
-      case "artboard-create":
-        state.cancelInteraction();
-        state.selectArtboard(null);
-        break;
-      case "create":
-      case "pencil":
-        // Drag-time changes live only in the preview shape.
-        previewRef.current = null;
-        break;
-      case "brush":
-        // Also clear the brush tool's transient capture state.
-        cancelBrush(ctx);
-        break;
-      case "eraser":
-        cancelEraser(ctx);
-        break;
-      case "text-create":
-        break;
-      case "marquee":
-        marqueeRef.current = null;
-        break;
-      case "node-marquee":
-        // Selection is updated live during the drag; roll it back.
-        marqueeRef.current = null;
-        state.setEditNodes(inter.original);
-        break;
-      // "pan" / "pen-anchor" / "none": nothing to undo.
-    }
-    scheduleDraw();
-  };
-
-  const beginGesture = () => {
-    const m = twoPointerMetrics();
-    if (!m) return;
-    cancelActiveInteraction();
-    gestureRef.current = {
-      startDist: m.dist,
-      startAngle: m.angle,
-      startCenter: m.center,
-      startViewport: useEditor.getState().viewport,
-    };
-  };
-
-  const updateGesture = () => {
-    const g = gestureRef.current;
-    const m = twoPointerMetrics();
-    if (!g || !m) return;
-    const factor = m.dist > 0 && g.startDist > 0 ? m.dist / g.startDist : 1;
-    // Twist rotation is opt-in; when enabled it can snap to quarter turns. The
-    // snap targets the absolute orientation, so derive the delta from that.
-    const canvas = usePreferences.getState().canvas;
-    let delta = canvas.rotationEnabled ? m.angle - g.startAngle : 0;
-    if (canvas.rotationEnabled && canvas.rotationSnap) {
-      const target = snapAngleToQuarter(g.startViewport.rotation + delta);
-      delta = target - g.startViewport.rotation;
-    }
-    // Zoom and twist around the initial centroid (both keep it fixed), then pan
-    // so that world point stays pinned under the current, moving centroid.
-    const zoomed = zoomAt(g.startViewport, g.startCenter, factor);
-    const rotated = rotateAt(zoomed, g.startCenter, delta);
-    useEditor.getState().setViewport({
-      ...rotated,
-      offset: {
-        x: rotated.offset.x + (m.center.x - g.startCenter.x),
-        y: rotated.offset.y + (m.center.y - g.startCenter.y),
-      },
-    });
-    scheduleDraw();
   };
 
   // ---- pointer handling --------------------------------------------------
@@ -677,7 +475,7 @@ export default function CanvasView() {
       e.pointerId !== inter.pointerId
     )
       return;
-    if (inter.kind !== "none") cancelActiveInteraction();
+    if (inter.kind !== "none") cancelActiveInteraction(ctx);
   };
 
   const onDoubleClick = (e: React.MouseEvent<HTMLCanvasElement>) => {
