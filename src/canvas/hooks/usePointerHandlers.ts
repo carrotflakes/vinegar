@@ -118,16 +118,22 @@ export function usePointerHandlers(deps: PointerHandlerDeps): PointerHandlers {
     const canvas = canvasRef.current!;
     canvas.setPointerCapture(e.pointerId);
     const screen = screenPoint(e);
-    pointersRef.current.set(e.pointerId, screen);
 
-    // A second pointer promotes the interaction to a two-finger gesture.
-    if (pointersRef.current.size >= 2) {
-      beginGesture();
-      return;
+    // Pinch/pan gestures are touch-only. Tracking pen/mouse pointers here would
+    // let a lingering pen contact — e.g. two rapid Apple Pencil strokes whose
+    // up/down interleave — be miscounted as a second finger and hijack the
+    // fresh stroke into a two-finger gesture.
+    if (e.pointerType === "touch") {
+      pointersRef.current.set(e.pointerId, screen);
+      // A second touch promotes the interaction to a two-finger gesture.
+      if (pointersRef.current.size >= 2) {
+        beginGesture();
+        return;
+      }
+      // Remember the selection so a follow-up pinch can restore it instead of
+      // leaving whatever this first touch selects.
+      captureGestureBaseline();
     }
-    // First touch: remember the selection so a follow-up pinch can restore it
-    // instead of leaving whatever this contact selects.
-    if (e.pointerType === "touch") captureGestureBaseline();
 
     const state = useEditor.getState();
     const world = screenToWorld(state.viewport, screen);
