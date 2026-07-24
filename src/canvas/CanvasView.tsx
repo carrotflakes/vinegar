@@ -109,8 +109,7 @@ export default function CanvasView() {
     [scheduleDraw]
   );
 
-  const { pointersRef, gestureRef, beginGesture, updateGesture } =
-    useCanvasGestures(ctx);
+  const gestures = useCanvasGestures(ctx);
 
   // Redraw on any store change; commit a pending pen path when leaving the tool.
   useEffect(
@@ -141,7 +140,7 @@ export default function CanvasView() {
     canvasRef,
     spaceRef,
     sizeRef,
-    gestures: { pointersRef, gestureRef, beginGesture, updateGesture },
+    gestures,
     text: { textEditRef, beginTextEdit, commitTextEdit },
   });
 
