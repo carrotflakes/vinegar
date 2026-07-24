@@ -15,6 +15,7 @@ import {
   selectionRoots,
   wouldCreateSymbolCycle,
 } from "../model/scene";
+import { copySelectionToSystemClipboard } from "@/io/systemClipboard";
 import type { Document } from "../model/types";
 import {
   appendToScope,
@@ -33,7 +34,13 @@ const PASTE_OFFSET = 12;
 
 export function createClipboardActions({ set, get, transact }: StoreCtx): ClipboardActions {
   return {
-    copySelected: () => set({ clipboard: copyPayload(get().doc, get().selection) }),
+    copySelected: () => {
+      const { doc, selection } = get();
+      const payload = copyPayload(doc, selection);
+      set({ clipboard: payload });
+      // Mirror to the system clipboard as SVG so it survives across tabs/apps.
+      if (payload) void copySelectionToSystemClipboard(doc, payload.rootIds);
+    },
     cutSelected: () => { get().copySelected(); get().deleteSelected(); },
     paste: (at) => {
       const state = get(); const { clipboard, doc } = state; if (!clipboard) return;

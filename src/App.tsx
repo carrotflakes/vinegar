@@ -6,9 +6,12 @@ import {
   commandEnabled,
   matchKeydown,
   placeImagesFitted,
+  placeSvgFitted,
   runCommand,
 } from "./commands/registry";
 import { imageFilesFromData } from "./io/importImage";
+import { importSvg } from "./io/importSvg";
+import { isOwnCopy, svgTextFromClipboard } from "./io/systemClipboard";
 import {
   clearDocumentRecovery,
   startDocumentAutosave,
@@ -260,6 +263,15 @@ export default function App() {
         return;
       }
       const s = useEditor.getState();
+      const svg = svgTextFromClipboard(e.clipboardData);
+      if (svg) {
+        e.preventDefault();
+        // Our own copy in this tab pastes from memory for full fidelity;
+        // foreign SVG (other tab/app) comes in as vector geometry.
+        if (s.clipboard && isOwnCopy(svg)) s.paste();
+        else placeSvgFitted(importSvg(svg, "Pasted SVG"));
+        return;
+      }
       if (s.clipboard) {
         e.preventDefault();
         s.paste();

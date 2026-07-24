@@ -194,7 +194,15 @@ additional effects, or other feature expansion.
     - [ ] New patterns default to `tile`; consider defaulting to `fill` to match
       Figma-style image fills
 - [ ] Swatches saved in the document (currently localStorage, color-only)
-- [ ] System clipboard integration (paste across tabs/apps)
+- [x] System clipboard integration (paste across tabs/apps) — copy/cut mirror
+  the selection to the system clipboard as SVG (`io/systemClipboard.ts`,
+  `image/svg+xml` + `text/plain`); the native `paste` event imports foreign SVG
+  as vector geometry, while a per-copy nonce routes a same-tab paste back
+  through the in-memory clipboard for full fidelity. Best-effort write (degrades
+  to in-memory only where the Clipboard API is unavailable/denied).
+  - [ ] Follow-up: embed the native vinegar payload in the SVG metadata so
+    cross-tab paste keeps symbol/generator links and effects (same root as the
+    generator/symbol clipboard gaps)
 - [x] Convert compound paths to a single editable path (bake child transforms
   into subpaths and preserve the even-odd fill rule)
 - [x] Convert brush strokes to filled paths (expand the variable-width envelope;
