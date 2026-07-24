@@ -168,6 +168,31 @@ export function pickShape(ctx: ToolContext, world: Vec2): string | null {
 }
 
 /**
+ * The frontmost leaf under `world` *only when it is locked* (else null). A
+ * non-locked shape on top short-circuits to null so normal picking wins. The
+ * Select tool uses this to let an already-selected locked shape be dragged to
+ * move it (it gates the result on selection membership; lock blocks selecting,
+ * not moving what's already selected).
+ */
+export function pickLockedShape(ctx: ToolContext, world: Vec2): string | null {
+  const state = useEditor.getState();
+  const { doc } = state;
+  const tol = pickTolerance(ctx);
+  const ids = scopeLeafIds(doc, currentSymbolScope(state));
+  for (let i = ids.length - 1; i >= 0; i--) {
+    const node = doc.nodes[ids[i]];
+    if (
+      isLeaf(node) &&
+      isVisibleForPicking(doc, node.id) &&
+      hitTestNode(doc, node, world, tol)
+    ) {
+      return isNodeLocked(doc, node.id) ? ids[i] : null;
+    }
+  }
+  return null;
+}
+
+/**
  * Snap a single world point to alignment lines / grid (for creation, resize
  * and vertex editing). Updates the on-screen guides and returns the point.
  */

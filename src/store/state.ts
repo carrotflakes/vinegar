@@ -325,6 +325,8 @@ export interface ArtboardActions {
   addArtboard: (at?: Vec2) => void;
   updateArtboard: (id: string, patch: Partial<Omit<Artboard, "id">>) => void;
   deleteArtboard: (id: string) => void;
+  /** Clone a board (and the artwork it contains) beside the original. */
+  duplicateArtboard: (id: string) => void;
   selectArtboard: (id: string | null) => void;
   /** Move artboard `id` to `toIndex` in the list (= export order). */
   reorderArtboard: (id: string, toIndex: number) => void;

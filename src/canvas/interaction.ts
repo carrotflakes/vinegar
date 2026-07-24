@@ -104,7 +104,15 @@ export type Interaction =
       original: { shapeId: string; sub: number; index: number }[];
     }
   | { kind: "artboard-create"; id: string; start: Vec2; snap: ArtboardSnap }
-  | { kind: "artboard-move"; id: string; grab: Vec2; orig: Bounds; snap: ArtboardSnap }
+  | {
+      kind: "artboard-move";
+      id: string;
+      grab: Vec2;
+      orig: Bounds;
+      snap: ArtboardSnap;
+      /** Scene roots the board carries, snapshotted at drag start. */
+      content: Record<string, SceneNode>;
+    }
   | {
       kind: "artboard-resize";
       id: string;

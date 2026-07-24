@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { LuFrame, LuPlus, LuTrash2 } from "react-icons/lu";
+import { LuCopy, LuFrame, LuPlus, LuTrash2 } from "react-icons/lu";
 import { useEditor } from "../../../store/editorStore";
 import { openContextMenu } from "../../../store/menuStore";
 import { artboardMenu } from "../../menus";
@@ -17,6 +17,7 @@ export default function ArtboardsPanel() {
   const selectArtboard = useEditor((s) => s.selectArtboard);
   const addArtboard = useEditor((s) => s.addArtboard);
   const deleteArtboard = useEditor((s) => s.deleteArtboard);
+  const duplicateArtboard = useEditor((s) => s.duplicateArtboard);
   const updateArtboard = useEditor((s) => s.updateArtboard);
   const reorderArtboard = useEditor((s) => s.reorderArtboard);
 
@@ -127,6 +128,16 @@ export default function ArtboardsPanel() {
               <span className="layer-count">
                 {Math.round(ab.width)}×{Math.round(ab.height)}
               </span>
+              <button
+                className="layer-icon-btn"
+                title="Duplicate artboard"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  duplicateArtboard(ab.id);
+                }}
+              >
+                <LuCopy />
+              </button>
               <button
                 className="layer-icon-btn"
                 title="Delete artboard"

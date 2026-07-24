@@ -23,7 +23,12 @@ Ordered by agreed priority. These are the biggest gaps toward a "real" vector ed
    - Follow-ups:
      - [x] Artboards list panel (list / rename / reorder = export order / select)
      - [x] Fit / zoom to artboard navigation
-     - [ ] Duplicate artboard (and copy/paste)
+     - [x] Duplicate artboard (`duplicateArtboard`, ⌘D / context menu / panel
+       button): clones the board beside the original and, Figma-style, carries
+       the artwork it geometrically overlaps (`artboardContentIds` = unlocked
+       top-level roots whose world bounds intersect the board). Board move now
+       carries the same content set (snapshotted at drag start). Copy/paste of a
+       board is still TODO.
      - [ ] Background: transparent checkerboard indicator on canvas; don't hide grid;
        later gradient/image board backgrounds
      - [x] Export options dialog (scale / format / margin per board; PNG is 2x fixed)

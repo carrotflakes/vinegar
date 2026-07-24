@@ -53,6 +53,7 @@ import type { Interaction, ToolContext } from "../interaction";
 import {
   hitFrameHandle,
   isVisibleForPicking,
+  pickLockedShape,
   pickShape,
   pointSnap,
   selectionFrame,
@@ -69,6 +70,48 @@ function snapshot(ids: string[]): Record<string, SceneNode> {
   const out: Record<string, SceneNode> = {};
   for (const id of selectionRoots(doc, ids)) if (doc.nodes[id]) out[id] = doc.nodes[id];
   return out;
+}
+
+/**
+ * Start moving `selection` without changing it. Shared by normal picking and
+ * the drag-an-already-selected-locked-shape path (lock blocks *selecting*, not
+ * moving what is already selected).
+ */
+function beginSelectionMove(
+  ctx: ToolContext,
+  state: EditorState,
+  world: Vec2,
+  selection: string[]
+) {
+  const originals = snapshot(selection);
+  const selectedGroup = exactlySelectedGroup(state.doc, selection);
+  const transient = !selectedGroup && selection.length > 1;
+  const selectedLeafIds = new Set(
+    selectionRoots(state.doc, selection).flatMap((id) =>
+      descendantShapeIds(state.doc, id)
+    )
+  );
+  const others = shapesInPaintOrder(state.doc, currentSymbolScope(state)).filter(
+    (s): s is Shape => !selectedLeafIds.has(s.id) && !isShapeHidden(state.doc, s)
+  );
+  state.beginInteraction("Move selection");
+  ctx.interaction.current = {
+    kind: "move",
+    start: world,
+    originals,
+    origUnion: unionNodeWorldBounds(state.doc, Object.keys(originals)) ?? {
+      x: world.x,
+      y: world.y,
+      width: 0,
+      height: 0,
+    },
+    targets: collectSnapTargets(state.doc, others),
+    boxes: others.map((shape) => worldShapeBounds(state.doc, shape)),
+    selectionPivot: transient ? state.selectionPivot ?? undefined : undefined,
+    selectionTransform: transient
+      ? state.selectionTransform ?? undefined
+      : undefined,
+  };
 }
 
 export function onSelectDown(
@@ -168,6 +211,21 @@ export function onSelectDown(
     }
   }
 
+  // A locked shape can't be *selected* by clicking, but one that is already in
+  // the selection (e.g. picked from the Layers panel) can still be dragged to
+  // move it — lock blocks selecting/editing, not moving what's already
+  // selected. If the locked shape under the cursor isn't selected, fall through
+  // so the click behaves normally.
+  const lockedHit = pickLockedShape(ctx, world);
+  if (lockedHit) {
+    const scopeRoot = scopeRootGroupId(state.doc, currentSymbolScope(state));
+    const roots = expandToGroups(state.doc, [lockedHit], scopeRoot);
+    if (roots.some((id) => state.selection.includes(id))) {
+      beginSelectionMove(ctx, state, world, state.selection);
+      return;
+    }
+  }
+
   const symbolRoot = scopeRootGroupId(state.doc, currentSymbolScope(state));
   const activeGroup =
     state.activeGroupId && isGroup(state.doc.nodes[state.activeGroupId])
@@ -197,33 +255,7 @@ export function onSelectDown(
     } else {
       selection = state.selection;
     }
-    const originals = snapshot(selection);
-    const selectedGroup = exactlySelectedGroup(state.doc, selection);
-    const transient = !selectedGroup && selection.length > 1;
-    const selectedLeafIds = new Set(selectionRoots(state.doc, selection).flatMap((id) => descendantShapeIds(state.doc, id)));
-    const others = shapesInPaintOrder(state.doc, currentSymbolScope(state))
-      .filter(
-        (s): s is Shape =>
-          !selectedLeafIds.has(s.id) && !isShapeHidden(state.doc, s)
-      );
-    state.beginInteraction("Move selection");
-    ctx.interaction.current = {
-      kind: "move",
-      start: world,
-      originals,
-      origUnion: unionNodeWorldBounds(state.doc, Object.keys(originals)) ?? {
-        x: world.x,
-        y: world.y,
-        width: 0,
-        height: 0,
-      },
-      targets: collectSnapTargets(state.doc, others),
-      boxes: others.map((shape) => worldShapeBounds(state.doc, shape)),
-      selectionPivot: transient ? state.selectionPivot ?? undefined : undefined,
-      selectionTransform: transient
-        ? state.selectionTransform ?? undefined
-        : undefined,
-    };
+    beginSelectionMove(ctx, state, world, selection);
     return;
   }
 
@@ -551,6 +583,16 @@ export function selectCursor(
   if (board) {
     const handle = hitArtboardHandle(state, board, screen, ctx.hitScale());
     if (handle) return handleCursor(handle);
+  }
+  const lockedHit = pickLockedShape(ctx, world);
+  if (lockedHit) {
+    const scopeRoot = scopeRootGroupId(state.doc, currentSymbolScope(state));
+    if (
+      expandToGroups(state.doc, [lockedHit], scopeRoot).some((id) =>
+        state.selection.includes(id)
+      )
+    )
+      return "move";
   }
   if (pickShape(ctx, world)) return "move";
   const borderTol =

@@ -285,8 +285,11 @@ export const COMMANDS: Command[] = [
     label: "Duplicate",
     group: "Edit",
     keys: [{ key: "d", mod: true }],
-    enabled: (s) => sel(s).hasSelection,
-    run: (s) => s.duplicateSelected(),
+    enabled: (s) => sel(s).hasSelection || s.selectedArtboardId != null,
+    run: (s) => {
+      if (s.selectedArtboardId) s.duplicateArtboard(s.selectedArtboardId);
+      else s.duplicateSelected();
+    },
   },
 
   // Selection ---------------------------------------------------------------
@@ -517,6 +520,15 @@ export const COMMANDS: Command[] = [
     run: (s) => {
       s.setTool("artboard");
       s.addArtboard(screenToWorld(s.viewport, canvasCenter()));
+    },
+  },
+  {
+    id: "artboard.duplicate",
+    label: "Duplicate artboard",
+    group: "Artboard",
+    enabled: (s) => s.selectedArtboardId != null,
+    run: (s) => {
+      if (s.selectedArtboardId) s.duplicateArtboard(s.selectedArtboardId);
     },
   },
   {

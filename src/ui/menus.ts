@@ -128,6 +128,7 @@ export function artboardMenu(): MenuEntry[] {
     item("file.exportArtboardPng"),
     item("file.exportArtboardSvg"),
     "separator",
+    item("artboard.duplicate"),
     item("artboard.delete"),
   ];
 }

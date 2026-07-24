@@ -5,18 +5,23 @@
 // (square / keep aspect) and Alt (from centre). The move/resize builders are
 // shared with the Select tool so boards can be adjusted without switching tools.
 
-import { patchArtboard } from "../../store/artboardSlice";
+import { artboardContentIds, patchArtboard } from "../../store/artboardSlice";
 import type { EditorState } from "../../store/editorStore";
 import {
   artboardBounds,
   makeArtboard,
   type Artboard,
   type Bounds,
+  type SceneNode,
   type Vec2,
 } from "../../model/types";
 import { isShapeHidden } from "../../model/groups";
-import { shapesInPaintOrder } from "../../model/scene";
+import { descendantShapeIds, shapesInPaintOrder } from "../../model/scene";
 import { worldShapeBounds } from "@/model/geometry/bounds";
+import {
+  applyWorldTransformToNode,
+  translation as translationMatrix,
+} from "@/model/geometry/matrix";
 import {
   boundsSnapTargets,
   computeSnap,
@@ -124,13 +129,20 @@ function rectFrom(a: Vec2, b: Vec2): Bounds {
   };
 }
 
-/** Alignment/distribution snap targets for a board drag, excluding `excludeId`. */
-function artboardSnapData(state: EditorState, excludeId: string): ArtboardSnap {
+/**
+ * Alignment/distribution snap targets for a board drag. Excludes the dragged
+ * board and any shapes it carries (they move rigidly with it, so their start
+ * positions would be stale ghost targets — see content-aware move). */
+function artboardSnapData(
+  state: EditorState,
+  excludeId: string,
+  carriedShapeIds: Set<string> = new Set()
+): ArtboardSnap {
   const boardBoxes = state.doc.artboards
     .filter((ab) => ab.id !== excludeId)
     .map(artboardBounds);
   const shapeBoxes = shapesInPaintOrder(state.doc, null)
-    .filter((s) => !isShapeHidden(state.doc, s))
+    .filter((s) => !carriedShapeIds.has(s.id) && !isShapeHidden(state.doc, s))
     .map((s) => worldShapeBounds(state.doc, s));
   return {
     targets: boundsSnapTargets([...boardBoxes, ...shapeBoxes]),
@@ -186,12 +198,21 @@ export function beginArtboardMove(
 ) {
   state.selectArtboard(board.id);
   state.beginInteraction("Move artboard");
+  // The board carries the artwork it contains (Figma-style); snapshot it now so
+  // the set stays fixed even as the board slides off the shapes mid-drag.
+  const content: Record<string, SceneNode> = {};
+  const carriedShapeIds = new Set<string>();
+  for (const id of artboardContentIds(state.doc, board)) {
+    content[id] = state.doc.nodes[id];
+    for (const leaf of descendantShapeIds(state.doc, id)) carriedShapeIds.add(leaf);
+  }
   ctx.interaction.current = {
     kind: "artboard-move",
     id: board.id,
     grab: world,
     orig: artboardBounds(board),
-    snap: artboardSnapData(state, board.id),
+    snap: artboardSnapData(state, board.id, carriedShapeIds),
+    content,
   };
 }
 
@@ -303,12 +324,20 @@ export function onArtboardMove(
       guides = snap.guides;
       ctx.spacings.current = snap.spacings;
     }
-    state.setDoc(
-      patchArtboard(state.doc, inter.id, {
-        x: inter.orig.x + dx,
-        y: inter.orig.y + dy,
-      })
-    );
+    let nextDoc = patchArtboard(state.doc, inter.id, {
+      x: inter.orig.x + dx,
+      y: inter.orig.y + dy,
+    });
+    const contentIds = Object.keys(inter.content);
+    if (contentIds.length) {
+      const delta = translationMatrix(dx, dy);
+      const nodes = { ...nextDoc.nodes };
+      for (const cid of contentIds) {
+        nodes[cid] = applyWorldTransformToNode(nextDoc, inter.content[cid], delta);
+      }
+      nextDoc = { ...nextDoc, nodes };
+    }
+    state.setDoc(nextDoc);
   } else if (inter.kind === "artboard-resize") {
     let p = world;
     if (snapOn) {
