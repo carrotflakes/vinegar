@@ -314,3 +314,4 @@ additional effects, or other feature expansion.
 - [ ] Assetという名前は問題ないか。raster imageではないか。
 - [x] nodeツール矩形選択
 - [ ] subpath分割コマンド、統合コマンド
+- [ ] apple pencilで短時間の連続したストロークを描くと2本目が反応しない
