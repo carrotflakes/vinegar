@@ -1,6 +1,7 @@
 import { useEffect, type RefObject } from "react";
 import { useInput } from "../../store/inputStore";
 import { type ToolContext } from "../interaction";
+import { cancelActiveInteraction } from "../interactionLifecycle";
 import { cancelPenDraft, commitPenDraft, undoPenAnchor } from "../tools/penTool";
 import { isTypingTarget } from "../util";
 
@@ -38,6 +39,13 @@ export function useCanvasKeyboard(
           e.stopImmediatePropagation();
           undoPenAnchor(ctx);
         }
+        return;
+      }
+      // Escape aborts any in-progress drag (move/resize/rotate/marquee/…),
+      // rolling the document back to before the interaction started.
+      if (e.key === "Escape" && ctx.interaction.current.kind !== "none") {
+        e.preventDefault();
+        cancelActiveInteraction(ctx);
       }
     };
     const up = (e: KeyboardEvent) => {
