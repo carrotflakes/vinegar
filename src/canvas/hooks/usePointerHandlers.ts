@@ -87,7 +87,8 @@ export interface PointerHandlers {
 /** All canvas pointer/mouse event handlers, dispatching to the active tool. */
 export function usePointerHandlers(deps: PointerHandlerDeps): PointerHandlers {
   const { ctx, canvasRef, spaceRef, sizeRef, gestures, text } = deps;
-  const { pointersRef, gestureRef, beginGesture, updateGesture } = gestures;
+  const { pointersRef, gestureRef, beginGesture, updateGesture, captureGestureBaseline } =
+    gestures;
   const { textEditRef, beginTextEdit, commitTextEdit } = text;
 
   const screenPoint = (e: { clientX: number; clientY: number }): Vec2 => {
@@ -124,6 +125,9 @@ export function usePointerHandlers(deps: PointerHandlerDeps): PointerHandlers {
       beginGesture();
       return;
     }
+    // First touch: remember the selection so a follow-up pinch can restore it
+    // instead of leaving whatever this contact selects.
+    if (e.pointerType === "touch") captureGestureBaseline();
 
     const state = useEditor.getState();
     const world = screenToWorld(state.viewport, screen);

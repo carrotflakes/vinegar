@@ -6,7 +6,7 @@ import {
   type Viewport,
 } from "@/model/geometry/viewport";
 import type { Vec2 } from "../../model/types";
-import { useEditor } from "../../store/editorStore";
+import { useEditor, type EditorState } from "../../store/editorStore";
 import { usePreferences } from "../../store/preferencesStore";
 import { cancelActiveInteraction } from "../interactionLifecycle";
 import type { ToolContext } from "../interaction";
@@ -18,6 +18,17 @@ interface GestureSnapshot {
   startViewport: Viewport;
 }
 
+/** Selection-ish state that isn't part of the undo/interaction snapshot. */
+type SelectionBaseline = Pick<
+  EditorState,
+  | "selection"
+  | "activeGroupId"
+  | "selectionPivot"
+  | "selectionTransform"
+  | "selectedArtboardId"
+  | "editNodes"
+>;
+
 export interface CanvasGestures {
   /** Active pointers (canvas-relative screen coords), keyed by pointerId. */
   pointersRef: RefObject<Map<number, Vec2>>;
@@ -25,12 +36,31 @@ export interface CanvasGestures {
   gestureRef: RefObject<GestureSnapshot | null>;
   beginGesture: () => void;
   updateGesture: () => void;
+  /**
+   * Snapshot the current selection before the first touch acts, so that if a
+   * second touch turns the contact into a pinch, `beginGesture` can undo the
+   * selection the first touch would otherwise have committed.
+   */
+  captureGestureBaseline: () => void;
 }
 
 /** Two-finger pinch-zoom / twist / pan gesture handling. */
 export function useCanvasGestures(ctx: ToolContext): CanvasGestures {
   const pointersRef = useRef<Map<number, Vec2>>(new Map());
   const gestureRef = useRef<GestureSnapshot | null>(null);
+  const baselineRef = useRef<SelectionBaseline | null>(null);
+
+  const captureGestureBaseline = useCallback(() => {
+    const s = useEditor.getState();
+    baselineRef.current = {
+      selection: s.selection,
+      activeGroupId: s.activeGroupId,
+      selectionPivot: s.selectionPivot,
+      selectionTransform: s.selectionTransform,
+      selectedArtboardId: s.selectedArtboardId,
+      editNodes: s.editNodes,
+    };
+  }, []);
 
   /** The centroid, spread and angle of the first two active pointers. */
   const twoPointerMetrics = useCallback(():
@@ -50,6 +80,11 @@ export function useCanvasGestures(ctx: ToolContext): CanvasGestures {
     const m = twoPointerMetrics();
     if (!m) return;
     cancelActiveInteraction(ctx);
+    // Undo whatever the first touch selected before this became a pinch.
+    if (baselineRef.current) {
+      useEditor.setState(baselineRef.current);
+      baselineRef.current = null;
+    }
     gestureRef.current = {
       startDist: m.dist,
       startAngle: m.angle,
@@ -85,5 +120,11 @@ export function useCanvasGestures(ctx: ToolContext): CanvasGestures {
     ctx.scheduleDraw();
   }, [ctx, twoPointerMetrics]);
 
-  return { pointersRef, gestureRef, beginGesture, updateGesture };
+  return {
+    pointersRef,
+    gestureRef,
+    beginGesture,
+    updateGesture,
+    captureGestureBaseline,
+  };
 }
