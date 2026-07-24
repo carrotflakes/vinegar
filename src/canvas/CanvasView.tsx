@@ -1,13 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { subscribeImageCache } from "../imageCache";
-import { unionNodeWorldBounds } from "@/model/geometry/bounds";
 import {
   drillScopeRoot,
-  exactlySelectedGroup,
   expandToGroups,
   isWithinGroup,
 } from "../model/groups";
-import { shapeWorldMatrix } from "@/model/geometry/matrix";
 import { isDocumentFile, openDocumentFile } from "../io/openDocument";
 import { isGroup, scopeRootGroupId } from "../model/scene";
 import { type Guide, type Spacing } from "@/model/geometry/snap";
@@ -20,40 +17,31 @@ import {
   type Viewport,
 } from "@/model/geometry/viewport";
 import { currentSymbolScope, useEditor } from "../store/editorStore";
-import { readModifiers, useInput } from "../store/inputStore";
+import { readModifiers } from "../store/inputStore";
 import { openContextMenu } from "../store/menuStore";
 import { setPointer, setReadout } from "../store/pointerStore";
 import { usePreferences } from "../store/preferencesStore";
-import { vars } from "../styles/theme.css";
 import { canvasMenu, selectionMenu } from "../ui/menus";
 import "./CanvasView.css";
-import { cornerRadiusControl } from "./cornerRadiusHandle";
-import { getSelectionFrame } from "./frame";
-import { HANDLE_SIZE } from "./handles";
+import { readCanvasTheme, type CanvasTheme } from "./canvasTheme";
+import { resolveCursor } from "./cursor";
+import { paintCanvas } from "./paint";
+import { useCanvasKeyboard } from "./hooks/useCanvasKeyboard";
+import { useCanvasSizing } from "./hooks/useCanvasSizing";
+import { useCanvasTheme } from "./hooks/useCanvasTheme";
+import { useCoarsePointer } from "./hooks/useCoarsePointer";
+import { useWheelZoom } from "./hooks/useWheelZoom";
 import {
-  TOUCH_DRAW_SCALE,
   TOUCH_HIT_SCALE,
   type Interaction,
   type LastInsert,
   type ToolContext,
 } from "./interaction";
 import ModifierBar from "./ModifierBar";
-import { ANCHOR_SIZE, HANDLE_DOT } from "./nodes";
-import {
-  drawArtboardChrome,
-  drawGuides,
-  drawNodes,
-  drawOverlay,
-  drawPenDraft,
-  drawSpacings,
-  drawTextDraft,
-} from "./overlay";
-import { pickShape, selectedNodeShapes, selectedShapes } from "./picking";
-import { renderScene } from "./render";
+import { pickShape } from "./picking";
 import TextEditor from "./TextEditor";
 import { measureTextShape } from "./textLayout";
 import {
-  artboardCursor,
   finishArtboard,
   onArtboardDown,
   onArtboardMove,
@@ -72,7 +60,6 @@ import {
   startEraser,
 } from "./tools/eraserTool";
 import {
-  nodeCursor,
   onNodeDoubleClick,
   onNodeDown,
   onNodeMarqueeMove,
@@ -80,20 +67,16 @@ import {
   onNodeMove,
 } from "./tools/nodeTool";
 import {
-  cancelPenDraft,
   commitPenDraft,
   onPenAnchorMove,
   onPenDown,
   onPenHoverMove,
-  penPencilCursor,
-  undoPenAnchor,
 } from "./tools/penTool";
 import {
   onMarqueeUp,
   onSelectDoubleClick,
   onSelectDown,
   onSelectMove,
-  selectCursor,
 } from "./tools/selectTool";
 import {
   finishCreate,
@@ -108,39 +91,11 @@ import {
   moveTextCreate,
   startTextCreate,
 } from "./tools/textTool";
-import { isTypingTarget } from "./util";
 
 interface TextEditSession {
   shape: TextShape;
   original: TextShape | null;
   previousSelection: string[];
-}
-
-interface CanvasTheme {
-  bg: string;
-  scopeBg: string;
-  grid: { minor: string; major: string; axis: string };
-}
-
-/** Extract the custom-property name from a vanilla-extract `var(--x)` reference. */
-function cssVarName(ref: string): string {
-  const match = ref.match(/^var\((--[^,)]+)/);
-  return match ? match[1] : ref;
-}
-
-/** Resolve the canvas 2D colors from the active theme's CSS variables. */
-function readCanvasTheme(): CanvasTheme {
-  const style = getComputedStyle(document.documentElement);
-  const read = (ref: string) => style.getPropertyValue(cssVarName(ref)).trim();
-  return {
-    bg: read(vars.canvasBg),
-    scopeBg: read(vars.canvasScopeBg),
-    grid: {
-      minor: read(vars.gridMinor),
-      major: read(vars.gridMajor),
-      axis: read(vars.gridAxis),
-    },
-  };
 }
 
 export default function CanvasView() {
@@ -184,103 +139,23 @@ export default function CanvasView() {
   const draw = useCallback(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
-    const ctx = canvas.getContext("2d");
-    if (!ctx) return;
-    const { width, height, dpr } = sizeRef.current;
-    const state = useEditor.getState();
-    const { doc, viewport, selection, tool } = state;
-
-    // Symbol local view: paint only the edited definition on a tinted page.
-    const scope = currentSymbolScope(state);
-    const scopeRoot = scopeRootGroupId(doc, scope);
-    renderScene(ctx, {
-      width,
-      height,
-      dpr,
-      viewport,
-      doc,
+    const ctx2d = canvas.getContext("2d");
+    if (!ctx2d) return;
+    paintCanvas({
+      ctx2d,
+      size: sizeRef.current,
+      state: useEditor.getState(),
+      theme: themeRef.current,
+      coarse: coarseRef.current,
       preview: previewRef.current,
-      background: scope ? themeRef.current.scopeBg : themeRef.current.bg,
-      showGrid: state.gridVisible,
-      gridSize: state.gridSize,
-      gridColors: themeRef.current.grid,
-      rootIds: scopeRoot !== null ? [scopeRoot] : undefined,
-      artboards: scope ? undefined : doc.artboards,
-      hiddenShapeId: textEditRef.current?.original?.id ?? null,
-    });
-
-    const chrome = coarseRef.current ? TOUCH_DRAW_SCALE : 1;
-    const selected = selectedShapes(doc, selection);
-    drawOverlay(ctx, {
-      dpr,
-      viewport,
-      frame:
-        tool === "select"
-          ? getSelectionFrame(
-              doc,
-              selected,
-              exactlySelectedGroup(doc, selection),
-              state.selectionPivot,
-              state.selectionTransform
-            )
-          : null,
       marquee: marqueeRef.current,
-      showHandles: tool === "select" && selected.length > 0,
-      handleSize: HANDLE_SIZE * chrome,
-      cornerRadiusHandle:
-        tool === "select"
-          ? cornerRadiusControl(doc, selection, viewport, chrome)?.point ?? null
-          : null,
-      activeGroupBounds:
-        tool === "select" && state.activeGroupId && doc.nodes[state.activeGroupId]
-          ? unionNodeWorldBounds(doc, [state.activeGroupId])
-          : null,
+      interaction: interactionRef.current,
+      penDraft: penDraftRef.current,
+      hover: hoverRef.current,
+      guides: guidesRef.current,
+      spacings: spacingsRef.current,
+      hiddenTextId: textEditRef.current?.original?.id ?? null,
     });
-
-    if (tool === "artboard" && scope === null) {
-      drawArtboardChrome(
-        ctx,
-        dpr,
-        viewport,
-        doc.artboards,
-        state.selectedArtboardId,
-        HANDLE_SIZE * chrome
-      );
-    }
-
-    if (tool === "node") {
-      for (const sel of selectedNodeShapes(state)) {
-        const active = state.editNodes
-          .filter((node) => node.shapeId === sel.id)
-          .map(({ sub, index }) => ({ sub, index }));
-        drawNodes(
-          ctx,
-          dpr,
-          viewport,
-          sel,
-          shapeWorldMatrix(doc, sel),
-          active,
-          ANCHOR_SIZE * chrome,
-          HANDLE_DOT * chrome
-        );
-      }
-    }
-    if (tool === "pen" && penDraftRef.current) {
-      drawPenDraft(
-        ctx,
-        dpr,
-        viewport,
-        penDraftRef.current,
-        shapeWorldMatrix(doc, penDraftRef.current),
-        hoverRef.current
-      );
-    }
-    const inter = interactionRef.current;
-    if (inter.kind === "text-create") {
-      drawTextDraft(ctx, dpr, viewport, inter.start, inter.current);
-    }
-    drawGuides(ctx, dpr, viewport, guidesRef.current);
-    drawSpacings(ctx, dpr, viewport, spacingsRef.current);
   }, []);
 
   const scheduleDraw = useCallback(() => {
@@ -376,18 +251,7 @@ export default function CanvasView() {
   // Repaint when an image asset finishes decoding.
   useEffect(() => subscribeImageCache(scheduleDraw), [scheduleDraw]);
 
-  // Re-resolve canvas colors whenever the active theme (data-theme) changes.
-  useEffect(() => {
-    const observer = new MutationObserver(() => {
-      themeRef.current = readCanvasTheme();
-      scheduleDraw();
-    });
-    observer.observe(document.documentElement, {
-      attributes: true,
-      attributeFilter: ["data-theme"],
-    });
-    return () => observer.disconnect();
-  }, [scheduleDraw]);
+  useCanvasTheme(themeRef, scheduleDraw);
 
   // Font metrics can change after the document first paints. Refresh the
   // persisted text bounds without creating an undo entry.
@@ -409,28 +273,7 @@ export default function CanvasView() {
     };
   }, [scheduleDraw, setTextEdit]);
 
-  // ---- sizing ------------------------------------------------------------
-  useEffect(() => {
-    const wrap = wrapRef.current;
-    const canvas = canvasRef.current;
-    if (!wrap || !canvas) return;
-
-    const resize = () => {
-      const rect = wrap.getBoundingClientRect();
-      const dpr = window.devicePixelRatio || 1;
-      sizeRef.current = { width: rect.width, height: rect.height, dpr };
-      canvas.width = Math.round(rect.width * dpr);
-      canvas.height = Math.round(rect.height * dpr);
-      canvas.style.width = `${rect.width}px`;
-      canvas.style.height = `${rect.height}px`;
-      draw();
-    };
-
-    const ro = new ResizeObserver(resize);
-    ro.observe(wrap);
-    resize();
-    return () => ro.disconnect();
-  }, [draw]);
+  useCanvasSizing(wrapRef, canvasRef, sizeRef, draw);
 
   const screenPoint = (e: { clientX: number; clientY: number }): Vec2 => {
     const rect = canvasRef.current!.getBoundingClientRect();
@@ -933,116 +776,12 @@ export default function CanvasView() {
   const updateHoverCursor = (screen: Vec2, world: Vec2) => {
     const canvas = canvasRef.current!;
     const state = useEditor.getState();
-    if (spaceRef.current) {
-      canvas.style.cursor = "grab";
-      return;
-    }
-    if (state.tool === "pen" || state.tool === "pencil") {
-      canvas.style.cursor = penPencilCursor(ctx, state, screen);
-      return;
-    }
-    if (state.tool === "node") {
-      canvas.style.cursor = nodeCursor(ctx, screen, world);
-      return;
-    }
-    if (state.tool === "artboard") {
-      canvas.style.cursor = artboardCursor(ctx, state, screen, world);
-      return;
-    }
-    if (state.tool === "text") {
-      canvas.style.cursor = "text";
-      return;
-    }
-    if (
-      state.tool === "brush" ||
-      state.tool === "eraser" ||
-      state.tool === "bucket"
-    ) {
-      canvas.style.cursor = "crosshair";
-      return;
-    }
-    canvas.style.cursor = selectCursor(ctx, screen, world);
+    canvas.style.cursor = resolveCursor(ctx, state, screen, world, spaceRef.current);
   };
 
-  // ---- coarse-pointer (touch) detection ----------------------------------
-  useEffect(() => {
-    if (typeof matchMedia !== "function") return;
-    const mq = matchMedia("(pointer: coarse)");
-    const update = () => {
-      coarseRef.current = mq.matches;
-      scheduleDraw();
-    };
-    mq.addEventListener("change", update);
-    return () => mq.removeEventListener("change", update);
-  }, [scheduleDraw]);
-
-  // ---- wheel zoom / pan --------------------------------------------------
-  useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const onWheel = (e: WheelEvent) => {
-      e.preventDefault();
-      const state = useEditor.getState();
-      const rect = canvas.getBoundingClientRect();
-      const anchor = { x: e.clientX - rect.left, y: e.clientY - rect.top };
-      if (e.ctrlKey || e.metaKey) {
-        state.setViewport(zoomAt(state.viewport, anchor, Math.exp(-e.deltaY * 0.01)));
-      } else {
-        state.setViewport({
-          ...state.viewport,
-          offset: {
-            x: state.viewport.offset.x - e.deltaX,
-            y: state.viewport.offset.y - e.deltaY,
-          },
-        });
-      }
-    };
-    canvas.addEventListener("wheel", onWheel, { passive: false });
-    return () => canvas.removeEventListener("wheel", onWheel);
-  }, []);
-
-  // ---- keyboard: space-to-pan, pen finish/cancel ------------------------
-  useEffect(() => {
-    const down = (e: KeyboardEvent) => {
-      // Mirror physical modifiers so on-screen chips reflect held keys too.
-      useInput.getState().setPhysical({ shift: e.shiftKey, alt: e.altKey });
-      if (isTypingTarget(e.target)) return;
-      if (e.code === "Space") {
-        spaceRef.current = true;
-        if (canvasRef.current) canvasRef.current.style.cursor = "grab";
-        return;
-      }
-      if (penDraftRef.current) {
-        const mod = e.ctrlKey || e.metaKey;
-        if (e.key === "Enter") {
-          e.preventDefault();
-          commitPenDraft(ctx);
-        } else if (e.key === "Escape") {
-          e.preventDefault();
-          cancelPenDraft(ctx);
-        } else if (
-          (mod && !e.shiftKey && e.key.toLowerCase() === "z") ||
-          e.key === "Backspace" ||
-          e.key === "Delete"
-        ) {
-          // Step back one anchor instead of running the document-level undo.
-          e.preventDefault();
-          e.stopImmediatePropagation();
-          undoPenAnchor(ctx);
-        }
-      }
-    };
-    const up = (e: KeyboardEvent) => {
-      useInput.getState().setPhysical({ shift: e.shiftKey, alt: e.altKey });
-      if (e.code === "Space") spaceRef.current = false;
-    };
-    window.addEventListener("keydown", down);
-    window.addEventListener("keyup", up);
-    return () => {
-      window.removeEventListener("keydown", down);
-      window.removeEventListener("keyup", up);
-    };
-  }, [ctx]);
+  useCoarsePointer(coarseRef, scheduleDraw);
+  useWheelZoom(canvasRef);
+  useCanvasKeyboard(ctx, canvasRef, spaceRef);
 
   return (
     <div className="canvas-wrap" ref={wrapRef}>
