@@ -98,7 +98,7 @@ export function createSymbolActions({ set, get, transact }: StoreCtx): SymbolAct
         const dup = remapPayload({ nodes: payloadNodes, rootIds: contentIds });
         const gid = makeId("group");
         const group: Group = {
-          id: gid, name: def.name, type: "group", childIds: dup.rootIds, ...baseNodeDefaults(),
+          id: gid, name: def.name, type: "group", childIds: dup.rootIds, clipsToMask: false, ...baseNodeDefaults(),
           transform: [...inst.transform], transformOrigin: inst.transformOrigin ? { ...inst.transformOrigin } : null,
           opacity: inst.opacity, blendMode: inst.blendMode, hidden: inst.hidden, locked: inst.locked,
         };

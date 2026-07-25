@@ -1,6 +1,6 @@
 import { brushAnchor } from "@/model/brush/brushOutline";
 import { IDENTITY } from "@/model/geometry/matrix";
-import { baseNodeDefaults, type BrushShape, type Vec2 } from "../../model/types";
+import { baseNodeDefaults, baseShapeDefaults, type BrushShape, type Vec2 } from "../../model/types";
 import { useBrush } from "../../store/brushStore";
 import type { EditorState } from "../../store/editorStore";
 import type { ToolContext } from "../interaction";
@@ -25,6 +25,7 @@ function previewShape(points: Vec2[], size: number): BrushShape {
     name: "Eraser",
     type: "brush",
     anchors: points.map((p) => brushAnchor(p, 1)),
+    ...baseShapeDefaults(),
     fill: null,
     stroke: { type: "solid", color: "#e5484d", alpha: 0.3 },
     strokeWidth: size,

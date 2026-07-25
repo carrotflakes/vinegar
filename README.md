@@ -95,8 +95,8 @@ The persisted `Document` is a **unified scene tree**: a flat `nodes` map keyed b
 Every node carries a Canvas/SVG-compatible affine `transform` into its parent space plus a `transformOrigin`; parents, world matrices and leaf shapes are derived (not stored).
 Frames are ordinary nodes in that tree (top-level only), so there is no separate artboard list.
 The document also holds `symbols`, global-color `swatches` (with a `swatchOrder`), `assets` (embedded raster images), `settings` (unit, dpi, grid size), document-local generator `scripts`, `metadata` and namespaced `extensions`.
-The file wrapper is versioned — the current version is v25. There is no migration chain: older files are rejected with a clear message.
-Every node carries the shared `blendMode` / `effects` / `hidden` / `locked` / `generator` fields explicitly — no optional fields, so `undefined` never stands in for a default.
+The file wrapper is versioned — the current version is v26. There is no migration chain: older files are rejected with a clear message.
+The model has **no optional fields**: every node writes its defaults explicitly (`blendMode: "normal"`, `effects: []`, `strokeDash: []`, `cornerRadius: 0`, …) and uses `null` for genuinely absent values, so `undefined` never stands in for a default.
 See [docs/document-model.md](docs/document-model.md).
 
 ## Project layout

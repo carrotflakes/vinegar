@@ -113,8 +113,8 @@ export default function AssetsPanel() {
                   )}
                 </span>
                 <span className="asset-info">
-                  <span className="asset-name" title={asset.name}>
-                    {asset.name || "Untitled"}
+                  <span className="asset-name" title={(asset.name ?? undefined)}>
+                    {(asset.name ?? undefined) || "Untitled"}
                   </span>
                   <span className="asset-meta">
                     {[format, dims].filter(Boolean).join(" · ")}

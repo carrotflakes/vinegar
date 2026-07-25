@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { after, before, beforeEach, mock, test } from "node:test";
 import { createServer } from "vite";
-import { NODE_BASE } from "./nodeBase.mjs";
+import { NODE_BASE, SHAPE_BASE } from "./nodeBase.mjs";
 
 let server;
 let createEmptyDocument;
@@ -28,6 +28,7 @@ const rect = (id, patch = {}) => ({
   id,
   name: id,
   type: "rect",
+  ...SHAPE_BASE, cornerRadius: 0,
   ...NODE_BASE,
   x: 0,
   y: 0,
@@ -45,6 +46,7 @@ const rect = (id, patch = {}) => ({
 const textShape = (id, patch = {}) => ({
   ...rect(id),
   type: "text",
+  ...SHAPE_BASE,
   ...NODE_BASE,
   text: "Hello",
   textMode: "point",
@@ -345,7 +347,7 @@ test("the same coalesce key starts a new entry after the window expires", () => 
 test("setDoc interaction stores only the final document", () => {
   const before = useEditor.getState().doc;
   const historyLength = useEditor.getState().history.past.length;
-  const frame = { id: "frame-1", name: "Frame", type: "frame", ...NODE_BASE, transform: [1, 0, 0, 1, 20, 0], transformOrigin: null, opacity: 1, width: 100, height: 100, background: "#ffffff", childIds: [] };
+  const frame = { id: "frame-1", name: "Frame", type: "frame", clipsContent: true, ...NODE_BASE, transform: [1, 0, 0, 1, 20, 0], transformOrigin: null, opacity: 1, width: 100, height: 100, background: "#ffffff", childIds: [] };
   const intermediate = { ...before, nodes: { ...before.nodes, "frame-1": frame }, rootIds: [...before.rootIds, "frame-1"] };
   const final = { ...intermediate, nodes: { ...before.nodes, "frame-1": { ...frame, transform: [1, 0, 0, 1, 40, 0] } } };
 

@@ -1,4 +1,4 @@
-import { baseNodeDefaults, createEmptyDocument, type DocumentAsset, type FrameNode, type SceneNode, type Vec2 } from "../model/types";
+import { baseNodeDefaults, baseShapeDefaults, createEmptyDocument, type DocumentAsset, type FrameNode, type SceneNode, type Vec2 } from "../model/types";
 import { linearGradient, pattern, radialGradient, solid } from "../model/paint";
 import { IDENTITY, multiply, rotation, translation } from "@/model/geometry/matrix";
 
@@ -30,10 +30,11 @@ const shapeBase = (
   stroke: string | null = "#172033"
 ) => ({
   name,
+  ...baseShapeDefaults(),
+  ...baseNodeDefaults(),
   fill: fill ? solid(fill) : null,
   stroke: stroke ? solid(stroke) : null,
   strokeWidth: stroke ? 2 : 0,
-  ...baseNodeDefaults(),
   transform: [...IDENTITY] as typeof IDENTITY,
 });
 
@@ -50,12 +51,12 @@ export function createDemoDocument() {
   const doc = createEmptyDocument();
   const nodes: Record<string, SceneNode> = {
     demo_background: {
-      id: "demo_background", type: "rect", ...shapeBase("Background (locked)", "#f4f1ea", null),
+      id: "demo_background", type: "rect", cornerRadius: 0, ...shapeBase("Background (locked)", "#f4f1ea", null),
       x: 32, y: 28, width: 920, height: 650, locked: true,
     },
 
     demo_header: {
-      id: "demo_header", type: "group", name: "Header · group transform",
+      id: "demo_header", type: "group", clipsToMask: false, name: "Header · group transform",
       childIds: [
         "demo_header_panel", "demo_header_orbit",
         "demo_header_curve", "demo_header_title", "demo_header_subtitle",
@@ -65,7 +66,7 @@ export function createDemoDocument() {
       transformOrigin: { x: 410, y: 55 }, opacity: 1,
     },
     demo_header_panel: {
-      id: "demo_header_panel", type: "rect", ...shapeBase("Rounded rectangle · drop shadow effect", "#fffdf8", "#28344f"),
+      id: "demo_header_panel", type: "rect", cornerRadius: 0, ...shapeBase("Rounded rectangle · drop shadow effect", "#fffdf8", "#28344f"),
       x: 0, y: 0, width: 820, height: 112,
       effects: [
         { type: "drop-shadow", color: "#28344f", alpha: 0.24, blur: 0, offsetX: 7, offsetY: 11 },
@@ -78,7 +79,7 @@ export function createDemoDocument() {
       transformOrigin: { x: 68, y: 56 },
     },
     demo_header_curve: {
-      id: "demo_header_curve", type: "path", ...shapeBase("Open Bézier", null, "#e25555"),
+      id: "demo_header_curve", type: "path", fillRule: "nonzero", ...shapeBase("Open Bézier", null, "#e25555"),
       strokeWidth: 7,
       subpaths: [{
         anchors: [
@@ -105,12 +106,12 @@ export function createDemoDocument() {
       italic: true, lineHeight: 1.2, align: "left",
     },
     demo_spiky_callout: {
-      id: "demo_spiky_callout", type: "group", name: "Spiky callout",
+      id: "demo_spiky_callout", type: "group", clipsToMask: false, name: "Spiky callout",
       childIds: ["demo_spiky_callout_shape", "demo_spiky_callout_cat", "demo_spiky_callout_text"],
       ...baseNodeDefaults(), transform: multiply(translation(190, 20), rotation(0.2)),
     },
     demo_spiky_callout_shape: {
-      id: "demo_spiky_callout_shape", type: "path",
+      id: "demo_spiky_callout_shape", type: "path", fillRule: "nonzero",
       ...shapeBase("Spiky callout shape", "#ff3b30", "#111111"),
       strokeWidth: 8,
       strokeJoin: "miter",
@@ -128,7 +129,7 @@ export function createDemoDocument() {
       ], true)],
     },
     demo_spiky_callout_cat: {
-      id: "demo_spiky_callout_cat", type: "group", name: "Abstract cat",
+      id: "demo_spiky_callout_cat", type: "group", clipsToMask: false, name: "Abstract cat",
       childIds: [
         "demo_spiky_callout_cat_head", "demo_spiky_callout_cat_eye_left",
         "demo_spiky_callout_cat_eye_right", "demo_spiky_callout_cat_nose",
@@ -136,7 +137,7 @@ export function createDemoDocument() {
       ...baseNodeDefaults(), transform: [...IDENTITY],
     },
     demo_spiky_callout_cat_head: {
-      id: "demo_spiky_callout_cat_head", type: "path",
+      id: "demo_spiky_callout_cat_head", type: "path", fillRule: "nonzero",
       ...shapeBase("Cat head", "#fffdf8", "#111111"),
       strokeWidth: 3.5,
       strokeJoin: "round",
@@ -158,7 +159,7 @@ export function createDemoDocument() {
       x: 593, y: 70, width: 4, height: 6,
     },
     demo_spiky_callout_cat_nose: {
-      id: "demo_spiky_callout_cat_nose", type: "path",
+      id: "demo_spiky_callout_cat_nose", type: "path", fillRule: "nonzero",
       ...shapeBase("Cat nose", "#111111", null),
       subpaths: [straightSubpath([
         { x: 587, y: 79 }, { x: 592, y: 79 }, { x: 589.5, y: 82 },
@@ -174,7 +175,7 @@ export function createDemoDocument() {
     },
 
     demo_cards: {
-      id: "demo_cards", type: "group", name: "Cards · nested groups + group drop shadow",
+      id: "demo_cards", type: "group", clipsToMask: false, name: "Cards · nested groups + group drop shadow",
       childIds: ["demo_card_shapes", "demo_card_paths", "demo_card_boolean"],
       ...baseNodeDefaults(), transform: translation(80, 220),
       // A group-level effect: one drop shadow lifts all three cards at once.
@@ -183,7 +184,7 @@ export function createDemoDocument() {
       ],
     },
     demo_card_shapes: {
-      id: "demo_card_shapes", type: "group", name: "Basic shapes",
+      id: "demo_card_shapes", type: "group", clipsToMask: false, name: "Basic shapes",
       childIds: ["demo_card_a", "demo_skew_rect", "demo_circle_a", "demo_circle_b", "demo_locked_line"],
       ...baseNodeDefaults(), transform: [...IDENTITY],
     },
@@ -214,25 +215,25 @@ export function createDemoDocument() {
     },
 
     demo_card_paths: {
-      id: "demo_card_paths", type: "group", name: "Paths · rotated nested group",
+      id: "demo_card_paths", type: "group", clipsToMask: false, name: "Paths · rotated nested group",
       childIds: ["demo_card_b", "demo_closed_path", "demo_open_path", "demo_blob"],
       ...baseNodeDefaults(),
       transform: multiply(translation(285, 10), rotation(0.055)),
       transformOrigin: { x: 124, y: 87 }, opacity: 0.94,
     },
     demo_card_b: {
-      id: "demo_card_b", type: "rect", ...shapeBase("Card B", "#fff4dc", "#52617a"),
+      id: "demo_card_b", type: "rect", cornerRadius: 0, ...shapeBase("Card B", "#fff4dc", "#52617a"),
       x: 0, y: 0, width: 248, height: 174,
     },
     demo_closed_path: {
-      id: "demo_closed_path", type: "path", ...shapeBase("Closed path", "#f29b72", "#28344f"),
+      id: "demo_closed_path", type: "path", fillRule: "nonzero", ...shapeBase("Closed path", "#f29b72", "#28344f"),
       subpaths: [straightSubpath([
         { x: 28, y: 128 }, { x: 70, y: 54 }, { x: 112, y: 112 },
         { x: 152, y: 42 }, { x: 218, y: 128 },
       ], true)],
     },
     demo_open_path: {
-      id: "demo_open_path", type: "path", ...shapeBase("Open path", null, "#3c6eeb"),
+      id: "demo_open_path", type: "path", fillRule: "nonzero", ...shapeBase("Open path", null, "#3c6eeb"),
       strokeWidth: 5,
       subpaths: [straightSubpath([
         { x: 28, y: 28 }, { x: 70, y: 18 }, { x: 112, y: 32 },
@@ -240,7 +241,7 @@ export function createDemoDocument() {
       ], false)],
     },
     demo_blob: {
-      id: "demo_blob", type: "path", ...shapeBase("Closed Bézier · radial gradient", null, "#28344f"),
+      id: "demo_blob", type: "path", fillRule: "nonzero", ...shapeBase("Closed Bézier · radial gradient", null, "#28344f"),
       fill: radialGradient([
         { offset: 0, color: "#fff0a8", alpha: 1 },
         { offset: 1, color: "#f2932f", alpha: 1 },
@@ -256,12 +257,12 @@ export function createDemoDocument() {
     },
 
     demo_card_boolean: {
-      id: "demo_card_boolean", type: "group", name: "Compound path · opacity + blend group",
+      id: "demo_card_boolean", type: "group", clipsToMask: false, name: "Compound path · opacity + blend group",
       childIds: ["demo_card_c", "demo_compound_path", "demo_polygon_accent"],
       ...baseNodeDefaults(), transform: translation(570, 0), opacity: 0.9, blendMode: "multiply",
     },
     demo_card_c: {
-      id: "demo_card_c", type: "rect", ...shapeBase("Card C", "#e8fbf5", "#52617a"),
+      id: "demo_card_c", type: "rect", cornerRadius: 0, ...shapeBase("Card C", "#e8fbf5", "#52617a"),
       x: 0, y: 0, width: 248, height: 174,
     },
     demo_compound_path: {
@@ -270,7 +271,7 @@ export function createDemoDocument() {
       childIds: ["demo_compound_outer", "demo_compound_hole"],
     },
     demo_compound_outer: {
-      id: "demo_compound_outer", type: "path",
+      id: "demo_compound_outer", type: "path", fillRule: "nonzero",
       ...shapeBase("Retained outer path", "#f29b72", "#28344f"),
       subpaths: [straightSubpath([
         { x: 28, y: 42 }, { x: 72, y: 26 }, { x: 124, y: 34 },
@@ -299,12 +300,12 @@ export function createDemoDocument() {
     },
 
     demo_footer: {
-      id: "demo_footer", type: "group", name: "Transform playground",
+      id: "demo_footer", type: "group", clipsToMask: false, name: "Transform playground",
       childIds: ["demo_footer_panel", "demo_rotated_rect", "demo_dash_line", "demo_footer_ellipse"],
       ...baseNodeDefaults(), transform: translation(80, 440),
     },
     demo_footer_panel: {
-      id: "demo_footer_panel", type: "rect", ...shapeBase("Footer panel · pattern fill", null, null),
+      id: "demo_footer_panel", type: "rect", cornerRadius: 0, ...shapeBase("Footer panel · pattern fill", null, null),
       fill: pattern("demo_texture"),
       x: 0, y: 0, width: 818, height: 172,
     },
@@ -338,12 +339,12 @@ export function createDemoDocument() {
     },
 
     demo_empty_group: {
-      id: "demo_empty_group", type: "group", name: "Empty group (valid)", childIds: [],
+      id: "demo_empty_group", type: "group", clipsToMask: false, name: "Empty group (valid)", childIds: [],
       ...baseNodeDefaults(),
       transform: translation(900, 630), transformOrigin: { x: 0, y: 0 },
     },
     demo_hidden: {
-      id: "demo_hidden", type: "rect", ...shapeBase("Hidden debug node", "#ff00ff", null),
+      id: "demo_hidden", type: "rect", cornerRadius: 0, ...shapeBase("Hidden debug node", "#ff00ff", null),
       x: 860, y: 610, width: 60, height: 30, hidden: true,
     },
   };
@@ -360,7 +361,7 @@ export function createDemoDocument() {
     width: 984,
     height: 706,
     background: "#ffffff",
-    clip: false,
+    clipsContent: false,
     childIds: [
       "demo_background",
       "demo_header",

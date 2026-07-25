@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
 import { createServer } from "vite";
-import { NODE_BASE } from "./nodeBase.mjs";
+import { NODE_BASE, SHAPE_BASE } from "./nodeBase.mjs";
 
 let server;
 let createEmptyDocument;
@@ -45,6 +45,7 @@ const rect = (id, x, y, width, height, extra = {}) => ({
   id,
   name: id,
   type: "rect",
+  ...SHAPE_BASE, cornerRadius: 0,
   ...NODE_BASE,
   x,
   y,
@@ -63,6 +64,7 @@ const group = (id, childIds, extra = {}) => ({
   id,
   name: id,
   type: "group",
+  clipsToMask: false,
   ...NODE_BASE,
   childIds,
   opacity: 1,
@@ -77,6 +79,7 @@ function clippedDocument() {
   doc.nodes.mask = {
     ...rect("mask", 0, 0, 0, 0, { fill: null, hidden: true }),
     type: "path",
+    ...SHAPE_BASE, fillRule: "nonzero",
     ...NODE_BASE,
     fillRule: "evenodd",
     subpaths: [
@@ -98,7 +101,7 @@ function clippedDocument() {
   delete doc.nodes.mask.y;
   delete doc.nodes.mask.width;
   delete doc.nodes.mask.height;
-  doc.nodes.clip = group("clip", ["content", "mask"], { clip: true });
+  doc.nodes.clip = group("clip", ["content", "mask"], { clipsToMask: true });
   doc.rootIds = ["clip"];
   return doc;
 }
@@ -108,16 +111,18 @@ test("clipping helpers accept area-bearing paths and preserve child order", () =
   const clip = doc.nodes.clip;
   assert.equal(isClippingMaskCandidate(doc.nodes.mask), true);
   assert.equal(isClippingMaskCandidate({ ...rect("line", 0, 0, 1, 1), type: "line" }), false);
-  assert.equal(isClippingMaskCandidate({ ...rect("path", 0, 0, 1, 1), type: "path", ...NODE_BASE, subpaths: [] }), false);
+  assert.equal(isClippingMaskCandidate({ ...rect("path", 0, 0, 1, 1), type: "path", ...SHAPE_BASE, fillRule: "nonzero", ...NODE_BASE, subpaths: [] }), false);
   assert.equal(isClippingMaskCandidate({
     ...rect("path", 0, 0, 1, 1),
     type: "path",
+    ...SHAPE_BASE, fillRule: "nonzero",
     ...NODE_BASE,
     subpaths: [subpath([{ x: 0, y: 0 }], false)],
   }), false);
   assert.equal(isClippingMaskCandidate({
     ...rect("path", 0, 0, 1, 1),
     type: "path",
+    ...SHAPE_BASE, fillRule: "nonzero",
     ...NODE_BASE,
     subpaths: [subpath([
       { x: 0, y: 0 }, { x: 10, y: 0 }, { x: 0, y: 10 },
@@ -141,6 +146,7 @@ test("selection validation uses sibling paint order and protects an existing mas
   doc.nodes.degenerate = {
     ...rect("degenerate", 0, 0, 10, 10),
     type: "path",
+    ...SHAPE_BASE, fillRule: "nonzero",
     ...NODE_BASE,
     subpaths: [subpath([{ x: 0, y: 0 }], false)],
   };
@@ -189,6 +195,7 @@ test("a curved-path mask clips by its filled area (regression: flatten index lea
   doc.nodes.mask = {
     ...rect("mask", 0, 0, 0, 0, { fill: null }),
     type: "path",
+    ...SHAPE_BASE, fillRule: "nonzero",
     ...NODE_BASE,
     subpaths: [
       {
@@ -201,7 +208,7 @@ test("a curved-path mask clips by its filled area (regression: flatten index lea
   delete doc.nodes.mask.y;
   delete doc.nodes.mask.width;
   delete doc.nodes.mask.height;
-  doc.nodes.clip = group("clip", ["content", "mask"], { clip: true });
+  doc.nodes.clip = group("clip", ["content", "mask"], { clipsToMask: true });
   doc.rootIds = ["clip"];
 
   const content = doc.nodes.content;
@@ -217,7 +224,7 @@ test("a broad marquee does not select content disjoint from its mask", () => {
   const doc = createEmptyDocument();
   doc.nodes.content = rect("content", 0, 0, 10, 10);
   doc.nodes.mask = rect("mask", 100, 0, 10, 10, { fill: null });
-  doc.nodes.clip = group("clip", ["content", "mask"], { clip: true });
+  doc.nodes.clip = group("clip", ["content", "mask"], { clipsToMask: true });
   doc.rootIds = ["clip"];
 
   assert.equal(marqueeHitNode(
@@ -247,7 +254,7 @@ test("symbol recursion applies definition masks and an instance's ancestor mask"
     transformOrigin: null,
   };
   doc.nodes.sceneMask = rect("sceneMask", 220, 20, 25, 25, { fill: null });
-  doc.nodes.sceneClip = group("sceneClip", ["instance", "sceneMask"], { clip: true });
+  doc.nodes.sceneClip = group("sceneClip", ["instance", "sceneMask"], { clipsToMask: true });
   doc.rootIds = ["sceneClip"];
 
   assert.deepEqual(nodeWorldBounds(doc, "instance"), {

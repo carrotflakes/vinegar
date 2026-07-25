@@ -168,6 +168,7 @@ export function onPenDown(
       subpaths: [
         { anchors: [{ p: world, hIn: null, hOut: null }], closed: false },
       ],
+      fillRule: "nonzero",
       ...styleFromDefaults(state.style),
     };
     ctx.penDraft.current = shape;

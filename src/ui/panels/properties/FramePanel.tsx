@@ -99,8 +99,8 @@ export default function FramePanel({ frame }: { frame: FrameNode }) {
           <label className="checkbox-row">
             <input
               type="checkbox"
-              checked={frame.clip ?? true}
-              onChange={(event) => update(frame.id, { clip: event.target.checked })}
+              checked={frame.clipsContent}
+              onChange={(event) => update(frame.id, { clipsContent: event.target.checked })}
             />
             Clip content
           </label>

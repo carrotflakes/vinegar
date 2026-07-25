@@ -98,11 +98,7 @@ export function convertShapeToPath(
     name: shape.name,
     type: "path",
     subpaths,
-    fillRule: shape.type === "compoundPath"
-      ? "evenodd"
-      : brush
-        ? "nonzero"
-        : undefined,
+    fillRule: shape.type === "compoundPath" ? "evenodd" : "nonzero",
     fill: brush ? shape.stroke : shape.fill,
     stroke: brush ? null : shape.stroke,
     strokeWidth: brush ? 0 : shape.strokeWidth,

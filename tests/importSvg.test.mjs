@@ -183,7 +183,7 @@ test("groups keep paint order and convert Paper clipping masks", () => {
   const converted = importedContent(imported);
   assert.equal(converted.type, "group");
   assert.equal(converted.name, "Clipped");
-  assert.equal(converted.clip, true);
+  assert.equal(converted.clipsToMask, true);
   assert.equal(converted.childIds.length, 2);
   assert.equal(imported.nodes[converted.childIds[0]].name, "Content");
   assert.equal(imported.nodes[converted.childIds[1]].name, "Mask");

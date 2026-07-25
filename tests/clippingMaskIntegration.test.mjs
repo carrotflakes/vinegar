@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
 import { createServer } from "vite";
-import { NODE_BASE } from "./nodeBase.mjs";
+import { NODE_BASE, SHAPE_BASE } from "./nodeBase.mjs";
 
 let server;
 let createEmptyDocument;
@@ -38,6 +38,7 @@ const rect = (id, x, y, width, height, extra = {}) => ({
   id,
   name: id,
   type: "rect",
+  ...SHAPE_BASE, cornerRadius: 0,
   ...NODE_BASE,
   x,
   y,
@@ -56,6 +57,7 @@ const group = (id, childIds, extra = {}) => ({
   id,
   name: id,
   type: "group",
+  clipsToMask: false,
   ...NODE_BASE,
   childIds,
   opacity: 1,
@@ -104,6 +106,7 @@ function editableDocument() {
     id: "mask",
     name: "mask",
     type: "path",
+    ...SHAPE_BASE, fillRule: "nonzero",
     ...NODE_BASE,
     fillRule: "evenodd",
     subpaths: [{
@@ -141,7 +144,7 @@ test("make/release actions preserve order and appearance and are undoable", () =
 
   let state = useEditor.getState();
   const clipId = state.doc.rootIds[0];
-  assert.equal(state.doc.nodes[clipId].clip, true);
+  assert.equal(state.doc.nodes[clipId].clipsToMask, true);
   assert.equal(state.doc.nodes[clipId].name, "Clip Group");
   assert.deepEqual(state.doc.nodes[clipId].childIds, ["content", "mask"]);
   assert.deepEqual(state.selection, [clipId]);
@@ -166,14 +169,14 @@ test("make/release actions preserve order and appearance and are undoable", () =
   assert.equal(state.activeGroupId, null);
 
   state.undo();
-  assert.equal(useEditor.getState().doc.nodes[clipId].clip, true);
+  assert.equal(useEditor.getState().doc.nodes[clipId].clipsToMask, true);
   state.redo();
   assert.deepEqual(useEditor.getState().doc.rootIds, ["content", "mask"]);
 });
 
 test("Canvas, SVG, bounds, and serialization share the clipping model", () => {
   const doc = editableDocument();
-  doc.nodes.clip = group("clip", ["content", "mask"], { clip: true });
+  doc.nodes.clip = group("clip", ["content", "mask"], { clipsToMask: true });
   doc.rootIds = ["clip"];
 
   const ctx = mockContext();
@@ -219,19 +222,29 @@ test("Canvas, SVG, bounds, and serialization share the clipping model", () => {
   assert.doesNotMatch(svg, /isolation:isolate/);
 
   const json = serializeDocument(doc);
-  assert.equal(JSON.parse(json).version, 25);
+  assert.equal(JSON.parse(json).version, 26);
   const loaded = parseDocument(json);
-  assert.equal(loaded.nodes.clip.clip, true);
+  assert.equal(loaded.nodes.clip.clipsToMask, true);
   assert.deepEqual(loaded.nodes.clip.childIds, ["content", "mask"]);
 
+  // `false` is a legal value now (a plain group), so it must load — and drop
+  // the clip. A non-boolean is what the validator rejects.
   const falseClip = JSON.parse(json);
-  falseClip.document.nodes.clip.clip = false;
-  assert.throws(() => parseDocument(JSON.stringify(falseClip)), /malformed/i);
+  falseClip.document.nodes.clip.clipsToMask = false;
+  assert.equal(parseDocument(JSON.stringify(falseClip)).nodes.clip.clipsToMask, false);
+
+  const badClip = JSON.parse(json);
+  badClip.document.nodes.clip.clipsToMask = "yes";
+  assert.throws(() => parseDocument(JSON.stringify(badClip)), /malformed/i);
+
+  const missingClip = JSON.parse(json);
+  delete missingClip.document.nodes.clip.clipsToMask;
+  assert.throws(() => parseDocument(JSON.stringify(missingClip)), /malformed/i);
 });
 
 test("drilling into a clip group makes content pickable ahead of its mask", () => {
   const doc = editableDocument();
-  doc.nodes.clip = group("clip", ["content", "mask"], { clip: true });
+  doc.nodes.clip = group("clip", ["content", "mask"], { clipsToMask: true });
   doc.rootIds = ["clip"];
   const editor = useEditor.getState();
   editor.loadDocument(doc);
@@ -245,7 +258,7 @@ test("drilling into a clip group makes content pickable ahead of its mask", () =
 
 test("copy and paste retain clipping-group structure", () => {
   const doc = editableDocument();
-  doc.nodes.clip = group("clip", ["content", "mask"], { clip: true });
+  doc.nodes.clip = group("clip", ["content", "mask"], { clipsToMask: true });
   doc.rootIds = ["clip"];
   const editor = useEditor.getState();
   editor.loadDocument(doc);
@@ -257,7 +270,7 @@ test("copy and paste retain clipping-group structure", () => {
   assert.equal(state.doc.rootIds.length, 2);
   const pasted = state.doc.nodes[state.selection[0]];
   assert.equal(pasted.type, "group");
-  assert.equal(pasted.clip, true);
+  assert.equal(pasted.clipsToMask, true);
   assert.equal(pasted.childIds.length, 2);
   assert.equal(state.doc.nodes[pasted.childIds[1]].type, "path");
 });
@@ -269,9 +282,9 @@ test("nested masks get distinct SVG definitions and invalid tree edits are refus
     fill: null,
     transform: [1, 0, 0, 1, 3, 4],
   });
-  doc.nodes.inner = group("inner", ["content", "innerMask"], { clip: true });
+  doc.nodes.inner = group("inner", ["content", "innerMask"], { clipsToMask: true });
   doc.nodes.outerMask = rect("outerMask", 20, 20, 40, 40, { fill: null });
-  doc.nodes.outer = group("outer", ["inner", "outerMask"], { clip: true });
+  doc.nodes.outer = group("outer", ["inner", "outerMask"], { clipsToMask: true });
   doc.rootIds = ["outer"];
 
   const svg = exportSvg(doc, { margin: 0 });
@@ -283,12 +296,12 @@ test("nested masks get distinct SVG definitions and invalid tree edits are refus
 
   const invalid = createEmptyDocument();
   invalid.nodes.line = {
-    id: "line", name: "line", type: "line", ...NODE_BASE, x1: 0, y1: 0, x2: 50, y2: 50,
+    id: "line", name: "line", type: "line", ...SHAPE_BASE, ...NODE_BASE, x1: 0, y1: 0, x2: 50, y2: 50,
     fill: null, stroke: paint("#000000"), strokeWidth: 1, opacity: 1,
     transform: [...IDENTITY], transformOrigin: null,
   };
   invalid.nodes.mask = rect("mask", 0, 0, 50, 50);
-  invalid.nodes.clip = group("clip", ["line", "mask"], { clip: true });
+  invalid.nodes.clip = group("clip", ["line", "mask"], { clipsToMask: true });
   invalid.rootIds = ["clip"];
   const editor = useEditor.getState();
   editor.loadDocument(invalid);

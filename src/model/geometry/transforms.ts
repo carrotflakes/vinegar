@@ -26,10 +26,7 @@ export function transformShape(shape: Shape, fn: (p: Vec2) => Vec2): Shape {
       };
       return {
         ...next,
-        cornerRadius:
-          shape.cornerRadius === undefined
-            ? undefined
-            : clampRectCornerRadius(next, shape.cornerRadius),
+        cornerRadius: clampRectCornerRadius(next, shape.cornerRadius),
       };
     }
     case "ellipse":

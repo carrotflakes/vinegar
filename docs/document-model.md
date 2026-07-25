@@ -6,14 +6,15 @@ active tool, selection, viewport and undo history does not belong in the file.
 ## Invariants
 
 - Every key in `nodes` equals that shape or group's `id`.
-- **The shared node fields are total.** `blendMode`, `effects`, `hidden`,
-  `locked` and `generator` are always present on every node: a defaulted field
-  carries its default explicitly (`"normal"`, `[]`, `false`) and a genuinely
-  absent link is `null`. `undefined` is never a legal value, so each state has
-  exactly one representation and the validator rejects a file that omits one.
-  New shared fields follow the same rule (`T | null`, never `T?`) — optional
-  fields only ever existed to make additive migrations free, and there is no
-  migration chain any more.
+- **No node field is optional.** Every field a node type declares is always
+  present: a defaulted field carries its default explicitly (`blendMode:
+  "normal"`, `effects: []`, `hidden: false`, `strokeDash: []`, `cornerRadius:
+  0`, `fillRule: "nonzero"`) and a genuinely absent value is `null`
+  (`generator`, `transformOrigin`, `fill`, an asset's `name`). `undefined` is
+  never a legal value, so each state has exactly one representation and the
+  validator rejects a file that omits a field. New fields follow the same rule
+  (`T | null`, never `T?`) — optional fields only ever existed to make additive
+  migrations free, and there is no migration chain any more.
 - `rootIds` and each container's `childIds` are back-to-front and are the only
   persisted sources of hierarchy and paint order.
 - Every node is owned exactly once by either `rootIds` or one `childIds` list.
@@ -25,8 +26,7 @@ active tool, selection, viewport and undo history does not belong in the file.
   `brush`. A `path` is the canonical vector-outline shape:
   it stores one or more `subpaths`, each with cubic anchors (`p`, `hIn`,
   `hOut`) and a `closed` flag. Null handles make straight segments.
-- A path's optional `fillRule` is either `nonzero` or `evenodd`; an absent
-  value means `nonzero`. The rule applies to all subpaths consistently in
+- A path's `fillRule` is either `nonzero` or `evenodd`. The rule applies to all subpaths consistently in
   rendering, hit-testing, clipping, boolean input, and SVG export. Filling
   implicitly closes open subpaths without closing their strokes.
 - Asset-bearing nodes reference entries in `assets` by id; binary data does not
@@ -37,14 +37,13 @@ active tool, selection, viewport and undo history does not belong in the file.
   `pattern` (an image asset tiled in the shape's local space, placed by
   `scale`/`rotation`/`offset`). A pattern that references a decoding/missing
   asset simply paints nothing that frame.
-- Stroke appearance is stored directly on each shape: width, optional dash
-  array/offset, cap, join and alignment. Missing detail fields mean the legacy
-  solid, round-cap, round-join, center-aligned stroke. Inside/outside alignment
-  is effective only for closed vector geometry and text; open paths render
-  centered.
-- Rectangles may store one non-negative `cornerRadius` shared by all four
-  corners. An absent value means `0`; rendering clamps the effective radius to
-  half the rectangle's shorter side.
+- Stroke appearance is stored directly on each shape: width, dash array/offset,
+  cap, join and alignment. An empty dash array means a solid stroke.
+  Inside/outside alignment is effective only for closed vector geometry and
+  text; open paths render centered.
+- Rectangles store one non-negative `cornerRadius` shared by all four corners
+  (`0` = square). Rendering clamps the effective radius to half the rectangle's
+  shorter side.
 - Extension data uses namespaced keys in `extensions` and must be JSON-safe.
 - A compound path is a paintable container node. Its non-empty `childIds` owns
   only `rect`, `ellipse`, and closed `path` nodes. The children retain their
@@ -54,8 +53,8 @@ active tool, selection, viewport and undo history does not belong in the file.
   the node tool can edit path children.
 - A frame is a container node with a content box: `width`/`height` in its own
   local space (origin at `0,0`, i.e. an SVG-style viewport), a `background`
-  paint colour (`null` = transparent) and an optional `clip` flag that defaults
-  to on. Its `childIds` are authored in frame-local coordinates and move with
+  paint colour (`null` = transparent) and a `clipsContent` flag. Its `childIds`
+  are authored in frame-local coordinates and move with
   the frame through the ordinary transform chain — membership is structural, not
   geometric.
 - **Frames live only at the top level.** A frame id appears in `rootIds` and
@@ -63,8 +62,10 @@ active tool, selection, viewport and undo history does not belong in the file.
   nest and are never grouped, clipped or made into symbol content. Frame order
   within `rootIds` is also the export order. Every reparent/group operation and
   the file validator enforce this.
-- A group with `clip: true` uses its final (frontmost) child as a vector
-  clipping mask and paints only the preceding children. The mask must be an
+- A group with `clipsToMask: true` uses its final (frontmost) child as a vector
+  clipping mask and paints only the preceding children. The flag is named apart
+  from the frame's `clipsContent` on purpose: the two used to share the name
+  `clip` with opposite defaults. The mask must be an
   area-bearing vector shape; its paint and visibility fields are preserved but
   ignored while it supplies clip geometry.
 - A brush shape is a pressure-profiled variable-width stroke. It stores an open
@@ -81,7 +82,7 @@ active tool, selection, viewport and undo history does not belong in the file.
   Typography is one style per node (`fontFamily`, size, weight, italic,
   line-height and alignment); line layout is derived from the text at render.
 
-The file wrapper version is deliberately strict. The current version is v25 and
+The file wrapper version is deliberately strict. The current version is v26 and
 it is the only accepted version — there is no migration chain, so older files
 are rejected outright. Changing the persisted shape of `Document` requires
 bumping `CURRENT_FILE_VERSION`.

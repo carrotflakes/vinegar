@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { after, afterEach, before, mock, test } from "node:test";
 import { createServer } from "vite";
-import { NODE_BASE } from "./nodeBase.mjs";
+import { NODE_BASE, SHAPE_BASE } from "./nodeBase.mjs";
 
 let server;
 let clearDocumentRecovery;
@@ -225,6 +225,7 @@ test("startup restore loads the snapshot and keeps it dirty", async () => {
     id,
     name: id,
     type: "rect",
+    ...SHAPE_BASE, cornerRadius: 0,
     ...NODE_BASE,
     x: 0,
     y: 0,

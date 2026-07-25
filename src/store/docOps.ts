@@ -97,7 +97,7 @@ export function remapPayload(payload: ClipboardPayload, offset = 0): ClipboardPa
 }
 
 export function groupNode(id: string, childIds: string[]): Group {
-  return { id, name: "Group", type: "group", childIds, transform: [...IDENTITY], ...baseNodeDefaults() };
+  return { id, name: "Group", type: "group", childIds, clipsToMask: false, transform: [...IDENTITY], ...baseNodeDefaults() };
 }
 
 export function instanceNode(id: string, symbolId: string, transform: Matrix): SymbolInstance {

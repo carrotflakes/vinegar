@@ -65,13 +65,13 @@ export interface StyleStylableFields {
   fill: Paint | null;
   stroke: Paint | null;
   strokeWidth: number;
-  strokeDash: number[] | undefined;
-  strokeDashOffset: number | undefined;
-  strokeCap: StrokeCap | undefined;
-  strokeJoin: StrokeJoin | undefined;
-  strokeAlignment: StrokeAlignment | undefined;
+  strokeDash: number[];
+  strokeDashOffset: number;
+  strokeCap: StrokeCap;
+  strokeJoin: StrokeJoin;
+  strokeAlignment: StrokeAlignment;
   opacity: number;
-  blendMode: BlendMode | undefined;
+  blendMode: BlendMode;
   transform: Shape["transform"];
   transformOrigin: Vec2 | null;
 }
@@ -331,7 +331,7 @@ export interface FrameActions {
   /** Edit a frame's world position (`x`/`y`), content box, background or clip. */
   updateFrame: (
     id: string,
-    patch: Partial<{ x: number; y: number; width: number; height: number; background: string | null; clip: boolean }>
+    patch: Partial<{ x: number; y: number; width: number; height: number; background: string | null; clipsContent: boolean }>
   ) => void;
 }
 

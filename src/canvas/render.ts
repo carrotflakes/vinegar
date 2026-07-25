@@ -24,8 +24,6 @@ import {
   effectiveStrokeAlignment,
   normalizeStrokeDash,
   STROKE_MITER_LIMIT,
-  strokeCap,
-  strokeJoin,
 } from "../model/stroke";
 import type { Bounds, Document, DocumentAsset, Effect, FrameNode, ImageShape, Shape } from "../model/types";
 import { screenToWorld, worldToScreen, type Viewport } from "@/model/geometry/viewport";
@@ -134,7 +132,7 @@ export function paintNode(
           target.fillRect(0, 0, frame.width, frame.height);
         }
       }
-      if (frame.clip ?? true) {
+      if (frame.clipsContent) {
         target.beginPath();
         target.rect(0, 0, frame.width, frame.height);
         target.clip();
@@ -532,8 +530,8 @@ function applyStrokeStyle(
   width: number
 ): void {
   ctx.lineWidth = width;
-  ctx.lineCap = strokeCap(shape);
-  ctx.lineJoin = strokeJoin(shape);
+  ctx.lineCap = shape.strokeCap;
+  ctx.lineJoin = shape.strokeJoin;
   ctx.miterLimit = STROKE_MITER_LIMIT;
   const dash = normalizeStrokeDash(shape.strokeDash);
   // The guard keeps lightweight SSR/test contexts compatible while real

@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { after, before, beforeEach, test } from "node:test";
 import { createServer } from "vite";
-import { NODE_BASE } from "./nodeBase.mjs";
+import { NODE_BASE, SHAPE_BASE } from "./nodeBase.mjs";
 
 let server;
 let useEditor;
@@ -15,6 +15,7 @@ const rect = (id, patch = {}) => ({
   id,
   name: id,
   type: "rect",
+  ...SHAPE_BASE, cornerRadius: 0,
   ...NODE_BASE,
   x: 0,
   y: 0,

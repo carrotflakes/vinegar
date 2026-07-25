@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { after, before, beforeEach, test } from "node:test";
 import { createServer } from "vite";
-import { NODE_BASE } from "./nodeBase.mjs";
+import { NODE_BASE, SHAPE_BASE } from "./nodeBase.mjs";
 
 let server;
 let moveAnchors;
@@ -37,6 +37,7 @@ const pathShape = () => ({
   id: "curve",
   name: "Curve",
   type: "path",
+  ...SHAPE_BASE, fillRule: "nonzero",
   ...NODE_BASE,
   subpaths: [
     {
@@ -285,6 +286,7 @@ test("multi-anchor translation preserves brush widths and unselected anchors", (
     id: "brush",
     name: "Brush",
     type: "brush",
+    ...SHAPE_BASE,
     ...NODE_BASE,
     anchors: [
       { ...anchor(0, 0, { hOut: { x: 3, y: 0 } }), w: 0.25 },

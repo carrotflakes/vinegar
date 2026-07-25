@@ -70,7 +70,7 @@ export function selectedShapes(
     .flatMap((id) => {
       const node = doc.nodes[id];
       if (isLeaf(node)) return [id];
-      if (isGroup(node) && node.clip) {
+      if (isGroup(node) && node.clipsToMask) {
         const mask = clippingMask(doc, node);
         return mask ? [mask.id] : [];
       }

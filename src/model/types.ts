@@ -215,16 +215,31 @@ export interface BaseShape extends BaseNode {
   /** `null` stroke means "no stroke". */
   stroke: Paint | null;
   strokeWidth: number;
-  /** Alternating dash/gap lengths in local units; absent/empty means solid. */
-  strokeDash?: number[];
+  /** Alternating dash/gap lengths in local units; empty means solid. */
+  strokeDash: number[];
   /** Offset into the repeated dash pattern, in local units. */
-  strokeDashOffset?: number;
-  /** Missing values preserve the historical round-cap rendering. */
-  strokeCap?: StrokeCap;
-  /** Missing values preserve the historical round-join rendering. */
-  strokeJoin?: StrokeJoin;
-  /** Open paths render centered even if a non-center value is retained. */
-  strokeAlignment?: StrokeAlignment;
+  strokeDashOffset: number;
+  strokeCap: StrokeCap;
+  strokeJoin: StrokeJoin;
+  /** Open paths render centered even if a non-center value is stored. */
+  strokeAlignment: StrokeAlignment;
+}
+
+/** The neutral paint/stroke fields of a shape, to spread like baseNodeDefaults. */
+export function baseShapeDefaults(): Pick<
+  BaseShape,
+  "fill" | "stroke" | "strokeWidth" | "strokeDash" | "strokeDashOffset" | "strokeCap" | "strokeJoin" | "strokeAlignment"
+> {
+  return {
+    fill: null,
+    stroke: null,
+    strokeWidth: 0,
+    strokeDash: [],
+    strokeDashOffset: 0,
+    strokeCap: "round",
+    strokeJoin: "round",
+    strokeAlignment: "center",
+  };
 }
 
 /** Axis-aligned rectangle, defined by its top-left corner and size. */
@@ -234,8 +249,8 @@ export interface RectShape extends BaseShape {
   y: number;
   width: number;
   height: number;
-  /** Shared circular radius for all four corners; absent means square corners. */
-  cornerRadius?: number;
+  /** Shared circular radius for all four corners; `0` means square corners. */
+  cornerRadius: number;
 }
 
 /** Ellipse defined by its bounding box (top-left + size). */
@@ -280,8 +295,8 @@ export interface PathSubpath {
 export interface PathShape extends BaseShape {
   type: "path";
   subpaths: PathSubpath[];
-  /** Winding rule for fill, hit-testing, and clipping. Absent = nonzero. */
-  fillRule?: "nonzero" | "evenodd";
+  /** Winding rule for fill, hit-testing, and clipping. */
+  fillRule: "nonzero" | "evenodd";
 }
 
 /**
@@ -312,9 +327,9 @@ export interface ImageShape extends BaseShape {
   height: number;
   /**
    * When true, resizing keeps the current width:height ratio — both the panel's
-   * numeric fields and interactive handle dragging. Absent means unlocked.
+   * numeric fields and interactive handle dragging.
    */
-  lockAspect?: boolean;
+  lockAspect: boolean;
 }
 
 /**
@@ -396,8 +411,12 @@ export interface Group extends BaseNode {
   type: "group";
   /** Child node ids, back-to-front. This is the canonical hierarchy/order. */
   childIds: string[];
-  /** The frontmost child clips all preceding children when present. */
-  clip?: true;
+  /**
+   * When true the frontmost child is a mask that clips all preceding children.
+   * Named apart from the frame's flag on purpose: the two used to share the
+   * name `clip` with *opposite* defaults, which read as the same thing.
+   */
+  clipsToMask: boolean;
 }
 
 /**
@@ -421,8 +440,8 @@ export interface FrameNode extends BaseNode {
   height: number;
   /** Fill drawn behind children; `null` = transparent. */
   background: string | null;
-  /** Clip children to the content box. Absent defaults to clipped (a viewport). */
-  clip?: boolean;
+  /** Clip children to the content box (a frame is a viewport by default). */
+  clipsContent: boolean;
 }
 
 export function makeFrame(
@@ -442,6 +461,7 @@ export function makeFrame(
     width,
     height,
     background: "#ffffff",
+    clipsContent: true,
   };
 }
 
@@ -493,7 +513,8 @@ export interface DocumentAsset {
   id: string;
   kind: "image";
   mimeType: string;
-  name?: string;
+  /** Original file name, or null when the asset arrived without one. */
+  name: string | null;
   source: { type: "data"; data: string };
 }
 

@@ -59,8 +59,8 @@ export function isClippingMaskCandidate(
 /** Whether a scene node is explicitly marked as a clipping group. */
 export function isClippingGroup(
   node: SceneNode | null | undefined
-): node is Group & { clip: true } {
-  return node?.type === "group" && node.clip === true;
+): node is Group & { clipsToMask: true } {
+  return node?.type === "group" && node.clipsToMask;
 }
 
 /**

@@ -2,8 +2,6 @@ import type { Paint } from "../../../model/paint";
 import {
   effectiveStrokeAlignment,
   normalizeStrokeDash,
-  strokeCap as resolvedStrokeCap,
-  strokeJoin as resolvedStrokeJoin,
   supportsStrokeAlignment,
 } from "../../../model/stroke";
 import { type Shape } from "../../../model/types";
@@ -61,8 +59,8 @@ export default function AppearanceSection({
     ? {
         dash: normalizeStrokeDash(first.strokeDash),
         dashOffset: first.strokeDashOffset ?? 0,
-        cap: resolvedStrokeCap(first),
-        join: resolvedStrokeJoin(first),
+        cap: first.strokeCap,
+        join: first.strokeJoin,
         alignment: effectiveStrokeAlignment(first),
       }
     : {

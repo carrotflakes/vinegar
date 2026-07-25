@@ -204,6 +204,7 @@ export function booleanShapes(
     name: OP_NAME[op],
     type: "path",
     subpaths,
+    fillRule: "nonzero",
     fill: base.fill,
     stroke: base.stroke,
     strokeWidth: base.strokeWidth,

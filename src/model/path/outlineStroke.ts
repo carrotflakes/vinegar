@@ -9,8 +9,6 @@ import {
   effectiveStrokeAlignment,
   normalizeStrokeDash,
   STROKE_MITER_LIMIT,
-  strokeCap,
-  strokeJoin,
 } from "../stroke";
 import type { Document, Shape, Vec2 } from "../types";
 
@@ -113,7 +111,7 @@ function dashedCenterlines(shape: Shape, line: Polyline): Polyline[] {
   const advancePattern = (at: Vec2, direction: Vec2) => {
     let guard = 0;
     while (remaining <= 1e-9 && guard++ <= dash.length) {
-      if (on && dash[dashIndex] === 0 && strokeCap(shape) !== "butt") {
+      if (on && dash[dashIndex] === 0 && shape.strokeCap !== "butt") {
         // Clipper drops zero-length paths, while Canvas uses the cap to render
         // dotted patterns such as [0, gap]. A one-quantum segment preserves
         // that dot; changing SCALE changes this approximation too.
@@ -159,7 +157,7 @@ function dashedCenterlines(shape: Shape, line: Polyline): Polyline[] {
 }
 
 function joinType(shape: Shape): number {
-  switch (strokeJoin(shape)) {
+  switch (shape.strokeJoin) {
     case "miter": return ClipperLib.JoinType.jtMiter;
     // Clipper has no true SVG/Canvas bevel join. jtSquare is the closest
     // available offset join and can differ at very acute corners.
@@ -170,7 +168,7 @@ function joinType(shape: Shape): number {
 
 function endType(shape: Shape, closed: boolean): number {
   if (closed) return ClipperLib.EndType.etClosedLine;
-  switch (strokeCap(shape)) {
+  switch (shape.strokeCap) {
     case "butt": return ClipperLib.EndType.etOpenButt;
     case "square": return ClipperLib.EndType.etOpenSquare;
     case "round": return ClipperLib.EndType.etOpenRound;

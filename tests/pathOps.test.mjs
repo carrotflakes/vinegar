@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
 import { createServer } from "vite";
-import { NODE_BASE } from "./nodeBase.mjs";
+import { NODE_BASE, SHAPE_BASE } from "./nodeBase.mjs";
 
 let server;
 let pathOpShape;
@@ -19,6 +19,7 @@ const pathShape = (subpaths, patch = {}) => ({
   id: "p1",
   name: "Path",
   type: "path",
+  ...SHAPE_BASE, fillRule: "nonzero",
   ...NODE_BASE,
   subpaths,
   fill: solid("#ff6633"),

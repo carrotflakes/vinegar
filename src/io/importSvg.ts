@@ -13,6 +13,7 @@ import {
 import {
   BLEND_MODES,
   baseNodeDefaults,
+  baseShapeDefaults,
   makeId,
   type PathShape,
   type PathSubpath,
@@ -141,13 +142,14 @@ function shapeStyle(item: paper.Item) {
     .map((value) => finite(value))
     .filter((value) => value >= 0);
   return {
+    ...baseShapeDefaults(),
     fill: paintOf(item.fillColor),
     stroke,
     strokeWidth: stroke ? Math.max(0, finite(item.strokeWidth)) : 0,
-    strokeDash: dash.length ? dash : undefined,
-    strokeDashOffset: item.dashOffset ? finite(item.dashOffset) : undefined,
-    strokeCap: strokeCapOf(item),
-    strokeJoin: strokeJoinOf(item),
+    strokeDash: dash,
+    strokeDashOffset: finite(item.dashOffset),
+    strokeCap: strokeCapOf(item) ?? "round",
+    strokeJoin: strokeJoinOf(item) ?? "round",
   };
 }
 
@@ -188,7 +190,7 @@ function pathNode(path: paper.Path): PathShape | null {
     id: makeId("path"),
     type: "path",
     subpaths: [subpath],
-    fillRule: path.fillRule === "evenodd" ? "evenodd" : undefined,
+    fillRule: path.fillRule === "evenodd" ? "evenodd" : "nonzero",
     ...shapeStyle(path),
     ...baseNode(path, "Path"),
   };
@@ -205,12 +207,11 @@ function compoundComponents(item: paper.CompoundPath): PrimitiveShape[] {
       id: makeId("path"),
       name: nodeName(path, "Path"),
       type: "path",
+      fillRule: "nonzero",
       subpaths: [subpath],
       ...baseNodeDefaults(),
+      ...baseShapeDefaults(),
       transform: matrixOf(path),
-      fill: null,
-      stroke: null,
-      strokeWidth: 0,
     });
   }
   return components;
@@ -243,6 +244,8 @@ function compoundNode(
   return {
     id: makeId("path"),
     type: "path",
+    // A non-evenodd compound flattens into one nonzero path.
+    fillRule: "nonzero",
     subpaths,
     ...shapeStyle(item),
     ...baseNode(item, "Compound Path"),
@@ -278,7 +281,7 @@ function convertItem(
   if (!children.length) return null;
 
   let childIds = children.map((child) => child.id);
-  let clip: true | undefined;
+  let clipsToMask = false;
   const group = item as paper.Group;
   if (group.clipped && children.length >= 2) {
     const mask = children.find((child) => child.item.clipMask) ?? children[0];
@@ -288,7 +291,7 @@ function convertItem(
         ...children.filter((child) => child !== mask).map((child) => child.id),
         mask.id,
       ];
-      clip = true;
+      clipsToMask = true;
     }
   }
 
@@ -296,7 +299,7 @@ function convertItem(
     id: makeId("group"),
     type: "group",
     childIds,
-    clip,
+    clipsToMask,
     ...baseNode(item, "Group"),
   };
   nodes[node.id] = node;
@@ -322,6 +325,7 @@ export function convertSvgItem(
     type: "group",
     childIds: [childId],
     ...baseNodeDefaults(),
+    clipsToMask: false,
     transform: [...IDENTITY],
   };
   return { nodes, rootId };

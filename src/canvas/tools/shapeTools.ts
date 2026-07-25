@@ -69,6 +69,7 @@ export function startPencil(ctx: ToolContext, state: EditorState, world: Vec2) {
       anchors: [{ p: world, hIn: null, hOut: null }],
       closed: false,
     }],
+    fillRule: "nonzero",
     ...styleFromDefaults(state.style),
     fill: null,
   };
@@ -143,13 +144,14 @@ function makeCreatedShape(
   return {
     id: makeId(tool),
     name: tool === "rect" ? "Rectangle" : "Ellipse",
-    type: tool === "rect" ? "rect" : "ellipse",
     x,
     y,
     width,
     height,
-    ...(tool === "rect" ? { cornerRadius: 0 } : {}),
     ...base,
+    ...(tool === "rect"
+      ? { type: "rect" as const, cornerRadius: 0 }
+      : { type: "ellipse" as const }),
   };
 }
 
@@ -177,6 +179,7 @@ function freehandToPath(rawPoints: Vec2[], state: EditorState): PathShape {
     name: "Pencil",
     type: "path",
     subpaths: [{ anchors, closed }],
+    fillRule: "nonzero",
     ...styleFromDefaults(state.style),
     fill: null,
   };

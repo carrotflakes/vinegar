@@ -13,9 +13,9 @@ import {
 
 /**
  * Only the current version is accepted; there is no migration from older
- * formats — pre-v25 files fail to open with a clear message.
+ * formats — pre-v26 files fail to open with a clear message.
  */
-export const CURRENT_FILE_VERSION = 25 as const;
+export const CURRENT_FILE_VERSION = 26 as const;
 
 export interface VinegarFile {
   app: "vinegar";
@@ -115,8 +115,8 @@ const isEffect = (value: unknown): boolean => {
 };
 const isEffects = (value: unknown): boolean =>
   Array.isArray(value) && value.every(isEffect);
-const isStrokeDashOrUndefined = (value: unknown): boolean =>
-  value === undefined || (Array.isArray(value) && value.every((entry) => isNumber(entry) && entry >= 0));
+const isStrokeDash = (value: unknown): boolean =>
+  Array.isArray(value) && value.every((entry) => isNumber(entry) && entry >= 0);
 const isGeneratorOrNull = (value: unknown): boolean => {
   if (value === null) return true;
   if (!isObject(value) || typeof value.scriptId !== "string" || !isObject(value.args)) return false;
@@ -135,12 +135,12 @@ const isNode = (id: string, node: unknown): boolean => {
       typeof node.hidden !== "boolean" ||
       typeof node.locked !== "boolean") return false;
   if (node.type === "group") {
-    return (node.clip === undefined || node.clip === true) &&
+    return typeof node.clipsToMask === "boolean" &&
       Array.isArray(node.childIds) &&
       node.childIds.every((child) => typeof child === "string");
   }
   if (node.type === "frame") {
-    return (node.clip === undefined || typeof node.clip === "boolean") &&
+    return typeof node.clipsContent === "boolean" &&
       isNumber(node.width) && node.width >= 0 &&
       isNumber(node.height) && node.height >= 0 &&
       (node.background === null || typeof node.background === "string") &&
@@ -152,21 +152,21 @@ const isNode = (id: string, node: unknown): boolean => {
   }
   if (!(isPaintOrNull(node.fill) && isPaintOrNull(node.stroke) &&
       isNumber(node.strokeWidth) && node.strokeWidth >= 0 &&
-      isStrokeDashOrUndefined(node.strokeDash) &&
-      (node.strokeDashOffset === undefined || isNumber(node.strokeDashOffset)) &&
-      (node.strokeCap === undefined || STROKE_CAPS.includes(node.strokeCap as never)) &&
-      (node.strokeJoin === undefined || STROKE_JOINS.includes(node.strokeJoin as never)) &&
-      (node.strokeAlignment === undefined || STROKE_ALIGNMENTS.includes(node.strokeAlignment as never)))) return false;
+      isStrokeDash(node.strokeDash) &&
+      isNumber(node.strokeDashOffset) &&
+      STROKE_CAPS.includes(node.strokeCap as never) &&
+      STROKE_JOINS.includes(node.strokeJoin as never) &&
+      STROKE_ALIGNMENTS.includes(node.strokeAlignment as never))) return false;
   switch (node.type) {
     case "rect":
       return isNumber(node.x) && isNumber(node.y) && isNumber(node.width) && isNumber(node.height) &&
-        (node.cornerRadius === undefined || (isNumber(node.cornerRadius) && node.cornerRadius >= 0));
+        isNumber(node.cornerRadius) && node.cornerRadius >= 0;
     case "ellipse":
       return isNumber(node.x) && isNumber(node.y) && isNumber(node.width) && isNumber(node.height);
     case "image":
       return typeof node.assetId === "string" &&
         isNumber(node.x) && isNumber(node.y) && isNumber(node.width) && isNumber(node.height) &&
-        (node.lockAspect === undefined || typeof node.lockAspect === "boolean");
+        typeof node.lockAspect === "boolean";
     case "text":
       return typeof node.text === "string" &&
         (node.textMode === "point" || node.textMode === "area") &&
@@ -184,9 +184,7 @@ const isNode = (id: string, node: unknown): boolean => {
       return isNumber(node.x1) && isNumber(node.y1) && isNumber(node.x2) && isNumber(node.y2);
     case "path":
       return (
-        (node.fillRule === undefined ||
-          node.fillRule === "nonzero" ||
-          node.fillRule === "evenodd") &&
+        (node.fillRule === "nonzero" || node.fillRule === "evenodd") &&
         Array.isArray(node.subpaths) &&
         node.subpaths.every((sp) =>
           isObject(sp) && typeof sp.closed === "boolean" &&
@@ -261,7 +259,7 @@ function isCurrentDocument(value: unknown): value is Document {
     Object.entries(value.assets).every(([id, asset]) =>
       isObject(asset) && asset.id === id && asset.kind === "image" &&
       typeof asset.mimeType === "string" &&
-      (asset.name === undefined || typeof asset.name === "string") &&
+      (asset.name === null || typeof asset.name === "string") &&
       isObject(asset.source) && asset.source.type === "data" &&
       typeof asset.source.data === "string") &&
     isObject(value.extensions)
@@ -315,7 +313,7 @@ function validateTree(doc: Document): void {
       return;
     }
     if (node.type !== "group") return;
-    if (node.clip === true && !clippingMask(doc, node)) {
+    if (node.clipsToMask && !clippingMask(doc, node)) {
       throw new Error(`Clipping group has no valid final mask: ${id}.`);
     }
     visiting.add(id);

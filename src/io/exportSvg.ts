@@ -28,8 +28,6 @@ import {
   effectiveStrokeAlignment,
   normalizeStrokeDash,
   STROKE_MITER_LIMIT,
-  strokeCap,
-  strokeJoin,
 } from "../model/stroke";
 import type {
   PathShape,
@@ -369,8 +367,8 @@ function strokeSvgAttrs(
   const parts = [
     ...defs.paintAttrs(shape.stroke, "stroke", shapeBounds(shape, doc)),
     `stroke-width="${num(width)}"`,
-    `stroke-linecap="${strokeCap(shape)}"`,
-    `stroke-linejoin="${strokeJoin(shape)}"`,
+    `stroke-linecap="${shape.strokeCap}"`,
+    `stroke-linejoin="${shape.strokeJoin}"`,
     `stroke-miterlimit="${STROKE_MITER_LIMIT}"`,
   ];
   const dash = normalizeStrokeDash(shape.strokeDash);

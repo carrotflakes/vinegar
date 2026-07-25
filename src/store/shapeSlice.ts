@@ -14,7 +14,7 @@ import { applyWorldTransformToNode, boundsTransform, IDENTITY, invertMatrix, mul
 import { childIdsOf, descendantShapeIds, isGroup, isInstance, isNodeHidden, isNodeLocked, isShape, parentIdOf, referencedAssetIds, scopeLeafIds, scopeRootGroupId, selectionRoots, withChildIds } from "../model/scene";
 import { clampRectCornerRadius } from "../model/roundedRect";
 import { resizeShapeToBounds, translateShape } from "@/model/geometry/transforms";
-import { baseNodeDefaults, makeId, type PathShape, type Bounds, type ImageShape, type SceneNode, type Shape, type Vec2 } from "../model/types";
+import { baseNodeDefaults, baseShapeDefaults, makeId, type PathShape, type Bounds, type ImageShape, type SceneNode, type Shape, type Vec2 } from "../model/types";
 import { importImageFile, importImageFiles, isImageFile } from "../io/importImage";
 import { notify } from "./toastStore";
 import { measureTextShape } from "../canvas/textLayout";
@@ -64,8 +64,10 @@ export function createShapeActions({ set, get, transact, replaceDocumentWithoutH
       id: makeId("path"),
       name,
       type: "path",
+      fillRule: "nonzero",
       subpaths,
       ...baseNodeDefaults(),
+      ...baseShapeDefaults(),
       transform: [1, 0, 0, 1, at.x, at.y],
       fill: solid("#6b7cff"),
       stroke: null,
@@ -330,10 +332,9 @@ export function createShapeActions({ set, get, transact, replaceDocumentWithoutH
           width,
           height,
           ...baseNodeDefaults(),
+          ...baseShapeDefaults(),
+          lockAspect: false,
           transform: [1, 0, 0, 1, 0, 0],
-          fill: null,
-          stroke: null,
-          strokeWidth: 0,
         };
         assets[img.asset.id] = img.asset;
         nodes[shape.id] = shape;
@@ -437,10 +438,9 @@ export function createShapeActions({ set, get, transact, replaceDocumentWithoutH
         width,
         height,
         ...baseNodeDefaults(),
+        ...baseShapeDefaults(),
+        lockAspect: false,
         transform: [1, 0, 0, 1, 0, 0],
-        fill: null,
-        stroke: null,
-        strokeWidth: 0,
       };
       const doc = { ...s.doc, nodes: { ...s.doc.nodes, [shape.id]: shape } };
       transact(appendToScope(doc, currentSymbolScope(s), [shape.id]), { label: "Place image" });
@@ -641,7 +641,7 @@ export function createShapeActions({ set, get, transact, replaceDocumentWithoutH
         { label: "Edit corner radius", coalesceKey: "radius:" + id }
       );
     },
-    setImageLockAspect: (id, lock) => { const doc = get().doc; const shape = doc.nodes[id]; if (!isShape(shape) || shape.type !== "image") return; const next = { ...shape, lockAspect: lock || undefined }; transact({ ...doc, nodes: { ...doc.nodes, [id]: next } }, { label: lock ? "Lock aspect ratio" : "Unlock aspect ratio", coalesceKey: "lockAspect:" + id }); },
+    setImageLockAspect: (id, lock) => { const doc = get().doc; const shape = doc.nodes[id]; if (!isShape(shape) || shape.type !== "image") return; const next = { ...shape, lockAspect: lock }; transact({ ...doc, nodes: { ...doc.nodes, [id]: next } }, { label: lock ? "Lock aspect ratio" : "Unlock aspect ratio", coalesceKey: "lockAspect:" + id }); },
     setClosedSelected: (closed) => { const doc = get().doc; const nodes = { ...doc.nodes }; let changed = false; for (const id of selectionRoots(doc, get().selection)) { const shape = nodes[id]; if (!isShape(shape) || shape.type !== "path") continue; if (shape.subpaths.some((sp) => sp.closed !== closed)) { nodes[id] = { ...shape, subpaths: shape.subpaths.map((sp) => ({ ...sp, closed })), generator: null }; changed = true; } } const next = { ...doc, nodes }; if (changed && hasValidSceneContainers(next)) transact(next, { label: closed ? "Close path" : "Open path" }); },
     pathOpSelected: (op) => { const doc = get().doc; const nodes = { ...doc.nodes }; let changed = false; for (const id of selectionRoots(doc, get().selection)) { const shape = nodes[id]; if (!isShape(shape) || shape.type !== "path") continue; const result = pathOpShape(shape, op); if (result) { nodes[id] = result; changed = true; } } const next = { ...doc, nodes }; if (changed && hasValidSceneContainers(next)) transact(next, { label: PATH_OP_LABEL[op] }); },
   };
