@@ -325,10 +325,10 @@ export interface StructureActions {
 export interface FrameActions {
   /** Create a frame at the top level, centered on `at`, and select it. */
   addFrame: (at?: Vec2) => void;
-  /** Edit a frame's world position (`x`/`y`), content box, or background. */
+  /** Edit a frame's world position (`x`/`y`), content box, background or clip. */
   updateFrame: (
     id: string,
-    patch: Partial<{ x: number; y: number; width: number; height: number; background: string | null }>
+    patch: Partial<{ x: number; y: number; width: number; height: number; background: string | null; clip: boolean }>
   ) => void;
   /** Move frame `id` to `toIndex` among the top-level frames (= export order). */
   reorderFrame: (id: string, toIndex: number) => void;

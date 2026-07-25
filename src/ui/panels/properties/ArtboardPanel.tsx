@@ -95,6 +95,16 @@ export default function ArtboardPanel({ frame }: { frame: FrameNode }) {
             </label>
           </div>
         </div>
+        <div className="field">
+          <label className="checkbox-row">
+            <input
+              type="checkbox"
+              checked={frame.clip ?? true}
+              onChange={(event) => update(frame.id, { clip: event.target.checked })}
+            />
+            Clip content
+          </label>
+        </div>
       </div>
 
       <div className="panel-section">

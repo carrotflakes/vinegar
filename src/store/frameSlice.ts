@@ -62,6 +62,7 @@ export function createFrameActions({ set, get, transact }: StoreCtx): FrameActio
         width: patch.width !== undefined ? Math.max(1, patch.width) : node.width,
         height: patch.height !== undefined ? Math.max(1, patch.height) : node.height,
         background: patch.background !== undefined ? patch.background : node.background,
+        clip: patch.clip !== undefined ? patch.clip : node.clip,
       };
       transact(
         { ...doc, nodes: { ...doc.nodes, [id]: next } },

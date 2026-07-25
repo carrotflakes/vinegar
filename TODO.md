@@ -309,5 +309,4 @@ additional effects, or other feature expansion.
 - [ ] subpath分割コマンド、統合コマンド
 - [ ] apple pencilで短時間の連続したストロークを描くと2本目が反応しない
 - [ ] artboard駆逐
-- [ ] frameのclip
 - [ ] テキスト位置ずれ
