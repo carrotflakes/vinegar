@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
-import { LuChevronDown, LuRotateCcw } from "react-icons/lu";
+import { LuChevronDown, LuRotateCcwSquare, LuRotateCwSquare } from "react-icons/lu";
+import ScrubbableNumber from "./controls/ScrubbableNumber";
 import {
   canvasCenter,
   commandEnabled,
@@ -87,21 +88,26 @@ function ZoomMenuPanel({ close }: { close: () => void }) {
   const angle = rotationDegrees(state.viewport.rotation);
   const rotationEnabled = usePreferences((s) => s.canvas.rotationEnabled);
 
-  // The slider's own position, kept separate from the normalized store angle so
-  // dragging to 180 doesn't snap the thumb to the equivalent -180. It follows
-  // external rotation (gestures) but only when they change the actual rotation.
-  const [sliderAngle, setSliderAngle] = useState(angle);
+  // The field's own value, kept separate from the normalized store angle so
+  // scrubbing to 180 doesn't flip the readout to the equivalent -180. It follows
+  // external rotation (gestures, the ±90 buttons) but only when they change the
+  // actual rotation.
+  const [fieldAngle, setFieldAngle] = useState(angle);
   useEffect(() => {
-    setSliderAngle((prev) => ((prev - angle) % 360 === 0 ? prev : angle));
+    setFieldAngle((prev) => ((prev - angle) % 360 === 0 ? prev : angle));
   }, [angle]);
 
+  const rotateBy = (deltaDeg: number) => {
+    const viewport = useEditor.getState().viewport;
+    state.setViewport(rotateAt(viewport, canvasCenter(), (deltaDeg * Math.PI) / 180));
+  };
+
   // Rotate the canvas about its center to an absolute angle (degrees). The delta
-  // is measured from the slider's own position so dragging stays continuous
-  // across the ±180 wrap.
+  // is measured from the field's own value so scrubbing stays continuous across
+  // the ±180 wrap.
   const rotateTo = (deg: number) => {
-    const delta = ((deg - sliderAngle) * Math.PI) / 180;
-    setSliderAngle(deg);
-    state.setViewport(rotateAt(useEditor.getState().viewport, canvasCenter(), delta));
+    setFieldAngle(deg);
+    rotateBy(deg - fieldAngle);
   };
 
   return (
@@ -109,25 +115,42 @@ function ZoomMenuPanel({ close }: { close: () => void }) {
       {rotationEnabled && (
         <div className="zoom-menu-rotation">
           <span className="zoom-menu-rotation-label">Rotate</span>
-          <input
-            className="zoom-menu-rotation-slider"
-            type="range"
-            min={-180}
-            max={180}
-            step={1}
-            value={sliderAngle}
-            aria-label="Canvas rotation"
-            onChange={(e) => rotateTo(Number(e.target.value))}
-          />
-          <span className="zoom-menu-rotation-value">{sliderAngle}°</span>
+          <span className="zoom-menu-rotation-field">
+            <ScrubbableNumber
+              value={fieldAngle}
+              min={-180}
+              max={180}
+              aria-label="Canvas rotation"
+              onChange={rotateTo}
+            />
+            <span className="zoom-menu-rotation-unit" aria-hidden>
+              °
+            </span>
+          </span>
+          <button
+            className="zoom-menu-rotation-step"
+            title="Rotate 90° counter-clockwise"
+            aria-label="Rotate 90 degrees counter-clockwise"
+            onClick={() => rotateBy(-90)}
+          >
+            <LuRotateCcwSquare aria-hidden />
+          </button>
+          <button
+            className="zoom-menu-rotation-step"
+            title="Rotate 90° clockwise"
+            aria-label="Rotate 90 degrees clockwise"
+            onClick={() => rotateBy(90)}
+          >
+            <LuRotateCwSquare aria-hidden />
+          </button>
           <button
             className="zoom-menu-rotation-reset"
             title="Reset rotation"
             aria-label="Reset rotation"
-            disabled={sliderAngle === 0}
+            disabled={fieldAngle === 0}
             onClick={() => rotateTo(0)}
           >
-            <LuRotateCcw aria-hidden />
+            0°
           </button>
         </div>
       )}

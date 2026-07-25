@@ -111,33 +111,63 @@ globalStyle(".zoom-menu-rotation-label", {
   fontSize: "12px",
 });
 
-globalStyle(".zoom-menu-rotation-slider", {
+/** Scrubbable degree field; the unit sign sits inside the field's border. */
+globalStyle(".zoom-menu-rotation-field", {
   flex: "1 1 auto",
   minWidth: "0",
-  accentColor: vars.accent,
+  display: "flex",
+  alignItems: "center",
+  gap: "1px",
+  paddingRight: "6px",
+  border: `1px solid ${vars.border}`,
+  borderRadius: "6px",
+  background: vars.field,
 });
 
-globalStyle(".zoom-menu-rotation-value", {
-  flex: "0 0 auto",
-  width: "44px",
+globalStyle(".zoom-menu-rotation-field:focus-within", {
+  borderColor: vars.accent,
+});
+
+globalStyle(".zoom-menu-rotation-field input", {
+  flex: "1 1 auto",
+  minWidth: "0",
+  width: "100%",
+  padding: "3px 0 3px 7px",
+  border: "none",
+  background: "transparent",
   textAlign: "right",
   fontVariantNumeric: "tabular-nums",
   fontSize: "12px",
 });
 
-globalStyle(".zoom-menu-rotation-reset", {
+// The wrapper already shows focus; a second ring inside it would double up.
+globalStyle(".zoom-menu-rotation-field input:focus-visible", {
+  boxShadow: "none",
+});
+
+globalStyle(".zoom-menu-rotation-unit", {
+  flex: "0 0 auto",
+  color: vars.muted,
+  fontSize: "12px",
+});
+
+globalStyle(".zoom-menu-rotation-step,\n.zoom-menu-rotation-reset", {
   display: "inline-flex",
   alignItems: "center",
   justifyContent: "center",
-  padding: "4px",
+  flex: "0 0 auto",
+  width: "24px",
+  height: "24px",
+  padding: "0",
   background: "transparent",
   border: "none",
   borderRadius: "4px",
   color: vars.muted,
+  fontSize: "12px",
   cursor: "pointer",
 });
 
-globalStyle(".zoom-menu-rotation-reset:hover:not(:disabled)", {
+globalStyle(".zoom-menu-rotation-step:hover,\n.zoom-menu-rotation-reset:hover:not(:disabled)", {
   background: vars.accentWeak,
   color: vars.accent,
 });
