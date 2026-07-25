@@ -29,7 +29,7 @@ export function createSelectionActions({ set, get }: StoreCtx): SelectionActions
       for (const node of editNodes) {
         unique.set(`${node.shapeId}:${node.sub}:${node.index}`, node);
       }
-      set({ editNodes: [...unique.values()], selectedArtboardId: null });
+      set({ editNodes: [...unique.values()] });
     },
     setActiveGroup: (activeGroupId) => set({ activeGroupId }),
     exitGroup: () => {

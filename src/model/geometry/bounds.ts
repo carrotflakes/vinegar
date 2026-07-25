@@ -3,8 +3,8 @@ import { cachedBrushEnvelope } from "@/model/brush/brushOutline";
 import { clippingMask } from "../clippingMask";
 import { compoundChildren } from "@/model/path/compoundPath";
 import { nodeWorldMatrix, shapeWorldMatrix, transformBounds } from "./matrix";
-import { isGroup, isInstance, isShape } from "../scene";
-import type { Bounds, Document, Shape, SymbolInstance, Vec2 } from "../types";
+import { isFrame, isGroup, isInstance, isShape } from "../scene";
+import type { Bounds, Document, FrameNode, Shape, SymbolInstance, Vec2 } from "../types";
 
 function pointsBounds(points: Vec2[]): Bounds {
   if (points.length === 0) return { x: 0, y: 0, width: 0, height: 0 };
@@ -132,6 +132,11 @@ export function leafLocalBounds(
   return shapeBounds(leaf, doc);
 }
 
+/** A frame's content box in its own local space (origin at 0,0). */
+export function frameLocalBounds(frame: FrameNode): Bounds {
+  return { x: 0, y: 0, width: frame.width, height: frame.height };
+}
+
 export function nodeWorldBounds(
   doc: Document,
   nodeId: string,
@@ -141,6 +146,10 @@ export function nodeWorldBounds(
   if (!node) return null;
   if (isShape(node)) return worldShapeBounds(doc, node);
   if (isInstance(node)) return instanceWorldBounds(doc, node, seen);
+  // A frame's bounds are its content box, not the union of its children.
+  if (isFrame(node)) {
+    return transformBounds(frameLocalBounds(node), nodeWorldMatrix(doc, nodeId));
+  }
   if (isGroup(node)) {
     const mask = clippingMask(doc, node);
     if (mask) return worldShapeBounds(doc, mask);

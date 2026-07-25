@@ -16,14 +16,18 @@ import {
   selectionRoots,
   shapesInPaintOrder,
 } from "../model/scene";
+import { framesInPaintOrder } from "../model/scene";
+import { invertMatrix, nodeWorldMatrix, applyMatrix } from "@/model/geometry/matrix";
 import { collectSnapTargets, snapPoint } from "@/model/geometry/snap";
-import type { Shape, Vec2 } from "../model/types";
+import type { Document, Shape, Vec2 } from "../model/types";
 import { worldToScreen } from "@/model/geometry/viewport";
 import { currentSymbolScope, useEditor, type EditorState } from "../store/editorStore";
 import {
   frameHandlePoint,
+  frameNodeSelectionFrame,
   frameRotationPoint,
   getSelectionFrame,
+  singleSelectedFrame,
   type SelectionFrame,
   type SelectionLeaf,
 } from "./frame";
@@ -86,6 +90,8 @@ export const isVisibleForPicking = isNodeVisibleForHitTesting;
 export function selectionFrame(): SelectionFrame | null {
   const { doc, selection, selectionPivot, selectionTransform } =
     useEditor.getState();
+  const soleFrame = singleSelectedFrame(doc, selection);
+  if (soleFrame) return frameNodeSelectionFrame(doc, soleFrame);
   const shapes = selectedShapes(doc, selection);
   return getSelectionFrame(
     doc,
@@ -96,17 +102,45 @@ export function selectionFrame(): SelectionFrame | null {
   );
 }
 
+/**
+ * The topmost frame whose content-box outline (within `tol` world units) the
+ * point lands on, front-to-back. Interior points miss so shape picking / marquee
+ * still work inside a frame. Frames are top-level and axis-aligned in practice,
+ * so the test runs in frame-local space.
+ */
+export function pickFrameBorder(
+  doc: Document,
+  world: Vec2,
+  tol: number
+): string | null {
+  const frames = framesInPaintOrder(doc);
+  for (let i = frames.length - 1; i >= 0; i--) {
+    const frame = frames[i];
+    const inverse = invertMatrix(nodeWorldMatrix(doc, frame.id));
+    if (!inverse) continue;
+    const p = applyMatrix(inverse, world);
+    const inOuter =
+      p.x >= -tol && p.x <= frame.width + tol &&
+      p.y >= -tol && p.y <= frame.height + tol;
+    const inInner =
+      p.x >= tol && p.x <= frame.width - tol &&
+      p.y >= tol && p.y <= frame.height - tol;
+    if (inOuter && !inInner) return frame.id;
+  }
+  return null;
+}
+
 /** Hit-test the resize handles and rotation handle of the selection frame. */
 export function hitFrameHandle(ctx: ToolContext, screen: Vec2): FrameHit {
   const { doc, selection, viewport } = useEditor.getState();
   const frame = selectionFrame();
   if (!frame) return null;
-  const radiusControl = cornerRadiusControl(
-    doc,
-    selection,
-    viewport,
-    ctx.hitScale()
-  );
+  // Frames are never rotated and have no corner-radius/pivot editing, so only
+  // their resize handles are hit-testable.
+  const isFrameSelection = singleSelectedFrame(doc, selection) !== null;
+  const radiusControl = isFrameSelection
+    ? null
+    : cornerRadiusControl(doc, selection, viewport, ctx.hitScale());
   if (
     radiusControl &&
     Math.hypot(
@@ -117,19 +151,21 @@ export function hitFrameHandle(ctx: ToolContext, screen: Vec2): FrameHit {
     return { type: "corner-radius", control: radiusControl };
   }
   const tol = HANDLE_SIZE * ctx.hitScale();
-  const pivot = worldToScreen(viewport, frame.pivot);
-  if (
-    Math.abs(pivot.x - screen.x) <= tol &&
-    Math.abs(pivot.y - screen.y) <= tol
-  ) {
-    return { type: "pivot" };
+  if (!isFrameSelection) {
+    const pivot = worldToScreen(viewport, frame.pivot);
+    if (
+      Math.abs(pivot.x - screen.x) <= tol &&
+      Math.abs(pivot.y - screen.y) <= tol
+    ) {
+      return { type: "pivot" };
+    }
+    const rot = worldToScreen(viewport, frameRotationPoint(frame, viewport.scale));
+    if (
+      Math.abs(rot.x - screen.x) <= tol &&
+      Math.abs(rot.y - screen.y) <= tol
+    )
+      return { type: "rotate" };
   }
-  const rot = worldToScreen(viewport, frameRotationPoint(frame, viewport.scale));
-  if (
-    Math.abs(rot.x - screen.x) <= tol &&
-    Math.abs(rot.y - screen.y) <= tol
-  )
-    return { type: "rotate" };
   for (const id of HANDLE_IDS) {
     const sp = worldToScreen(viewport, frameHandlePoint(frame, id));
     if (

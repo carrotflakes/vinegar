@@ -38,25 +38,20 @@ test("document patches round-trip every top-level collection", () => {
   const removedNode = rect("removed");
   const keptAsset = { id: "asset-kept", kind: "image", mimeType: "image/png", source: { type: "data", data: "large-unchanged-payload" } };
   const removedAsset = { id: "asset-removed", kind: "image", mimeType: "image/png", source: { type: "data", data: "removed" } };
-  const board1 = { id: "board-1", name: "One", x: 0, y: 0, width: 100, height: 100, background: "#fff" };
-  const board2 = { id: "board-2", name: "Two", x: 120, y: 0, width: 100, height: 100, background: null };
   before.nodes = { kept: keptNode, removed: removedNode };
   before.rootIds = ["kept", "removed"];
   before.symbols = { old: { id: "old", name: "Old", rootNodeId: "kept" } };
-  before.artboards = [board1, board2];
   before.assets = { [keptAsset.id]: keptAsset, [removedAsset.id]: removedAsset };
   before.extensions = { kept: { value: 1 }, removed: true };
 
   const updatedNode = rect("kept", 40);
   const addedNode = rect("added", 80);
   const addedAsset = { id: "asset-added", kind: "image", mimeType: "image/png", source: { type: "data", data: "added" } };
-  const updatedBoard = { ...board2, name: "Updated" };
   const after = {
     ...before,
     nodes: { kept: updatedNode, added: addedNode },
     rootIds: ["added", "kept"],
     symbols: { fresh: { id: "fresh", name: "Fresh", rootNodeId: "added" } },
-    artboards: [board1, updatedBoard],
     settings: { ...before.settings, gridSize: 25 },
     metadata: { ...before.metadata, modifiedAt: "2030-01-01T00:00:00.000Z" },
     assets: { [keptAsset.id]: keptAsset, [addedAsset.id]: addedAsset },
@@ -70,7 +65,6 @@ test("document patches round-trip every top-level collection", () => {
   const applied = applyDocumentPatches(before, patches);
   assert.deepEqual(applied, after);
   assert.equal(applied.assets[keptAsset.id], keptAsset);
-  assert.equal(applied.artboards[0], board1);
 
   const restored = applyDocumentPatches(applied, inversePatches);
   assert.deepEqual(restored, before);

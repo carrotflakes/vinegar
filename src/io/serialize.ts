@@ -12,7 +12,7 @@ import {
   type ShapeType,
 } from "../model/types";
 
-export const CURRENT_FILE_VERSION = 23 as const;
+export const CURRENT_FILE_VERSION = 24 as const;
 
 /**
  * v8 lacked `symbols` (added as an empty registry). v8 and v9 stored fill/
@@ -30,11 +30,13 @@ export const CURRENT_FILE_VERSION = 23 as const;
  * subpath `path` nodes with an optional fill rule. v22 moves compound-path
  * members into `nodes` and owns them through `childIds`. v23 adds document-level
  * global colours (`doc.swatches`/`swatchOrder`, backfilled empty) and the
- * `swatch` fill/stroke reference. v8-v22 documents migrate on load; absent
- * optional fields retain their historical behavior.
+ * `swatch` fill/stroke reference. v24 replaces the flat `doc.artboards` list
+ * with `frame` container nodes (see docs/artboard-frames.md). Pre-v24 files
+ * still open, but their artboards are intentionally NOT migrated to frames —
+ * they are dropped on load (the rest of the document migrates as before).
  */
 const MIGRATABLE_VERSIONS = new Set<unknown>([
-  8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22,
+  8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23,
 ]);
 
 export interface VinegarFile {
@@ -64,8 +66,8 @@ function usedAssets(doc: Document): Document["assets"] {
   );
 }
 
-const NODE_TYPES = new Set<ShapeType | "group" | "instance">([
-  "group", "rect", "ellipse", "line", "path", "compoundPath", "instance", "image", "text", "brush",
+const NODE_TYPES = new Set<ShapeType | "group" | "instance" | "frame">([
+  "group", "frame", "rect", "ellipse", "line", "path", "compoundPath", "instance", "image", "text", "brush",
 ]);
 const isObject = (value: unknown): value is Record<string, unknown> =>
   !!value && typeof value === "object" && !Array.isArray(value);
@@ -157,6 +159,14 @@ const isNode = (id: string, node: unknown): boolean => {
       Array.isArray(node.childIds) &&
       node.childIds.every((child) => typeof child === "string");
   }
+  if (node.type === "frame") {
+    return (node.clip === undefined || typeof node.clip === "boolean") &&
+      isNumber(node.width) && node.width >= 0 &&
+      isNumber(node.height) && node.height >= 0 &&
+      (node.background === null || typeof node.background === "string") &&
+      Array.isArray(node.childIds) &&
+      node.childIds.every((child) => typeof child === "string");
+  }
   if (node.type === "instance") {
     return typeof node.symbolId === "string";
   }
@@ -245,13 +255,6 @@ export function parseDocument(text: string): Document {
   if (
     data.version !== CURRENT_FILE_VERSION &&
     isObject(data.document) &&
-    data.document.artboards === undefined
-  ) {
-    data.document.artboards = [];
-  }
-  if (
-    data.version !== CURRENT_FILE_VERSION &&
-    isObject(data.document) &&
     data.document.scripts === undefined
   ) {
     data.document.scripts = {};
@@ -265,6 +268,15 @@ export function parseDocument(text: string): Document {
   }
   if (data.version !== CURRENT_FILE_VERSION && isObject(data.document)) {
     migrateCompoundPathNodes(data.document);
+  }
+  // v24 drops the flat artboard list. Pre-v24 artboards are intentionally not
+  // converted to frames; discard them so the rest of the document still opens.
+  if (
+    data.version !== CURRENT_FILE_VERSION &&
+    isObject(data.document) &&
+    "artboards" in data.document
+  ) {
+    delete data.document.artboards;
   }
   if (!isCurrentDocument(data.document)) {
     throw new Error("Document data is missing or malformed.");
@@ -396,11 +408,6 @@ function isCurrentDocument(value: unknown): value is Document {
     Object.entries(value.scripts).every(([id, def]) =>
       isObject(def) && def.id === id &&
       typeof def.name === "string" && typeof def.source === "string") &&
-    Array.isArray(value.artboards) &&
-    value.artboards.every((ab) =>
-      isObject(ab) && typeof ab.id === "string" && typeof ab.name === "string" &&
-      isNumber(ab.x) && isNumber(ab.y) && isNumber(ab.width) && isNumber(ab.height) &&
-      (ab.background === null || typeof ab.background === "string")) &&
     isObject(value.settings) && typeof value.settings.unit === "string" &&
     isNumber(value.settings.dpi) && isNumber(value.settings.gridSize) &&
     isObject(value.metadata) && typeof value.metadata.createdAt === "string" &&
@@ -434,7 +441,7 @@ function validateTree(doc: Document): void {
     if (node.type === "image" && !doc.assets[node.assetId]) {
       throw new Error(`Image references missing asset: ${node.assetId}.`);
     }
-    if (node.type !== "group") {
+    if (node.type !== "group" && node.type !== "frame") {
       for (const paint of [node.fill, node.stroke]) {
         if (paint?.type === "pattern" && !doc.assets[paint.assetId]) {
           throw new Error(`Pattern references missing asset: ${paint.assetId}.`);
@@ -451,6 +458,12 @@ function validateTree(doc: Document): void {
           throw new Error(`Compound path has invalid child: ${childId}.`);
         }
       }
+      visiting.add(id);
+      for (const childId of node.childIds) visit(childId);
+      visiting.delete(id);
+      return;
+    }
+    if (node.type === "frame") {
       visiting.add(id);
       for (const childId of node.childIds) visit(childId);
       visiting.delete(id);
@@ -479,6 +492,14 @@ function validateTree(doc: Document): void {
   }
   if (owned.size !== Object.keys(doc.nodes).length) {
     throw new Error("Scene contains unreachable nodes.");
+  }
+  // Top-level frame invariant: a frame lives only at the scene root, never
+  // inside a group, symbol, or another frame. See docs/artboard-frames.md.
+  const rootSet = new Set(doc.rootIds);
+  for (const node of Object.values(doc.nodes)) {
+    if (node.type === "frame" && !rootSet.has(node.id)) {
+      throw new Error(`Frame is not at the top level: ${node.id}.`);
+    }
   }
   // The symbol reference graph must be acyclic.
   const done = new Set<string>();

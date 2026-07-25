@@ -23,10 +23,10 @@ import { type ToolContext } from "../interaction";
 import { cancelActiveInteraction } from "../interactionLifecycle";
 import { pickShape } from "../picking";
 import {
-  finishArtboard,
-  onArtboardDown,
-  onArtboardMove,
-} from "../tools/artboardTool";
+  finishFrame,
+  onFrameDown,
+  onFrameMove,
+} from "../tools/frameTool";
 import { finishBrush, onBrushMove, startBrush } from "../tools/brushTool";
 import { bucketFillAt } from "../tools/bucketTool";
 import { finishEraser, onEraserMove, startEraser } from "../tools/eraserTool";
@@ -186,8 +186,8 @@ export function usePointerHandlers(deps: PointerHandlerDeps): PointerHandlers {
       bucketFillAt(state, world);
       return;
     }
-    if (tool === "artboard") {
-      onArtboardDown(ctx, state, screen, world);
+    if (tool === "frame") {
+      onFrameDown(ctx, state, screen, world);
       return;
     }
     if (tool === "text") {
@@ -296,10 +296,8 @@ export function usePointerHandlers(deps: PointerHandlerDeps): PointerHandlers {
       case "node-marquee":
         onNodeMarqueeMove(ctx, state, inter, screen);
         break;
-      case "artboard-create":
-      case "artboard-move":
-      case "artboard-resize":
-        onArtboardMove(ctx, state, inter, world, mod.shift, mod.alt);
+      case "frame-create":
+        onFrameMove(ctx, state, inter, world, mod.shift, mod.alt);
         break;
     }
   };
@@ -375,10 +373,8 @@ export function usePointerHandlers(deps: PointerHandlerDeps): PointerHandlers {
         onNodeMarqueeUp(ctx, state, inter, screen, screenToWorld(state.viewport, screen));
         break;
       }
-      case "artboard-create":
-      case "artboard-move":
-      case "artboard-resize":
-        finishArtboard(ctx, state, inter);
+      case "frame-create":
+        finishFrame(ctx, state, inter);
         break;
     }
   };

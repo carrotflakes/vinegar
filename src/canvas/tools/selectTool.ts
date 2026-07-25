@@ -22,6 +22,7 @@ import { magnetAngle, snapAngle } from "@/model/geometry/rotate";
 import { resizeShapeToBounds } from "@/model/geometry/transforms";
 import {
   descendantShapeIds,
+  isFrame,
   isGroup,
   isInstance,
   isNodeLocked,
@@ -39,20 +40,14 @@ import { setReadout } from "../../store/pointerStore";
 import {
   HANDLE_SIZE,
   constrainAspectRatio,
-  handleCursor,
   handleCursorRotated,
   resizeBounds,
 } from "../handles";
-import {
-  beginArtboardMove,
-  beginArtboardResize,
-  hitArtboardHandle,
-  pickArtboardBorder,
-} from "./artboardTool";
 import type { Interaction, ToolContext } from "../interaction";
 import {
   hitFrameHandle,
   isVisibleForPicking,
+  pickFrameBorder,
   pickLockedShape,
   pickShape,
   pointSnap,
@@ -197,20 +192,6 @@ export function onSelectDown(
     return;
   }
 
-  // Artboards join the Select tool: a selected board's handles resize it, and
-  // any board can be grabbed by its border (interior clicks fall through to
-  // shape picking / marquee, so selecting content inside a board still works).
-  const selectedBoard = state.doc.artboards.find(
-    (ab) => ab.id === state.selectedArtboardId
-  );
-  if (selectedBoard) {
-    const handle = hitArtboardHandle(state, selectedBoard, screen, ctx.hitScale());
-    if (handle) {
-      beginArtboardResize(ctx, state, selectedBoard, handle);
-      return;
-    }
-  }
-
   // A locked shape can't be *selected* by clicking, but one that is already in
   // the selection (e.g. picked from the Layers panel) can still be dragged to
   // move it — lock blocks selecting/editing, not moving what's already
@@ -233,8 +214,6 @@ export function onSelectDown(
       : null;
   const hitId = pickShape(ctx, world);
   if (hitId) {
-    // Selecting scene content drops any artboard selection.
-    if (state.selectedArtboardId) state.selectArtboard(null);
     // While drilled into a group, hits inside it resolve to its direct
     // children; a hit outside steps back out to the top level.
     const insideActive =
@@ -259,18 +238,20 @@ export function onSelectDown(
     return;
   }
 
-  // No shape hit: grabbing a board's border selects and moves it.
+  // No shape hit: grabbing a frame's border selects and moves it (frames are
+  // ordinary nodes, so this is a normal selection move — children follow).
   const borderTol =
     ((HANDLE_SIZE / 2 + 3) * ctx.hitScale()) / state.viewport.scale;
-  const borderBoard = pickArtboardBorder(state.doc.artboards, world, borderTol);
-  if (borderBoard) {
-    beginArtboardMove(ctx, state, borderBoard, world);
+  const borderFrame = pickFrameBorder(state.doc, world, borderTol);
+  if (borderFrame) {
+    if (activeGroup) state.setActiveGroup(null);
+    if (!state.selection.includes(borderFrame)) state.setSelection([borderFrame]);
+    beginSelectionMove(ctx, state, world, [borderFrame]);
     return;
   }
 
   if (!shiftKey) {
     state.clearSelection();
-    if (state.selectedArtboardId) state.selectArtboard(null);
     if (activeGroup) state.setActiveGroup(null);
   }
   ctx.interaction.current = {
@@ -390,6 +371,26 @@ export function onSelectMove(
         );
       }
       const entries = Object.entries(inter.originals);
+      // A frame resizes its content box, never its children's scale. `to` is in
+      // frame-local space; its origin offset folds into the frame transform so
+      // the moved edge tracks the pointer while the opposite edge stays put.
+      // (Frames are top-level, so their world matrix is their own transform.)
+      const soloFrame =
+        inter.single && entries.length === 1 && isFrame(entries[0][1])
+          ? entries[0][1]
+          : null;
+      if (soloFrame) {
+        state.applyShapes({
+          [soloFrame.id]: {
+            ...soloFrame,
+            width: Math.max(1, to.width),
+            height: Math.max(1, to.height),
+            transform: multiply(soloFrame.transform, translationMatrix(to.x, to.y)),
+          },
+        });
+        setReadout(formatSize(to.width, to.height));
+        break;
+      }
       // Text and parametric (generator-backed) shapes are excluded from the
       // geometry-fold path and resize through the transform below instead.
       // Text has no baked-scale representation (w/h are measured, not authored,
@@ -577,13 +578,6 @@ export function selectCursor(
     return handleCursorRotated(hit.id, frame?.rotation ?? 0);
   }
   const state = useEditor.getState();
-  const board = state.doc.artboards.find(
-    (ab) => ab.id === state.selectedArtboardId
-  );
-  if (board) {
-    const handle = hitArtboardHandle(state, board, screen, ctx.hitScale());
-    if (handle) return handleCursor(handle);
-  }
   const lockedHit = pickLockedShape(ctx, world);
   if (lockedHit) {
     const scopeRoot = scopeRootGroupId(state.doc, currentSymbolScope(state));
@@ -597,6 +591,6 @@ export function selectCursor(
   if (pickShape(ctx, world)) return "move";
   const borderTol =
     ((HANDLE_SIZE / 2 + 3) * ctx.hitScale()) / state.viewport.scale;
-  if (pickArtboardBorder(state.doc.artboards, world, borderTol)) return "move";
+  if (pickFrameBorder(state.doc, world, borderTol)) return "move";
   return "default";
 }

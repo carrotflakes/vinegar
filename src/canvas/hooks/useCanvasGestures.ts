@@ -25,7 +25,6 @@ type SelectionBaseline = Pick<
   | "activeGroupId"
   | "selectionPivot"
   | "selectionTransform"
-  | "selectedArtboardId"
   | "editNodes"
 >;
 
@@ -57,7 +56,6 @@ export function useCanvasGestures(ctx: ToolContext): CanvasGestures {
       activeGroupId: s.activeGroupId,
       selectionPivot: s.selectionPivot,
       selectionTransform: s.selectionTransform,
-      selectedArtboardId: s.selectedArtboardId,
       editNodes: s.editNodes,
     };
   }, []);

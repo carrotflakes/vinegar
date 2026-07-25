@@ -36,6 +36,7 @@ import {
   descendantNodeIds,
   isCompoundPath,
   isContainer,
+  isFrame,
   isGroup,
   isInstance,
   isShape,
@@ -145,6 +146,8 @@ export function createStructureActions({ set, get, transact }: StoreCtx): Struct
     },
     groupSelected: () => {
       const { doc } = get(); const roots = selectionRoots(doc, get().selection); if (roots.length < 2) return;
+      // Frames must stay top-level, so they can never be pulled into a group.
+      if (roots.some((id) => isFrame(doc.nodes[id]))) return;
       const parent = parentIdOf(doc, roots[0]); if (!roots.every((id) => parentIdOf(doc, id) === parent)) return;
       const selected = new Set(roots); const siblings = childIdsOf(doc, parent); const members = siblings.filter((id) => selected.has(id)); const insert = siblings.indexOf(members[members.length - 1]); const rest = siblings.filter((id) => !selected.has(id)); const below = siblings.slice(0, insert).filter((id) => !selected.has(id)).length;
       const id = makeId("group"); rest.splice(below, 0, id);
@@ -428,6 +431,11 @@ export function createStructureActions({ set, get, transact }: StoreCtx): Struct
       const node = doc.nodes[id];
       const target = parent === null ? undefined : doc.nodes[parent];
       if (!node) return;
+      // Frames are a top-level invariant: never reparent one under a container.
+      if (isFrame(node) && parent !== null) {
+        notify.error("Frames must stay at the top level.");
+        return;
+      }
       if (parent !== null && !isContainer(target)) {
         notify.error("That layer cannot contain child layers.");
         return;

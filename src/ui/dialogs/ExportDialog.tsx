@@ -38,7 +38,7 @@ interface Props {
 
 const SCOPE_LABELS: Record<ExportScope, string> = {
   content: "Content",
-  artboard: "Artboard",
+  frame: "Frame",
   selection: "Selection",
 };
 
@@ -54,27 +54,28 @@ const PREVIEW_MAX_EDGE = 460;
 export default function ExportDialog({ open, onClose }: Props) {
   const doc = useEditor((s) => s.doc);
   const selection = useEditor((s) => s.selection);
-  const selectedArtboardId = useEditor((s) => s.selectedArtboardId);
 
   const [settings, setSettings] = useState<ExportImageSettings>(loadExportSettings);
 
-  const artboard = useMemo(
-    () => doc.artboards.find((ab) => ab.id === selectedArtboardId) ?? null,
-    [doc.artboards, selectedArtboardId]
-  );
-  const hasArtboard = artboard != null;
+  // Export scope "frame" targets a lone selected frame node.
+  const frame = useMemo(() => {
+    if (selection.length !== 1) return null;
+    const node = doc.nodes[selection[0]];
+    return node?.type === "frame" ? node : null;
+  }, [doc, selection]);
+  const hasFrame = frame != null;
   const selectionBounds = useMemo(
     () => selectionContentBounds(doc, selection, settings.margin),
     [doc, selection, settings.margin]
   );
   const hasSelection = selectionBounds != null;
   const region: ExportRegionContext = useMemo(
-    () => ({ artboard, selectionBounds }),
-    [artboard, selectionBounds]
+    () => ({ frame, selectionBounds }),
+    [frame, selectionBounds]
   );
 
   const scopeAvailable = (scope: ExportScope) =>
-    scope === "artboard" ? hasArtboard : scope === "selection" ? hasSelection : true;
+    scope === "frame" ? hasFrame : scope === "selection" ? hasSelection : true;
 
   // On open, keep the remembered scope but fall back to Content when the stored
   // scope has nothing to export in the current selection state.
@@ -84,7 +85,7 @@ export default function ExportDialog({ open, onClose }: Props) {
       scopeAvailable(prev.scope) ? prev : { ...prev, scope: "content" }
     );
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, hasArtboard, hasSelection]);
+  }, [open, hasFrame, hasSelection]);
 
   // Remember settings for next time.
   useEffect(() => {
@@ -121,7 +122,7 @@ export default function ExportDialog({ open, onClose }: Props) {
         PREVIEW_MAX_EDGE / longEdge
       );
       try {
-        const opts = toPngOptions(settings, bounds, artboard);
+        const opts = toPngOptions(settings, bounds, frame);
         const blob = await exportPng(doc, { ...opts, scale: previewScale });
         if (cancelled) return;
         url = URL.createObjectURL(blob);
@@ -135,7 +136,7 @@ export default function ExportDialog({ open, onClose }: Props) {
       window.clearTimeout(handle);
       if (url) URL.revokeObjectURL(url);
     };
-  }, [open, doc, settings, bounds, artboard, tooLarge]);
+  }, [open, doc, settings, bounds, frame, tooLarge]);
 
   useEffect(() => {
     if (!open) return;
@@ -155,10 +156,10 @@ export default function ExportDialog({ open, onClose }: Props) {
   const doExport = async () => {
     if (!bounds || !canExport) return;
     try {
-      const blob = await exportPng(doc, toPngOptions(settings, bounds, artboard));
+      const blob = await exportPng(doc, toPngOptions(settings, bounds, frame));
       const stem =
-        settings.scope === "artboard" && artboard
-          ? fileSlug(artboard.name)
+        settings.scope === "frame" && frame
+          ? fileSlug(frame.name)
           : "drawing";
       downloadBlob(blob, exportFilename(settings, stem));
       onClose();

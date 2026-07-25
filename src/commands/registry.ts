@@ -25,12 +25,11 @@ import { canGroupSelection, selectionUnits } from "../model/groups";
 import { isAreal } from "@/model/path/boolean";
 import { joinableSubpathCount } from "@/model/path/joinPath";
 import { hasCuttableNodes } from "@/model/path/cutPath";
-import { isInstance, isShape, parentIdOf, selectionRoots } from "../model/scene";
-import { unionNodeWorldBounds } from "@/model/geometry/bounds";
+import { framesInPaintOrder, isFrame, isInstance, isShape, parentIdOf, selectionRoots } from "../model/scene";
+import { nodeWorldBounds, unionNodeWorldBounds } from "@/model/geometry/bounds";
 import {
-  artboardBounds,
-  type Artboard,
   type Bounds,
+  type FrameNode,
   type Vec2,
 } from "../model/types";
 import {
@@ -171,9 +170,11 @@ function canCutNodes(s: EditorState): boolean {
   return false;
 }
 
-/** The currently selected artboard, or null. */
-function selectedArtboard(s: EditorState): Artboard | null {
-  return s.doc.artboards.find((ab) => ab.id === s.selectedArtboardId) ?? null;
+/** The lone selected frame node, or null. */
+function selectedFrame(s: EditorState): FrameNode | null {
+  if (s.selection.length !== 1) return null;
+  const node = s.doc.nodes[s.selection[0]];
+  return isFrame(node) ? node : null;
 }
 
 /** Center of the canvas viewport in screen coords (for zoom-to-center). */
@@ -285,11 +286,8 @@ export const COMMANDS: Command[] = [
     label: "Duplicate",
     group: "Edit",
     keys: [{ key: "d", mod: true }],
-    enabled: (s) => sel(s).hasSelection || s.selectedArtboardId != null,
-    run: (s) => {
-      if (s.selectedArtboardId) s.duplicateArtboard(s.selectedArtboardId);
-      else s.duplicateSelected();
-    },
+    enabled: (s) => sel(s).hasSelection,
+    run: (s) => s.duplicateSelected(),
   },
 
   // Selection ---------------------------------------------------------------
@@ -306,13 +304,9 @@ export const COMMANDS: Command[] = [
     group: "Edit",
     danger: true,
     keys: [{ key: "Delete" }, { key: "Backspace" }],
-    enabled: (s) =>
-      s.editNodes.length > 0 ||
-      s.selection.length > 0 ||
-      s.selectedArtboardId != null,
+    enabled: (s) => s.editNodes.length > 0 || s.selection.length > 0,
     run: (s) => {
       if (s.editNodes.length) s.deleteEditNode();
-      else if (s.selectedArtboardId) s.deleteArtboard(s.selectedArtboardId);
       else s.deleteSelected();
     },
   },
@@ -510,36 +504,32 @@ export const COMMANDS: Command[] = [
   { id: "tool.pencil", label: "Pencil tool", group: "Tools", keys: [{ key: "b", shift: true }], run: (s) => s.setTool("pencil") },
   { id: "tool.bucket", label: "Bucket Fill tool", group: "Tools", keys: [{ key: "g" }], run: (s) => s.setTool("bucket") },
   { id: "tool.text", label: "Text tool", group: "Tools", keys: [{ key: "t" }], run: (s) => s.setTool("text") },
-  { id: "tool.artboard", label: "Artboard tool", group: "Tools", keys: [{ key: "a" }], run: (s) => s.setTool("artboard") },
+  { id: "tool.artboard", label: "Frame tool", group: "Tools", keys: [{ key: "a" }], run: (s) => s.setTool("frame") },
 
-  // Artboards ---------------------------------------------------------------
+  // Frames ------------------------------------------------------------------
   {
     id: "artboard.add",
-    label: "Add artboard",
-    group: "Artboard",
+    label: "Add frame",
+    group: "Frame",
     run: (s) => {
-      s.setTool("artboard");
-      s.addArtboard(screenToWorld(s.viewport, canvasCenter()));
+      s.setTool("frame");
+      s.addFrame(screenToWorld(s.viewport, canvasCenter()));
     },
   },
   {
     id: "artboard.duplicate",
-    label: "Duplicate artboard",
-    group: "Artboard",
-    enabled: (s) => s.selectedArtboardId != null,
-    run: (s) => {
-      if (s.selectedArtboardId) s.duplicateArtboard(s.selectedArtboardId);
-    },
+    label: "Duplicate frame",
+    group: "Frame",
+    enabled: (s) => selectedFrame(s) != null,
+    run: (s) => s.duplicateSelected(),
   },
   {
     id: "artboard.delete",
-    label: "Delete artboard",
-    group: "Artboard",
+    label: "Delete frame",
+    group: "Frame",
     danger: true,
-    enabled: (s) => s.selectedArtboardId != null,
-    run: (s) => {
-      if (s.selectedArtboardId) s.deleteArtboard(s.selectedArtboardId);
-    },
+    enabled: (s) => selectedFrame(s) != null,
+    run: (s) => s.deleteSelected(),
   },
 
   // View --------------------------------------------------------------------
@@ -594,12 +584,12 @@ export const COMMANDS: Command[] = [
   },
   {
     id: "view.fitArtboard",
-    label: "Fit artboard",
+    label: "Fit frame",
     group: "View",
-    enabled: (s) => selectedArtboard(s) != null,
+    enabled: (s) => selectedFrame(s) != null,
     run: (s) => {
-      const artboard = selectedArtboard(s);
-      fitViewport(s, artboard ? artboardBounds(artboard) : null);
+      const frame = selectedFrame(s);
+      fitViewport(s, frame ? nodeWorldBounds(s.doc, frame.id) : null);
     },
   },
   {
@@ -721,19 +711,20 @@ export const COMMANDS: Command[] = [
   },
   {
     id: "file.exportArtboardPng",
-    label: "Export artboard PNG",
+    label: "Export frame PNG",
     group: "File",
-    enabled: (s) => s.selectedArtboardId != null,
+    enabled: (s) => selectedFrame(s) != null,
     run: async (s) => {
-      const ab = selectedArtboard(s);
-      if (!ab) return;
+      const frame = selectedFrame(s);
+      const bounds = frame && nodeWorldBounds(s.doc, frame.id);
+      if (!frame || !bounds) return;
       try {
         const blob = await exportPng(s.doc, {
           scale: 2,
-          bounds: artboardBounds(ab),
-          background: ab.background ?? undefined,
+          bounds,
+          background: frame.background ?? undefined,
         });
-        downloadBlob(blob, `${fileSlug(ab.name)}.png`);
+        downloadBlob(blob, `${fileSlug(frame.name)}.png`);
       } catch (err) {
         notify.error(err instanceof Error ? err.message : String(err));
       }
@@ -741,15 +732,16 @@ export const COMMANDS: Command[] = [
   },
   {
     id: "file.exportArtboardSvg",
-    label: "Export artboard SVG",
+    label: "Export frame SVG",
     group: "File",
-    enabled: (s) => s.selectedArtboardId != null,
+    enabled: (s) => selectedFrame(s) != null,
     run: (s) => {
-      const ab = selectedArtboard(s);
-      if (!ab) return;
+      const frame = selectedFrame(s);
+      const bounds = frame && nodeWorldBounds(s.doc, frame.id);
+      if (!frame || !bounds) return;
       try {
-        const svg = exportSvg(s.doc, { bounds: artboardBounds(ab), background: ab.background });
-        downloadText(svg, `${fileSlug(ab.name)}.svg`, "image/svg+xml");
+        const svg = exportSvg(s.doc, { bounds, background: frame.background });
+        downloadText(svg, `${fileSlug(frame.name)}.svg`, "image/svg+xml");
       } catch (err) {
         notify.error(err instanceof Error ? err.message : String(err));
       }
@@ -757,17 +749,20 @@ export const COMMANDS: Command[] = [
   },
   {
     id: "file.exportAllArtboardsPng",
-    label: "Export all artboards (PNG)",
+    label: "Export all frames (PNG)",
     group: "File",
-    enabled: (s) => s.doc.artboards.length > 0,
+    enabled: (s) => framesInPaintOrder(s.doc).length > 0,
     run: async (s) => {
       try {
-        const slugs = uniqueFileSlugs(s.doc.artboards.map((ab) => ab.name));
-        for (const [index, ab] of s.doc.artboards.entries()) {
+        const frames = framesInPaintOrder(s.doc);
+        const slugs = uniqueFileSlugs(frames.map((frame) => frame.name));
+        for (const [index, frame] of frames.entries()) {
+          const bounds = nodeWorldBounds(s.doc, frame.id);
+          if (!bounds) continue;
           const blob = await exportPng(s.doc, {
             scale: 2,
-            bounds: artboardBounds(ab),
-            background: ab.background ?? undefined,
+            bounds,
+            background: frame.background ?? undefined,
           });
           downloadBlob(blob, `${slugs[index]}.png`);
         }

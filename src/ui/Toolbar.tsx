@@ -37,7 +37,7 @@ const TOOLS: ToolDef[] = [
   { id: "eraser", label: "Eraser", hint: "E", icon: LuEraser },
   { id: "bucket", label: "Bucket Fill", hint: "G", icon: LuPaintBucket },
   { id: "text", label: "Text", hint: "T", icon: LuType },
-  { id: "artboard", label: "Artboard", hint: "A", icon: LuFrame, groupBefore: true },
+  { id: "frame", label: "Frame", hint: "A", icon: LuFrame, groupBefore: true },
 ];
 
 export default function Toolbar() {

@@ -20,14 +20,12 @@ export function cancelActiveInteraction(ctx: ToolContext): void {
     case "pivot":
     case "node-anchor":
     case "node-handle":
-    case "artboard-move":
-    case "artboard-resize":
       // These commit through begin/endInteraction; roll back the snapshot.
       state.cancelInteraction();
       break;
-    case "artboard-create":
+    case "frame-create":
       state.cancelInteraction();
-      state.selectArtboard(null);
+      state.clearSelection();
       break;
     case "create":
     case "pencil":

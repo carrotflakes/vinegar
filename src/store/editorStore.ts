@@ -8,11 +8,11 @@
 import { create } from "zustand";
 import { IDENTITY } from "@/model/geometry/matrix";
 import { createEmptyDocument, type Shape } from "../model/types";
-import { createArtboardActions } from "./artboardSlice";
 import { createClipboardActions } from "./clipboardSlice";
 import { createHistory, trimHistoryToLimit } from "./historySlice";
 import { usePreferences } from "./preferencesStore";
 import { createPrefsActions, initialPrefs } from "./prefsSlice";
+import { createFrameActions } from "./frameSlice";
 import { createSelectionActions } from "./selectionSlice";
 import { createShapeActions } from "./shapeSlice";
 import {
@@ -57,7 +57,6 @@ export const useEditor = create<EditorState>((set, get) => {
     selectionTransform: null,
     editingSymbols: [],
     activeGroupId: null,
-    selectedArtboardId: null,
     history: { past: [], future: [] },
     editNodes: [],
     scriptsTrusted: true,
@@ -71,7 +70,7 @@ export const useEditor = create<EditorState>((set, get) => {
     ...createSelectionActions(ctx),
     ...createShapeActions(ctx),
     ...createStructureActions(ctx),
-    ...createArtboardActions(ctx),
+    ...createFrameActions(ctx),
     ...createClipboardActions(ctx),
     ...createSwatchActions(ctx),
     ...createSymbolActions(ctx),

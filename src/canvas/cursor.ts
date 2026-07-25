@@ -1,7 +1,7 @@
 import type { Vec2 } from "../model/types";
 import type { EditorState } from "../store/editorStore";
 import type { ToolContext } from "./interaction";
-import { artboardCursor } from "./tools/artboardTool";
+import { frameCursor } from "./tools/frameTool";
 import { nodeCursor } from "./tools/nodeTool";
 import { penPencilCursor } from "./tools/penTool";
 import { selectCursor } from "./tools/selectTool";
@@ -21,8 +21,8 @@ export function resolveCursor(
       return penPencilCursor(ctx, state, screen);
     case "node":
       return nodeCursor(ctx, screen, world);
-    case "artboard":
-      return artboardCursor(ctx, state, screen, world);
+    case "frame":
+      return frameCursor();
     case "text":
       return "text";
     case "brush":

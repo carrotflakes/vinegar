@@ -113,7 +113,7 @@ function documentReset(doc: Document, saved: boolean) {
 
 function restoredEditorState(doc: Document, get: StoreGet) {
   const state = get();
-  return { selection: state.selection.filter((id) => !!doc.nodes[id]), editingSymbols: state.editingSymbols.filter((id) => !!doc.symbols[id]), ...clearTransient, selectedArtboardId: doc.artboards.some((artboard) => artboard.id === state.selectedArtboardId) ? state.selectedArtboardId : null };
+  return { selection: state.selection.filter((id) => !!doc.nodes[id]), editingSymbols: state.editingSymbols.filter((id) => !!doc.symbols[id]), ...clearTransient };
 }
 
 export interface HistorySlice {
@@ -147,7 +147,6 @@ export function createHistory(set: StoreSet, get: StoreGet): HistorySlice {
         state
       ),
       ...clearTransient,
-      selectedArtboardId: state.selectedArtboardId,
       editNodes: interaction.beforeEditNodes,
       _interaction: null,
     });

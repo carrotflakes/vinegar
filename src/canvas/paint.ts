@@ -1,18 +1,22 @@
 import { unionNodeWorldBounds } from "@/model/geometry/bounds";
 import { exactlySelectedGroup } from "../model/groups";
-import { shapeWorldMatrix } from "@/model/geometry/matrix";
-import { scopeRootGroupId } from "../model/scene";
+import { applyMatrix, nodeWorldMatrix, shapeWorldMatrix } from "@/model/geometry/matrix";
+import { framesInPaintOrder, scopeRootGroupId } from "../model/scene";
 import type { Guide, Spacing } from "@/model/geometry/snap";
 import type { Bounds, PathShape, Shape, Vec2 } from "../model/types";
 import { currentSymbolScope, type EditorState } from "../store/editorStore";
 import type { CanvasTheme } from "./canvasTheme";
 import { cornerRadiusControl } from "./cornerRadiusHandle";
-import { getSelectionFrame } from "./frame";
+import {
+  frameNodeSelectionFrame,
+  getSelectionFrame,
+  singleSelectedFrame,
+} from "./frame";
 import { HANDLE_SIZE } from "./handles";
 import { TOUCH_DRAW_SCALE, type Interaction } from "./interaction";
 import { ANCHOR_SIZE, HANDLE_DOT } from "./nodes";
 import {
-  drawArtboardChrome,
+  drawFrameLabels,
   drawGuides,
   drawNodes,
   drawOverlay,
@@ -76,27 +80,31 @@ export function paintCanvas(input: PaintInput): void {
     gridSize: state.gridSize,
     gridColors: theme.grid,
     rootIds: scopeRoot !== null ? [scopeRoot] : undefined,
-    artboards: scope ? undefined : doc.artboards,
     hiddenShapeId: hiddenTextId,
   });
 
   const chrome = coarse ? TOUCH_DRAW_SCALE : 1;
   const selected = selectedShapes(doc, selection);
+  // A lone selected frame is framed by its content box; everything else uses the
+  // leaf-union selection frame.
+  const soleFrame = scope === null ? singleSelectedFrame(doc, selection) : null;
+  const selectionFrame = soleFrame
+    ? frameNodeSelectionFrame(doc, soleFrame)
+    : getSelectionFrame(
+        doc,
+        selected,
+        exactlySelectedGroup(doc, selection),
+        state.selectionPivot,
+        state.selectionTransform
+      );
   drawOverlay(ctx2d, {
     dpr,
     viewport,
-    frame:
-      tool === "select"
-        ? getSelectionFrame(
-            doc,
-            selected,
-            exactlySelectedGroup(doc, selection),
-            state.selectionPivot,
-            state.selectionTransform
-          )
-        : null,
+    frame: tool === "select" ? selectionFrame : null,
     marquee,
-    showHandles: tool === "select" && selected.length > 0,
+    showHandles: tool === "select" && selectionFrame !== null,
+    // Frames are never rotated, so hide their rotation stalk and pivot marker.
+    hideRotate: soleFrame !== null,
     handleSize: HANDLE_SIZE * chrome,
     cornerRadiusHandle:
       tool === "select"
@@ -108,17 +116,18 @@ export function paintCanvas(input: PaintInput): void {
         : null,
   });
 
-  if (
-    scope === null &&
-    (tool === "artboard" || (tool === "select" && state.selectedArtboardId))
-  ) {
-    drawArtboardChrome(
+  // Frame name labels above each frame (scene scope only).
+  if (scope === null) {
+    const selected = new Set(selection);
+    drawFrameLabels(
       ctx2d,
       dpr,
       viewport,
-      doc.artboards,
-      state.selectedArtboardId,
-      HANDLE_SIZE * chrome
+      framesInPaintOrder(doc).map((frame) => ({
+        name: frame.name,
+        topLeft: applyMatrix(nodeWorldMatrix(doc, frame.id), { x: 0, y: 0 }),
+        selected: selected.has(frame.id),
+      }))
     );
   }
 

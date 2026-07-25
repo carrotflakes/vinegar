@@ -51,6 +51,7 @@ export function isClippingMaskCandidate(
     case "brush":
     case "group":
     case "instance":
+    case "frame":
       return false;
   }
 }

@@ -46,7 +46,6 @@ function docWith(nodes, assets) {
     nodes: Object.fromEntries(nodes.map((n) => [n.id, n])),
     rootIds: nodes.map((n) => n.id),
     symbols: {},
-    artboards: [],
     settings: { unit: "px", dpi: 96, gridSize: 50 },
     metadata: { createdAt: "2020-01-01", modifiedAt: "2020-01-01" },
     assets: Object.fromEntries(assets.map((a) => [a.id, a])),

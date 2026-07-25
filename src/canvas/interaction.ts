@@ -103,27 +103,11 @@ export type Interaction =
        */
       original: { shapeId: string; sub: number; index: number }[];
     }
-  | { kind: "artboard-create"; id: string; start: Vec2; snap: ArtboardSnap }
-  | {
-      kind: "artboard-move";
-      id: string;
-      grab: Vec2;
-      orig: Bounds;
-      snap: ArtboardSnap;
-      /** Scene roots the board carries, snapshotted at drag start. */
-      content: Record<string, SceneNode>;
-    }
-  | {
-      kind: "artboard-resize";
-      id: string;
-      handle: HandleId;
-      orig: Bounds;
-      snap: ArtboardSnap;
-    };
+  | { kind: "frame-create"; id: string; start: Vec2; snap: FrameSnap };
 
-/** Precomputed snap data for an artboard drag: alignment lines from other
- * boards + scene shapes, and other boards' AABBs for equal-spacing. */
-export interface ArtboardSnap {
+/** Precomputed snap data for a frame-create drag: alignment lines from other
+ * frames + scene shapes, and other frames' AABBs for equal-spacing. */
+export interface FrameSnap {
   targets: SnapTargets;
   boxes: Bounds[];
 }

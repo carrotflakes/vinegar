@@ -32,16 +32,10 @@ export default function PropertiesPanel() {
   const setSelectionPivot = useEditor(
     (state) => state.setSelectionPivot
   );
-  const selectedArtboardId = useEditor(
-    (state) => state.selectedArtboardId
-  );
-
-  const artboard = selectedArtboardId
-    ? doc.artboards.find((candidate) =>
-        candidate.id === selectedArtboardId
-      ) ?? null
-    : null;
-  if (artboard) return <ArtboardPanel artboard={artboard} />;
+  // A lone selected frame gets the dedicated frame panel.
+  const soleNode =
+    selection.length === 1 ? doc.nodes[selection[0]] : undefined;
+  if (soleNode?.type === "frame") return <ArtboardPanel frame={soleNode} />;
 
   const rootIds = selectionRoots(doc, selection);
   const selectedNode =

@@ -55,7 +55,6 @@ function compoundDocument(strokeAlignment) {
       rootIds: [compound.id],
       symbols: {},
       scripts: {},
-      artboards: [],
       settings: { unit: "px", dpi: 96, gridSize: 50 },
       metadata: { createdAt: "", modifiedAt: "" },
       assets: {},

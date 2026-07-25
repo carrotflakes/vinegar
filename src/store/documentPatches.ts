@@ -1,7 +1,7 @@
 import type { Document } from "../model/types";
 
 export type DocumentMapField = "nodes" | "symbols" | "swatches" | "scripts" | "assets" | "extensions";
-export type DocumentArrayField = "rootIds" | "swatchOrder" | "artboards";
+export type DocumentArrayField = "rootIds" | "swatchOrder";
 export type DocumentValueField = "settings" | "metadata";
 
 type MapValue<F extends DocumentMapField> = Document[F] extends Record<string, infer V> ? V : never;
@@ -18,7 +18,7 @@ export interface DocumentPatchPair {
 }
 
 const MAP_FIELDS = ["nodes", "symbols", "swatches", "scripts", "assets", "extensions"] as const;
-const ARRAY_FIELDS = ["rootIds", "swatchOrder", "artboards"] as const;
+const ARRAY_FIELDS = ["rootIds", "swatchOrder"] as const;
 const VALUE_FIELDS = ["settings", "metadata"] as const;
 type PatchedDocumentField = (typeof MAP_FIELDS)[number] | (typeof ARRAY_FIELDS)[number] | (typeof VALUE_FIELDS)[number];
 const allDocumentFieldsPatched: [Exclude<keyof Document, PatchedDocumentField>] extends [never] ? true : never = true;

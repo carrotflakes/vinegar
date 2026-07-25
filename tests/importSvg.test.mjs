@@ -192,7 +192,6 @@ test("groups keep paint order and convert Paper clipping masks", () => {
     nodes: imported.nodes,
     rootIds: [imported.rootId],
     symbols: {},
-    artboards: [],
     settings: { unit: "px", dpi: 96, gridSize: 50 },
     metadata: { createdAt: "", modifiedAt: "" },
     assets: {},

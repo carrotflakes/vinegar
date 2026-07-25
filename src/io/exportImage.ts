@@ -1,10 +1,10 @@
-import type { Artboard, Bounds, Document } from "../model/types";
-import { artboardBounds } from "../model/types";
+import type { Bounds, Document, FrameNode } from "../model/types";
+import { nodeWorldBounds } from "@/model/geometry/bounds";
 import { contentBounds } from "./exportBounds";
 import type { PngOptions } from "./exportPng";
 
 /** Which part of the document a raster export covers. */
-export type ExportScope = "content" | "artboard" | "selection";
+export type ExportScope = "content" | "frame" | "selection";
 
 /**
  * How the output pixel dimensions are chosen. `scale` multiplies the region's
@@ -46,7 +46,7 @@ export interface ExportImageSettings {
   background: string;
   /** Lossy quality (0–1) for JPEG/WebP. */
   quality: number;
-  /** Extra padding around content bounds (ignored for artboard scope). */
+  /** Extra padding around content bounds (ignored for frame scope). */
   margin: number;
 }
 
@@ -78,7 +78,7 @@ export function exceedsPixelLimit(size: { width: number; height: number }): bool
 
 /** Region selection context resolved by the caller (has scene/selection access). */
 export interface ExportRegionContext {
-  artboard: Artboard | null;
+  frame: FrameNode | null;
   selectionBounds: Bounds | null;
 }
 
@@ -88,8 +88,8 @@ export function resolveExportBounds(
   settings: ExportImageSettings,
   ctx: ExportRegionContext
 ): Bounds | null {
-  if (settings.scope === "artboard") {
-    return ctx.artboard ? artboardBounds(ctx.artboard) : null;
+  if (settings.scope === "frame") {
+    return ctx.frame ? nodeWorldBounds(doc, ctx.frame.id) : null;
   }
   if (settings.scope === "selection") {
     return ctx.selectionBounds;
@@ -133,14 +133,14 @@ export function supportsTransparency(settings: ExportImageSettings): boolean {
 
 /**
  * Translate export settings into the low-level {@link PngOptions} consumed by
- * `exportPng`. The artboard's own background wins when the region is an artboard
- * and no explicit override is requested. Formats without an alpha channel always
+ * `exportPng`. The frame's own background wins when the region is a frame and no
+ * explicit override is requested. Formats without an alpha channel always
  * receive a background so they never flatten onto black.
  */
 export function toPngOptions(
   settings: ExportImageSettings,
   bounds: Bounds,
-  artboard: Artboard | null
+  frame: FrameNode | null
 ): PngOptions {
   const info = FORMAT_INFO[settings.format];
   const scale = effectiveScale(settings, bounds);
@@ -148,8 +148,8 @@ export function toPngOptions(
   let background: string | undefined;
   if (!wantsTransparent) {
     background =
-      settings.scope === "artboard" && artboard?.background
-        ? artboard.background
+      settings.scope === "frame" && frame?.background
+        ? frame.background
         : settings.background;
   }
   return {

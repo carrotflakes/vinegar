@@ -19,7 +19,7 @@ import {
   type PatternPaint,
 } from "../model/paint";
 import { effectiveRectCornerRadius, roundedRectSubpath } from "../model/roundedRect";
-import { isGroup, isInstance, isShape } from "../model/scene";
+import { isFrame, isGroup, isInstance, isShape } from "../model/scene";
 import {
   effectiveStrokeAlignment,
   normalizeStrokeDash,
@@ -27,7 +27,7 @@ import {
   strokeCap,
   strokeJoin,
 } from "../model/stroke";
-import type { Artboard, Bounds, Document, DocumentAsset, Effect, ImageShape, Shape } from "../model/types";
+import type { Bounds, Document, DocumentAsset, Effect, FrameNode, ImageShape, Shape } from "../model/types";
 import { screenToWorld, worldToScreen, type Viewport } from "@/model/geometry/viewport";
 import { getAssetImage } from "../imageCache";
 import { layoutTextWithCanvas } from "./textLayout";
@@ -67,9 +67,13 @@ export function paintNode(
   let childIds: string[];
   let mask: Shape | null = null;
   let symbolId: string | null = null;
+  let frame: FrameNode | null = null;
   if (isGroup(node)) {
     mask = clippingMask(doc, node);
     childIds = clippingContentIds(doc, node);
+  } else if (isFrame(node)) {
+    childIds = node.childIds;
+    frame = node;
   } else if (isInstance(node)) {
     if (activeSymbols.has(node.symbolId)) return;
     const def = doc.symbols[node.symbolId];
@@ -84,6 +88,18 @@ export function paintNode(
   ctx.save();
   ctx.transform(...node.transform);
   const applyMask = (target: CanvasRenderingContext2D) => {
+    if (frame) {
+      // A frame paints its background box, then clips children to it (viewport).
+      if (frame.background) {
+        target.fillStyle = frame.background;
+        target.fillRect(0, 0, frame.width, frame.height);
+      }
+      if (frame.clip ?? true) {
+        target.beginPath();
+        target.rect(0, 0, frame.width, frame.height);
+        target.clip();
+      }
+    }
     if (!mask) return;
     const geometry = preview?.id === mask.id ? preview : mask;
     target.save();
@@ -715,8 +731,6 @@ export interface RenderOptions {
   gridColors?: { minor: string; major: string; axis: string };
   /** Paint these roots instead of `doc.rootIds` (symbol local view). */
   rootIds?: string[];
-  /** Artboard frames/backdrops to draw under the scene (omit in symbol view). */
-  artboards?: Artboard[];
   /** Omit this shape while an HTML overlay edits it. */
   hiddenShapeId?: string | null;
 }
@@ -740,9 +754,6 @@ export function renderScene(
   ctx.rotate(viewport.rotation);
   ctx.scale(viewport.flipX ? -viewport.scale : viewport.scale, viewport.scale);
 
-  // Artboard backdrops and frames sit under the scene content.
-  if (opts.artboards?.length) drawArtboards(ctx, opts.artboards, viewport.scale);
-
   // A preview that shares a document shape's id supersedes it (the pen
   // extending an existing path); skip the stale copy underneath.
   for (const nodeId of opts.rootIds ?? doc.rootIds) {
@@ -752,25 +763,6 @@ export function renderScene(
     paintShape(ctx, opts.preview, doc.assets, doc, opts.preview);
   }
 
-  ctx.restore();
-}
-
-/** Draw artboard backdrops (fill) and hairline frames, in world space. */
-function drawArtboards(
-  ctx: CanvasRenderingContext2D,
-  artboards: Artboard[],
-  scale: number
-): void {
-  ctx.save();
-  ctx.lineWidth = 1 / scale;
-  for (const ab of artboards) {
-    if (ab.background) {
-      ctx.fillStyle = ab.background;
-      ctx.fillRect(ab.x, ab.y, ab.width, ab.height);
-    }
-    ctx.strokeStyle = "#c8ccd2";
-    ctx.strokeRect(ab.x, ab.y, ab.width, ab.height);
-  }
   ctx.restore();
 }
 

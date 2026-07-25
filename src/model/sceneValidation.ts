@@ -4,7 +4,16 @@ import type { Document } from "./types";
 
 /** Whether every hierarchy-owning node preserves its structural invariant. */
 export function hasValidSceneContainers(doc: Document): boolean {
-  return hasValidClippingMasks(doc) &&
+  // Frames live only at the top level (never inside a group/symbol/other frame),
+  // so no node's childIds may reference a frame. See docs/artboard-frames.md.
+  const framesOnlyAtRoot = Object.values(doc.nodes).every(
+    (node) =>
+      node.type !== "group" && node.type !== "frame" && node.type !== "compoundPath"
+        ? true
+        : node.childIds.every((id) => doc.nodes[id]?.type !== "frame")
+  );
+  return framesOnlyAtRoot &&
+    hasValidClippingMasks(doc) &&
     Object.values(doc.nodes).every(
       (node) =>
         node.type !== "compoundPath" ||

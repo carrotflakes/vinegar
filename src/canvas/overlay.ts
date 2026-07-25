@@ -1,8 +1,8 @@
 import type { Guide, Spacing } from "@/model/geometry/snap";
 import { applyMatrix } from "@/model/geometry/matrix";
-import type { Artboard, Bounds, PathShape, Matrix, Vec2 } from "../model/types";
+import type { Bounds, PathShape, Matrix, Vec2 } from "../model/types";
 import { worldToScreen, type Viewport } from "@/model/geometry/viewport";
-import { HANDLE_IDS, HANDLE_SIZE, handlePoint } from "./handles";
+import { HANDLE_IDS, HANDLE_SIZE } from "./handles";
 import {
   frameCorners,
   frameHandlePoint,
@@ -23,6 +23,9 @@ export interface OverlayOptions {
   marquee: Bounds | null;
   /** Whether resize/rotate handles should be drawn. */
   showHandles: boolean;
+  /** Suppress the rotation stalk/handle and pivot marker (e.g. for frames,
+   *  which are never rotated). Resize handles are still drawn. */
+  hideRotate?: boolean;
   /** Screen-space size of resize handles (enlarged for touch). */
   handleSize?: number;
   /** World bounds of the drilled-into group, outlined to show isolation. */
@@ -69,20 +72,22 @@ export function drawOverlay(
 
     if (opts.showHandles) {
       // Rotation handle: a stalk above the top edge ending in a circle.
-      const topMid = toS(frameHandlePoint(frame, "n"));
-      const rot = toS(frameRotationPoint(frame, viewport.scale));
-      ctx.strokeStyle = ACCENT;
-      ctx.lineWidth = 1;
-      ctx.beginPath();
-      ctx.moveTo(topMid.x, topMid.y);
-      ctx.lineTo(rot.x, rot.y);
-      ctx.stroke();
-      ctx.fillStyle = "#ffffff";
-      ctx.lineWidth = 1.5;
-      ctx.beginPath();
-      ctx.arc(rot.x, rot.y, handleSize / 2, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.stroke();
+      if (!opts.hideRotate) {
+        const topMid = toS(frameHandlePoint(frame, "n"));
+        const rot = toS(frameRotationPoint(frame, viewport.scale));
+        ctx.strokeStyle = ACCENT;
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(topMid.x, topMid.y);
+        ctx.lineTo(rot.x, rot.y);
+        ctx.stroke();
+        ctx.fillStyle = "#ffffff";
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.arc(rot.x, rot.y, handleSize / 2, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+      }
 
       // Resize handles.
       const half = handleSize / 2;
@@ -101,21 +106,23 @@ export function drawOverlay(
       }
 
       // Rotation pivot: target marker, draggable independently of the frame.
-      const pivot = toS(frame.pivot);
-      const radius = Math.max(4, handleSize * 0.45);
-      ctx.fillStyle = "#ffffff";
-      ctx.strokeStyle = ACCENT;
-      ctx.lineWidth = 1.5;
-      ctx.beginPath();
-      ctx.arc(pivot.x, pivot.y, radius, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.stroke();
-      ctx.beginPath();
-      ctx.moveTo(pivot.x - radius - 3, pivot.y);
-      ctx.lineTo(pivot.x + radius + 3, pivot.y);
-      ctx.moveTo(pivot.x, pivot.y - radius - 3);
-      ctx.lineTo(pivot.x, pivot.y + radius + 3);
-      ctx.stroke();
+      if (!opts.hideRotate) {
+        const pivot = toS(frame.pivot);
+        const radius = Math.max(4, handleSize * 0.45);
+        ctx.fillStyle = "#ffffff";
+        ctx.strokeStyle = ACCENT;
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.arc(pivot.x, pivot.y, radius, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.moveTo(pivot.x - radius - 3, pivot.y);
+        ctx.lineTo(pivot.x + radius + 3, pivot.y);
+        ctx.moveTo(pivot.x, pivot.y - radius - 3);
+        ctx.lineTo(pivot.x, pivot.y + radius + 3);
+        ctx.stroke();
+      }
 
       if (opts.cornerRadiusHandle) {
         const control = opts.cornerRadiusHandle;
@@ -145,55 +152,29 @@ export function drawOverlay(
   }
 }
 
-/**
- * Draw artboard name labels (all boards) and the selection frame + resize
- * handles for the selected board, in screen space.
- */
-export function drawArtboardChrome(
+/** A frame's name and the world position of its top-left corner. */
+export interface FrameLabel {
+  name: string;
+  topLeft: Vec2;
+  selected: boolean;
+}
+
+/** Draw frame name labels above each frame's top-left corner, in screen space.
+ *  The selection frame + resize handles are drawn by the normal overlay. */
+export function drawFrameLabels(
   ctx: CanvasRenderingContext2D,
   dpr: number,
   viewport: Viewport,
-  artboards: Artboard[],
-  selectedId: string | null,
-  handleSize = HANDLE_SIZE
+  labels: FrameLabel[]
 ): void {
-  if (artboards.length === 0) return;
+  if (labels.length === 0) return;
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-  const toS = (w: Vec2) => worldToScreen(viewport, w);
-
-  ctx.font =
-    "11px system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif";
+  ctx.font = "11px system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif";
   ctx.textBaseline = "bottom";
-  for (const ab of artboards) {
-    const p = toS({ x: ab.x, y: ab.y });
-    ctx.fillStyle = ab.id === selectedId ? ACCENT : "#8a9099";
-    ctx.fillText(ab.name, p.x, p.y - 4);
-  }
-
-  const selected = artboards.find((ab) => ab.id === selectedId);
-  if (!selected) return;
-
-  const b: Bounds = {
-    x: selected.x,
-    y: selected.y,
-    width: selected.width,
-    height: selected.height,
-  };
-  const nw = toS({ x: b.x, y: b.y });
-  const se = toS({ x: b.x + b.width, y: b.y + b.height });
-  ctx.strokeStyle = ACCENT;
-  ctx.lineWidth = 1;
-  ctx.strokeRect(nw.x + 0.5, nw.y + 0.5, se.x - nw.x, se.y - nw.y);
-
-  const half = handleSize / 2;
-  ctx.fillStyle = "#ffffff";
-  ctx.lineWidth = 1.5;
-  for (const id of HANDLE_IDS) {
-    const sp = toS(handlePoint(b, id));
-    ctx.beginPath();
-    ctx.rect(Math.round(sp.x - half), Math.round(sp.y - half), handleSize, handleSize);
-    ctx.fill();
-    ctx.stroke();
+  for (const label of labels) {
+    const p = worldToScreen(viewport, label.topLeft);
+    ctx.fillStyle = label.selected ? ACCENT : "#8a9099";
+    ctx.fillText(label.name, p.x, p.y - 4);
   }
 }
 

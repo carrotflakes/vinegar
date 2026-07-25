@@ -30,7 +30,6 @@ export function labelForEntry(entry: HistoryEntry): string {
     return "Edit shapes";
   }
   if (mapPatch(patches, "symbols")) return "Edit symbol";
-  if (patches.some((p) => p.field === "artboards")) return "Edit artboards";
   if (patches.some((p) => p.field === "rootIds")) return "Reorder";
   if (patches.some((p) => p.field === "settings")) return "Document settings";
   if (mapPatch(patches, "assets")) return "Edit assets";

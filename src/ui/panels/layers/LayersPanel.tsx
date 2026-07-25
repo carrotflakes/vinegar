@@ -16,12 +16,14 @@ import {
   LuComponent,
   LuType,
   LuBrush,
+  LuFrame,
 } from "react-icons/lu";
-import type { Group, Shape, SymbolInstance } from "../../../model/types";
+import type { FrameNode, Group, Shape, SymbolInstance } from "../../../model/types";
 import { isClippingGroup, isClippingMaskNode } from "../../../model/clippingMask";
 import {
   descendantNodeIds,
   isCompoundPath,
+  isFrame,
   isGroup,
   isInstance,
   isShape,
@@ -51,6 +53,7 @@ interface DNode {
   key: string;
   shape?: Shape;
   group?: Group;
+  frame?: FrameNode;
   instance?: SymbolInstance;
   children?: DNode[];
 }
@@ -60,6 +63,7 @@ function toDisplayTree(doc: ReturnType<typeof useEditor.getState>["doc"], ids: s
   for (const id of ids) {
     const node = doc.nodes[id];
     if (isGroup(node)) result.push({ key: id, group: node, children: toDisplayTree(doc, node.childIds) });
+    else if (isFrame(node)) result.push({ key: id, frame: node, children: toDisplayTree(doc, node.childIds) });
     else if (isInstance(node)) result.push({ key: id, instance: node });
     else if (isShape(node)) {
       result.push({
@@ -419,13 +423,16 @@ export default function LayersPanel() {
     );
   };
 
+  // Renders a container row: a group or a frame (frames are group-like, minus
+  // the clip marker, plus a frame icon).
   const groupRow = (node: DNode, depth: number, path: Path, dim: boolean) => {
-    const group = node.group!;
+    const group = (node.group ?? node.frame)!;
     const gid = group.id;
+    const kind = node.frame ? "frame" : "group";
     const ids = shapeIds([node]);
     const selected = selection.includes(gid);
     const isCollapsed = collapsed.has(gid);
-    const isClip = isClippingGroup(group);
+    const isClip = node.group ? isClippingGroup(node.group) : false;
     return (
       <div
         className={
@@ -445,11 +452,11 @@ export default function LayersPanel() {
           openContextMenu(e.clientX, e.clientY, [
             { label: "Rename", onSelect: () => setEditing(gid) },
             {
-              label: group.hidden ? "Show group" : "Hide group",
+              label: `${group.hidden ? "Show" : "Hide"} ${kind}`,
               onSelect: () => updateNodeStyle(gid, { hidden: !group.hidden }),
             },
             {
-              label: group.locked ? "Unlock group" : "Lock group",
+              label: `${group.locked ? "Unlock" : "Lock"} ${kind}`,
               onSelect: () => updateNodeStyle(gid, { locked: !group.locked }),
             },
             "separator",
@@ -469,7 +476,7 @@ export default function LayersPanel() {
         </button>
         <button
           className="layer-icon-btn"
-          title={group.hidden ? "Show group" : "Hide group"}
+          title={`${group.hidden ? "Show" : "Hide"} ${kind}`}
           onClick={(e) => {
             e.stopPropagation();
             updateNodeStyle(gid, { hidden: !group.hidden });
@@ -479,7 +486,7 @@ export default function LayersPanel() {
         </button>
         <button
           className="layer-icon-btn"
-          title={group.locked ? "Unlock group" : "Lock group"}
+          title={`${group.locked ? "Unlock" : "Lock"} ${kind}`}
           onClick={(e) => {
             e.stopPropagation();
             updateNodeStyle(gid, { locked: !group.locked });
@@ -487,6 +494,11 @@ export default function LayersPanel() {
         >
           {group.locked ? <LuLock /> : <LuLockOpen />}
         </button>
+        {node.frame && (
+          <span className="layer-type" aria-hidden>
+            <LuFrame />
+          </span>
+        )}
         {editing === gid ? (
           nameEditor(group.name, (name) => renameNode(gid, name))
         ) : (
@@ -524,7 +536,7 @@ export default function LayersPanel() {
                 style={{ marginLeft: 6 + depth * 16 }}
               />
             )}
-            {n.group ? (
+            {n.group || n.frame ? (
               <>
                 {groupRow(n, depth, path, dim)}
                 {!collapsed.has(n.key) &&
@@ -533,7 +545,7 @@ export default function LayersPanel() {
                     n.key,
                     depth + 1,
                     path,
-                    dim || !!n.group.hidden
+                    dim || !!(n.group ?? n.frame)!.hidden
                   )}
               </>
             ) : n.instance ? (

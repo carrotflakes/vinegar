@@ -373,6 +373,52 @@ export interface Group extends BaseNode {
   clip?: true;
 }
 
+/**
+ * A frame (formerly "artboard"): an export/layout container node. Structurally
+ * a Group with a fixed content box `[0,0,width,height]` in local space (an
+ * SVG-viewport), a background, and children authored in frame-local
+ * coordinates. Moving the frame moves its children through the transform chain
+ * for free; resizing changes the box, never the children's scale.
+ *
+ * Invariant: a frame lives only at the top-level scene scope. Its id appears
+ * only in `Document.rootIds`; it is never a descendant of a group, symbol, or
+ * another frame (so frames never nest). Enforced by the serializer and by every
+ * reparent/group operation. See docs/artboard-frames.md.
+ */
+export interface FrameNode extends BaseNode {
+  type: "frame";
+  /** Child node ids, back-to-front. May be empty. */
+  childIds: string[];
+  /** Content box size in the frame's local space (origin at 0,0). */
+  width: number;
+  height: number;
+  /** Fill drawn behind children; `null` = transparent. */
+  background: string | null;
+  /** Clip children to the content box. Absent defaults to clipped (a viewport). */
+  clip?: boolean;
+}
+
+export function makeFrame(
+  x: number,
+  y: number,
+  width: number,
+  height: number,
+  name = "Frame"
+): FrameNode {
+  return {
+    id: makeId("frame"),
+    name,
+    type: "frame",
+    transform: [1, 0, 0, 1, x, y],
+    transformOrigin: null,
+    opacity: 1,
+    childIds: [],
+    width,
+    height,
+    background: "#ffffff",
+  };
+}
+
 export type PrimitiveShape =
   | RectShape
   | EllipseShape
@@ -386,7 +432,7 @@ export type Shape =
   | TextShape
   | BrushShape;
 
-export type SceneNode = Shape | Group | SymbolInstance;
+export type SceneNode = Shape | Group | SymbolInstance | FrameNode;
 
 /** Axis-aligned bounding box. */
 export interface Bounds {
@@ -410,37 +456,6 @@ export interface DocumentSettings {
 export interface DocumentMetadata {
   createdAt: string;
   modifiedAt: string;
-}
-
-/**
- * A rectangular export/layout region on the infinite plane. Artboards do not
- * own scene content: which shapes belong to a board is decided geometrically
- * (by clipping) at export time. `background` is a plain colour string drawn as
- * the board's backdrop, or `null` for a transparent board.
- */
-export interface Artboard {
-  id: string;
-  name: string;
-  x: number;
-  y: number;
-  width: number;
-  height: number;
-  background: string | null;
-}
-
-/** The world-space bounds of an artboard. */
-export function artboardBounds(ab: Artboard): Bounds {
-  return { x: ab.x, y: ab.y, width: ab.width, height: ab.height };
-}
-
-export function makeArtboard(
-  x: number,
-  y: number,
-  width: number,
-  height: number,
-  name = "Artboard"
-): Artboard {
-  return { id: makeId("artboard"), name, x, y, width, height, background: "#ffffff" };
 }
 
 /**
@@ -468,8 +483,6 @@ export interface Document {
   swatchOrder: string[];
   /** User-authored parametric generators referenced by node `generator` links. */
   scripts: Record<string, ScriptDef>;
-  /** Export/layout regions on the plane, in export order. */
-  artboards: Artboard[];
   settings: DocumentSettings;
   metadata: DocumentMetadata;
   assets: Record<string, DocumentAsset>;
@@ -486,7 +499,6 @@ export function createEmptyDocument(): Document {
     swatches: {},
     swatchOrder: [],
     scripts: {},
-    artboards: [],
     settings: { unit: "px", dpi: 96, gridSize: 50 },
     metadata: { createdAt: now, modifiedAt: now },
     assets: {},

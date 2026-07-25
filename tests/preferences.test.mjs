@@ -260,7 +260,7 @@ test("new document edits respect the configured undo limit", () => {
   useEditor.getState().newDocument();
 
   for (let i = 0; i < 55; i++) {
-    useEditor.getState().addArtboard({ x: i, y: 0 });
+    useEditor.getState().addFrame({ x: i, y: 0 });
   }
 
   assert.equal(useEditor.getState().history.past.length, 50);

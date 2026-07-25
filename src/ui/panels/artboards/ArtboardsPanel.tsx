@@ -1,6 +1,7 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { LuCopy, LuFrame, LuPlus, LuTrash2 } from "react-icons/lu";
 import { useEditor } from "../../../store/editorStore";
+import { framesInPaintOrder } from "../../../model/scene";
 import { openContextMenu } from "../../../store/menuStore";
 import { artboardMenu } from "../../menus";
 import { useTouchDrag } from "../../useTouchDrag";
@@ -8,25 +9,30 @@ import "../../Panel.css";
 import "../PanelList.css";
 
 /**
- * The document's artboards: select, rename, reorder (= export order), add, and
- * delete. Reordering is pointer-based (mouse + touch), matching the Layers panel.
+ * The document's frames: select, rename, reorder (= export order), add, and
+ * delete. Frames are ordinary scene nodes, so this panel drives the normal node
+ * actions (select/rename/duplicate/delete) plus frame-specific add/reorder.
+ * Reordering is pointer-based (mouse + touch), matching the Layers panel.
  */
 export default function ArtboardsPanel() {
-  const artboards = useEditor((s) => s.doc.artboards);
-  const selectedId = useEditor((s) => s.selectedArtboardId);
-  const selectArtboard = useEditor((s) => s.selectArtboard);
-  const addArtboard = useEditor((s) => s.addArtboard);
-  const deleteArtboard = useEditor((s) => s.deleteArtboard);
-  const duplicateArtboard = useEditor((s) => s.duplicateArtboard);
-  const updateArtboard = useEditor((s) => s.updateArtboard);
-  const reorderArtboard = useEditor((s) => s.reorderArtboard);
+  const doc = useEditor((s) => s.doc);
+  const selection = useEditor((s) => s.selection);
+  const setSelection = useEditor((s) => s.setSelection);
+  const addFrame = useEditor((s) => s.addFrame);
+  const deleteSelected = useEditor((s) => s.deleteSelected);
+  const duplicateSelected = useEditor((s) => s.duplicateSelected);
+  const renameNode = useEditor((s) => s.renameNode);
+  const reorderFrame = useEditor((s) => s.reorderFrame);
+
+  const frames = useMemo(() => framesInPaintOrder(doc), [doc]);
+  const selected = new Set(selection);
 
   const [editing, setEditing] = useState<string | null>(null);
   const [dragId, setDragId] = useState<string | null>(null);
   const [dropIndex, setDropIndex] = useState<number | null>(null);
 
   const commitDrop = () => {
-    if (dragId !== null && dropIndex !== null) reorderArtboard(dragId, dropIndex);
+    if (dragId !== null && dropIndex !== null) reorderFrame(dragId, dropIndex);
     setDragId(null);
     setDropIndex(null);
   };
@@ -48,7 +54,7 @@ export default function ArtboardsPanel() {
         return;
       }
       if (target?.closest(".layers-list")) {
-        setDropIndex(artboards.length);
+        setDropIndex(frames.length);
         return;
       }
       setDropIndex(null);
@@ -60,34 +66,34 @@ export default function ArtboardsPanel() {
   return (
     <div className="layers">
       <div className="panel-title layers-title">
-        <span>Artboards</span>
+        <span>Frames</span>
         <button
           className="layer-icon-btn title-add"
-          title="Add artboard"
-          onClick={() => addArtboard()}
+          title="Add frame"
+          onClick={() => addFrame()}
         >
           <LuPlus />
         </button>
       </div>
       <div className="layers-list">
-        {artboards.length === 0 && (
-          <div className="layers-empty">No artboards yet</div>
+        {frames.length === 0 && (
+          <div className="layers-empty">No frames yet</div>
         )}
-        {artboards.map((ab, i) => (
-          <div key={ab.id}>
+        {frames.map((frame, i) => (
+          <div key={frame.id}>
             {dropIndex === i && dragId !== null && (
               <div className="drop-line-flow" style={{ marginLeft: 6 }} />
             )}
             <div
-              className={"layer-row" + (selectedId === ab.id ? " selected" : "")}
+              className={"layer-row" + (selected.has(frame.id) ? " selected" : "")}
               data-ab-index={i}
               onPointerDown={
-                editing === ab.id ? undefined : (e) => startDrag(e, ab.id)
+                editing === frame.id ? undefined : (e) => startDrag(e, frame.id)
               }
-              onClick={() => selectArtboard(ab.id)}
+              onClick={() => setSelection([frame.id])}
               onContextMenu={(e) => {
                 e.preventDefault();
-                selectArtboard(ab.id);
+                setSelection([frame.id]);
                 openContextMenu(e.clientX, e.clientY, artboardMenu());
               }}
             >
@@ -95,18 +101,18 @@ export default function ArtboardsPanel() {
                 className="layer-type"
                 aria-hidden
                 style={{
-                  color: ab.background ?? undefined,
+                  color: frame.background ?? undefined,
                 }}
               >
                 <LuFrame />
               </span>
-              {editing === ab.id ? (
+              {editing === frame.id ? (
                 <input
                   className="layer-name-input"
                   autoFocus
-                  defaultValue={ab.name}
+                  defaultValue={frame.name}
                   onBlur={(e) => {
-                    updateArtboard(ab.id, { name: e.target.value });
+                    renameNode(frame.id, e.target.value);
                     setEditing(null);
                   }}
                   onKeyDown={(e) => {
@@ -119,31 +125,33 @@ export default function ArtboardsPanel() {
                   className="layer-name"
                   onDoubleClick={(e) => {
                     e.stopPropagation();
-                    setEditing(ab.id);
+                    setEditing(frame.id);
                   }}
                 >
-                  {ab.name}
+                  {frame.name}
                 </span>
               )}
               <span className="layer-count">
-                {Math.round(ab.width)}×{Math.round(ab.height)}
+                {Math.round(frame.width)}×{Math.round(frame.height)}
               </span>
               <button
                 className="layer-icon-btn"
-                title="Duplicate artboard"
+                title="Duplicate frame"
                 onClick={(e) => {
                   e.stopPropagation();
-                  duplicateArtboard(ab.id);
+                  setSelection([frame.id]);
+                  duplicateSelected();
                 }}
               >
                 <LuCopy />
               </button>
               <button
                 className="layer-icon-btn"
-                title="Delete artboard"
+                title="Delete frame"
                 onClick={(e) => {
                   e.stopPropagation();
-                  deleteArtboard(ab.id);
+                  setSelection([frame.id]);
+                  deleteSelected();
                 }}
               >
                 <LuTrash2 />
@@ -151,7 +159,7 @@ export default function ArtboardsPanel() {
             </div>
           </div>
         ))}
-        {dropIndex === artboards.length && dragId !== null && (
+        {dropIndex === frames.length && dragId !== null && (
           <div className="drop-line-flow" style={{ marginLeft: 6 }} />
         )}
       </div>

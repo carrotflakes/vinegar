@@ -44,23 +44,23 @@ before(async () => {
 
 after(async () => server.close());
 
-test("the shared Delete command removes a selected artboard", () => {
+test("the shared Delete command removes a selected frame", () => {
   const editor = useEditor.getState();
   editor.newDocument();
-  editor.addArtboard({ x: 100, y: 100 });
+  editor.addFrame({ x: 100, y: 100 });
 
-  const selectedId = useEditor.getState().selectedArtboardId;
+  const selectedId = useEditor.getState().selection[0];
   const deleteCommand = commands.find((command) => command.id === "edit.delete");
   assert.ok(selectedId);
   assert.ok(deleteCommand);
   assert.equal(deleteCommand.enabled(useEditor.getState()), true);
 
   deleteCommand.run(useEditor.getState());
-  assert.equal(useEditor.getState().doc.artboards.length, 0);
-  assert.equal(useEditor.getState().selectedArtboardId, null);
+  assert.equal(useEditor.getState().doc.rootIds.length, 0);
+  assert.equal(useEditor.getState().doc.nodes[selectedId], undefined);
 
   useEditor.getState().undo();
-  assert.equal(useEditor.getState().doc.artboards[0].id, selectedId);
+  assert.equal(useEditor.getState().doc.rootIds[0], selectedId);
 });
 
 test("fit commands frame content, selection, and the selected artboard", () => {
@@ -111,7 +111,7 @@ test("fit commands frame content, selection, and the selected artboard", () => {
     assert.equal(useEditor.getState().viewport.scale, 5.04);
     assert.deepEqual(useEditor.getState().viewport.offset, { x: -4288, y: 48 });
 
-    useEditor.getState().addArtboard({ x: 500, y: 300 });
+    useEditor.getState().addFrame({ x: 500, y: 300 });
     assert.equal(fitArtboard.enabled(useEditor.getState()), true);
     fitArtboard.run(useEditor.getState());
     assert.equal(useEditor.getState().viewport.scale, 504 / 1080);
@@ -187,7 +187,7 @@ test("a nested v8 scene tree survives save/load and remains usable", () => {
   const demo = parseDocument(serializeDocument(createDemoDocument()));
   assert.deepEqual(
     new Set(Object.values(demo.nodes).map((node) => node.type)),
-    new Set(["group", "rect", "ellipse", "line", "path", "compoundPath", "text"])
+    new Set(["frame", "group", "rect", "ellipse", "line", "path", "compoundPath", "text"])
   );
   const demoCompound = demo.nodes.demo_compound_path;
   assert.equal(demoCompound.type, "compoundPath");
@@ -214,8 +214,10 @@ test("a nested v8 scene tree survives save/load and remains usable", () => {
   nodeWorldMatrix(moved, "demo_skew_rect").forEach((value, i) =>
     assert.ok(Math.abs(value - beforeMove[i]) < 1e-9)
   );
+  // Moving demo_cards into its own descendant is rejected, so its parent (the
+  // poster frame, since the demo wraps its content in one) stays unchanged.
   useEditor.getState().moveNode("demo_cards", "demo_card_paths", 0);
-  assert.equal(parentIdOf(useEditor.getState().doc, "demo_cards"), null);
+  assert.equal(parentIdOf(useEditor.getState().doc, "demo_cards"), "demo_frame");
   useEditor.getState().undo();
   assert.equal(parentIdOf(useEditor.getState().doc, "demo_skew_rect"), "demo_card_shapes");
 });
@@ -298,7 +300,7 @@ test("v20 paths unify and inline compound components migrate to real nodes", () 
   assert.equal(loaded.nodes[migratedCompound.childIds[2]].fillRule, "evenodd");
   assert.ok(migratedCompound.childIds.every((id) => parentIdOf(loaded, id) === "compound"));
   assert.notEqual(migratedCompound.childIds[0], "polyline");
-  assert.equal(JSON.parse(serializeDocument(loaded)).version, 23);
+  assert.equal(JSON.parse(serializeDocument(loaded)).version, 24);
 });
 
 test("boolean ops keep curves and produce editable multi-subpath paths", () => {

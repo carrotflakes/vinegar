@@ -8,7 +8,8 @@ import {
   nodeWorldMatrix,
   transformBounds,
 } from "@/model/geometry/matrix";
-import type { Bounds, Document, Group, Matrix, Shape, SymbolInstance, Vec2 } from "../model/types";
+import { isFrame } from "../model/scene";
+import type { Bounds, Document, FrameNode, Group, Matrix, Shape, SymbolInstance, Vec2 } from "../model/types";
 import { handlePoint, type HandleId } from "./handles";
 
 /** A selectable paintable leaf: a shape or a symbol instance. */
@@ -131,6 +132,42 @@ export function getSelectionFrame(
     rotation: 0,
     bounds: b,
     transform: [1, 0, 0, 1, 0, 0],
+  };
+}
+
+/** The lone selected frame node, or null (used to frame it by its content box). */
+export function singleSelectedFrame(
+  doc: Document,
+  selection: string[]
+): FrameNode | null {
+  if (selection.length !== 1) return null;
+  const node = doc.nodes[selection[0]];
+  return isFrame(node) ? node : null;
+}
+
+/**
+ * A selection frame for a frame node: its bounds are the content box
+ * `[0,0,w,h]` in frame-local space (not the union of its children), oriented by
+ * the frame's own transform.
+ */
+export function frameNodeSelectionFrame(
+  doc: Document,
+  frame: FrameNode
+): SelectionFrame {
+  const transform = nodeWorldMatrix(doc, frame.id);
+  const bounds = { x: 0, y: 0, width: frame.width, height: frame.height };
+  const center = applyMatrix(transform, {
+    x: frame.width / 2,
+    y: frame.height / 2,
+  });
+  return {
+    center,
+    pivot: frame.transformOrigin
+      ? applyMatrix(transform, frame.transformOrigin)
+      : center,
+    rotation: matrixAngle(transform),
+    bounds,
+    transform,
   };
 }
 

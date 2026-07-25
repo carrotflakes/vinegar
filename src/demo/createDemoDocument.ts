@@ -1,4 +1,4 @@
-import { createEmptyDocument, makeArtboard, type DocumentAsset, type SceneNode, type Vec2 } from "../model/types";
+import { createEmptyDocument, type DocumentAsset, type FrameNode, type SceneNode, type Vec2 } from "../model/types";
 import { linearGradient, pattern, radialGradient, solid } from "../model/paint";
 import { IDENTITY, multiply, rotation, translation } from "@/model/geometry/matrix";
 
@@ -346,19 +346,35 @@ export function createDemoDocument() {
     },
   };
 
+  // Wrap the whole poster in a "Poster" frame (identity transform, so its
+  // children keep their authored world coordinates). Moving the frame now moves
+  // the poster as one unit — the point of frames being real container nodes.
+  const posterFrame: FrameNode = {
+    id: "demo_frame",
+    name: "Poster",
+    type: "frame",
+    transform: IDENTITY,
+    transformOrigin: null,
+    opacity: 1,
+    width: 984,
+    height: 706,
+    background: "#ffffff",
+    clip: false,
+    childIds: [
+      "demo_background",
+      "demo_header",
+      "demo_cards",
+      "demo_footer",
+      "demo_caption",
+      "demo_spiky_callout",
+      "demo_empty_group",
+      "demo_hidden",
+    ],
+  };
+  nodes[posterFrame.id] = posterFrame;
   doc.assets = { [DEMO_TEXTURE.id]: DEMO_TEXTURE };
   doc.nodes = nodes;
-  doc.rootIds = [
-    "demo_background",
-    "demo_header",
-    "demo_cards",
-    "demo_footer",
-    "demo_caption",
-    "demo_spiky_callout",
-    "demo_empty_group",
-    "demo_hidden",
-  ];
-  doc.artboards = [makeArtboard(16, 12, 952, 682, "Poster")];
+  doc.rootIds = [posterFrame.id];
   doc.settings.gridSize = 40;
   doc.extensions["vinegar.demo"] = {
     purpose: "manual-debugging",

@@ -2,6 +2,7 @@ import type { Paint } from "./paint";
 import type {
   CompoundPathNode,
   Document,
+  FrameNode,
   Group,
   Matrix,
   SceneNode,
@@ -15,16 +16,23 @@ export const isGroup = (node: SceneNode | undefined): node is Group =>
 export const isInstance = (node: SceneNode | undefined): node is SymbolInstance =>
   node?.type === "instance";
 
+export const isFrame = (node: SceneNode | undefined): node is FrameNode =>
+  node?.type === "frame";
+
 export const isCompoundPath = (
   node: SceneNode | undefined
 ): node is CompoundPathNode => node?.type === "compoundPath";
 
 export const isContainer = (
   node: SceneNode | undefined
-): node is Group | CompoundPathNode => isGroup(node) || isCompoundPath(node);
+): node is Group | CompoundPathNode | FrameNode =>
+  isGroup(node) || isCompoundPath(node) || isFrame(node);
 
 export const isShape = (node: SceneNode | undefined): node is Shape =>
-  !!node && node.type !== "group" && node.type !== "instance";
+  !!node &&
+  node.type !== "group" &&
+  node.type !== "instance" &&
+  node.type !== "frame";
 
 export const childIdsOfNode = (
   node: SceneNode | undefined
@@ -100,7 +108,7 @@ export function sceneIndex(doc: Document): SceneIndex {
           [id, ...parentAncestors],
           hidden.get(id)!,
           locked.get(id)!,
-          paintable && isGroup(node)
+          paintable && (isGroup(node) || isFrame(node))
         );
       }
     } else if (paintable) {
@@ -207,6 +215,13 @@ export function instanceCountsBySymbol(doc: Document): Map<string, number> {
   return counts;
 }
 
+/** Top-level frame nodes in document (= export) order. */
+export function framesInPaintOrder(doc: Document): FrameNode[] {
+  return doc.rootIds
+    .map((id) => doc.nodes[id])
+    .filter(isFrame);
+}
+
 export function parentIdOf(doc: Document, id: string): string | null {
   return sceneIndex(doc).parent.get(id) ?? null;
 }
@@ -279,7 +294,7 @@ export function descendantShapeIds(doc: Document, id: string): string[] {
       result.push(nodeId);
       return;
     }
-    if (isGroup(node)) node.childIds.forEach(visit);
+    if (isGroup(node) || isFrame(node)) node.childIds.forEach(visit);
   };
   visit(id);
   return result;

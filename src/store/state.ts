@@ -9,7 +9,6 @@ import type { PathOp } from "@/model/path/pathOps";
 import type { ScriptMeta } from "@/model/generators/generators";
 import type { Paint, SolidPaint } from "../model/paint";
 import type {
-  Artboard,
   BaseNode,
   BlendMode,
   Document,
@@ -30,7 +29,7 @@ import type { ImportedSvg } from "../io/importSvg";
 import type { ClipboardPayload } from "./docOps";
 import type { DocumentPatch } from "./documentPatches";
 
-export type ToolId = "select" | "node" | "rect" | "ellipse" | "line" | "pen" | "pencil" | "brush" | "eraser" | "bucket" | "text" | "artboard";
+export type ToolId = "select" | "node" | "rect" | "ellipse" | "line" | "pen" | "pencil" | "brush" | "eraser" | "bucket" | "text" | "frame";
 export interface EditNode { shapeId: string; sub: number; index: number }
 export type AlignType = "left" | "hcenter" | "right" | "top" | "vmiddle" | "bottom";
 export interface StyleDefaults {
@@ -95,8 +94,6 @@ export interface EditorData {
    * top level. Reset when the symbol scope changes.
    */
   activeGroupId: string | null;
-  /** The selected artboard, or null. Mutually exclusive with node selection. */
-  selectedArtboardId: string | null;
   tool: ToolId;
   viewport: Viewport;
   style: StyleDefaults;
@@ -320,16 +317,21 @@ export interface StructureActions {
   moveNode: (id: string, parentId: string | null, index: number) => void;
 }
 
-/** Create, mutate, select and remove artboards (export/layout regions). */
-export interface ArtboardActions {
-  addArtboard: (at?: Vec2) => void;
-  updateArtboard: (id: string, patch: Partial<Omit<Artboard, "id">>) => void;
-  deleteArtboard: (id: string) => void;
-  /** Clone a board (and the artwork it contains) beside the original. */
-  duplicateArtboard: (id: string) => void;
-  selectArtboard: (id: string | null) => void;
-  /** Move artboard `id` to `toIndex` in the list (= export order). */
-  reorderArtboard: (id: string, toIndex: number) => void;
+/**
+ * Frames (export/layout container nodes). Frames are ordinary scene nodes, so
+ * selection, rename, delete, duplicate and move all go through the normal node
+ * actions; only creation and export-order reordering need frame-specific ops.
+ */
+export interface FrameActions {
+  /** Create a frame at the top level, centered on `at`, and select it. */
+  addFrame: (at?: Vec2) => void;
+  /** Edit a frame's world position (`x`/`y`), content box, or background. */
+  updateFrame: (
+    id: string,
+    patch: Partial<{ x: number; y: number; width: number; height: number; background: string | null }>
+  ) => void;
+  /** Move frame `id` to `toIndex` among the top-level frames (= export order). */
+  reorderFrame: (id: string, toIndex: number) => void;
 }
 
 export interface ClipboardActions {
@@ -374,7 +376,7 @@ export type EditorState = EditorData &
   HistoryActions &
   ShapeActions &
   StructureActions &
-  ArtboardActions &
+  FrameActions &
   ClipboardActions &
   SwatchActions &
   SymbolActions;
@@ -399,16 +401,13 @@ export interface StoreCtx {
 }
 
 /**
- * Per-selection transient state, reset by selection/document changes. Node
- * selection and artboard selection are mutually exclusive, so setting a node
- * selection also drops the selected artboard. The few callers that roll back an
- * interaction while keeping an artboard or path anchors selected
+ * Per-selection transient state, reset by selection/document changes. The few
+ * callers that roll back an interaction while keeping path anchors selected
  * (undo/redo, cancelInteraction) restore those fields explicitly.
  */
 export const clearTransient = {
   selectionPivot: null,
   selectionTransform: null,
-  selectedArtboardId: null,
   editNodes: [] as EditNode[],
 };
 

@@ -95,7 +95,7 @@ const TOOL_HINTS: Record<ToolId, string> = {
   eraser: "Drag across brush strokes to split/trim them · size in the panel",
   bucket: "Click an enclosed empty area to fill it · gap closing in the panel",
   text: "Click for auto width · drag for a wrapping area · double-click text to edit",
-  artboard: "Drag to create a board · drag a board to move · drag handles to resize",
+  frame: "Drag to create a frame · move/resize it with the Select tool",
 };
 
 /** Per-tool usage hint for the status bar. */

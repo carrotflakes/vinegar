@@ -69,7 +69,7 @@ test("history patches omit unchanged document payloads", () => {
   doc.assets[asset.id] = asset;
   useEditor.getState().loadDocument(doc);
 
-  useEditor.getState().addArtboard({ x: 50, y: 50 });
+  useEditor.getState().addFrame({ x: 50, y: 50 });
 
   const entry = useEditor.getState().history.past.at(-1);
   assert.ok(entry.patches.length);
@@ -339,23 +339,24 @@ test("the same coalesce key starts a new entry after the window expires", () => 
   }
 });
 
-test("setDoc interaction stores only the final artboard document", () => {
+test("setDoc interaction stores only the final document", () => {
   const before = useEditor.getState().doc;
   const historyLength = useEditor.getState().history.past.length;
-  const intermediate = { id: "board-1", name: "Board", x: 20, y: 0, width: 100, height: 100, background: "#ffffff" };
-  const final = { ...intermediate, x: 40 };
+  const frame = { id: "frame-1", name: "Frame", type: "frame", transform: [1, 0, 0, 1, 20, 0], transformOrigin: null, opacity: 1, width: 100, height: 100, background: "#ffffff", childIds: [] };
+  const intermediate = { ...before, nodes: { ...before.nodes, "frame-1": frame }, rootIds: [...before.rootIds, "frame-1"] };
+  const final = { ...intermediate, nodes: { ...before.nodes, "frame-1": { ...frame, transform: [1, 0, 0, 1, 40, 0] } } };
 
   useEditor.getState().beginInteraction();
-  useEditor.getState().setDoc({ ...before, artboards: [intermediate] });
-  useEditor.getState().setDoc({ ...before, artboards: [final] });
+  useEditor.getState().setDoc(intermediate);
+  useEditor.getState().setDoc(final);
   useEditor.getState().endInteraction();
 
   assert.equal(useEditor.getState().history.past.length, historyLength + 1);
-  assert.equal(JSON.stringify(useEditor.getState().history.past.at(-1)).includes("\"x\":20"), false);
+  assert.equal(JSON.stringify(useEditor.getState().history.past.at(-1)).includes("1,20,0]"), false);
   useEditor.getState().undo();
-  assert.deepEqual(useEditor.getState().doc.artboards, []);
+  assert.equal(useEditor.getState().doc.nodes["frame-1"], undefined);
   useEditor.getState().redo();
-  assert.deepEqual(useEditor.getState().doc.artboards, [final]);
+  assert.equal(useEditor.getState().doc.nodes["frame-1"].transform[4], 40);
 });
 
 test("a branch at the same history depth does not collide with the saved revision", () => {
