@@ -26,6 +26,7 @@ import { useUi } from "./store/uiStore";
 import { barButton } from "./ui/AppBar.css";
 import CommandPalette from "./ui/CommandPalette";
 import ContextMenuHost from "./ui/ContextMenu";
+import DocumentTitle from "./ui/DocumentTitle";
 import FileMenu from "./ui/FileMenu";
 import FullscreenButton from "./ui/FullscreenButton";
 import RightSidebar from "./ui/RightSidebar";
@@ -160,6 +161,8 @@ function AutosaveInfo() {
 export default function App() {
   const canUndo = useEditor((s) => s.history.past.length > 0);
   const canRedo = useEditor((s) => s.history.future.length > 0);
+  const documentName = useEditor((s) => s.doc.metadata.name);
+  const documentDirty = useEditor(hasUnsavedChanges);
   const recoveryEnabled = usePreferences((s) => s.recovery.enabled);
   const recoveryMaxWaitMs = usePreferences((s) => s.recovery.maxWaitMs);
   const previousRecoveryEnabled = useRef(recoveryEnabled);
@@ -281,6 +284,12 @@ export default function App() {
     return () => window.removeEventListener("paste", onPaste);
   }, []);
 
+  // Keep the browser tab named after the document, with the usual leading dot
+  // for unsaved changes.
+  useEffect(() => {
+    document.title = `${documentDirty ? "• " : ""}${documentName} — Vinegar`;
+  }, [documentName, documentDirty]);
+
   // Warn before leaving (close / reload / navigate away) with unsaved changes.
   useEffect(() => {
     const onBeforeUnload = (e: BeforeUnloadEvent) => {
@@ -316,7 +325,9 @@ export default function App() {
           </button>
         </div>
 
-        {/* Center zone — reserved for contextual controls / document name. */}
+        {/* Center zone — the document name. */}
+        <div className="appbar-spacer" />
+        <DocumentTitle />
         <div className="appbar-spacer" />
 
         {/* Right zone — history · view · global. */}

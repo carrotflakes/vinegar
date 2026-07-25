@@ -76,7 +76,8 @@ pnpm test       # node --test (model, store, persistence, import and recovery)
 - **Responsive / touch** layout: icon-only toolbar rail, slide-in panels, enlarged hit targets for coarse pointers, pinch-to-zoom & two-finger pan, on-screen Shift/Alt modifier bar
 - Debug **project inspector** (app bar ▸ Inspect): searchable JSON tree of the whole store
 - **Browser recovery autosave**: dirty documents are saved locally in IndexedDB and, after a reload/crash, offered for restore on next launch (Cancel discards); progress is reported in the status bar
-- File: New, Open, Save (`.vinegar.json`), import SVG, place raster images, export PNG/JPEG/WebP with range, size, background and quality controls, export SVG, and load Demo
+- File: New, Open, Save / Save As (`.vinegar.json`), import SVG, place raster images, export PNG/JPEG/WebP with range, size, background and quality controls, export SVG, and load Demo
+- **Document identity**: the document name is edited in the middle of the app bar and drives the browser tab title, the suggested save filename and every export filename. Where the browser supports the File System Access API (Chromium today), Open and Save As remember the chosen file so ⌘/Ctrl+S overwrites it in place; elsewhere both fall back to a download named after the document
 
 ## SVG interoperability
 

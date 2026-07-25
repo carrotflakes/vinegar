@@ -517,9 +517,18 @@ export interface GuideLine {
 
 /** Metadata for forward-compatible document management. */
 export interface DocumentMetadata {
+  /**
+   * Display name, and the stem every save/export filename is derived from.
+   * Independent of the file on disk: opening `sketch.vinegar.json` shows
+   * whatever name the document was saved with, like Illustrator's title.
+   */
+  name: string;
   createdAt: string;
   modifiedAt: string;
 }
+
+/** Name given to a document that has never been named or saved. */
+export const UNTITLED_DOCUMENT_NAME = "Untitled";
 
 /**
  * Binary resources are referenced by id instead of being embedded in shapes.
@@ -567,7 +576,7 @@ export function createEmptyDocument(): Document {
     scripts: {},
     guides: [],
     settings: { unit: "px", dpi: 96, gridSize: 50 },
-    metadata: { createdAt: now, modifiedAt: now },
+    metadata: { name: UNTITLED_DOCUMENT_NAME, createdAt: now, modifiedAt: now },
     assets: {},
     extensions: {},
   };

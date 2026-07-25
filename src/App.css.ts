@@ -57,6 +57,50 @@ globalStyle(".appbar-spacer", {
   flex: "1",
 });
 
+// Document name — quiet until hovered, so the bar still reads as chrome.
+globalStyle(".doc-title", {
+  display: "flex",
+  alignItems: "center",
+  gap: "6px",
+  maxWidth: "min(40vw, 320px)",
+  height: "26px",
+  padding: "0 8px",
+  border: "1px solid transparent",
+  borderRadius: "6px",
+  background: "transparent",
+  color: vars.text,
+  fontSize: "12px",
+});
+
+globalStyle(".doc-title:hover", {
+  background: vars.hover,
+});
+
+globalStyle(".doc-title-name", {
+  overflow: "hidden",
+  textOverflow: "ellipsis",
+  whiteSpace: "nowrap",
+});
+
+globalStyle(".doc-title-dirty", {
+  flex: "none",
+  width: "6px",
+  height: "6px",
+  borderRadius: "50%",
+  background: vars.muted,
+});
+
+globalStyle(".doc-title-input", {
+  width: "min(40vw, 320px)",
+  height: "26px",
+  padding: "0 7px",
+  border: `1px solid ${vars.accent}`,
+  borderRadius: "6px",
+  background: vars.field,
+  color: vars.text,
+  fontSize: "12px",
+});
+
 globalStyle(".body", {
   flex: "1",
   display: "flex",

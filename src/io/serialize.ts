@@ -15,7 +15,7 @@ import {
  * Only the current version is accepted; there is no migration from older
  * formats — pre-v28 files fail to open with a clear message.
  */
-export const CURRENT_FILE_VERSION = 28 as const;
+export const CURRENT_FILE_VERSION = 29 as const;
 
 export interface VinegarFile {
   app: "vinegar";
@@ -255,7 +255,8 @@ function isCurrentDocument(value: unknown): value is Document {
       (guide.axis === "x" || guide.axis === "y") && isNumber(guide.position)) &&
     isObject(value.settings) && typeof value.settings.unit === "string" &&
     isNumber(value.settings.dpi) && isNumber(value.settings.gridSize) &&
-    isObject(value.metadata) && typeof value.metadata.createdAt === "string" &&
+    isObject(value.metadata) && typeof value.metadata.name === "string" &&
+    typeof value.metadata.createdAt === "string" &&
     typeof value.metadata.modifiedAt === "string" &&
     isObject(value.assets) &&
     Object.entries(value.assets).every(([id, asset]) =>

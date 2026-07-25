@@ -54,8 +54,14 @@ import { importSvg, type ImportedSvg } from "../io/importSvg";
 import { exportPng } from "../io/exportPng";
 import { exportSvg } from "../io/exportSvg";
 import { loadDocumentText } from "../io/openDocument";
-import { serializeDocument } from "../io/serialize";
+import {
+  pickDocumentToOpen,
+  supportsFileSystem,
+  type FileHandle,
+} from "../io/fileSystem";
+import { saveDocument, saveDocumentAs } from "../io/saveDocument";
 import { currentSymbolScope, hasUnsavedChanges, useEditor } from "../store/editorStore";
+import { useDocumentFile } from "../store/documentFileStore";
 import { usePreferences } from "../store/preferencesStore";
 import { useUi } from "../store/uiStore";
 import { groupEditNodesByShape } from "../store/state";
@@ -727,6 +733,7 @@ export const COMMANDS: Command[] = [
     run: (s) => {
       if (!confirmDiscard(s)) return;
       s.newDocument();
+      useDocumentFile.getState().clear();
     },
   },
   {
@@ -735,6 +742,24 @@ export const COMMANDS: Command[] = [
     group: "File",
     run: async (s) => {
       if (!confirmDiscard(s)) return;
+      // Prefer the File System Access picker so the opened file can be
+      // overwritten by a later Save; fall back to a plain <input type=file>.
+      if (supportsFileSystem()) {
+        let handle: FileHandle | null;
+        let text: string;
+        try {
+          handle = await pickDocumentToOpen();
+          if (!handle) return;
+          text = await (await handle.getFile()).text();
+        } catch (err) {
+          notify.error(
+            "Could not open file:\n" + (err instanceof Error ? err.message : String(err))
+          );
+          return;
+        }
+        loadDocumentText(text, handle);
+        return;
+      }
       const text = await pickTextFile(".json,application/json");
       if (text == null) return;
       loadDocumentText(text);
@@ -770,14 +795,17 @@ export const COMMANDS: Command[] = [
   },
   {
     id: "file.save",
-    label: "Save (.json)",
+    label: "Save",
     group: "File",
     keys: [{ key: "s", mod: true }],
-    run: (s) => {
-      const json = serializeDocument(s.doc);
-      downloadText(json, "drawing.vinegar.json", "application/json");
-      s.markSaved();
-    },
+    run: () => void saveDocument(),
+  },
+  {
+    id: "file.saveAs",
+    label: "Save As…",
+    group: "File",
+    keys: [{ key: "s", mod: true, shift: true }],
+    run: () => void saveDocumentAs(),
   },
   {
     id: "file.exportImage",
@@ -792,7 +820,7 @@ export const COMMANDS: Command[] = [
     run: async (s) => {
       try {
         const blob = await exportPng(s.doc, { scale: 2 });
-        downloadBlob(blob, "drawing.png");
+        downloadBlob(blob, `${fileSlug(s.doc.metadata.name)}.png`);
       } catch (err) {
         notify.error(err instanceof Error ? err.message : String(err));
       }
@@ -805,7 +833,7 @@ export const COMMANDS: Command[] = [
     run: (s) => {
       try {
         const svg = exportSvg(s.doc);
-        downloadText(svg, "drawing.svg", "image/svg+xml");
+        downloadText(svg, `${fileSlug(s.doc.metadata.name)}.svg`, "image/svg+xml");
       } catch (err) {
         notify.error(err instanceof Error ? err.message : String(err));
       }
@@ -882,6 +910,7 @@ export const COMMANDS: Command[] = [
     run: (s) => {
       if (!confirmDiscard(s)) return;
       s.loadDocument(createDemoDocument());
+      useDocumentFile.getState().clear();
       s.setViewport({ scale: 0.85, rotation: 0, offset: { x: 12, y: 12 } });
     },
   },

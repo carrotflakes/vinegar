@@ -86,7 +86,7 @@ Ordered by agreed priority. These are the biggest gaps toward a "real" vector ed
    region detection (`model/bucketFill.ts`): all visible ink is unioned with
    Clipper after inflating by half the gap tolerance, the click picks the
    union *hole* containing it, and the hole is re-expanded so the fill tucks
-   0.5 units under the ink. The result is a plain `polygon` node inserted at
+   0.5 units under the ink. The result is a plain `path` node inserted at
    the *back* of the active drawing container (`addFillShape`), so line art
    keeps painting over it. Options (persisted `bucketStore` + Bucket panel):
    gap-closing tolerance and "Fill to stroke centers" (bound the fill at
@@ -127,18 +127,30 @@ additional effects, or other feature expansion.
     background, diagonal guides, "make guides from selection", guides inside
     symbol definitions, ticks under an arbitrary canvas rotation (currently
     only multiples of 90°)
-- [ ] **Document identity and save workflow** — editable document name, Save As,
-  recent files, and overwrite the opened file where the File System Access API permits
+- [x] **Document identity and save workflow** — shipped (file v29). The document
+  name lives on `doc.metadata.name` (required, so the version bump), is edited in
+  the middle of the app bar (`ui/DocumentTitle.tsx`), and drives the tab title,
+  the suggested save filename and every export filename. Renaming goes through
+  `setDocumentName`, a maintenance-level change like the grid size — it travels
+  with the file but is not undoable. `io/fileSystem.ts` wraps the File System
+  Access API and `io/saveDocument.ts` picks the path: where it exists (Chromium),
+  Open / Save As / a document drop attach a handle (`store/documentFileStore.ts`,
+  session state, never serialized) and ⌘S overwrites that file; everywhere else
+  Save and Save As both fall back to a download named after the document. Save As
+  adopts the name typed into the picker so the two never drift.
+  - [ ] Follow-ups: recent files (persist handles in IndexedDB), reattach the
+    handle across a reload, and a "Save a copy" that does not re-point the
+    attached file
 - [ ] **Document settings UI** — edit unit and DPI as well as grid size; show the
   selected unit consistently in coordinates, dimensions and export settings
 - [ ] **Layer search / filtering** — find nodes by name/type and quickly reveal the
   selected result in deeply nested documents
-- [ ] **Path unification (file v21)** — merge `path` / `polygon` / `bezier` into one
-  canonical `path` type (`subpaths` + optional `fillRule`); plan in
+- [x] **Path unification** — `path` / `polygon` / `bezier` merged into one
+  canonical `path` type (`PathNode` = `subpaths` + `fillRule`); plan was
   docs/path-unification.md
-- [ ] **Compound paths as real nodes (file v22)** — replace inline retained
-  `components` with real `childIds` children (editable, layers-visible); depends
-  on path unification; plan in docs/compound-path-nodes.md
+- [x] **Compound paths as real nodes** — inline retained `components` replaced by
+  real `childIds` children (editable, layers-visible); plan was
+  docs/compound-path-nodes.md
 
 ## Mobile / touch
 - [ ] On-screen alternatives for the remaining keyboard-only actions (delete, copy/paste, group, pen finish/cancel)

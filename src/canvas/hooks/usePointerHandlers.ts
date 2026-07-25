@@ -4,6 +4,7 @@ import type {
   PointerEvent as ReactPointerEvent,
   RefObject,
 } from "react";
+import { handleFromDataTransferItem } from "../../io/fileSystem";
 import { isDocumentFile, openDocumentFile } from "../../io/openDocument";
 import {
   drillScopeRoot,
@@ -491,7 +492,14 @@ export function usePointerHandlers(deps: PointerHandlerDeps): PointerHandlers {
     // A dropped .vinegar.json opens as the document; image files get placed.
     const docFile = files.find(isDocumentFile);
     if (docFile) {
-      void openDocumentFile(docFile);
+      // Chromium exposes a file handle through the matching item, which lets a
+      // dropped document be overwritten by a later Save. The item is only
+      // readable while the drop event is live, so start the lookup here and
+      // hand the pending result over rather than the item itself.
+      const item = [...(dt?.items ?? [])].filter((i) => i.kind === "file")[
+        files.indexOf(docFile)
+      ];
+      void openDocumentFile(docFile, item ? handleFromDataTransferItem(item) : null);
       return;
     }
     void state.placeImageFiles(files, world, fitWithin);

@@ -52,6 +52,7 @@ export function fileMenu(): MenuEntry[] {
     item("file.placeImage"),
     "separator",
     item("file.save"),
+    item("file.saveAs"),
     {
       label: "Export",
       submenu: [

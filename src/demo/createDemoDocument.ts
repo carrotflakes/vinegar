@@ -378,6 +378,7 @@ export function createDemoDocument() {
   doc.nodes = nodes;
   doc.rootIds = [posterFrame.id];
   doc.settings.gridSize = 40;
+  doc.metadata.name = "Demo";
   doc.extensions["vinegar.demo"] = {
     purpose: "manual-debugging",
     features: ["all-shape-types", "compound-path", "nested-groups", "empty-group", "transforms", "pivots", "blend", "hidden", "locked", "pattern-fill", "pattern-stroke", "linear-gradient", "radial-gradient", "point-text", "area-text", "spiky-callout", "abstract-cat", "thick-stroke", "drop-shadow-effect", "group-effect", "blur-effect"],

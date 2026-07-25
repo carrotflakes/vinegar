@@ -1,6 +1,7 @@
 // Tool, viewport and persisted user preferences (colors, swatches, snapping).
 
 import { solid } from "../model/paint";
+import { UNTITLED_DOCUMENT_NAME } from "../model/types";
 import { initialViewport } from "@/model/geometry/viewport";
 import {
   clearTransient,
@@ -91,6 +92,10 @@ export function createPrefsActions({ set, get, replaceDocumentWithoutHistory }: 
     toggleRulers: () => { const rulersVisible = !get().rulersVisible; saveBool(RULERS_VISIBLE_KEY, rulersVisible); set({ rulersVisible }); },
     // The document grid travels with the file but is not an undoable edit.
     setGridSize: (size) => { const gridSize = Math.max(1, Math.round(size)); const doc = get().doc; replaceDocumentWithoutHistory({ ...doc, settings: { ...doc.settings, gridSize } }, { gridSize }); },
+    // Like the grid size: travels with the file, but is not an undoable edit.
+    // Blank input falls back to "Untitled" so save and export filenames always
+    // have a stem to work from.
+    setDocumentName: (name) => { const next = name.trim() || UNTITLED_DOCUMENT_NAME; const doc = get().doc; if (doc.metadata.name !== next) replaceDocumentWithoutHistory({ ...doc, metadata: { ...doc.metadata, name: next } }); },
     addRecentColor: (hex) => { const c = hex.toLowerCase(); const recentColors = [c, ...get().recentColors.filter((x) => x !== c)].slice(0, RECENT_COLORS_MAX); saveColorList(RECENT_COLORS_KEY, recentColors); set({ recentColors }); },
     addSwatch: (hex) => { const c = hex.toLowerCase(); if (get().savedSwatches.includes(c)) return; const savedSwatches = [...get().savedSwatches, c]; saveColorList(SAVED_SWATCHES_KEY, savedSwatches); set({ savedSwatches }); },
     removeSwatch: (hex) => { const savedSwatches = get().savedSwatches.filter((x) => x !== hex.toLowerCase()); saveColorList(SAVED_SWATCHES_KEY, savedSwatches); set({ savedSwatches }); },

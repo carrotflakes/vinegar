@@ -160,6 +160,7 @@ export interface PrefsActions {
   toggleGridSnap: () => void;
   toggleGridVisible: () => void;
   setGridSize: (size: number) => void;
+  setDocumentName: (name: string) => void;
   toggleGuideSnap: () => void;
   toggleGuidesVisible: () => void;
   toggleGuidesLocked: () => void;
