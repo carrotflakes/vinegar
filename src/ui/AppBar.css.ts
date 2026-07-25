@@ -7,15 +7,15 @@ export const barButton = recipe({
     display: "inline-flex",
     alignItems: "center",
     justifyContent: "center",
-    gap: 6,
-    height: 30,
-    minWidth: 30,
-    padding: "0 9px",
+    gap: 5,
+    height: 26,
+    minWidth: 26,
+    padding: "0 7px",
     border: "1px solid transparent",
-    borderRadius: 7,
+    borderRadius: 6,
     background: "transparent",
     color: vars.text,
-    fontSize: 13,
+    fontSize: 12,
     selectors: {
       "&:hover:not(:disabled)": {
         background: vars.hover,
@@ -30,7 +30,7 @@ export const barButton = recipe({
     icon: {
       true: {
         padding: 0,
-        width: 30,
+        width: 26,
       },
     },
     active: {
@@ -53,7 +53,7 @@ export const barButton = recipe({
 });
 
 globalStyle(".zoom-readout", {
-  minWidth: "64px",
+  minWidth: "52px",
   fontVariantNumeric: "tabular-nums",
 });
 

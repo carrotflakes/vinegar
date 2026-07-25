@@ -5,18 +5,18 @@ globalStyle(".toolbar", {
   display: "flex",
   flexDirection: "column",
   alignItems: "center",
-  gap: "3px",
+  gap: "2px",
 });
 
 globalStyle(".tool-btn", {
   display: "flex",
   alignItems: "center",
   justifyContent: "center",
-  width: "38px",
-  height: "38px",
+  width: "32px",
+  height: "32px",
   padding: "0",
   border: "1px solid transparent",
-  borderRadius: "8px",
+  borderRadius: "7px",
   background: "transparent",
   color: vars.muted,
 });
@@ -35,12 +35,12 @@ globalStyle(".tool-icon", {
   display: "inline-flex",
   alignItems: "center",
   justifyContent: "center",
-  fontSize: "18px",
+  fontSize: "16px",
 });
 
 globalStyle(".tool-sep", {
-  width: "22px",
+  width: "18px",
   height: "1px",
-  margin: "4px 0",
+  margin: "3px 0",
   background: vars.border,
 });

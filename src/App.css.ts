@@ -17,8 +17,8 @@ globalStyle(".appbar", {
   display: "flex",
   alignItems: "center",
   gap: "2px",
-  height: "48px",
-  padding: "0 8px",
+  height: "36px",
+  padding: "0 6px",
   background: vars.panel,
   borderBottom: `1px solid ${vars.border}`,
   flex: "none",
@@ -33,21 +33,22 @@ globalStyle(".appbar-zone", {
 globalStyle(".appbar-sep", {
   width: "1px",
   alignSelf: "stretch",
-  margin: "12px 6px",
+  margin: "9px 5px",
   background: vars.border,
 });
 
 globalStyle(".brand", {
   fontWeight: "700",
+  fontSize: "13px",
   letterSpacing: "0.2px",
   display: "flex",
   alignItems: "center",
-  gap: "6px",
-  padding: "0 8px 0 6px",
+  gap: "5px",
+  padding: "0 6px 0 4px",
 });
 
 globalStyle(".brand-mark", {
-  height: "20px",
+  height: "17px",
   width: "auto",
   display: "block",
 });
@@ -72,11 +73,11 @@ globalStyle(".panel-backdrop", {
 });
 
 globalStyle(".left", {
-  width: "50px",
+  width: "40px",
   flex: "none",
   background: vars.panel,
   borderRight: `1px solid ${vars.border}`,
-  padding: "6px",
+  padding: "4px",
   overflowY: "auto",
 });
 
@@ -88,15 +89,15 @@ globalStyle(".stage", {
 });
 
 globalStyle(".statusbar", {
-  height: "26px",
+  height: "22px",
   flex: "none",
   display: "flex",
   alignItems: "center",
-  gap: "8px",
-  padding: "0 12px",
+  gap: "7px",
+  padding: "0 10px",
   background: vars.panel,
   borderTop: `1px solid ${vars.border}`,
-  fontSize: "12px",
+  fontSize: "11px",
   color: vars.muted,
 });
 
@@ -105,7 +106,7 @@ globalStyle(".statusbar .dot", {
 });
 
 globalStyle(".pointer-readout", {
-  minWidth: "88px",
+  minWidth: "76px",
   fontVariantNumeric: "tabular-nums",
 });
 
@@ -194,7 +195,7 @@ globalStyle(".autosave.saving .autosave-dot", {
 globalStyle(".status-sep", {
   width: "1px",
   alignSelf: "stretch",
-  margin: "5px 4px",
+  margin: "4px 4px",
   background: vars.border,
 });
 
@@ -211,9 +212,9 @@ globalStyle(".appbar", {
   "@media": {
     "(max-width: 720px)": {
       height: "auto",
-      minHeight: "48px",
-      gap: "6px 8px",
-      padding: "6px 8px",
+      minHeight: "36px",
+      gap: "4px 6px",
+      padding: "4px 6px",
       flexWrap: "wrap",
     },
   },
@@ -235,9 +236,11 @@ globalStyle(".body", {
   },
 });
 
+// The wordmark is the first thing to go when the bar gets crowded — the logo
+// mark alone still identifies the app.
 globalStyle(".brand-word", {
   "@media": {
-    "(max-width: 720px)": {
+    "(max-width: 1000px)": {
       display: "none",
     },
   },
