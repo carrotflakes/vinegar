@@ -5,6 +5,8 @@ import { NODE_BASE, SHAPE_BASE } from "./nodeBase.mjs";
 
 let server;
 let layoutText;
+let layoutTextWithCanvas;
+let clearTextLayoutMetricsCache;
 let createEmptyDocument;
 let serializeDocument;
 let parseDocument;
@@ -16,7 +18,11 @@ let useEditor;
 
 before(async () => {
   server = await createServer({ server: { middlewareMode: true } });
-  ({ layoutText } = await server.ssrLoadModule("/src/canvas/textLayout.ts"));
+  ({
+    layoutText,
+    layoutTextWithCanvas,
+    clearTextLayoutMetricsCache,
+  } = await server.ssrLoadModule("/src/canvas/textLayout.ts"));
   ({ createEmptyDocument } = await server.ssrLoadModule("/src/model/types.ts"));
   ({ serializeDocument, parseDocument } = await server.ssrLoadModule("/src/io/serialize.ts"));
   ({ hitTestShape } = await server.ssrLoadModule("/src/model/geometry/hitTest.ts"));
@@ -101,6 +107,28 @@ test("area text greedily wraps words, CJK, and overlong Latin tokens", () => {
   );
   assert.deepEqual(long.lines.map((line) => line.text), ["abc", "def"]);
   assert.deepEqual(long.lines.map((line) => line.x), [0, 0]);
+});
+
+test("Canvas text layout is cached by immutable shape reference", () => {
+  const shape = textShape({ text: "cached" });
+  let measurements = 0;
+  const ctx = {
+    font: "",
+    measureText(text) {
+      measurements += 1;
+      return { width: measure(text) };
+    },
+  };
+  const first = layoutTextWithCanvas(ctx, shape);
+  const second = layoutTextWithCanvas(ctx, shape);
+  assert.equal(second, first);
+  assert.equal(measurements, 1);
+
+  layoutTextWithCanvas(ctx, { ...shape, text: "changed" });
+  assert.equal(measurements, 2);
+  clearTextLayoutMetricsCache();
+  layoutTextWithCanvas(ctx, shape);
+  assert.equal(measurements, 3);
 });
 
 test("text documents round-trip and malformed typography is rejected", () => {

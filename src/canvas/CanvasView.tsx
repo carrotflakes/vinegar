@@ -26,6 +26,7 @@ import {
 import ModifierBar from "./ModifierBar";
 import TextEditor from "./TextEditor";
 import { commitPenDraft } from "./tools/penTool";
+import { useRenderBenchmark } from "@/debug/useRenderBenchmark";
 
 export default function CanvasView() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -131,6 +132,8 @@ export default function CanvasView() {
 
   useCanvasTheme(themeRef, scheduleDraw);
   useCanvasSizing(wrapRef, canvasRef, sizeRef, draw);
+
+  useRenderBenchmark(draw);
 
   const {
     onPointerDown,

@@ -1,6 +1,7 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
 import App from "./App";
+import { loadRenderStressDocument } from "./debug/loadRenderStressDocument";
 import {
   clearDocumentRecovery,
   restoreRecoveryAtStartup,
@@ -24,6 +25,7 @@ async function main() {
   } else {
     await clearDocumentRecovery();
   }
+  loadRenderStressDocument();
   ReactDOM.createRoot(document.getElementById("root")!).render(
     <React.StrictMode>
       <App />

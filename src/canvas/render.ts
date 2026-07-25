@@ -1,14 +1,28 @@
 import { subpathSegments } from "@/model/path/path";
-import { shapeBounds } from "@/model/geometry/bounds";
+import {
+  expandBounds,
+  frameLocalBounds,
+  intersectBounds,
+  shapeBounds,
+  worldShapeBounds,
+} from "@/model/geometry/bounds";
 import { cachedBrushEnvelope } from "@/model/brush/brushOutline";
-import { isCompoundChild } from "@/model/path/compoundPath";
+import {
+  compoundChildren,
+  isCompoundChild,
+} from "@/model/path/compoundPath";
 import {
   clippingContentIds,
   clippingMask,
   shapeFillRule,
 } from "../model/clippingMask";
-import { hasEffects } from "../model/effects";
-import { isIdentity } from "@/model/geometry/matrix";
+import { effectsMargin, hasEffects } from "../model/effects";
+import {
+  isIdentity,
+  matrixScale,
+  nodeWorldMatrix,
+  transformBounds,
+} from "@/model/geometry/matrix";
 import {
   isSwatchRef,
   patternPlacement,
@@ -18,7 +32,13 @@ import {
   type PatternPaint,
 } from "../model/paint";
 import { effectiveRectCornerRadius, roundedRectSubpath } from "../model/roundedRect";
-import { isFrame, isGroup, isInstance, isShape } from "../model/scene";
+import {
+  ancestorIds,
+  isFrame,
+  isGroup,
+  isInstance,
+  isShape,
+} from "../model/scene";
 import {
   effectiveStrokeAlignment,
   normalizeStrokeDash,
@@ -28,6 +48,11 @@ import type { Bounds, Document, DocumentAsset, Effect, FrameNode, ImageShape, Sh
 import { screenToWorld, worldToScreen, type Viewport } from "@/model/geometry/viewport";
 import { getAssetImage } from "../imageCache";
 import { layoutTextWithCanvas } from "./textLayout";
+import {
+  renderCachesDisabled,
+  renderCullingDisabled,
+  renderProfilingEnabled,
+} from "@/debug/renderFlags";
 
 /**
  * Paint a render node. Groups and instances with opacity/blend are drawn into
@@ -40,10 +65,15 @@ import { layoutTextWithCanvas } from "./textLayout";
  * contexts (SSR/tests) that lack canvas pattern support.
  */
 let checkerTile: HTMLCanvasElement | null | undefined;
+const checkerPatterns = new WeakMap<CanvasRenderingContext2D, CanvasPattern>();
 function checkerPattern(ctx: CanvasRenderingContext2D): CanvasPattern | null {
   if (typeof document === "undefined" || typeof ctx.createPattern !== "function") {
     return null;
   }
+  const cached = renderCachesDisabled
+    ? undefined
+    : checkerPatterns.get(ctx);
+  if (cached) return cached;
   if (checkerTile === undefined) {
     const tile = document.createElement("canvas");
     tile.width = 16;
@@ -60,10 +90,153 @@ function checkerPattern(ctx: CanvasRenderingContext2D): CanvasPattern | null {
       checkerTile = tile;
     }
   }
-  return checkerTile ? ctx.createPattern(checkerTile, "repeat") : null;
+  const pattern = checkerTile ? ctx.createPattern(checkerTile, "repeat") : null;
+  if (pattern && !renderCachesDisabled) {
+    checkerPatterns.set(ctx, pattern);
+  }
+  return pattern;
 }
 
-export function paintNode(
+interface PaintTraversal {
+  visibleWorldBounds: Bounds;
+  visualBounds: Map<string, Bounds | null>;
+  cullExemptIds: Set<string>;
+  stats: { paintedNodes: number; culledNodes: number };
+  /** Definition children are painted under an instance transform, while their
+   * indexed bounds are symbol-local. The instance itself is still culled. */
+  cullingDisabled?: boolean;
+}
+
+function unionBounds(bounds: Array<Bounds | null>): Bounds | null {
+  const list = bounds.filter((value): value is Bounds => value !== null);
+  if (!list.length) return null;
+  const x = Math.min(...list.map((value) => value.x));
+  const y = Math.min(...list.map((value) => value.y));
+  const right = Math.max(...list.map((value) => value.x + value.width));
+  const bottom = Math.max(...list.map((value) => value.y + value.height));
+  return { x, y, width: right - x, height: bottom - y };
+}
+
+const cullingShapeBoundsCache = new WeakMap<
+  Shape,
+  { bounds: Bounds; components?: Shape[] }
+>();
+
+/** Bounds caching is deliberately scoped to persisted document shapes.
+ * Transient pen/pencil previews are mutable and must never enter this cache. */
+function cachedCullingShapeBounds(shape: Shape, doc: Document): Bounds {
+  if (renderCachesDisabled) return shapeBounds(shape, doc);
+  const cached = cullingShapeBoundsCache.get(shape);
+  if (shape.type !== "compoundPath") {
+    if (cached) return cached.bounds;
+    const bounds = shapeBounds(shape, doc);
+    cullingShapeBoundsCache.set(shape, { bounds });
+    return bounds;
+  }
+  const components = compoundChildren(doc, shape);
+  if (
+    cached?.components &&
+    cached.components.length === components.length &&
+    cached.components.every(
+      (component, index) => component === components[index]
+    )
+  ) {
+    return cached.bounds;
+  }
+  const bounds = shapeBounds(shape, doc);
+  cullingShapeBoundsCache.set(shape, { bounds, components });
+  return bounds;
+}
+
+/** Conservative painted bounds, including stroke and effects, for culling. */
+function visualNodeWorldBounds(
+  doc: Document,
+  nodeId: string,
+  cache: Map<string, Bounds | null>,
+  visiting: Set<string> = new Set()
+): Bounds | null {
+  if (cache.has(nodeId)) return cache.get(nodeId) ?? null;
+  if (visiting.has(nodeId)) return null;
+  const node = doc.nodes[nodeId];
+  if (!node || node.hidden) {
+    cache.set(nodeId, null);
+    return null;
+  }
+  visiting.add(nodeId);
+
+  let bounds: Bounds | null;
+  if (isShape(node)) {
+    let local = cachedCullingShapeBounds(node, doc);
+    if (node.type !== "brush" && node.stroke && node.strokeWidth > 0) {
+      const alignment = effectiveStrokeAlignment(node);
+      const strokeReach =
+        alignment === "outside"
+          ? node.strokeWidth * STROKE_MITER_LIMIT
+          : alignment === "center"
+            ? (node.strokeWidth * STROKE_MITER_LIMIT) / 2
+            : 0;
+      local = expandBounds(local, strokeReach);
+    }
+    local = expandBounds(local, effectsMargin(node.effects));
+    bounds = transformBounds(local, nodeWorldMatrix(doc, node.id));
+  } else if (isInstance(node)) {
+    const definition = doc.symbols[node.symbolId];
+    const content = definition
+      ? visualNodeWorldBounds(doc, definition.rootNodeId, cache, visiting)
+      : null;
+    bounds = content
+      ? transformBounds(content, nodeWorldMatrix(doc, node.id))
+      : null;
+    if (bounds) {
+      bounds = expandBounds(
+        bounds,
+        effectsMargin(node.effects) * matrixScale(nodeWorldMatrix(doc, node.id))
+      );
+    }
+  } else if (isFrame(node)) {
+    const frameBounds = transformBounds(
+      frameLocalBounds(node),
+      nodeWorldMatrix(doc, node.id)
+    );
+    bounds = node.clipsContent
+      ? frameBounds
+      : unionBounds([
+          frameBounds,
+          ...node.childIds.map((id) =>
+            visualNodeWorldBounds(doc, id, cache, visiting)
+          ),
+        ]) ?? frameBounds;
+    bounds = expandBounds(
+      bounds,
+      effectsMargin(node.effects) * matrixScale(nodeWorldMatrix(doc, node.id))
+    );
+  } else if (isGroup(node)) {
+    const children = unionBounds(
+      clippingContentIds(doc, node).map((id) =>
+        visualNodeWorldBounds(doc, id, cache, visiting)
+      )
+    );
+    const mask = clippingMask(doc, node);
+    bounds =
+      children && mask
+        ? intersectBounds(children, worldShapeBounds(doc, mask))
+        : children;
+    if (bounds) {
+      bounds = expandBounds(
+        bounds,
+        effectsMargin(node.effects) * matrixScale(nodeWorldMatrix(doc, node.id))
+      );
+    }
+  } else {
+    bounds = null;
+  }
+
+  visiting.delete(nodeId);
+  cache.set(nodeId, bounds);
+  return bounds;
+}
+
+function paintNodeInternal(
   ctx: CanvasRenderingContext2D,
   doc: Document,
   nodeId: string,
@@ -72,10 +245,27 @@ export function paintNode(
   activeSymbols: Set<string> = new Set(),
   /** Draw editor-only chrome (e.g. a transparent frame's checkerboard). Off for
    *  export so a transparent frame exports as actual transparency. */
-  editorChrome = false
+  editorChrome = false,
+  traversal?: PaintTraversal
 ): void {
   const node = doc.nodes[nodeId];
   if (!node) return;
+  if (
+    traversal &&
+    !traversal.cullingDisabled &&
+    !traversal.cullExemptIds.has(nodeId)
+  ) {
+    const bounds = visualNodeWorldBounds(
+      doc,
+      nodeId,
+      traversal.visualBounds
+    );
+    if (!bounds || !intersectBounds(bounds, traversal.visibleWorldBounds)) {
+      traversal.stats.culledNodes += 1;
+      return;
+    }
+  }
+  if (traversal) traversal.stats.paintedNodes += 1;
   if (isShape(node)) {
     if (node.hidden || node.id === hiddenShapeId) return;
     const shape = preview?.id === node.id ? preview : node;
@@ -89,7 +279,14 @@ export function paintNode(
     if (!acq) return;
     const { canvas: layer, lctx } = acq;
     lctx.setTransform(ctx.getTransform());
-    paintShape(lctx, { ...shape, opacity: 1, blendMode: "normal" }, doc.assets, doc, preview);
+    paintShape(
+      lctx,
+      { ...shape, opacity: 1, blendMode: "normal" },
+      doc.assets,
+      doc,
+      preview,
+      shape
+    );
     compositeEffects(ctx, layer, deviceScale(ctx), shape.effects, shape.opacity, shape.blendMode);
     return;
   }
@@ -139,6 +336,18 @@ export function paintNode(
     }
     if (!mask) return;
     const geometry = preview?.id === mask.id ? preview : mask;
+    const path = cachedShapePath(geometry, doc, preview);
+    if (
+      path &&
+      typeof Path2D !== "undefined" &&
+      typeof DOMMatrix !== "undefined" &&
+      typeof Path2D.prototype.addPath === "function"
+    ) {
+      const transformed = new Path2D();
+      transformed.addPath(path, new DOMMatrix(geometry.transform));
+      target.clip(transformed, shapeFillRule(geometry));
+      return;
+    }
     target.save();
     target.transform(...geometry.transform);
     tracePath(target, geometry, true, doc, preview);
@@ -150,7 +359,22 @@ export function paintNode(
   const effects = hasEffects(node.effects) ? node.effects : null;
   if (alpha >= 1 && !blend && !effects) {
     applyMask(ctx);
-    for (const childId of childIds) paintNode(ctx, doc, childId, preview, hiddenShapeId, activeSymbols, editorChrome);
+    const childTraversal =
+      symbolId && traversal
+        ? { ...traversal, cullingDisabled: true }
+        : traversal;
+    for (const childId of childIds) {
+      paintNodeInternal(
+        ctx,
+        doc,
+        childId,
+        preview,
+        hiddenShapeId,
+        activeSymbols,
+        editorChrome,
+        childTraversal
+      );
+    }
     ctx.restore();
     if (symbolId) activeSymbols.delete(symbolId);
     return;
@@ -165,10 +389,46 @@ export function paintNode(
   lctx.setTransform(ctx.getTransform());
   const scale = deviceScale(ctx);
   applyMask(lctx);
-  for (const childId of childIds) paintNode(lctx, doc, childId, preview, hiddenShapeId, activeSymbols, editorChrome);
+  const childTraversal =
+    symbolId && traversal
+      ? { ...traversal, cullingDisabled: true }
+      : traversal;
+  for (const childId of childIds) {
+    paintNodeInternal(
+      lctx,
+      doc,
+      childId,
+      preview,
+      hiddenShapeId,
+      activeSymbols,
+      editorChrome,
+      childTraversal
+    );
+  }
   ctx.restore();
   compositeEffects(ctx, layer, scale, effects, alpha, node.blendMode);
   if (symbolId) activeSymbols.delete(symbolId);
+}
+
+/** Paint one scene subtree without viewport culling (used by raster export). */
+export function paintNode(
+  ctx: CanvasRenderingContext2D,
+  doc: Document,
+  nodeId: string,
+  preview?: Shape | null,
+  hiddenShapeId?: string | null,
+  activeSymbols: Set<string> = new Set(),
+  editorChrome = false
+): void {
+  paintNodeInternal(
+    ctx,
+    doc,
+    nodeId,
+    preview,
+    hiddenShapeId,
+    activeSymbols,
+    editorChrome
+  );
 }
 
 /**
@@ -181,11 +441,13 @@ export function paintNode(
 const freeLayers: HTMLCanvasElement[] = [];
 let poolWidth = 0;
 let poolHeight = 0;
+let activeLayerCounter: { calls: number } | null = null;
 
 /** A cleared, default-state offscreen canvas matching the target's pixels. */
 function acquireLayer(
   ctx: CanvasRenderingContext2D
 ): { canvas: HTMLCanvasElement; lctx: CanvasRenderingContext2D } | null {
+  if (activeLayerCounter) activeLayerCounter.calls += 1;
   const width = ctx.canvas.width;
   const height = ctx.canvas.height;
   if (width !== poolWidth || height !== poolHeight) {
@@ -299,28 +561,31 @@ function compositeEffects(
   for (const canvas of intermediates) releaseLayer(canvas);
 }
 
-/** Build the geometry of a shape onto the current canvas path. */
-function tracePath(
-  ctx: CanvasRenderingContext2D,
-  shape: Shape,
-  begin = true,
-  doc?: Document,
-  preview?: Shape | null
-): void {
-  if (begin) ctx.beginPath();
+type PathTarget = Pick<
+  CanvasRenderingContext2D,
+  | "rect"
+  | "moveTo"
+  | "lineTo"
+  | "bezierCurveTo"
+  | "closePath"
+  | "ellipse"
+>;
+
+/** Append non-compound geometry to either a live canvas path or a Path2D. */
+function appendPath(target: PathTarget, shape: Shape): void {
   switch (shape.type) {
     case "rect": {
       const b = shapeBounds(shape);
       if (effectiveRectCornerRadius(shape) <= 0) {
-        ctx.rect(b.x, b.y, b.width, b.height);
+        target.rect(b.x, b.y, b.width, b.height);
         break;
       }
       const subpath = roundedRectSubpath(shape);
       const segments = subpathSegments(subpath);
       if (!segments.length) break;
-      ctx.moveTo(segments[0].p0.x, segments[0].p0.y);
+      target.moveTo(segments[0].p0.x, segments[0].p0.y);
       for (const segment of segments) {
-        ctx.bezierCurveTo(
+        target.bezierCurveTo(
           segment.c1.x,
           segment.c1.y,
           segment.c2.x,
@@ -329,7 +594,7 @@ function tracePath(
           segment.p1.y
         );
       }
-      ctx.closePath();
+      target.closePath();
       break;
     }
     case "ellipse": {
@@ -337,8 +602,8 @@ function tracePath(
       // CanvasRenderingContext2D.ellipse() connects from the current point to
       // the arc start. Compound paths already have a current point from the
       // preceding component, so explicitly start a new subpath first.
-      ctx.moveTo(b.x + b.width, b.y + b.height / 2);
-      ctx.ellipse(
+      target.moveTo(b.x + b.width, b.y + b.height / 2);
+      target.ellipse(
         b.x + b.width / 2,
         b.y + b.height / 2,
         Math.max(b.width / 2, 0),
@@ -350,8 +615,8 @@ function tracePath(
       break;
     }
     case "line": {
-      ctx.moveTo(shape.x1, shape.y1);
-      ctx.lineTo(shape.x2, shape.y2);
+      target.moveTo(shape.x1, shape.y1);
+      target.lineTo(shape.x2, shape.y2);
       break;
     }
     case "path": {
@@ -360,11 +625,11 @@ function tracePath(
         if (segs.length === 0) {
           if (sp.anchors[0]) {
             const p = sp.anchors[0].p;
-            ctx.moveTo(p.x, p.y);
+            target.moveTo(p.x, p.y);
           }
           continue;
         }
-        ctx.moveTo(segs[0].p0.x, segs[0].p0.y);
+        target.moveTo(segs[0].p0.x, segs[0].p0.y);
         for (const s of segs) {
           if (
             s.c1.x === s.p0.x &&
@@ -372,40 +637,130 @@ function tracePath(
             s.c2.x === s.p1.x &&
             s.c2.y === s.p1.y
           ) {
-            ctx.lineTo(s.p1.x, s.p1.y);
+            target.lineTo(s.p1.x, s.p1.y);
           } else {
-            ctx.bezierCurveTo(s.c1.x, s.c1.y, s.c2.x, s.c2.y, s.p1.x, s.p1.y);
+            target.bezierCurveTo(
+              s.c1.x,
+              s.c1.y,
+              s.c2.x,
+              s.c2.y,
+              s.p1.x,
+              s.p1.y
+            );
           }
         }
-        if (sp.closed) ctx.closePath();
-      }
-      break;
-    }
-    case "compoundPath": {
-      if (!doc) break;
-      for (const id of shape.childIds) {
-        const stored = doc.nodes[id];
-        const component = preview?.id === id ? preview : stored;
-        if (!isShape(component) || !isCompoundChild(component) || component.hidden) continue;
-        ctx.save();
-        ctx.transform(...component.transform);
-        tracePath(ctx, component, false, doc, preview);
-        ctx.restore();
+        if (sp.closed) target.closePath();
       }
       break;
     }
     case "brush": {
       const ring = cachedBrushEnvelope(shape);
       if (ring.length >= 2) {
-        ctx.moveTo(ring[0].x, ring[0].y);
-        for (let i = 1; i < ring.length; i++) ctx.lineTo(ring[i].x, ring[i].y);
-        ctx.closePath();
+        target.moveTo(ring[0].x, ring[0].y);
+        for (let i = 1; i < ring.length; i++) {
+          target.lineTo(ring[i].x, ring[i].y);
+        }
+        target.closePath();
       }
       break;
     }
+    case "compoundPath":
     case "image":
     case "text":
       break;
+  }
+}
+
+const pathCache = new WeakMap<Shape, Path2D>();
+const compoundPathCache = new WeakMap<
+  Shape,
+  { path: Path2D; components: Shape[] }
+>();
+
+/**
+ * Immutable shape references make Path2D entries self-invalidating. Compound
+ * paths additionally validate their component references because editing a
+ * child does not replace the compound container.
+ */
+function cachedShapePath(
+  shape: Shape,
+  doc?: Document,
+  preview?: Shape | null
+): Path2D | null {
+  // Pen and pencil drafts mutate in place between pointer events. Persisted
+  // document shapes are immutable, but transient previews are not.
+  if (shape === preview || renderCachesDisabled) return null;
+  if (typeof Path2D === "undefined") return null;
+  if (shape.type !== "compoundPath") {
+    const cached = pathCache.get(shape);
+    if (cached) return cached;
+    const path = new Path2D();
+    appendPath(path, shape);
+    pathCache.set(shape, path);
+    return path;
+  }
+  if (
+    !doc ||
+    typeof DOMMatrix === "undefined" ||
+    typeof Path2D.prototype.addPath !== "function"
+  ) {
+    return null;
+  }
+  const components = shape.childIds.flatMap((id) => {
+    const stored = doc.nodes[id];
+    const component = preview?.id === id ? preview : stored;
+    return isShape(component) &&
+      isCompoundChild(component) &&
+      !component.hidden
+      ? [component]
+      : [];
+  });
+  const cached = compoundPathCache.get(shape);
+  if (
+    cached &&
+    cached.components.length === components.length &&
+    cached.components.every((component, index) => component === components[index])
+  ) {
+    return cached.path;
+  }
+  const path = new Path2D();
+  for (const component of components) {
+    const child = cachedShapePath(component, doc, preview);
+    if (!child) return null;
+    path.addPath(child, new DOMMatrix(component.transform));
+  }
+  compoundPathCache.set(shape, { path, components });
+  return path;
+}
+
+/** Build the geometry of a shape onto the current canvas path as a fallback. */
+function tracePath(
+  ctx: CanvasRenderingContext2D,
+  shape: Shape,
+  begin = true,
+  doc?: Document,
+  preview?: Shape | null
+): void {
+  if (begin) ctx.beginPath();
+  if (shape.type !== "compoundPath") {
+    appendPath(ctx, shape);
+    return;
+  }
+  if (!doc) return;
+  for (const id of shape.childIds) {
+    const stored = doc.nodes[id];
+    const component = preview?.id === id ? preview : stored;
+    if (
+      !isShape(component) ||
+      !isCompoundChild(component) ||
+      component.hidden
+    ) {
+      continue;
+    }
+    ctx.save();
+    ctx.transform(...component.transform);
+    tracePath(ctx, component, false, doc, preview);
+    ctx.restore();
   }
 }
 
@@ -415,7 +770,8 @@ export function paintShape(
   input: Shape,
   assets: Record<string, DocumentAsset> = {},
   doc?: Document,
-  preview?: Shape | null
+  preview?: Shape | null,
+  geometrySource: Shape = input
 ): void {
   // Resolve `swatch` fill/stroke references to concrete paint at the boundary,
   // so everything downstream stays reference-blind. A dangling ref becomes null
@@ -445,11 +801,17 @@ export function paintShape(
     return;
   }
   if (shape.type === "brush") {
-    paintBrush(ctx, shape, assets);
+    paintBrush(
+      ctx,
+      shape,
+      assets,
+      cachedShapePath(geometrySource, doc, preview)
+    );
     ctx.restore();
     return;
   }
-  tracePath(ctx, shape, true, doc, preview);
+  const path = cachedShapePath(geometrySource, doc, preview);
+  if (!path) tracePath(ctx, shape, true, doc, preview);
   const bounds = shapeBounds(shape, doc);
 
   // Canvas/SVG fill implicitly closes open subpaths without changing how
@@ -463,12 +825,13 @@ export function paintShape(
     if (style) {
       withPaintAlpha(ctx, shape.opacity, shape.fill, () => {
         ctx.fillStyle = style;
-        ctx.fill(shapeFillRule(shape));
+        if (path) ctx.fill(path, shapeFillRule(shape));
+        else ctx.fill(shapeFillRule(shape));
       });
     }
   }
   if (shape.stroke !== null && shape.strokeWidth > 0) {
-    paintVectorStroke(ctx, shape, bounds, assets, doc, preview);
+    paintVectorStroke(ctx, shape, bounds, assets, path, doc, preview);
   }
   ctx.restore();
 }
@@ -481,7 +844,8 @@ export function paintShape(
 function paintBrush(
   ctx: CanvasRenderingContext2D,
   shape: Extract<Shape, { type: "brush" }>,
-  assets: Record<string, DocumentAsset>
+  assets: Record<string, DocumentAsset>,
+  path: Path2D | null
 ): void {
   if (shape.stroke === null) return;
   const ring = cachedBrushEnvelope(shape);
@@ -489,13 +853,16 @@ function paintBrush(
   const style = resolveStyle(ctx, shape.stroke, shapeBounds(shape), assets);
   // A null style is a pattern still decoding; skip until the cache repaints.
   if (!style) return;
-  ctx.beginPath();
-  ctx.moveTo(ring[0].x, ring[0].y);
-  for (let i = 1; i < ring.length; i++) ctx.lineTo(ring[i].x, ring[i].y);
-  ctx.closePath();
+  if (!path) {
+    ctx.beginPath();
+    ctx.moveTo(ring[0].x, ring[0].y);
+    for (let i = 1; i < ring.length; i++) ctx.lineTo(ring[i].x, ring[i].y);
+    ctx.closePath();
+  }
   withPaintAlpha(ctx, shape.opacity, shape.stroke, () => {
     ctx.fillStyle = style;
-    ctx.fill("nonzero");
+    if (path) ctx.fill(path, "nonzero");
+    else ctx.fill("nonzero");
   });
 }
 
@@ -554,6 +921,7 @@ function paintVectorStroke(
   shape: Shape,
   bounds: Bounds,
   assets: Record<string, DocumentAsset>,
+  path: Path2D | null,
   doc?: Document,
   preview?: Shape | null
 ): void {
@@ -575,13 +943,19 @@ function paintVectorStroke(
     }
     lctx.strokeStyle = style;
     applyStrokeStyle(lctx, shape, shape.strokeWidth * 2);
-    tracePath(lctx, shape, true, doc, preview);
-    lctx.stroke();
+    if (path) lctx.stroke(path);
+    else {
+      tracePath(lctx, shape, true, doc, preview);
+      lctx.stroke();
+    }
     lctx.globalCompositeOperation = "destination-out";
     lctx.globalAlpha = 1;
     lctx.fillStyle = "#000000";
-    tracePath(lctx, shape, true, doc, preview);
-    lctx.fill(shapeFillRule(shape));
+    if (path) lctx.fill(path, shapeFillRule(shape));
+    else {
+      tracePath(lctx, shape, true, doc, preview);
+      lctx.fill(shapeFillRule(shape));
+    }
     withPaintAlpha(ctx, shape.opacity, shape.stroke, () => drawLayerInDeviceSpace(ctx, layer));
     releaseLayer(layer);
     return;
@@ -592,9 +966,12 @@ function paintVectorStroke(
   withPaintAlpha(ctx, shape.opacity, shape.stroke, () => {
     ctx.save();
     if (alignment === "inside") {
-      tracePath(ctx, shape, true, doc, preview);
-      ctx.clip(shapeFillRule(shape));
-      tracePath(ctx, shape, true, doc, preview);
+      if (path) ctx.clip(path, shapeFillRule(shape));
+      else {
+        tracePath(ctx, shape, true, doc, preview);
+        ctx.clip(shapeFillRule(shape));
+        tracePath(ctx, shape, true, doc, preview);
+      }
     }
     ctx.strokeStyle = style;
     applyStrokeStyle(
@@ -602,7 +979,8 @@ function paintVectorStroke(
       shape,
       alignment === "inside" ? shape.strokeWidth * 2 : shape.strokeWidth
     );
-    ctx.stroke();
+    if (path) ctx.stroke(path);
+    else ctx.stroke();
     ctx.restore();
   });
 }
@@ -674,6 +1052,17 @@ function resolveStyle(
   return resolvePaint(ctx, paint, bounds);
 }
 
+interface CachedPattern {
+  image: HTMLImageElement;
+  boundsKey: string;
+  pattern: CanvasPattern;
+}
+
+const patternCaches = new WeakMap<
+  CanvasRenderingContext2D,
+  WeakMap<PatternPaint, CachedPattern>
+>();
+
 function resolvePattern(
   ctx: CanvasRenderingContext2D,
   paint: PatternPaint,
@@ -683,6 +1072,20 @@ function resolvePattern(
   const asset = assets[paint.assetId];
   const img = asset ? getAssetImage(asset) : null;
   if (!img) return null;
+  let cache = renderCachesDisabled ? undefined : patternCaches.get(ctx);
+  if (!cache) {
+    cache = new WeakMap();
+    if (!renderCachesDisabled) patternCaches.set(ctx, cache);
+  }
+  const boundsKey = `${bounds.x},${bounds.y},${bounds.width},${bounds.height}`;
+  const cached = renderCachesDisabled ? undefined : cache.get(paint);
+  if (
+    cached &&
+    cached.image === img &&
+    cached.boundsKey === boundsKey
+  ) {
+    return cached.pattern;
+  }
   // The pattern lives in the shape's local space (transform already applied).
   if (paint.mode === "tile") {
     const pat = ctx.createPattern(img, "repeat");
@@ -693,6 +1096,9 @@ function resolvePattern(
         .rotateSelf((paint.rotation * 180) / Math.PI)
         .scaleSelf(paint.scale)
     );
+    if (!renderCachesDisabled) {
+      cache.set(paint, { image: img, boundsKey, pattern: pat });
+    }
     return pat;
   }
   // fill / fit / stretch: a single image mapped onto the shape's bounds. The
@@ -706,6 +1112,9 @@ function resolvePattern(
   pat.setTransform(
     new DOMMatrix().translateSelf(p.x, p.y).scaleSelf(p.width / iw, p.height / ih)
   );
+  if (!renderCachesDisabled) {
+    cache.set(paint, { image: img, boundsKey, pattern: pat });
+  }
   return pat;
 }
 
@@ -752,6 +1161,13 @@ function paintImage(
   ctx.strokeRect(b.x, b.y, b.width, b.height);
 }
 
+export interface RenderPerformanceSample {
+  paintNodeMs: number;
+  acquireLayerCalls: number;
+  paintedNodes: number;
+  culledNodes: number;
+}
+
 export interface RenderOptions {
   width: number;
   height: number;
@@ -772,6 +1188,31 @@ export interface RenderOptions {
   hiddenShapeId?: string | null;
   /** Draw editor-only chrome (transparent-frame checkerboard). Off for export. */
   editorChrome?: boolean;
+  /** Optional per-frame diagnostics for stress-document profiling. */
+  onPerformanceSample?: ((sample: RenderPerformanceSample) => void) | undefined;
+}
+
+function visibleWorldBounds(
+  viewport: Viewport,
+  width: number,
+  height: number
+): Bounds {
+  const corners = [
+    screenToWorld(viewport, { x: 0, y: 0 }),
+    screenToWorld(viewport, { x: width, y: 0 }),
+    screenToWorld(viewport, { x: width, y: height }),
+    screenToWorld(viewport, { x: 0, y: height }),
+  ];
+  const xs = corners.map((point) => point.x);
+  const ys = corners.map((point) => point.y);
+  const x = Math.min(...xs);
+  const y = Math.min(...ys);
+  return {
+    x,
+    y,
+    width: Math.max(...xs) - x,
+    height: Math.max(...ys) - y,
+  };
 }
 
 /** Full scene render: background, grid, shapes, preview. */
@@ -793,13 +1234,74 @@ export function renderScene(
   ctx.rotate(viewport.rotation);
   ctx.scale(viewport.flipX ? -viewport.scale : viewport.scale, viewport.scale);
 
+  const cullExemptIds = new Set<string>();
+  if (opts.preview && doc.nodes[opts.preview.id]) {
+    cullExemptIds.add(opts.preview.id);
+    for (const id of ancestorIds(doc, opts.preview.id)) {
+      cullExemptIds.add(id);
+    }
+  }
+  const traversal: PaintTraversal = {
+    visibleWorldBounds: visibleWorldBounds(viewport, width, height),
+    visualBounds: new Map(),
+    cullExemptIds,
+    stats: { paintedNodes: 0, culledNodes: 0 },
+    cullingDisabled: renderCullingDisabled,
+  };
+  const debugProfile = renderProfilingEnabled;
+  const collectPerformance = debugProfile || !!opts.onPerformanceSample;
+  const layerCounter = { calls: 0 };
+  const previousLayerCounter = activeLayerCounter;
+  if (collectPerformance) activeLayerCounter = layerCounter;
+  const startedAt =
+    collectPerformance && typeof performance !== "undefined"
+      ? performance.now()
+      : 0;
+
   // A preview that shares a document shape's id supersedes it (the pen
   // extending an existing path); skip the stale copy underneath.
-  for (const nodeId of opts.rootIds ?? doc.rootIds) {
-    paintNode(ctx, doc, nodeId, opts.preview, opts.hiddenShapeId, undefined, opts.editorChrome);
+  try {
+    for (const nodeId of opts.rootIds ?? doc.rootIds) {
+      paintNodeInternal(
+        ctx,
+        doc,
+        nodeId,
+        opts.preview,
+        opts.hiddenShapeId,
+        undefined,
+        opts.editorChrome,
+        traversal
+      );
+    }
+    if (opts.preview && !doc.nodes[opts.preview.id]) {
+      paintShape(ctx, opts.preview, doc.assets, doc, opts.preview);
+    }
+  } finally {
+    if (collectPerformance) activeLayerCounter = previousLayerCounter;
   }
-  if (opts.preview && !doc.nodes[opts.preview.id]) {
-    paintShape(ctx, opts.preview, doc.assets, doc, opts.preview);
+
+  if (collectPerformance) {
+    const endedAt =
+      typeof performance !== "undefined" ? performance.now() : startedAt;
+    const sample: RenderPerformanceSample = {
+      paintNodeMs: endedAt - startedAt,
+      acquireLayerCalls: layerCounter.calls,
+      ...traversal.stats,
+    };
+    opts.onPerformanceSample?.(sample);
+    if (debugProfile && typeof performance !== "undefined") {
+      performance.clearMeasures("Vinegar paintNode");
+      performance.measure("Vinegar paintNode", {
+        start: startedAt,
+        end: endedAt,
+        detail: sample,
+      });
+      (
+        globalThis as typeof globalThis & {
+          __vinegarRenderPerformance?: RenderPerformanceSample;
+        }
+      ).__vinegarRenderPerformance = sample;
+    }
   }
 
   ctx.restore();

@@ -1,5 +1,6 @@
 import type { TextShape } from "../model/types";
 import { fontStack } from "../fonts";
+import { renderCachesDisabled } from "@/debug/renderFlags";
 
 export interface TextLineLayout {
   text: string;
@@ -138,6 +139,7 @@ export function textFontCss(shape: Pick<TextShape, "italic" | "fontWeight" | "fo
 
 let measuringContext: CanvasRenderingContext2D | null = null;
 const baselineCache = new Map<string, number>();
+let canvasLayoutCache = new WeakMap<TextShape, TextLayout>();
 
 /**
  * Measure the baseline from the same CSS inline-formatting context used by the
@@ -189,6 +191,7 @@ function browserBaseline(shape: TextShape): TextBaselineMetrics | undefined {
 /** Clear measurements after the browser reports that available fonts changed. */
 export function clearTextLayoutMetricsCache(): void {
   baselineCache.clear();
+  canvasLayoutCache = new WeakMap();
 }
 
 function browserMeasurer(shape: TextShape): { measure: MeasureTextWidth; metrics?: TextBaselineMetrics | undefined } {
@@ -211,11 +214,17 @@ export function layoutTextWithCanvas(
   shape: TextShape
 ): TextLayout {
   ctx.font = textFontCss(shape);
-  return layoutText(
+  const cached = renderCachesDisabled
+    ? undefined
+    : canvasLayoutCache.get(shape);
+  if (cached) return cached;
+  const layout = layoutText(
     shape,
     (text) => ctx.measureText(text).width,
     browserBaseline(shape)
   );
+  if (!renderCachesDisabled) canvasLayoutCache.set(shape, layout);
+  return layout;
 }
 
 /** Recompute only the persisted measured bounds. */

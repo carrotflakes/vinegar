@@ -210,10 +210,16 @@ additional effects, or other feature expansion.
 - [ ] **Define performance budgets and representative stress documents** —
   measure interaction FPS, redraw time, hit-testing, save/load, export time and
   memory at 1k / 10k nodes plus image/effect-heavy scenes.
+  - [x] Add deterministic 1k / 10k Canvas render scenes and reproducible
+    culling/cache A/B measurement (`createRenderStressDocument`, documented in
+    `docs/render-performance.md`).
+  - [ ] Set budgets and add workloads for interaction, picking/snapping,
+    save/load, export and memory; the current harness covers redraw only.
   - [ ] Replace full-document undo/interaction clones with patches or structural
     sharing once profiling confirms the memory/latency cost.
   - [ ] Add spatial indexing and viewport culling for picking, snapping and
-    rendering instead of scanning every paintable leaf.
+    rendering instead of scanning every paintable leaf. (Hierarchical render
+    culling is implemented; picking/snapping and a true spatial index remain.)
   - [ ] Reuse or bound offscreen effect/compositing layers instead of allocating
     full-canvas buffers for every affected node/group.
 - [ ] **Accessibility pass** — provide accessible names for icon-only controls,
@@ -285,3 +291,4 @@ additional effects, or other feature expansion.
 - [x] color picker — own HSV picker (`ColorPicker`), reusable `ColorInput`
   swatch replaces every `<input type="color">`
 - [ ] Layersパネル、キー操作でアイテム移動
+- [ ] ペン使用時のタッチ入力抑制
