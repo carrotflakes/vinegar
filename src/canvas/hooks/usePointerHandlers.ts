@@ -44,6 +44,7 @@ import {
   onPenHoverMove,
 } from "../tools/penTool";
 import {
+  finishSelectMove,
   onMarqueeUp,
   onSelectDoubleClick,
   onSelectDown,
@@ -334,6 +335,9 @@ export function usePointerHandlers(deps: PointerHandlerDeps): PointerHandlers {
         ctx.scheduleDraw();
         break;
       case "move":
+        // A move drop may reparent the moved roots into/out of a frame.
+        finishSelectMove(ctx, state, inter);
+        break;
       case "resize":
       case "rotate":
       case "corner-radius":

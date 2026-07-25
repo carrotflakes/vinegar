@@ -159,6 +159,27 @@ export interface FrameLabel {
   selected: boolean;
 }
 
+/** Highlight the frame a move drag would drop into, given its four world-space
+ *  content-box corners. Drawn as a bold accent outline in screen space. */
+export function drawFrameDropTarget(
+  ctx: CanvasRenderingContext2D,
+  dpr: number,
+  viewport: Viewport,
+  corners: Vec2[]
+): void {
+  if (corners.length < 3) return;
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  const pts = corners.map((w) => worldToScreen(viewport, w));
+  ctx.strokeStyle = ACCENT;
+  ctx.lineWidth = 2;
+  ctx.setLineDash([]);
+  ctx.beginPath();
+  ctx.moveTo(pts[0].x, pts[0].y);
+  for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i].x, pts[i].y);
+  ctx.closePath();
+  ctx.stroke();
+}
+
 /** Draw frame name labels above each frame's top-left corner, in screen space.
  *  The selection frame + resize handles are drawn by the normal overlay. */
 export function drawFrameLabels(

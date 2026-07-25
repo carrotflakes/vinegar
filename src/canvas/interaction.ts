@@ -46,6 +46,12 @@ export type Interaction =
       single: boolean;
       /** Preserve the starting width:height ratio (locked image or Shift). */
       lockAspect: boolean;
+      /**
+       * When resizing a frame, its direct children captured at drag start.
+       * Resizing a frame changes its box only; children are kept fixed in world
+       * space by compensating the frame's local-origin shift against these.
+       */
+      frameChildren?: Record<string, SceneNode>;
       selectionPivot?: Vec2;
       selectionTransform?: Matrix;
     }

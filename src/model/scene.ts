@@ -255,21 +255,28 @@ export function rootAncestorId(doc: Document, id: string): string {
 }
 
 /**
- * Outermost ancestor of `id` below the given scope root group. With a null
- * scope root this is the plain root ancestor. Used so leaf hits inside a
- * symbol's local view resolve to top-level items of that symbol, not to the
- * definition root itself.
+ * Outermost ancestor of `id` below the nearest selection boundary. Used so a
+ * canvas leaf hit resolves to the right selectable unit.
+ *
+ * Boundaries are the given scope root group (a drilled-into group or a symbol
+ * definition root) and — crucially — any **frame**: a frame is an implicit
+ * boundary, so content inside a frame resolves to its own outermost ancestor
+ * *below* the frame, never to the frame itself (frames are selected via their
+ * border or the Layers panel). Frames are top-level, so a drilled group is
+ * always the nearer, tighter boundary when both are present.
  */
 export function rootAncestorIdWithin(
   doc: Document,
   id: string,
   scopeRootGroup: string | null
 ): string {
-  const chain = ancestorIds(doc, id);
-  if (scopeRootGroup === null) return chain[chain.length - 1] ?? id;
-  const at = chain.indexOf(scopeRootGroup);
-  if (at === -1) return chain[chain.length - 1] ?? id;
-  return at === 0 ? id : chain[at - 1];
+  const chain = ancestorIds(doc, id); // nearest parent → outermost
+  for (let i = 0; i < chain.length; i++) {
+    if (chain[i] === scopeRootGroup || isFrame(doc.nodes[chain[i]])) {
+      return i === 0 ? id : chain[i - 1];
+    }
+  }
+  return chain[chain.length - 1] ?? id;
 }
 
 export function descendantNodeIds(doc: Document, id: string): string[] {

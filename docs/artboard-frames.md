@@ -185,8 +185,13 @@ the UX. Editing a frame's children is therefore always a single drill from root.
   delete via normal node ops; Layers + Artboards-panel integration; export
   bounds from the frame; drop `doc.artboards` + `selectedArtboardId`. Delete the
   geometric artboard code (this session's included). Rebuild the demo.
-- **Phase 2:** reparent-on-drag, transparent-background checkerboard, rotation
-  handle, nested-frame UX, per-frame export-settings wiring.
+- **Phase 2:** reparent-on-drag ✅ (dropping a moved selection over a frame
+  re-homes it into that frame — or back out to the scene root — preserving world
+  position, as one undo step, with a live drop-target highlight). Remaining
+  polish: transparent-background checkerboard (editor-only chrome; needs an
+  editor flag threaded through `paintNode` so export stays transparent),
+  per-frame export-settings wiring. (Rotation handle and nested-frame UX are
+  permanently out — see Open questions.)
 
 ## Non-goals
 

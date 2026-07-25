@@ -1,7 +1,7 @@
 import { unionNodeWorldBounds } from "@/model/geometry/bounds";
 import { exactlySelectedGroup } from "../model/groups";
 import { applyMatrix, nodeWorldMatrix, shapeWorldMatrix } from "@/model/geometry/matrix";
-import { framesInPaintOrder, scopeRootGroupId } from "../model/scene";
+import { framesInPaintOrder, isFrame, scopeRootGroupId, selectionRoots } from "../model/scene";
 import type { Guide, Spacing } from "@/model/geometry/snap";
 import type { Bounds, PathShape, Shape, Vec2 } from "../model/types";
 import { currentSymbolScope, type EditorState } from "../store/editorStore";
@@ -16,6 +16,7 @@ import { HANDLE_SIZE } from "./handles";
 import { TOUCH_DRAW_SCALE, type Interaction } from "./interaction";
 import { ANCHOR_SIZE, HANDLE_DOT } from "./nodes";
 import {
+  drawFrameDropTarget,
   drawFrameLabels,
   drawGuides,
   drawNodes,
@@ -25,6 +26,7 @@ import {
   drawTextDraft,
 } from "./overlay";
 import { selectedNodeShapes, selectedShapes } from "./picking";
+import { frameDropTarget } from "./tools/selectTool";
 import { renderScene } from "./render";
 
 /** Everything the canvas painter reads: a store snapshot plus transient refs. */
@@ -82,6 +84,24 @@ export function paintCanvas(input: PaintInput): void {
     rootIds: scopeRoot !== null ? [scopeRoot] : undefined,
     hiddenShapeId: hiddenTextId,
   });
+
+  // While dragging a selection, highlight the frame it would drop into.
+  if (interaction.kind === "move" && scope === null) {
+    const movable = selectionRoots(doc, selection).filter(
+      (id) => !isFrame(doc.nodes[id])
+    );
+    const targetId = movable.length ? frameDropTarget(doc, movable) : null;
+    const target = targetId ? doc.nodes[targetId] : null;
+    if (target && isFrame(target)) {
+      const m = nodeWorldMatrix(doc, target.id);
+      drawFrameDropTarget(ctx2d, dpr, viewport, [
+        applyMatrix(m, { x: 0, y: 0 }),
+        applyMatrix(m, { x: target.width, y: 0 }),
+        applyMatrix(m, { x: target.width, y: target.height }),
+        applyMatrix(m, { x: 0, y: target.height }),
+      ]);
+    }
+  }
 
   const chrome = coarse ? TOUCH_DRAW_SCALE : 1;
   const selected = selectedShapes(doc, selection);

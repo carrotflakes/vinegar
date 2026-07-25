@@ -1,4 +1,4 @@
-import { unionNodeWorldBounds, worldShapeBounds } from "@/model/geometry/bounds";
+import { nodeWorldBounds, unionNodeWorldBounds, worldShapeBounds } from "@/model/geometry/bounds";
 import {
   drillScopeRoot,
   exactlySelectedGroup,
@@ -21,19 +21,23 @@ import {
 import { magnetAngle, snapAngle } from "@/model/geometry/rotate";
 import { resizeShapeToBounds } from "@/model/geometry/transforms";
 import {
+  childIdsOf,
   descendantShapeIds,
+  framesInPaintOrder,
   isFrame,
   isGroup,
   isInstance,
   isNodeLocked,
   isShape,
+  parentIdOf,
   scopeLeafIds,
   scopeRootGroupId,
   selectionRoots,
   shapesInPaintOrder,
+  withChildIds,
 } from "../../model/scene";
 import { collectSnapTargets, computeSnap } from "@/model/geometry/snap";
-import type { SceneNode, Shape, Vec2 } from "../../model/types";
+import type { Document, SceneNode, Shape, Vec2 } from "../../model/types";
 import { screenToWorld, worldToScreen } from "@/model/geometry/viewport";
 import { currentSymbolScope, useEditor, type EditorState } from "../../store/editorStore";
 import { setReadout } from "../../store/pointerStore";
@@ -109,6 +113,103 @@ function beginSelectionMove(
   };
 }
 
+/** The topmost frame whose content box contains `id`'s world-bounds centre, or
+ *  null when it sits over no frame. Frames are top-level, searched front-to-back. */
+function frameUnderCenter(doc: Document, id: string): string | null {
+  const b = nodeWorldBounds(doc, id);
+  if (!b) return null;
+  const c = { x: b.x + b.width / 2, y: b.y + b.height / 2 };
+  const frames = framesInPaintOrder(doc);
+  for (let i = frames.length - 1; i >= 0; i--) {
+    const frame = frames[i];
+    const inverse = invertMatrix(nodeWorldMatrix(doc, frame.id));
+    if (!inverse) continue;
+    const p = applyMatrix(inverse, c);
+    if (p.x >= 0 && p.x <= frame.width && p.y >= 0 && p.y <= frame.height) {
+      return frame.id;
+    }
+  }
+  return null;
+}
+
+/** The frame the moved roots would drop into (union-centre test), for the drag
+ *  highlight. `ids` should exclude frames (they never reparent). */
+export function frameDropTarget(doc: Document, ids: string[]): string | null {
+  const b = unionNodeWorldBounds(doc, ids);
+  if (!b) return null;
+  const c = { x: b.x + b.width / 2, y: b.y + b.height / 2 };
+  const frames = framesInPaintOrder(doc);
+  for (let i = frames.length - 1; i >= 0; i--) {
+    const frame = frames[i];
+    const inverse = invertMatrix(nodeWorldMatrix(doc, frame.id));
+    if (!inverse) continue;
+    const p = applyMatrix(inverse, c);
+    if (p.x >= 0 && p.x <= frame.width && p.y >= 0 && p.y <= frame.height) {
+      return frame.id;
+    }
+  }
+  return null;
+}
+
+/**
+ * After a move drag, reparent each moved root into the frame it was dropped over
+ * (or back out to the scene root), preserving world position. Only nodes that
+ * are at the scene root or already directly inside a frame are auto-reparented —
+ * a node inside a user group keeps its group, so group contents are never
+ * disturbed. Frames themselves stay top-level and are skipped.
+ */
+function reparentDroppedIntoFrames(doc: Document, ids: string[]): Document {
+  let next = doc;
+  for (const id of ids) {
+    const node = next.nodes[id];
+    if (!node || isFrame(node)) continue;
+    const currentParent = parentIdOf(next, id);
+    const parentNode = currentParent ? next.nodes[currentParent] : null;
+    // Only re-home top-level nodes and existing frame children.
+    if (parentNode && !isFrame(parentNode)) continue;
+    const target = frameUnderCenter(next, id);
+    if (target === currentParent) continue;
+    const oldWorld = nodeWorldMatrix(next, id);
+    const inverseTarget = invertMatrix(nodeWorldMatrix(next, target));
+    if (!inverseTarget) continue;
+    next = withChildIds(
+      next,
+      currentParent,
+      childIdsOf(next, currentParent).filter((child) => child !== id)
+    );
+    next = withChildIds(next, target, [...childIdsOf(next, target), id]);
+    next = {
+      ...next,
+      nodes: {
+        ...next.nodes,
+        [id]: { ...next.nodes[id], transform: multiply(inverseTarget, oldWorld) },
+      },
+    };
+  }
+  return next;
+}
+
+/**
+ * Commit a move drag: if the pointer actually moved, auto-reparent the moved
+ * roots into/out of frames (world position preserved), then close the undo step
+ * — so the translation and the reparent land as one action.
+ */
+export function finishSelectMove(
+  ctx: ToolContext,
+  state: EditorState,
+  inter: Extract<Interaction, { kind: "move" }>
+) {
+  const moved = Object.keys(inter.originals).some(
+    (id) => state.doc.nodes[id] && state.doc.nodes[id] !== inter.originals[id]
+  );
+  if (moved && currentSymbolScope(state) === null) {
+    const next = reparentDroppedIntoFrames(state.doc, Object.keys(inter.originals));
+    if (next !== state.doc) state.setDoc(next);
+  }
+  state.endInteraction();
+  ctx.scheduleDraw();
+}
+
 export function onSelectDown(
   ctx: ToolContext,
   state: EditorState,
@@ -177,6 +278,15 @@ export function onSelectDown(
       state.selection.length === 1 ? state.doc.nodes[state.selection[0]] : null;
     const lockAspect =
       !!single && isShape(single) && single.type === "image" && !!single.lockAspect;
+    // Resizing a frame changes its box only; snapshot its direct children so
+    // they can be kept fixed in world space against the box's origin shift.
+    const frameChildren = single && isFrame(single)
+      ? Object.fromEntries(
+          single.childIds
+            .map((cid) => [cid, state.doc.nodes[cid]] as const)
+            .filter(([, node]) => !!node)
+        )
+      : undefined;
     state.beginInteraction("Resize selection");
     ctx.interaction.current = {
       kind: "resize",
@@ -186,6 +296,7 @@ export function onSelectDown(
       originals: snapshot(state.selection),
       single: state.selection.length === 1,
       lockAspect,
+      frameChildren,
       selectionPivot: transient ? state.selectionPivot ?? undefined : undefined,
       selectionTransform: transient ? frame.transform : undefined,
     };
@@ -380,14 +491,21 @@ export function onSelectMove(
           ? entries[0][1]
           : null;
       if (soloFrame) {
-        state.applyShapes({
+        const next: Record<string, SceneNode> = {
           [soloFrame.id]: {
             ...soloFrame,
             width: Math.max(1, to.width),
             height: Math.max(1, to.height),
             transform: multiply(soloFrame.transform, translationMatrix(to.x, to.y)),
           },
-        });
+        };
+        // Keep the frame's contents fixed in world space: undo the box's
+        // local-origin shift on each direct child (grandchildren follow).
+        const compensate = translationMatrix(-to.x, -to.y);
+        for (const [cid, child] of Object.entries(inter.frameChildren ?? {})) {
+          next[cid] = { ...child, transform: multiply(compensate, child.transform) };
+        }
+        state.applyShapes(next);
         setReadout(formatSize(to.width, to.height));
         break;
       }
