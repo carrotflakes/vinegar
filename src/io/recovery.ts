@@ -5,6 +5,7 @@ import {
   type RecoveryStatus,
 } from "../store/recoveryStore";
 import type { DocumentRevision } from "../store/state";
+import { notify } from "../store/toastStore";
 import {
   CURRENT_FILE_VERSION,
   parseDocument,
@@ -194,10 +195,13 @@ export async function restoreRecoveryAtStartup(options: {
   onStatus?: StatusSink;
   /** Decide whether to restore a found snapshot (defaults to a confirm dialog). */
   confirm?: (snapshot: RecoverySnapshot) => boolean;
+  /** Surface a non-blocking notice (defaults to the toast store). */
+  notice?: (message: string) => void;
 } = {}): Promise<RecoveryRestoreResult> {
   const storage = options.storage ?? createIndexedDbRecoveryStorage();
   const onStatus = options.onStatus ?? setRecoveryStatus;
   const confirmRestore = options.confirm ?? defaultRestorePrompt;
+  const notice = options.notice ?? ((message: string) => notify.info(message));
   let snapshot: RecoverySnapshot | null;
 
   try {
@@ -217,14 +221,17 @@ export async function restoreRecoveryAtStartup(options: {
   }
 
   // Parse before prompting. A snapshot written by an older format can never be
-  // restored (there is no migration chain), and offering to bring back work we
-  // then fail to produce is worse than starting clean: drop it and say nothing.
+  // restored (there is no migration chain), so offering to bring back work we
+  // then fail to produce is worse than starting clean. Drop it and start
+  // normally — but say so in a toast rather than silently: unsaved work did
+  // exist, and vanishing without a word is its own kind of surprise.
   let doc: Document;
   try {
     doc = parseDocument(snapshot.file);
   } catch {
     try { await storage.clear(); } catch { /* A later autosave can overwrite it. */ }
     onStatus({ phase: "ready" });
+    notice("Unsaved work from a previous session could not be restored, and was discarded.");
     return { restored: false };
   }
 

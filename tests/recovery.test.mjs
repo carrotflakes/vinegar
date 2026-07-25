@@ -280,12 +280,14 @@ test("startup restore silently discards a snapshot it cannot parse", async () =>
   const storage = makeStorage();
   const fakeStorage = { ...storage, read: async () => ({ file: "{ not json", savedAt: new Date().toISOString() }) };
   const statuses = [];
+  const notices = [];
   let prompted = false;
 
   const result = await restoreRecoveryAtStartup({
     storage: fakeStorage,
     onStatus: (s) => statuses.push(s),
     confirm: () => { prompted = true; return true; },
+    notice: (m) => notices.push(m),
   });
 
   assert.equal(result.restored, false);
@@ -295,6 +297,31 @@ test("startup restore silently discards a snapshot it cannot parse", async () =>
   assert.equal(prompted, false);
   assert.equal(statuses.at(-1).phase, "ready");
   assert.deepEqual(storage.calls, ["clear"], "an unparseable snapshot is cleared");
+  // Startup is not blocked, but the loss is still reported.
+  assert.equal(notices.length, 1);
+  assert.match(notices[0], /could not be restored/i);
+});
+
+test("a restorable snapshot raises no notice", async () => {
+  const doc = createEmptyDocument();
+  doc.nodes.only = {
+    id: "only", name: "only", type: "rect",
+    ...SHAPE_BASE, cornerRadius: 0,
+    ...NODE_BASE,
+    x: 0, y: 0, width: 10, height: 10,
+    transform: [1, 0, 0, 1, 0, 0],
+  };
+  doc.rootIds = ["only"];
+  const notices = [];
+
+  const result = await restoreRecoveryAtStartup({
+    storage: { read: async () => ({ file: serializeDocument(doc), savedAt: new Date().toISOString() }) },
+    confirm: () => true,
+    notice: (m) => notices.push(m),
+  });
+
+  assert.equal(result.restored, true);
+  assert.deepEqual(notices, [], "a successful restore is not announced as a loss");
 });
 
 test("startup with no snapshot reports ready", async () => {
