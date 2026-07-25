@@ -120,7 +120,6 @@ export default function LayersPanel() {
   const setSelection = useEditor((s) => s.setSelection);
   const toggleHidden = useEditor((s) => s.toggleHidden);
   const toggleLocked = useEditor((s) => s.toggleLocked);
-  const updateNodeStyle = useEditor((s) => s.updateNodeStyle);
   const renameNode = useEditor((s) => s.renameNode);
   const moveNode = useEditor((s) => s.moveNode);
   const scope = useEditor((s) => currentSymbolScope(s));
@@ -453,11 +452,11 @@ export default function LayersPanel() {
             { label: "Rename", onSelect: () => setEditing(gid) },
             {
               label: `${group.hidden ? "Show" : "Hide"} ${kind}`,
-              onSelect: () => updateNodeStyle(gid, { hidden: !group.hidden }),
+              onSelect: () => toggleHidden(gid),
             },
             {
               label: `${group.locked ? "Unlock" : "Lock"} ${kind}`,
-              onSelect: () => updateNodeStyle(gid, { locked: !group.locked }),
+              onSelect: () => toggleLocked(gid),
             },
             "separator",
             ...selectionMenu(),
@@ -479,7 +478,7 @@ export default function LayersPanel() {
           title={`${group.hidden ? "Show" : "Hide"} ${kind}`}
           onClick={(e) => {
             e.stopPropagation();
-            updateNodeStyle(gid, { hidden: !group.hidden });
+            toggleHidden(gid);
           }}
         >
           {group.hidden ? <LuEyeOff /> : <LuEye />}
@@ -489,7 +488,7 @@ export default function LayersPanel() {
           title={`${group.locked ? "Unlock" : "Lock"} ${kind}`}
           onClick={(e) => {
             e.stopPropagation();
-            updateNodeStyle(gid, { locked: !group.locked });
+            toggleLocked(gid);
           }}
         >
           {group.locked ? <LuLock /> : <LuLockOpen />}

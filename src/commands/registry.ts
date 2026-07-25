@@ -177,6 +177,11 @@ function selectedFrame(s: EditorState): FrameNode | null {
   return isFrame(node) ? node : null;
 }
 
+/** Frames "Export all" writes: hidden ones render nothing, so they are skipped. */
+function exportableFrames(doc: EditorState["doc"]): FrameNode[] {
+  return framesInPaintOrder(doc).filter((frame) => !frame.hidden);
+}
+
 /** Center of the canvas viewport in screen coords (for zoom-to-center). */
 export function canvasCenter(): Vec2 {
   const size = canvasViewportSize();
@@ -700,7 +705,8 @@ export const COMMANDS: Command[] = [
     id: "file.exportFramePng",
     label: "Export frame PNG",
     group: "File",
-    enabled: (s) => selectedFrame(s) != null,
+    // A hidden frame renders nothing, so exporting it would write an empty image.
+    enabled: (s) => !!selectedFrame(s) && !selectedFrame(s)!.hidden,
     run: async (s) => {
       const frame = selectedFrame(s);
       const bounds = frame && nodeWorldBounds(s.doc, frame.id);
@@ -721,7 +727,8 @@ export const COMMANDS: Command[] = [
     id: "file.exportFrameSvg",
     label: "Export frame SVG",
     group: "File",
-    enabled: (s) => selectedFrame(s) != null,
+    // A hidden frame renders nothing, so exporting it would write an empty image.
+    enabled: (s) => !!selectedFrame(s) && !selectedFrame(s)!.hidden,
     run: (s) => {
       const frame = selectedFrame(s);
       const bounds = frame && nodeWorldBounds(s.doc, frame.id);
@@ -738,10 +745,10 @@ export const COMMANDS: Command[] = [
     id: "file.exportAllFramesPng",
     label: "Export all frames (PNG)",
     group: "File",
-    enabled: (s) => framesInPaintOrder(s.doc).length > 0,
+    enabled: (s) => exportableFrames(s.doc).length > 0,
     run: async (s) => {
       try {
-        const frames = framesInPaintOrder(s.doc);
+        const frames = exportableFrames(s.doc);
         const slugs = uniqueFileSlugs(frames.map((frame) => frame.name));
         for (const [index, frame] of frames.entries()) {
           const bounds = nodeWorldBounds(s.doc, frame.id);

@@ -310,8 +310,10 @@ export interface StructureActions {
   /**
    * Patch the shared BaseNode style fields of a single group or symbol
    * instance. Shapes go through updateSelectedStyle / setShapeGeometry instead.
+   * `hidden`/`locked` are deliberately excluded: they apply to every node type,
+   * so they belong to toggleHidden/toggleLocked rather than this narrower op.
    */
-  updateNodeStyle: (id: string, patch: Partial<Pick<BaseNode, "opacity" | "blendMode" | "hidden" | "locked" | "transform" | "transformOrigin">>) => void;
+  updateNodeStyle: (id: string, patch: Partial<Pick<BaseNode, "opacity" | "blendMode" | "transform" | "transformOrigin">>) => void;
   /** Replace a node's effect stack; an empty list clears it. Works on any node. */
   setNodeEffects: (id: string, effects: Effect[]) => void;
   moveNode: (id: string, parentId: string | null, index: number) => void;

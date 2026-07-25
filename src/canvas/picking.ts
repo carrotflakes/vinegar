@@ -107,6 +107,9 @@ export function selectionFrame(): SelectionFrame | null {
  * point lands on, front-to-back. Interior points miss so shape picking / marquee
  * still work inside a frame. Frames are top-level and axis-aligned in practice,
  * so the test runs in frame-local space.
+ *
+ * Hidden and locked frames are unpickable, like any other node — select them
+ * from the Layers panel instead.
  */
 export function pickFrameBorder(
   doc: Document,
@@ -116,6 +119,7 @@ export function pickFrameBorder(
   const frames = framesInPaintOrder(doc);
   for (let i = frames.length - 1; i >= 0; i--) {
     const frame = frames[i];
+    if (frame.hidden || frame.locked) continue;
     const inverse = invertMatrix(nodeWorldMatrix(doc, frame.id));
     if (!inverse) continue;
     const p = applyMatrix(inverse, world);

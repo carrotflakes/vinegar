@@ -113,18 +113,19 @@ function beginSelectionMove(
   };
 }
 
-/** The topmost frame whose content box contains `id`'s world-bounds centre, or
- *  null when it sits over no frame. Frames are top-level, searched front-to-back. */
-function frameUnderCenter(doc: Document, id: string): string | null {
-  const b = nodeWorldBounds(doc, id);
-  if (!b) return null;
-  const c = { x: b.x + b.width / 2, y: b.y + b.height / 2 };
+/**
+ * The topmost frame whose content box contains `world`, searched front-to-back.
+ * Hidden and locked frames are skipped: dropping art into one would make it
+ * vanish or become unselectable the instant the pointer is released.
+ */
+function droppableFrameAt(doc: Document, world: Vec2): string | null {
   const frames = framesInPaintOrder(doc);
   for (let i = frames.length - 1; i >= 0; i--) {
     const frame = frames[i];
+    if (frame.hidden || frame.locked) continue;
     const inverse = invertMatrix(nodeWorldMatrix(doc, frame.id));
     if (!inverse) continue;
-    const p = applyMatrix(inverse, c);
+    const p = applyMatrix(inverse, world);
     if (p.x >= 0 && p.x <= frame.width && p.y >= 0 && p.y <= frame.height) {
       return frame.id;
     }
@@ -132,23 +133,22 @@ function frameUnderCenter(doc: Document, id: string): string | null {
   return null;
 }
 
+const boundsCenter = (b: { x: number; y: number; width: number; height: number }): Vec2 => ({
+  x: b.x + b.width / 2,
+  y: b.y + b.height / 2,
+});
+
+/** The frame `id` would drop into, by its own world-bounds centre. */
+function frameUnderCenter(doc: Document, id: string): string | null {
+  const b = nodeWorldBounds(doc, id);
+  return b ? droppableFrameAt(doc, boundsCenter(b)) : null;
+}
+
 /** The frame the moved roots would drop into (union-centre test), for the drag
  *  highlight. `ids` should exclude frames (they never reparent). */
 export function frameDropTarget(doc: Document, ids: string[]): string | null {
   const b = unionNodeWorldBounds(doc, ids);
-  if (!b) return null;
-  const c = { x: b.x + b.width / 2, y: b.y + b.height / 2 };
-  const frames = framesInPaintOrder(doc);
-  for (let i = frames.length - 1; i >= 0; i--) {
-    const frame = frames[i];
-    const inverse = invertMatrix(nodeWorldMatrix(doc, frame.id));
-    if (!inverse) continue;
-    const p = applyMatrix(inverse, c);
-    if (p.x >= 0 && p.x <= frame.width && p.y >= 0 && p.y <= frame.height) {
-      return frame.id;
-    }
-  }
-  return null;
+  return b ? droppableFrameAt(doc, boundsCenter(b)) : null;
 }
 
 /**

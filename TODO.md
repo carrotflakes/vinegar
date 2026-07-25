@@ -6,33 +6,7 @@ A running list of what's next. Check items off as they land; prune once done.
 
 Ordered by agreed priority. These are the biggest gaps toward a "real" vector editor.
 
-1. [x] **Artboards / frames** — shipped (`doc.artboards`, file v11). Remaining:
-   - Rough edges (fix soon):
-     - [x] Delete key removes a selected artboard (`edit.delete` handles
-       `selectedArtboardId`)
-     - [x] Boards are also selectable/movable in the Select tool: a selected
-       board's handles resize it, and any board can be grabbed by its border
-       (interior clicks fall through to shape picking / marquee). Shared
-       `beginArtboardMove`/`beginArtboardResize` builders; chrome drawn in the
-       Select tool while a board is selected.
-     - [x] Snapping + modifier keys on board create/move/resize: snaps to grid,
-       other boards and scene shapes (reuses `computeSnap`/`snapPoint`, new
-       `boundsSnapTargets`), Shift = square / keep aspect, Alt = from center.
-     - [ ] "Export all artboards" fires N sequential downloads (filenames are
-       deduplicated); consider a zip
-   - Follow-ups:
-     - [x] Artboards list panel (list / rename / reorder = export order / select)
-     - [x] Fit / zoom to artboard navigation
-     - [x] Duplicate artboard (`duplicateArtboard`, ⌘D / context menu / panel
-       button): clones the board beside the original and, Figma-style, carries
-       the artwork it geometrically overlaps (`artboardContentIds` = unlocked
-       top-level roots whose world bounds intersect the board). Board move now
-       carries the same content set (snapshotted at drag start). Copy/paste of a
-       board is still TODO.
-     - [ ] Background: transparent checkerboard indicator on canvas; don't hide grid;
-       later gradient/image board backgrounds
-     - [x] Export options dialog (scale / format / margin per board; PNG is 2x fixed)
-     - [ ] Deferred by design: rotated boards, on-canvas clip-to-artboard view toggle
+1. [x] **Artboards / frames**
 2. [x] **Raster image placement** — shipped (`image` node + `DocumentAsset` store,
    file v12; decode cache in `canvas/imageCache.ts`). Follow-ups:
    - [x] Paste an image from the system clipboard (⌘V routes through the native
@@ -246,20 +220,7 @@ additional effects, or other feature expansion.
   - [ ] エディタの行番号・簡易ハイライト・エラー行表示
   - [ ] サンプル/スニペット集
   - [ ] パラメトリック生成（パラメータ変更で再生成）
-- [ ] ペン入力最適化 — `docs/brush-strokes.md` (brush shape, file v19)
-  - [x] 筆圧対応（線幅）— Brush tool (B): variable-width envelope stroke with
-    pressure→width curve, coalesced sampling, EMA stabilizer, taper, palm
-    rejection. Strokes collect into an active drawing group (reuses
-    `activeGroupId`). Deferred: pressure→opacity; node-tool width editing;
-    Outline Stroke → polygon; incremental preview envelope
-  - [x] ベクター消しゴム（E）— centerline-split eraser: drag splits/trims brush
-    strokes at their centerline into new brush pieces (stays variable-width
-    editable), one undo step. Deferred: erasing plain paths/beziers; area
-    (boolean) erase; brush-radius-aware cut instead of pure centerline
-  - [x] 頂点編集 — node tool (N) edits brush anchors: move/insert/delete/
-    smooth-toggle, all width-preserving (`NodeEditShape` in `canvas/nodes.ts`,
-    `model/brushEdit.ts`). Deferred: per-anchor width editing (width tool)
-  - [ ] 傾き対応（線幅・不透明度）
+- [ ] ペン入力 傾き対応（線幅・不透明度）
 - [ ] アニメーション機能　パラメトリックに動かす
 - [ ] コンテキストメニューの拡充
   - [ ] 項目の拡充（Align / Boolean / パス操作などコンテキスト依存の項目）
@@ -307,5 +268,3 @@ additional effects, or other feature expansion.
 - [ ] ドックのフローティング、マルチカラム化
 - [ ] Assetという名前は問題ないか。raster imageではないか。
 - [ ] subpath分割コマンド、統合コマンド
-- [ ] apple pencilで短時間の連続したストロークを描くと2本目が反応しない
-- [ ] テキスト位置ずれ
