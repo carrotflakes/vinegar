@@ -56,6 +56,7 @@ import { exportSvg } from "../io/exportSvg";
 import { loadDocumentText } from "../io/openDocument";
 import { serializeDocument } from "../io/serialize";
 import { currentSymbolScope, hasUnsavedChanges, useEditor } from "../store/editorStore";
+import { usePreferences } from "../store/preferencesStore";
 import { useUi } from "../store/uiStore";
 import { groupEditNodesByShape } from "../store/state";
 import type { EditorState } from "../store/state";
@@ -237,6 +238,13 @@ function drawingBounds(s: EditorState): Bounds | null {
   return contentBounds(s.doc, 0, currentSymbolScope(s));
 }
 
+/** The selected guide's id, if one is selected and actually actionable. */
+function selectedGuide(s: EditorState): string | null {
+  const id = s.selectedGuideId;
+  if (!id || s.guidesLocked || !s.guidesVisible) return null;
+  return s.doc.guides.some((guide) => guide.id === id) ? id : null;
+}
+
 // --- The commands --------------------------------------------------------
 
 export const COMMANDS: Command[] = [
@@ -309,9 +317,12 @@ export const COMMANDS: Command[] = [
     group: "Edit",
     danger: true,
     keys: [{ key: "Delete" }, { key: "Backspace" }],
-    enabled: (s) => s.editNodes.length > 0 || s.selection.length > 0,
+    enabled: (s) =>
+      s.editNodes.length > 0 || s.selection.length > 0 || selectedGuide(s) !== null,
     run: (s) => {
-      if (s.editNodes.length) s.deleteEditNode();
+      const guide = selectedGuide(s);
+      if (guide) s.removeGuide(guide);
+      else if (s.editNodes.length) s.deleteEditNode();
       else s.deleteSelected();
     },
   },
@@ -601,6 +612,74 @@ export const COMMANDS: Command[] = [
     label: "Toggle grid visibility",
     group: "View",
     run: (s) => s.toggleGridVisible(),
+  },
+  {
+    id: "view.toggleRulers",
+    label: "Toggle rulers",
+    group: "View",
+    run: (s) => s.toggleRulers(),
+  },
+  {
+    id: "view.resetRulerOrigin",
+    label: "Reset ruler origin to the document",
+    group: "View",
+    // Only meaningful while an active frame is actually driving the rulers.
+    enabled: (s) =>
+      s.activeFrameId !== null &&
+      usePreferences.getState().canvas.rulerOrigin === "artboard",
+    run: (s) => s.setActiveFrame(null),
+  },
+  {
+    id: "view.toggleRulerOrigin",
+    label: "Toggle ruler origin (artboard / document)",
+    group: "View",
+    run: () => {
+      const prefs = usePreferences.getState();
+      prefs.setRulerOrigin(
+        prefs.canvas.rulerOrigin === "artboard" ? "world" : "artboard"
+      );
+    },
+  },
+
+  // Guides ------------------------------------------------------------------
+  {
+    id: "guides.toggleVisible",
+    label: "Toggle guide visibility",
+    group: "View",
+    keys: [{ key: ";", mod: true }],
+    run: (s) => s.toggleGuidesVisible(),
+  },
+  {
+    id: "guides.toggleLock",
+    label: "Toggle guide lock",
+    group: "View",
+    keys: [{ key: ";", mod: true, alt: true }],
+    run: (s) => s.toggleGuidesLocked(),
+  },
+  {
+    id: "guides.toggleSnap",
+    label: "Toggle snapping to guides",
+    group: "View",
+    run: (s) => s.toggleGuideSnap(),
+  },
+  {
+    id: "guides.delete",
+    label: "Delete guide",
+    group: "View",
+    danger: true,
+    enabled: (s) => selectedGuide(s) !== null,
+    run: (s) => {
+      const guide = selectedGuide(s);
+      if (guide) s.removeGuide(guide);
+    },
+  },
+  {
+    id: "guides.clear",
+    label: "Clear guides",
+    group: "View",
+    danger: true,
+    enabled: (s) => s.doc.guides.length > 0 && !s.guidesLocked,
+    run: (s) => s.clearGuides(),
   },
   {
     id: "view.fullscreen",

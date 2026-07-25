@@ -15,6 +15,7 @@ import {
   type Guide,
   type SnapTargets,
 } from "@/model/geometry/snap";
+import { activeGuideLines } from "../guides";
 import {
   CLICK_SLOP,
   type FrameSnap,
@@ -107,7 +108,12 @@ export function onFrameMove(
 ) {
   if (inter.kind !== "frame-create") return;
   const gridSize = state.gridSnap ? state.gridSize : null;
-  const snapOn = state.snapEnabled || gridSize !== null;
+  const guideLines = activeGuideLines(state);
+  const snapOn =
+    state.snapEnabled ||
+    gridSize !== null ||
+    guideLines.x.length > 0 ||
+    guideLines.y.length > 0;
   const threshold = 6 / state.viewport.scale;
   let guides: Guide[] = [];
 
@@ -115,7 +121,11 @@ export function onFrameMove(
   if (snapOn) {
     const r = snapPoint(
       world,
-      { targets: state.snapEnabled ? inter.snap.targets : EMPTY_TARGETS, gridSize },
+      {
+        targets: state.snapEnabled ? inter.snap.targets : EMPTY_TARGETS,
+        gridSize,
+        guideLines,
+      },
       threshold
     );
     p = r.point;

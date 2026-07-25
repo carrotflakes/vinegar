@@ -111,8 +111,22 @@ and performance work. Treat these as release gates ahead of animation, MCP,
 additional effects, or other feature expansion.
 
 - [ ] Alignment guides during resize and rotate (currently move only)
-- [ ] **Rulers and draggable guides** — horizontal/vertical rulers, persistent
-  document guides, snapping, lock/hide/clear actions
+- [x] **Rulers and draggable guides** — shipped (file v28; see
+  docs/rulers-and-guides.md). Canvas-drawn rulers (top/left, document units,
+  origin = the active frame — new `activeFrameId` state, Illustrator's
+  active-artboard rule: selection/creation move it, panning never does, and a
+  `canvas.rulerOrigin` preference switches between artboard and document origin
+  with `view.resetRulerOrigin` to unpark it), `doc.guides` world-space
+  horizontal/vertical guides dragged out of a ruler, moved with the select
+  tools, deleted by Delete or a drop back on a ruler, undoable, and snapped to
+  through the existing `computeSnap`/`snapPoint`. Show rulers / show guides /
+  lock guides / snap to guides / clear live in the Snap status-bar menu and the
+  command registry (`view.toggleRulers`, `guides.*`).
+  - [ ] Follow-ups: numeric entry (double-click a guide), per-artboard guides,
+    a user-draggable ruler origin, activating a frame by clicking its empty
+    background, diagonal guides, "make guides from selection", guides inside
+    symbol definitions, ticks under an arbitrary canvas rotation (currently
+    only multiples of 90°)
 - [ ] **Document identity and save workflow** — editable document name, Save As,
   recent files, and overwrite the opened file where the File System Access API permits
 - [ ] **Document settings UI** — edit unit and DPI as well as grid size; show the

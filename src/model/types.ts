@@ -498,6 +498,17 @@ export interface DocumentSettings {
   gridSize: number;
 }
 
+/**
+ * A persistent user guide: an infinite axis-aligned line in world space.
+ * `axis: "x"` is a *vertical* line at world x = `position` (matching the axis
+ * naming of the transient alignment guides in geometry/snap.ts).
+ */
+export interface GuideLine {
+  id: string;
+  axis: "x" | "y";
+  position: number;
+}
+
 /** Metadata for forward-compatible document management. */
 export interface DocumentMetadata {
   createdAt: string;
@@ -530,6 +541,8 @@ export interface Document {
   swatchOrder: string[];
   /** User-authored parametric generators referenced by node `generator` links. */
   scripts: Record<string, ScriptDef>;
+  /** Persistent ruler guides (world space); see docs/rulers-and-guides.md. */
+  guides: GuideLine[];
   settings: DocumentSettings;
   metadata: DocumentMetadata;
   assets: Record<string, DocumentAsset>;
@@ -546,6 +559,7 @@ export function createEmptyDocument(): Document {
     swatches: {},
     swatchOrder: [],
     scripts: {},
+    guides: [],
     settings: { unit: "px", dpi: 96, gridSize: 50 },
     metadata: { createdAt: now, modifiedAt: now },
     assets: {},

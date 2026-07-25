@@ -68,6 +68,38 @@ globalStyle(".snap-menu-row input[type=\"checkbox\"]", {
   cursor: "pointer",
 });
 
+globalStyle(".snap-menu-row input[type=\"checkbox\"]:disabled", {
+  cursor: "default",
+});
+
+globalStyle(".snap-menu-row:has(input:disabled)", {
+  color: vars.muted,
+  cursor: "default",
+});
+
+globalStyle(".snap-menu-action", {
+  display: "block",
+  width: "calc(100% - 20px)",
+  margin: "2px 10px 4px",
+  padding: "6px 10px",
+  border: `1px solid ${vars.border}`,
+  borderRadius: "6px",
+  background: "transparent",
+  color: vars.text,
+  fontSize: "12.5px",
+  textAlign: "center",
+  cursor: "pointer",
+});
+
+globalStyle(".snap-menu-action:hover:not(:disabled)", {
+  background: vars.hover,
+});
+
+globalStyle(".snap-menu-action:disabled", {
+  color: vars.muted,
+  cursor: "default",
+});
+
 globalStyle(".snap-menu-size", {
   justifyContent: "space-between",
 });

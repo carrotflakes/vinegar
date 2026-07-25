@@ -126,3 +126,19 @@ export function selectionMenu(): MenuEntry[] {
 export function canvasMenu(at: Vec2): MenuEntry[] {
   return [item("edit.paste", at), item("file.placeImage", at), item("select.all")];
 }
+
+/** Menu for a right-click on a ruler or a guide. */
+export function guideMenu(): MenuEntry[] {
+  return [
+    item("guides.delete"),
+    "separator",
+    item("guides.toggleVisible"),
+    item("guides.toggleLock"),
+    item("view.toggleRulers"),
+    "separator",
+    item("view.toggleRulerOrigin"),
+    item("view.resetRulerOrigin"),
+    "separator",
+    item("guides.clear"),
+  ];
+}

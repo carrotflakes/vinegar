@@ -3,12 +3,14 @@
 
 import {
   ancestorIds,
+  containingFrameId,
   isGroup,
   isNodeHidden,
   isNodeLocked,
   scopeRootGroupId,
   scopeRootIds,
 } from "../model/scene";
+import type { Document } from "../model/types";
 import {
   clearTransient,
   currentSymbolScope,
@@ -16,12 +18,47 @@ import {
   type StoreCtx,
 } from "./state";
 
+/**
+ * The frame the rulers should count from after a selection change: the frame
+ * the new selection lives in, or the previous one when the selection says
+ * nothing (empty, or entirely outside every frame). Deliberately sticky — the
+ * ruler origin must not flip back and forth as things are deselected.
+ */
+function activeFrameForSelection(
+  doc: Document,
+  selection: string[],
+  current: string | null
+): string | null {
+  for (const id of selection) {
+    const frame = containingFrameId(doc, id);
+    if (frame) return frame;
+  }
+  return current && doc.nodes[current] ? current : null;
+}
+
 export function createSelectionActions({ set, get }: StoreCtx): SelectionActions {
+  /** Selection state plus the ruler's active frame, which follows from it. */
+  const selected = (selection: string[]) => {
+    const s = get();
+    const ids = [...new Set(selection)].filter((id) => !!s.doc.nodes[id]);
+    return {
+      selection: ids,
+      activeFrameId: activeFrameForSelection(s.doc, ids, s.activeFrameId),
+      // Selecting a node hands the "what does Delete act on?" role back to the
+      // scene. Canvas clicks clear the guide selection themselves, but the
+      // Layers panel and the commands come through here.
+      ...(ids.length ? { selectedGuideId: null } : {}),
+      ...clearTransient,
+    };
+  };
+
   return {
-    setSelection: (selection) => set({ selection: [...new Set(selection)].filter((id) => !!get().doc.nodes[id]), ...clearTransient }),
+    setSelection: (selection) => set(selected(selection)),
     setSelectionPivot: (selectionPivot) => set({ selectionPivot }),
     setSelectionTransform: (selectionTransform) => set({ selectionTransform }),
-    toggleSelection: (id) => set({ selection: get().selection.includes(id) ? get().selection.filter((x) => x !== id) : [...get().selection, id], ...clearTransient }),
+    toggleSelection: (id) => set(selected(get().selection.includes(id) ? get().selection.filter((x) => x !== id) : [...get().selection, id])),
+    // Clearing says nothing about which frame the user is working in, so the
+    // ruler origin stays where it was.
     clearSelection: () => set({ selection: [], ...clearTransient }),
     selectAll: () => { const s = get(); const roots = scopeRootIds(s.doc, currentSymbolScope(s)); set({ selection: roots.filter((id) => !isNodeHidden(s.doc, id) && !isNodeLocked(s.doc, id)), ...clearTransient }); },
     setEditNodes: (editNodes) => {
@@ -32,6 +69,7 @@ export function createSelectionActions({ set, get }: StoreCtx): SelectionActions
       set({ editNodes: [...unique.values()] });
     },
     setActiveGroup: (activeGroupId) => set({ activeGroupId }),
+    setActiveFrame: (id) => set({ activeFrameId: id && get().doc.nodes[id] ? id : null }),
     exitGroup: () => {
       const s = get();
       const id = s.activeGroupId;

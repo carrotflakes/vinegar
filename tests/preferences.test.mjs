@@ -72,7 +72,7 @@ test("valid v1 preferences load while unknown fields are ignored", () => {
   assert.deepEqual(loaded, {
     version: 1,
     general: { theme: "light", locale: "en" },
-    canvas: { rotationEnabled: true, rotationSnap: true },
+    canvas: { rotationEnabled: true, rotationSnap: true, rulerOrigin: "artboard" },
     recovery: { enabled: false, maxWaitMs: 12345 },
     history: { limit: 75 },
   });
@@ -100,7 +100,7 @@ test("invalid fields fall back independently", () => {
   assert.deepEqual(loaded, {
     version: 1,
     general: { theme: "dark", locale: "en" },
-    canvas: { rotationEnabled: true, rotationSnap: true },
+    canvas: { rotationEnabled: true, rotationSnap: true, rulerOrigin: "artboard" },
     recovery: { enabled: true, maxWaitMs: 5000 },
     history: { limit: 100 },
   });
@@ -118,6 +118,7 @@ test("canvas rotation preferences load and fall back per field", () => {
   assert.deepEqual(loaded.canvas, {
     rotationEnabled: false,
     rotationSnap: true,
+    rulerOrigin: "artboard",
   });
 });
 
@@ -131,10 +132,12 @@ test("the preference store updates canvas rotation toggles", () => {
   assert.deepEqual(store.getState().canvas, {
     rotationEnabled: false,
     rotationSnap: false,
+    rulerOrigin: "artboard",
   });
   assert.deepEqual(JSON.parse(fake.value).canvas, {
     rotationEnabled: false,
     rotationSnap: false,
+    rulerOrigin: "artboard",
   });
 });
 
@@ -173,7 +176,7 @@ test("the preference store persists complete updates and resets", () => {
   assert.deepEqual(JSON.parse(fake.value), {
     version: 1,
     general: { theme: "light", locale: "en" },
-    canvas: { rotationEnabled: true, rotationSnap: true },
+    canvas: { rotationEnabled: true, rotationSnap: true, rulerOrigin: "artboard" },
     recovery: { enabled: false, maxWaitMs: 12345 },
     history: { limit: 75 },
   });

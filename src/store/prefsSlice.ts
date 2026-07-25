@@ -15,6 +15,10 @@ const SAVED_SWATCHES_KEY = "vinegar.savedSwatches";
 const SNAP_ENABLED_KEY = "vinegar.snapEnabled";
 const GRID_SNAP_KEY = "vinegar.gridSnap";
 const GRID_VISIBLE_KEY = "vinegar.gridVisible";
+const GUIDE_SNAP_KEY = "vinegar.guideSnap";
+const GUIDES_VISIBLE_KEY = "vinegar.guidesVisible";
+const GUIDES_LOCKED_KEY = "vinegar.guidesLocked";
+const RULERS_VISIBLE_KEY = "vinegar.rulersVisible";
 
 function loadColorList(key: string, max = Infinity): string[] {
   try {
@@ -40,6 +44,7 @@ type PrefsData = Pick<
   EditorData,
   | "tool" | "viewport" | "style"
   | "snapEnabled" | "gridSnap" | "gridVisible" | "gridSize"
+  | "guideSnap" | "guidesVisible" | "guidesLocked" | "rulersVisible"
   | "recentColors" | "savedSwatches"
 >;
 
@@ -61,6 +66,11 @@ export function initialPrefs(): PrefsData {
     gridSnap: loadBool(GRID_SNAP_KEY, false),
     gridVisible: loadBool(GRID_VISIBLE_KEY, true),
     gridSize: 50,
+    guideSnap: loadBool(GUIDE_SNAP_KEY, true),
+    guidesVisible: loadBool(GUIDES_VISIBLE_KEY, true),
+    guidesLocked: loadBool(GUIDES_LOCKED_KEY, false),
+    // On by default: the rulers are the only way to discover guides at all.
+    rulersVisible: loadBool(RULERS_VISIBLE_KEY, true),
     recentColors: loadColorList(RECENT_COLORS_KEY, RECENT_COLORS_MAX),
     savedSwatches: loadColorList(SAVED_SWATCHES_KEY),
   };
@@ -73,6 +83,12 @@ export function createPrefsActions({ set, get, replaceDocumentWithoutHistory }: 
     toggleSnap: () => { const snapEnabled = !get().snapEnabled; saveBool(SNAP_ENABLED_KEY, snapEnabled); set({ snapEnabled }); },
     toggleGridSnap: () => { const gridSnap = !get().gridSnap; saveBool(GRID_SNAP_KEY, gridSnap); set({ gridSnap }); },
     toggleGridVisible: () => { const gridVisible = !get().gridVisible; saveBool(GRID_VISIBLE_KEY, gridVisible); set({ gridVisible }); },
+    toggleGuideSnap: () => { const guideSnap = !get().guideSnap; saveBool(GUIDE_SNAP_KEY, guideSnap); set({ guideSnap }); },
+    // Hiding guides also drops the selection: an invisible selected guide would
+    // still answer to Delete.
+    toggleGuidesVisible: () => { const guidesVisible = !get().guidesVisible; saveBool(GUIDES_VISIBLE_KEY, guidesVisible); set({ guidesVisible, selectedGuideId: guidesVisible ? get().selectedGuideId : null }); },
+    toggleGuidesLocked: () => { const guidesLocked = !get().guidesLocked; saveBool(GUIDES_LOCKED_KEY, guidesLocked); set({ guidesLocked, selectedGuideId: guidesLocked ? null : get().selectedGuideId }); },
+    toggleRulers: () => { const rulersVisible = !get().rulersVisible; saveBool(RULERS_VISIBLE_KEY, rulersVisible); set({ rulersVisible }); },
     // The document grid travels with the file but is not an undoable edit.
     setGridSize: (size) => { const gridSize = Math.max(1, Math.round(size)); const doc = get().doc; replaceDocumentWithoutHistory({ ...doc, settings: { ...doc.settings, gridSize } }, { gridSize }); },
     addRecentColor: (hex) => { const c = hex.toLowerCase(); const recentColors = [c, ...get().recentColors.filter((x) => x !== c)].slice(0, RECENT_COLORS_MAX); saveColorList(RECENT_COLORS_KEY, recentColors); set({ recentColors }); },

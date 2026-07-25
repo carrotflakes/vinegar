@@ -13,9 +13,9 @@ import {
 
 /**
  * Only the current version is accepted; there is no migration from older
- * formats — pre-v27 files fail to open with a clear message.
+ * formats — pre-v28 files fail to open with a clear message.
  */
-export const CURRENT_FILE_VERSION = 27 as const;
+export const CURRENT_FILE_VERSION = 28 as const;
 
 export interface VinegarFile {
   app: "vinegar";
@@ -249,6 +249,10 @@ function isCurrentDocument(value: unknown): value is Document {
     Object.entries(value.scripts).every(([id, def]) =>
       isObject(def) && def.id === id &&
       typeof def.name === "string" && typeof def.source === "string") &&
+    Array.isArray(value.guides) &&
+    value.guides.every((guide) =>
+      isObject(guide) && typeof guide.id === "string" &&
+      (guide.axis === "x" || guide.axis === "y") && isNumber(guide.position)) &&
     isObject(value.settings) && typeof value.settings.unit === "string" &&
     isNumber(value.settings.dpi) && isNumber(value.settings.gridSize) &&
     isObject(value.metadata) && typeof value.metadata.createdAt === "string" &&
@@ -318,6 +322,10 @@ function validateTree(doc: Document): void {
     for (const childId of node.childIds) visit(childId);
     visiting.delete(id);
   };
+  // Guide ids address a guide for move/delete, so they must be unique.
+  if (new Set(doc.guides.map((g) => g.id)).size !== doc.guides.length) {
+    throw new Error("Document guides contain duplicate ids.");
+  }
   // Global colours: `swatchOrder` and `swatches` must be a bijection.
   if (doc.swatchOrder.length !== Object.keys(doc.swatches).length ||
       doc.swatchOrder.some((id) => !doc.swatches[id])) {

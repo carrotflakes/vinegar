@@ -4,6 +4,7 @@ import { type Guide, type Spacing } from "@/model/geometry/snap";
 import type { PathShape, Bounds, Shape, Vec2 } from "../model/types";
 import { currentSymbolScope, useEditor } from "../store/editorStore";
 import { setPointer } from "../store/pointerStore";
+import { usePreferences } from "../store/preferencesStore";
 import "./CanvasView.css";
 import { readCanvasTheme, type CanvasTheme } from "./canvasTheme";
 import { paintCanvas } from "./paint";
@@ -124,6 +125,9 @@ export default function CanvasView() {
 
   // Repaint when an image asset finishes decoding.
   useEffect(() => subscribeImageCache(scheduleDraw), [scheduleDraw]);
+
+  // Preferences the canvas reads at paint time (e.g. the ruler origin mode).
+  useEffect(() => usePreferences.subscribe(scheduleDraw), [scheduleDraw]);
 
   useCanvasTheme(themeRef, scheduleDraw);
   useCanvasSizing(wrapRef, canvasRef, sizeRef, draw);

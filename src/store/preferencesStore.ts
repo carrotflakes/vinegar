@@ -6,6 +6,7 @@ import {
   writePreferences,
   type PreferencesStorage,
   type PreferencesV1,
+  type RulerOriginPreference,
   type ThemePreference,
   type UiLocale,
 } from "../preferences/model";
@@ -15,6 +16,7 @@ export interface PreferencesActions {
   setLocale: (locale: UiLocale) => void;
   setCanvasRotationEnabled: (enabled: boolean) => void;
   setCanvasRotationSnap: (snap: boolean) => void;
+  setRulerOrigin: (origin: RulerOriginPreference) => void;
   setRecoveryEnabled: (enabled: boolean) => void;
   setRecoveryMaxWaitMs: (maxWaitMs: number) => void;
   setUndoHistoryLimit: (limit: number) => void;
@@ -58,6 +60,8 @@ export function createPreferencesStore(storage?: PreferencesStorage) {
         patch("canvas", { ...get().canvas, rotationEnabled: enabled }),
       setCanvasRotationSnap: (snap) =>
         patch("canvas", { ...get().canvas, rotationSnap: snap }),
+      setRulerOrigin: (rulerOrigin) =>
+        patch("canvas", { ...get().canvas, rulerOrigin }),
       setRecoveryEnabled: (enabled) =>
         patch("recovery", { ...get().recovery, enabled }),
       setRecoveryMaxWaitMs: (maxWaitMs) => {

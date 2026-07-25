@@ -13,6 +13,7 @@ import { createHistory, trimHistoryToLimit } from "./historySlice";
 import { usePreferences } from "./preferencesStore";
 import { createPrefsActions, initialPrefs } from "./prefsSlice";
 import { createFrameActions } from "./frameSlice";
+import { createGuideActions } from "./guideSlice";
 import { createSelectionActions } from "./selectionSlice";
 import { createShapeActions } from "./shapeSlice";
 import {
@@ -57,10 +58,12 @@ export const useEditor = create<EditorState>((set, get) => {
     selectionTransform: null,
     editingSymbols: [],
     activeGroupId: null,
+    activeFrameId: null,
     history: { past: [], future: [] },
     editNodes: [],
     scriptsTrusted: true,
     scriptMeta: {},
+    selectedGuideId: null,
     clipboard: null,
     _interaction: null,
     ...initialPrefs(),
@@ -71,6 +74,7 @@ export const useEditor = create<EditorState>((set, get) => {
     ...createShapeActions(ctx),
     ...createStructureActions(ctx),
     ...createFrameActions(ctx),
+    ...createGuideActions(ctx),
     ...createClipboardActions(ctx),
     ...createSwatchActions(ctx),
     ...createSymbolActions(ctx),

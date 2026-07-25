@@ -94,6 +94,13 @@ export interface EditorData {
    * top level. Reset when the symbol scope changes.
    */
   activeGroupId: string | null;
+  /**
+   * The frame the rulers count from (Illustrator's "active artboard"). It
+   * follows deliberate acts only — selecting a frame or something inside one,
+   * or creating a frame — never panning or zooming, and stays put when the
+   * selection is cleared. Null means the rulers count from the world origin.
+   */
+  activeFrameId: string | null;
   tool: ToolId;
   viewport: Viewport;
   style: StyleDefaults;
@@ -117,6 +124,15 @@ export interface EditorData {
   gridSnap: boolean;
   gridVisible: boolean;
   gridSize: number;
+  /** Snap to persistent guides (only ever offered while they are visible). */
+  guideSnap: boolean;
+  /** Show `doc.guides` on the canvas; hidden guides also stop snapping. */
+  guidesVisible: boolean;
+  /** Guides cannot be picked, dragged or created while locked. */
+  guidesLocked: boolean;
+  rulersVisible: boolean;
+  /** The one selected guide, if any. Guides never enter `selection`. */
+  selectedGuideId: string | null;
   recentColors: string[];
   savedSwatches: string[];
   clipboard: ClipboardPayload | null;
@@ -143,6 +159,10 @@ export interface PrefsActions {
   toggleGridSnap: () => void;
   toggleGridVisible: () => void;
   setGridSize: (size: number) => void;
+  toggleGuideSnap: () => void;
+  toggleGuidesVisible: () => void;
+  toggleGuidesLocked: () => void;
+  toggleRulers: () => void;
   addRecentColor: (hex: string) => void;
   addSwatch: (hex: string) => void;
   removeSwatch: (hex: string) => void;
@@ -161,6 +181,8 @@ export interface SelectionActions {
   setActiveGroup: (id: string | null) => void;
   /** Step out of the active group to its parent group (or top level). */
   exitGroup: () => void;
+  /** Set the frame the rulers count from; null returns to the world origin. */
+  setActiveFrame: (id: string | null) => void;
 }
 
 /** Document lifecycle, undo history and drag-interaction batching. */
@@ -335,6 +357,17 @@ export interface FrameActions {
   ) => void;
 }
 
+/** Persistent ruler guides; see docs/rulers-and-guides.md. */
+export interface GuideActions {
+  /** Select a guide for keyboard deletion, or null to clear. */
+  setSelectedGuide: (id: string | null) => void;
+  /** Add a guide at a world coordinate and select it; resolves its new id. */
+  addGuide: (axis: "x" | "y", position: number) => string;
+  moveGuide: (id: string, position: number) => void;
+  removeGuide: (id: string) => void;
+  clearGuides: () => void;
+}
+
 export interface ClipboardActions {
   copySelected: () => void;
   cutSelected: () => void;
@@ -378,6 +411,7 @@ export type EditorState = EditorData &
   ShapeActions &
   StructureActions &
   FrameActions &
+  GuideActions &
   ClipboardActions &
   SwatchActions &
   SymbolActions;

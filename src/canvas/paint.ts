@@ -5,6 +5,7 @@ import { framesInPaintOrder, isFrame, scopeRootGroupId, selectionRoots } from ".
 import type { Guide, Spacing } from "@/model/geometry/snap";
 import type { Bounds, PathShape, Shape, Vec2 } from "../model/types";
 import { currentSymbolScope, type EditorState } from "../store/editorStore";
+import { usePreferences } from "../store/preferencesStore";
 import type { CanvasTheme } from "./canvasTheme";
 import { cornerRadiusControl } from "./cornerRadiusHandle";
 import {
@@ -25,6 +26,8 @@ import {
   drawSpacings,
   drawTextDraft,
 } from "./overlay";
+import { drawDocumentGuides } from "./guides";
+import { drawRulers } from "./rulers";
 import { selectedNodeShapes, selectedShapes } from "./picking";
 import { frameDropTarget } from "./tools/selectTool";
 import { renderScene } from "./render";
@@ -85,6 +88,18 @@ export function paintCanvas(input: PaintInput): void {
     hiddenShapeId: hiddenTextId,
     editorChrome: true,
   });
+
+  // Persistent guides sit above the art but below every selection affordance.
+  if (state.guidesVisible) {
+    drawDocumentGuides(
+      ctx2d,
+      dpr,
+      viewport,
+      { width, height },
+      doc.guides,
+      state.selectedGuideId
+    );
+  }
 
   // While dragging a selection, highlight the frame it would drop into (unless
   // reparenting is suppressed with Cmd/Ctrl).
@@ -185,4 +200,24 @@ export function paintCanvas(input: PaintInput): void {
   }
   drawGuides(ctx2d, dpr, viewport, guides);
   drawSpacings(ctx2d, dpr, viewport, spacings);
+
+  // Rulers last: they are opaque bands the rest of the chrome scrolls under.
+  if (state.rulersVisible) {
+    drawRulers(ctx2d, {
+      dpr,
+      size: { width, height },
+      viewport,
+      doc,
+      // "world" pins the rulers to the document origin regardless of which
+      // frame is active (Illustrator's Global Rulers).
+      activeFrameId:
+        usePreferences.getState().canvas.rulerOrigin === "world"
+          ? null
+          : state.activeFrameId,
+      theme,
+      selection: selectionFrame
+        ? unionNodeWorldBounds(doc, selectionRoots(doc, selection))
+        : null,
+    });
+  }
 }

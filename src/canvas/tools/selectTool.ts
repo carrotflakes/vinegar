@@ -37,6 +37,7 @@ import {
   withChildIds,
 } from "../../model/scene";
 import { collectSnapTargets, computeSnap } from "@/model/geometry/snap";
+import { activeGuideLines } from "../guides";
 import type { Document, SceneNode, Shape, Vec2 } from "../../model/types";
 import { screenToWorld, worldToScreen } from "@/model/geometry/viewport";
 import { currentSymbolScope, useEditor, type EditorState } from "../../store/editorStore";
@@ -429,7 +430,8 @@ export function onSelectMove(
       let dx = rawDx;
       let dy = rawDy;
       const gridSize = state.gridSnap ? state.gridSize : null;
-      if (state.snapEnabled || gridSize) {
+      const guideLines = activeGuideLines(state);
+      if (state.snapEnabled || gridSize || guideLines.x.length || guideLines.y.length) {
         const movingBox = {
           x: inter.origUnion.x + rawDx,
           y: inter.origUnion.y + rawDy,
@@ -442,6 +444,7 @@ export function onSelectMove(
             targets: state.snapEnabled ? inter.targets : { x: [], y: [] },
             boxes: state.snapEnabled ? inter.boxes : [],
             gridSize,
+            guideLines,
           },
           6 / state.viewport.scale
         );

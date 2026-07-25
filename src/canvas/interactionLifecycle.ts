@@ -27,6 +27,12 @@ export function cancelActiveInteraction(ctx: ToolContext): void {
       state.cancelInteraction();
       state.clearSelection();
       break;
+    case "guide-drag":
+      // Rolls the guide back to where the drag started (or away entirely, if
+      // the drag is what created it).
+      state.cancelInteraction();
+      if (inter.created) state.setSelectedGuide(null);
+      break;
     case "create":
     case "pencil":
       // Drag-time changes live only in the preview shape.

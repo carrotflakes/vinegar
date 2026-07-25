@@ -4,6 +4,15 @@ export interface CanvasTheme {
   bg: string;
   scopeBg: string;
   grid: { minor: string; major: string; axis: string };
+  /** Ruler chrome (drawn into the canvas, so it needs concrete colors too). */
+  ruler: {
+    bg: string;
+    border: string;
+    tick: string;
+    text: string;
+    /** Shading behind the selection extent. */
+    highlight: string;
+  };
 }
 
 /** Extract the custom-property name from a vanilla-extract `var(--x)` reference. */
@@ -23,6 +32,13 @@ export function readCanvasTheme(): CanvasTheme {
       minor: read(vars.gridMinor),
       major: read(vars.gridMajor),
       axis: read(vars.gridAxis),
+    },
+    ruler: {
+      bg: read(vars.panel),
+      border: read(vars.border),
+      tick: read(vars.muted),
+      text: read(vars.muted),
+      highlight: read(vars.accentWeak),
     },
   };
 }

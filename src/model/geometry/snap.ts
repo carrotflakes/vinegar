@@ -1,5 +1,5 @@
 import { worldShapeBounds } from "./bounds";
-import type { Bounds, Document, Shape, Vec2 } from "../types";
+import type { Bounds, Document, GuideLine, Shape, Vec2 } from "../types";
 
 /** A line other shapes can snap to, with the perpendicular extent of its source. */
 interface Candidate {
@@ -29,12 +29,30 @@ export interface Spacing {
   pos: number;
 }
 
+/** Persistent guide positions per axis, in world units. */
+export interface GuidePositions {
+  x: number[];
+  y: number[];
+}
+
+export const NO_GUIDE_LINES: GuidePositions = { x: [], y: [] };
+
+/** Bucket document guides by axis for snapping. */
+export function guidePositions(guides: readonly GuideLine[]): GuidePositions {
+  const x: number[] = [];
+  const y: number[] = [];
+  for (const guide of guides) (guide.axis === "x" ? x : y).push(guide.position);
+  return { x, y };
+}
+
 export interface SnapContext {
   targets: SnapTargets;
   /** Other shapes' world AABBs, used for distribution (equal spacing). */
   boxes: Bounds[];
   /** Grid size in world units, or null to disable grid snapping. */
   gridSize: number | null;
+  /** Persistent guides to snap to (empty when guide snapping is off). */
+  guideLines: GuidePositions;
 }
 
 export interface SnapResult {
@@ -126,6 +144,28 @@ function alignSnap(
   };
 }
 
+/**
+ * Snap to persistent guides. The guide is infinite, but the feedback line is
+ * drawn over the moving box's own extent (`perp`) — an infinite overlay line
+ * would just repaint the guide that is already on screen.
+ */
+function guideSnap(
+  axis: "x" | "y",
+  edges: number[],
+  perp: [number, number],
+  positions: number[],
+  threshold: number
+): AxisSnap | null {
+  if (positions.length === 0) return null;
+  return alignSnap(
+    axis,
+    edges,
+    perp,
+    positions.map((value) => ({ value, lo: perp[0], hi: perp[1] })),
+    threshold
+  );
+}
+
 function gridSnap(edges: number[], grid: number, threshold: number): AxisSnap | null {
   let best: number | null = null;
   for (const e of edges) {
@@ -210,13 +250,17 @@ export function computeSnap(
   const xEdges = [box.x, box.x + box.width / 2, box.x + box.width];
   const yEdges = [box.y, box.y + box.height / 2, box.y + box.height];
 
+  const xPerp: [number, number] = [box.y, box.y + box.height];
+  const yPerp: [number, number] = [box.x, box.x + box.width];
   const xPick = pick([
-    alignSnap("x", xEdges, [box.y, box.y + box.height], ctx.targets.x, threshold),
+    alignSnap("x", xEdges, xPerp, ctx.targets.x, threshold),
+    guideSnap("x", xEdges, xPerp, ctx.guideLines.x, threshold),
     ctx.gridSize ? gridSnap(xEdges, ctx.gridSize, threshold) : null,
     distSnap(true, box, ctx.boxes, threshold),
   ]);
   const yPick = pick([
-    alignSnap("y", yEdges, [box.x, box.x + box.width], ctx.targets.y, threshold),
+    alignSnap("y", yEdges, yPerp, ctx.targets.y, threshold),
+    guideSnap("y", yEdges, yPerp, ctx.guideLines.y, threshold),
     ctx.gridSize ? gridSnap(yEdges, ctx.gridSize, threshold) : null,
     distSnap(false, box, ctx.boxes, threshold),
   ]);
@@ -234,6 +278,7 @@ export function computeSnap(
 export interface PointSnapContext {
   targets: SnapTargets;
   gridSize: number | null;
+  guideLines: GuidePositions;
 }
 
 /**
@@ -247,10 +292,12 @@ export function snapPoint(
 ): { point: Vec2; guides: Guide[] } {
   const xPick = pick([
     alignSnap("x", [p.x], [p.y, p.y], ctx.targets.x, threshold),
+    guideSnap("x", [p.x], [p.y, p.y], ctx.guideLines.x, threshold),
     ctx.gridSize ? gridSnap([p.x], ctx.gridSize, threshold) : null,
   ]);
   const yPick = pick([
     alignSnap("y", [p.y], [p.x, p.x], ctx.targets.y, threshold),
+    guideSnap("y", [p.y], [p.x, p.x], ctx.guideLines.y, threshold),
     ctx.gridSize ? gridSnap([p.y], ctx.gridSize, threshold) : null,
   ]);
 

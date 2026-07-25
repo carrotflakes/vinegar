@@ -255,6 +255,16 @@ export function rootAncestorId(doc: Document, id: string): string {
 }
 
 /**
+ * The frame a node lives in, or null when it is not inside one. Frames only
+ * ever exist at the top level (see docs/document-model.md), so this is just the
+ * root ancestor when that happens to be a frame.
+ */
+export function containingFrameId(doc: Document, id: string): string | null {
+  const root = rootAncestorId(doc, id);
+  return isFrame(doc.nodes[root]) ? root : null;
+}
+
+/**
  * Outermost ancestor of `id` below the nearest selection boundary. Used so a
  * canvas leaf hit resolves to the right selectable unit.
  *

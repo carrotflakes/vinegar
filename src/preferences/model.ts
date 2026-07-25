@@ -7,6 +7,14 @@ export type ThemePreference = (typeof THEME_PREFERENCES)[number];
 export const SUPPORTED_LOCALES = ["en"] as const;
 export type UiLocale = (typeof SUPPORTED_LOCALES)[number];
 
+/**
+ * Where the rulers count from: the active frame's top-left ("artboard", the
+ * Illustrator default) or the document's world origin ("world").
+ * See docs/rulers-and-guides.md.
+ */
+export const RULER_ORIGINS = ["artboard", "world"] as const;
+export type RulerOriginPreference = (typeof RULER_ORIGINS)[number];
+
 export interface PreferencesV1 {
   version: typeof PREFERENCES_VERSION;
   general: {
@@ -18,6 +26,8 @@ export interface PreferencesV1 {
     rotationEnabled: boolean;
     /** Snap canvas rotation to the nearest quarter turn while twisting. */
     rotationSnap: boolean;
+    /** Whether the rulers count from the active frame or the world origin. */
+    rulerOrigin: RulerOriginPreference;
   };
   recovery: {
     enabled: boolean;
@@ -49,6 +59,11 @@ export function isUiLocale(value: unknown): value is UiLocale {
     SUPPORTED_LOCALES.some((locale) => locale === value);
 }
 
+export function isRulerOrigin(value: unknown): value is RulerOriginPreference {
+  return typeof value === "string" &&
+    RULER_ORIGINS.some((origin) => origin === value);
+}
+
 export function isPositiveSafeInteger(value: unknown): value is number {
   return typeof value === "number" && Number.isSafeInteger(value) && value > 0;
 }
@@ -63,6 +78,7 @@ export function createDefaultPreferences(): PreferencesV1 {
     canvas: {
       rotationEnabled: true,
       rotationSnap: true,
+      rulerOrigin: "artboard",
     },
     recovery: {
       enabled: true,
@@ -98,6 +114,9 @@ function validateV1(value: Record<string, unknown>): PreferencesV1 {
       rotationSnap: typeof canvas.rotationSnap === "boolean"
         ? canvas.rotationSnap
         : defaults.canvas.rotationSnap,
+      rulerOrigin: isRulerOrigin(canvas.rulerOrigin)
+        ? canvas.rulerOrigin
+        : defaults.canvas.rulerOrigin,
     },
     recovery: {
       enabled: typeof recovery.enabled === "boolean"

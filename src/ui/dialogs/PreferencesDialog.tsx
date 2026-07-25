@@ -2,9 +2,12 @@ import { useEffect } from "react";
 import { LuX } from "react-icons/lu";
 import {
   isPositiveSafeInteger,
-  isUiLocale,
+  isRulerOrigin,
+  RULER_ORIGINS,
   SUPPORTED_LOCALES,
   THEME_PREFERENCES,
+  isUiLocale,
+  type RulerOriginPreference,
   type ThemePreference,
   type UiLocale,
 } from "../../preferences/model";
@@ -27,6 +30,11 @@ const THEME_LABELS: Record<ThemePreference, string> = {
 
 const LOCALE_LABELS: Record<UiLocale, string> = {
   en: "English",
+};
+
+const RULER_ORIGIN_LABELS: Record<RulerOriginPreference, string> = {
+  artboard: "Active artboard",
+  world: "Document origin",
 };
 
 const RECOVERY_INTERVAL_OPTIONS = [
@@ -76,6 +84,7 @@ export default function PreferencesDialog({ open, onClose }: Props) {
   const setCanvasRotationSnap = usePreferences(
     (state) => state.setCanvasRotationSnap
   );
+  const setRulerOrigin = usePreferences((state) => state.setRulerOrigin);
   const setRecoveryEnabled = usePreferences((state) => state.setRecoveryEnabled);
   const setRecoveryMaxWaitMs = usePreferences(
     (state) => state.setRecoveryMaxWaitMs
@@ -203,6 +212,26 @@ export default function PreferencesDialog({ open, onClose }: Props) {
                 >
                   <span className="pref-switch-knob" aria-hidden />
                 </button>
+              }
+            />
+            <Row
+              title="Ruler origin"
+              description="Count the rulers from the active artboard, or always from the document origin."
+              control={
+                <select
+                  className="pref-select"
+                  value={canvas.rulerOrigin}
+                  onChange={(event) => {
+                    const origin = event.target.value;
+                    if (isRulerOrigin(origin)) setRulerOrigin(origin);
+                  }}
+                >
+                  {RULER_ORIGINS.map((origin) => (
+                    <option key={origin} value={origin}>
+                      {RULER_ORIGIN_LABELS[origin]}
+                    </option>
+                  ))}
+                </select>
               }
             />
           </section>

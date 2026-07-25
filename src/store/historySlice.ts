@@ -99,6 +99,8 @@ function documentReset(doc: Document, saved: boolean) {
     selection: [],
     editingSymbols: [],
     activeGroupId: null,
+    activeFrameId: null,
+    selectedGuideId: null,
     history: { past: [], future: [] },
     _interaction: null,
     _revision: revision,

@@ -112,7 +112,16 @@ export type Interaction =
        */
       original: { shapeId: string; sub: number; index: number }[];
     }
-  | { kind: "frame-create"; id: string; start: Vec2; snap: FrameSnap };
+  | { kind: "frame-create"; id: string; start: Vec2; snap: FrameSnap }
+  | {
+      /** Dragging a document guide, either an existing one or one just pulled
+       *  out of a ruler. Dropping it back on a ruler removes it. */
+      kind: "guide-drag";
+      id: string;
+      axis: "x" | "y";
+      /** The guide was created by this drag, so a cancel must remove it. */
+      created: boolean;
+    };
 
 /** Precomputed snap data for a frame-create drag: alignment lines from other
  * frames + scene shapes, and other frames' AABBs for equal-spacing. */

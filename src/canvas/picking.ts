@@ -19,6 +19,7 @@ import {
 import { framesInPaintOrder } from "../model/scene";
 import { invertMatrix, nodeWorldMatrix, applyMatrix } from "@/model/geometry/matrix";
 import { collectSnapTargets, snapPoint } from "@/model/geometry/snap";
+import { activeGuideLines } from "./guides";
 import type { Document, Shape, Vec2 } from "../model/types";
 import { worldToScreen } from "@/model/geometry/viewport";
 import { currentSymbolScope, useEditor, type EditorState } from "../store/editorStore";
@@ -243,7 +244,9 @@ export function pointSnap(
 ): Vec2 {
   const state = useEditor.getState();
   ctx.spacings.current = [];
-  if (!state.snapEnabled && !state.gridSnap) {
+  const guideLines = activeGuideLines(state);
+  const hasGuides = guideLines.x.length > 0 || guideLines.y.length > 0;
+  if (!state.snapEnabled && !state.gridSnap && !hasGuides) {
     ctx.guides.current = [];
     return world;
   }
@@ -259,6 +262,7 @@ export function pointSnap(
         ? collectSnapTargets(state.doc, others)
         : { x: [], y: [] },
       gridSize: state.gridSnap ? state.gridSize : null,
+      guideLines,
     },
     6 / state.viewport.scale
   );

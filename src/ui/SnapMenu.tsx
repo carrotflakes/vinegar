@@ -17,8 +17,18 @@ export default function SnapMenu() {
   const toggleGridVisible = useEditor((s) => s.toggleGridVisible);
   const gridSize = useEditor((s) => s.gridSize);
   const setGridSize = useEditor((s) => s.setGridSize);
+  const guideSnap = useEditor((s) => s.guideSnap);
+  const toggleGuideSnap = useEditor((s) => s.toggleGuideSnap);
+  const guidesVisible = useEditor((s) => s.guidesVisible);
+  const toggleGuidesVisible = useEditor((s) => s.toggleGuidesVisible);
+  const guidesLocked = useEditor((s) => s.guidesLocked);
+  const toggleGuidesLocked = useEditor((s) => s.toggleGuidesLocked);
+  const rulersVisible = useEditor((s) => s.rulersVisible);
+  const toggleRulers = useEditor((s) => s.toggleRulers);
+  const guideCount = useEditor((s) => s.doc.guides.length);
+  const clearGuides = useEditor((s) => s.clearGuides);
 
-  const active = snapEnabled || gridSnap;
+  const active = snapEnabled || gridSnap || (guideSnap && guidesVisible);
 
   return (
     <div className="menu-root snap-menu-root">
@@ -55,6 +65,15 @@ export default function SnapMenu() {
               />
               Snap to grid
             </label>
+            <label className="snap-menu-row">
+              <input
+                type="checkbox"
+                checked={guideSnap}
+                onChange={toggleGuideSnap}
+                disabled={!guidesVisible}
+              />
+              Snap to guides
+            </label>
             <div className="menu-divider" />
             <label className="snap-menu-row">
               <input
@@ -75,6 +94,39 @@ export default function SnapMenu() {
                 aria-label="Grid size"
               />
             </label>
+            <div className="menu-divider" />
+            <label className="snap-menu-row">
+              <input
+                type="checkbox"
+                checked={rulersVisible}
+                onChange={toggleRulers}
+              />
+              Show rulers
+            </label>
+            <label className="snap-menu-row">
+              <input
+                type="checkbox"
+                checked={guidesVisible}
+                onChange={toggleGuidesVisible}
+              />
+              Show guides
+            </label>
+            <label className="snap-menu-row">
+              <input
+                type="checkbox"
+                checked={guidesLocked}
+                onChange={toggleGuidesLocked}
+              />
+              Lock guides
+            </label>
+            <button
+              type="button"
+              className="snap-menu-action"
+              onClick={clearGuides}
+              disabled={guideCount === 0 || guidesLocked}
+            >
+              Clear guides
+            </button>
           </>
         )}
       </Popover>

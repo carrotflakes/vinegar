@@ -65,6 +65,8 @@ pnpm test       # node --test (model, store, persistence, import and recovery)
 - **Menus**: the File menu and canvas/layers **context menus** share one data model and Floating UI-based renderer, with submenus, keyboard navigation + typeahead, shortcut hints and flip/shift overflow handling
 - **Snapping**: edges/centers snap to other shapes (magenta alignment guides), equal-spacing distribution between neighbours (spacing markers), and an optional grid (adjustable size).
   Works while moving, **drawing, resizing, and editing pen vertices** — toggle "Snap" / "Grid" in the status bar.
+- **Rulers and guides**: rulers along the top/left edges label document units and count from the **active frame** (which follows selection and frame creation, never panning — Illustrator's artboard rulers) or from the document origin, per the "Ruler origin" preference; drag out of a ruler for a persistent guide, drag it to move, drop it back on a ruler (or press Delete) to remove it.
+  Guides are saved with the document, are undoable like any edit, snap alongside objects and the grid, and can be hidden or locked from the "Snap" status-bar menu (see [docs/rulers-and-guides.md](docs/rulers-and-guides.md))
 - **Scripting**: a one-shot drawing DSL that runs in a sandboxed Web Worker and applies its changes in a single undo step; can create shapes and read/edit existing ones (open via the "Script" button in the app bar)
 - **Parametric generators (experimental)**: insert the built-in Star generator or author document-local generator scripts whose numeric parameters rebuild editable Bézier geometry.
   Imported document scripts stay disabled until the user explicitly enables them and run in a watchdog-protected Web Worker.

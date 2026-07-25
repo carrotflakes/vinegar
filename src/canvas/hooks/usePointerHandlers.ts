@@ -17,17 +17,24 @@ import { currentSymbolScope, useEditor } from "../../store/editorStore";
 import { readModifiers } from "../../store/inputStore";
 import { openContextMenu } from "../../store/menuStore";
 import { setPointer, setReadout } from "../../store/pointerStore";
-import { canvasMenu, selectionMenu } from "../../ui/menus";
+import { canvasMenu, guideMenu, selectionMenu } from "../../ui/menus";
 import { resolveCursor } from "../cursor";
 import { type ToolContext } from "../interaction";
 import { cancelActiveInteraction } from "../interactionLifecycle";
 import { pickShape } from "../picking";
+import { pickGuide } from "../guides";
+import { overRulers } from "../rulers";
 import {
   finishFrame,
   onFrameDown,
   onFrameMove,
 } from "../tools/frameTool";
 import { finishBrush, onBrushMove, startBrush } from "../tools/brushTool";
+import {
+  finishGuideDrag,
+  onGuideDown,
+  onGuideMove,
+} from "../tools/guideTool";
 import { bucketFillAt } from "../tools/bucketTool";
 import { finishEraser, onEraserMove, startEraser } from "../tools/eraserTool";
 import {
@@ -100,7 +107,14 @@ export function usePointerHandlers(deps: PointerHandlerDeps): PointerHandlers {
   const updateHoverCursor = (screen: Vec2, world: Vec2) => {
     const canvas = canvasRef.current!;
     const state = useEditor.getState();
-    canvas.style.cursor = resolveCursor(ctx, state, screen, world, spaceRef.current);
+    canvas.style.cursor = resolveCursor(
+      ctx,
+      state,
+      screen,
+      world,
+      spaceRef.current,
+      sizeRef.current
+    );
   };
 
   const onPointerDown = (e: ReactPointerEvent<HTMLCanvasElement>) => {
@@ -149,6 +163,11 @@ export function usePointerHandlers(deps: PointerHandlerDeps): PointerHandlers {
       return;
     }
     if (e.button !== 0) return;
+
+    // Rulers and guides sit above every tool: a press in a ruler band pulls out
+    // a guide, and an unlocked guide under the cursor is picked up.
+    if (onGuideDown(ctx, state, screen, world, sizeRef.current)) return;
+    if (state.selectedGuideId) state.setSelectedGuide(null);
 
     const tool = state.tool;
 
@@ -300,6 +319,9 @@ export function usePointerHandlers(deps: PointerHandlerDeps): PointerHandlers {
       case "frame-create":
         onFrameMove(ctx, state, inter, world, mod.shift, mod.alt);
         break;
+      case "guide-drag":
+        onGuideMove(ctx, state, inter, world);
+        break;
     }
   };
 
@@ -380,6 +402,9 @@ export function usePointerHandlers(deps: PointerHandlerDeps): PointerHandlers {
       }
       case "frame-create":
         finishFrame(ctx, state, inter);
+        break;
+      case "guide-drag":
+        finishGuideDrag(ctx, state, inter, screenPoint(e), sizeRef.current);
         break;
     }
   };
@@ -470,7 +495,19 @@ export function usePointerHandlers(deps: PointerHandlerDeps): PointerHandlers {
   const onContextMenu = (e: ReactMouseEvent<HTMLCanvasElement>) => {
     e.preventDefault();
     const state = useEditor.getState();
-    const world = screenToWorld(state.viewport, screenPoint(e));
+    const screen = screenPoint(e);
+    const world = screenToWorld(state.viewport, screen);
+    // Right-clicking a ruler or a guide opens the guide menu instead.
+    const size = sizeRef.current;
+    const onRuler = state.rulersVisible && overRulers(screen, size);
+    const guide = state.guidesVisible
+      ? pickGuide(state.doc, state.viewport, screen, size, 4 * ctx.hitScale())
+      : null;
+    if (onRuler || guide) {
+      if (guide && !state.guidesLocked) state.setSelectedGuide(guide.id);
+      openContextMenu(e.clientX, e.clientY, guideMenu());
+      return;
+    }
     if (state.tool === "select" || state.tool === "node") {
       const hitId = pickShape(ctx, world);
       if (hitId) {
