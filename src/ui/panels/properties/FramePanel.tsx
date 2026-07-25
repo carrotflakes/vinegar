@@ -10,7 +10,7 @@ const FRAME_PRESETS: { label: string; w: number; h: number }[] = [
 
 /** Properties for the selected frame node. `x`/`y` are its world top-left (the
  *  frame transform's translation; frames are top-level and axis-aligned). */
-export default function ArtboardPanel({ frame }: { frame: FrameNode }) {
+export default function FramePanel({ frame }: { frame: FrameNode }) {
   const update = useEditor((state) => state.updateFrame);
   const rename = useEditor((state) => state.renameNode);
   const setSelection = useEditor((state) => state.setSelection);
@@ -43,7 +43,7 @@ export default function ArtboardPanel({ frame }: { frame: FrameNode }) {
           <div className="field-row">
             <input
               type="text"
-              className="artboard-name"
+              className="frame-name"
               value={frame.name}
               onChange={(event) => rename(frame.id, event.target.value)}
             />

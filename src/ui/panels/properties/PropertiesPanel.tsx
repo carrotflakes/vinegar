@@ -11,7 +11,7 @@ import type { SelectionLeaf } from "../../../canvas/frame";
 import { useEditor } from "../../../store/editorStore";
 import BrushPanel, { EraserPanel } from "./BrushPanel";
 import BucketPanel from "./BucketPanel";
-import ArtboardPanel from "./ArtboardPanel";
+import FramePanel from "./FramePanel";
 import AppearanceSection from "./AppearanceSection";
 import EffectsSection from "./EffectsSection";
 import GeneratorSection from "./GeneratorSection";
@@ -35,7 +35,7 @@ export default function PropertiesPanel() {
   // A lone selected frame gets the dedicated frame panel.
   const soleNode =
     selection.length === 1 ? doc.nodes[selection[0]] : undefined;
-  if (soleNode?.type === "frame") return <ArtboardPanel frame={soleNode} />;
+  if (soleNode?.type === "frame") return <FramePanel frame={soleNode} />;
 
   const rootIds = selectionRoots(doc, selection);
   const selectedNode =

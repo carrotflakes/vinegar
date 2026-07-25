@@ -19,7 +19,7 @@ const ITEMS = [
   "view.flipHorizontal",
   "view.fitSelection",
   "view.fitAll",
-  "view.fitArtboard",
+  "view.fitFrame",
 ];
 
 /** Normalize radians to the (-180, 180] degrees shown in the readout. */

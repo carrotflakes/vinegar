@@ -1,10 +1,10 @@
 # Artboards as container frames (plan)
 
 Status: **implemented, phase 1** (2026-07-25). File version bumped to 24.
-Pre-v24 files still open (the rest of the document migrates as before), but
-their **artboards are intentionally not migrated to frames — they are dropped on
-load**. The user recreates layout regions as frames. Prioritise a clean internal
-model over carrying the old geometric artboards forward.
+**Backward compatibility is intentionally dropped: there is no migration from
+older formats at all** — only v24 loads; pre-v24 files fail to open with a clear
+message. (The whole migration chain was removed, not just the artboard step.)
+Prioritise a clean internal model over carrying old formats forward.
 
 ## Problem
 
@@ -140,8 +140,9 @@ can be discarded.**
   `childIds` + `width`/`height`/`background`). **Validate the top-level
   invariant:** reject any document where a frame id appears outside `doc.rootIds`
   (in some node's `childIds` or a symbol-def subtree), or where a frame's own
-  descendants contain a frame. Pre-v24 files open but their `doc.artboards` are
-  dropped (not converted to frames).
+  descendants contain a frame. No migration: only v24 loads (the entire
+  `migrate*` chain and `MIGRATABLE_VERSIONS` were removed); pre-v24 files throw
+  "Unsupported Vinegar file version".
 - **demo / createDemoDocument.ts, document-model.md**: rebuild the demo with a
   frame node; update the model doc.
 
@@ -196,8 +197,8 @@ the UX. Editing a frame's children is therefore always a single drill from root.
 
 ## Non-goals
 
-Converting old `doc.artboards` into frames (pre-v24 artboards are dropped on
-load), auto-reparent in phase 1. **Rotated frames
+Opening pre-v24 files at all (no migration — they fail to open), auto-reparent
+in phase 1. **Rotated frames
 — no rotation UX, ever (the model keeps a full transform, but only translation +
 resize are authored).** **Nested frames — permanently out: frames are a
 top-level invariant, never inside any container.**

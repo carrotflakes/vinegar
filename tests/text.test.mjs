@@ -100,19 +100,13 @@ test("area text greedily wraps words, CJK, and overlong Latin tokens", () => {
   assert.deepEqual(long.lines.map((line) => line.x), [0, 0]);
 });
 
-test("v15 text documents round-trip and malformed typography is rejected", () => {
+test("text documents round-trip and malformed typography is rejected", () => {
   const doc = createEmptyDocument();
   doc.nodes.text1 = textShape();
   doc.rootIds = ["text1"];
   const json = serializeDocument(doc);
   assert.equal(JSON.parse(json).version, 24);
   assert.deepEqual(parseDocument(json).nodes.text1, doc.nodes.text1);
-
-  const v13 = JSON.parse(json);
-  v13.version = 13;
-  delete v13.document.nodes.text1;
-  v13.document.rootIds = [];
-  assert.deepEqual(parseDocument(JSON.stringify(v13)).rootIds, []);
 
   const malformed = JSON.parse(json);
   malformed.document.nodes.text1.fontWeight = 450;

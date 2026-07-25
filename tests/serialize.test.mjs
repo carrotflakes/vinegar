@@ -63,7 +63,7 @@ test("the shared Delete command removes a selected frame", () => {
   assert.equal(useEditor.getState().doc.rootIds[0], selectedId);
 });
 
-test("fit commands frame content, selection, and the selected artboard", () => {
+test("fit commands frame content, selection, and the selected frame", () => {
   const previousDocument = globalThis.document;
   globalThis.document = {
     querySelector: () => ({
@@ -98,10 +98,10 @@ test("fit commands frame content, selection, and the selected artboard", () => {
     const fitSelection = commands.find(
       (command) => command.id === "view.fitSelection"
     );
-    const fitArtboard = commands.find(
-      (command) => command.id === "view.fitArtboard"
+    const fitFrame = commands.find(
+      (command) => command.id === "view.fitFrame"
     );
-    assert.ok(fitAll && fitSelection && fitArtboard);
+    assert.ok(fitAll && fitSelection && fitFrame);
 
     fitAll.run(useEditor.getState());
     assert.equal(useEditor.getState().viewport.scale, 0.904);
@@ -112,8 +112,8 @@ test("fit commands frame content, selection, and the selected artboard", () => {
     assert.deepEqual(useEditor.getState().viewport.offset, { x: -4288, y: 48 });
 
     useEditor.getState().addFrame({ x: 500, y: 300 });
-    assert.equal(fitArtboard.enabled(useEditor.getState()), true);
-    fitArtboard.run(useEditor.getState());
+    assert.equal(fitFrame.enabled(useEditor.getState()), true);
+    fitFrame.run(useEditor.getState());
     assert.equal(useEditor.getState().viewport.scale, 504 / 1080);
     assert.deepEqual(useEditor.getState().viewport.offset, {
       x: 500 - 500 * (504 / 1080),
@@ -220,87 +220,6 @@ test("a nested v8 scene tree survives save/load and remains usable", () => {
   assert.equal(parentIdOf(useEditor.getState().doc, "demo_cards"), "demo_frame");
   useEditor.getState().undo();
   assert.equal(parentIdOf(useEditor.getState().doc, "demo_skew_rect"), "demo_card_shapes");
-});
-
-test("v20 paths unify and inline compound components migrate to real nodes", () => {
-  const file = JSON.parse(serializeDocument(createEmptyDocument()));
-  file.version = 20;
-  const base = {
-    name: "legacy",
-    fill: { type: "solid", color: "#123456", alpha: 1 },
-    stroke: null,
-    strokeWidth: 0,
-    opacity: 1,
-    transform: [1, 0, 0, 1, 0, 0],
-    transformOrigin: null,
-  };
-  const points = [{ x: 0, y: 0 }, { x: 20, y: 0 }, { x: 10, y: 10 }];
-  const anchors = points.map((p) => ({ p, hIn: null, hOut: null }));
-  const legacyPath = {
-    ...base,
-    id: "polyline",
-    type: "path",
-    points,
-    closed: false,
-  };
-  const legacyBezier = {
-    ...base,
-    id: "curve",
-    type: "bezier",
-    subpaths: [{ anchors, closed: true }],
-  };
-  const legacyPolygon = {
-    ...base,
-    id: "region",
-    type: "polygon",
-    polys: [[points, points.map((p) => ({ x: p.x + 3, y: p.y + 3 }))]],
-  };
-  const compound = {
-    ...base,
-    id: "compound",
-    type: "compoundPath",
-    fillRule: "evenodd",
-    components: [
-      // Deliberately collides with the existing top-level node id.
-      { ...legacyPath, id: "polyline", closed: true },
-      { ...legacyBezier, id: "component-bezier" },
-      { ...legacyPolygon, id: "component-polygon" },
-    ],
-  };
-  file.document.nodes = {
-    polyline: legacyPath,
-    curve: legacyBezier,
-    region: legacyPolygon,
-    compound,
-  };
-  file.document.rootIds = ["polyline", "curve", "region", "compound"];
-
-  const loaded = parseDocument(JSON.stringify(file));
-  assert.equal(loaded.nodes.polyline.type, "path");
-  assert.equal(loaded.nodes.polyline.fillRule, undefined);
-  assert.equal(loaded.nodes.polyline.subpaths[0].closed, false);
-  assert.deepEqual(loaded.nodes.polyline.subpaths[0].anchors, anchors);
-
-  assert.equal(loaded.nodes.curve.type, "path");
-  assert.deepEqual(loaded.nodes.curve.subpaths, legacyBezier.subpaths);
-
-  assert.equal(loaded.nodes.region.type, "path");
-  assert.equal(loaded.nodes.region.fillRule, "evenodd");
-  assert.equal(loaded.nodes.region.subpaths.length, 2);
-  assert.ok(loaded.nodes.region.subpaths.every((subpath) => subpath.closed));
-
-  const migratedCompound = loaded.nodes.compound;
-  assert.equal(migratedCompound.type, "compoundPath");
-  assert.equal("components" in migratedCompound, false);
-  assert.equal("fillRule" in migratedCompound, false);
-  assert.deepEqual(
-    migratedCompound.childIds.map((id) => loaded.nodes[id].type),
-    ["path", "path", "path"]
-  );
-  assert.equal(loaded.nodes[migratedCompound.childIds[2]].fillRule, "evenodd");
-  assert.ok(migratedCompound.childIds.every((id) => parentIdOf(loaded, id) === "compound"));
-  assert.notEqual(migratedCompound.childIds[0], "polyline");
-  assert.equal(JSON.parse(serializeDocument(loaded)).version, 24);
 });
 
 test("boolean ops keep curves and produce editable multi-subpath paths", () => {

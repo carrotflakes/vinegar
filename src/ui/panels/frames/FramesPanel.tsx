@@ -3,7 +3,7 @@ import { LuCopy, LuFrame, LuPlus, LuTrash2 } from "react-icons/lu";
 import { useEditor } from "../../../store/editorStore";
 import { framesInPaintOrder } from "../../../model/scene";
 import { openContextMenu } from "../../../store/menuStore";
-import { artboardMenu } from "../../menus";
+import { frameMenu } from "../../menus";
 import { useTouchDrag } from "../../useTouchDrag";
 import "../../Panel.css";
 import "../PanelList.css";
@@ -14,7 +14,7 @@ import "../PanelList.css";
  * actions (select/rename/duplicate/delete) plus frame-specific add/reorder.
  * Reordering is pointer-based (mouse + touch), matching the Layers panel.
  */
-export default function ArtboardsPanel() {
+export default function FramesPanel() {
   const doc = useEditor((s) => s.doc);
   const selection = useEditor((s) => s.selection);
   const setSelection = useEditor((s) => s.setSelection);
@@ -45,9 +45,9 @@ export default function ArtboardsPanel() {
   const startDrag = useTouchDrag<string>({
     onStart: (id) => setDragId(id),
     onMove: (_id, { y, target }) => {
-      const rowEl = target?.closest<HTMLElement>("[data-ab-index]");
+      const rowEl = target?.closest<HTMLElement>("[data-frame-index]");
       if (rowEl) {
-        const i = Number(rowEl.dataset.abIndex);
+        const i = Number(rowEl.dataset.frameIndex);
         const r = rowEl.getBoundingClientRect();
         const after = (y - r.top) / r.height >= 0.5;
         setDropIndex(i + (after ? 1 : 0));
@@ -86,7 +86,7 @@ export default function ArtboardsPanel() {
             )}
             <div
               className={"layer-row" + (selected.has(frame.id) ? " selected" : "")}
-              data-ab-index={i}
+              data-frame-index={i}
               onPointerDown={
                 editing === frame.id ? undefined : (e) => startDrag(e, frame.id)
               }
@@ -94,7 +94,7 @@ export default function ArtboardsPanel() {
               onContextMenu={(e) => {
                 e.preventDefault();
                 setSelection([frame.id]);
-                openContextMenu(e.clientX, e.clientY, artboardMenu());
+                openContextMenu(e.clientX, e.clientY, frameMenu());
               }}
             >
               <span

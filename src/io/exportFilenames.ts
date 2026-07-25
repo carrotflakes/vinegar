@@ -5,7 +5,7 @@ export function fileSlug(name: string): string {
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-+|-+$/g, "");
-  return slug || "artboard";
+  return slug || "frame";
 }
 
 /**

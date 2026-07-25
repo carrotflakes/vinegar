@@ -1,6 +1,5 @@
 import { clippingMask } from "../model/clippingMask";
 import { isCompoundChild } from "@/model/path/compoundPath";
-import { paintFromLegacy } from "../model/paint";
 import { referencedAssetIds } from "../model/scene";
 import {
   BLEND_MODES,
@@ -12,32 +11,11 @@ import {
   type ShapeType,
 } from "../model/types";
 
-export const CURRENT_FILE_VERSION = 24 as const;
-
 /**
- * v8 lacked `symbols` (added as an empty registry). v8 and v9 stored fill/
- * stroke as bare colour strings; v10 upgrades them to structured Paint. v11
- * adds `artboards` (backfilled as an empty list for older files). v12 adds
- * `image` nodes over the existing asset store (no structural change). v13 adds
- * `pattern` fills/strokes (raster fill via doc.assets). v14 adds single-style
- * text leaves with persisted measured bounds. v15 adds the optional `clip`
- * marker to groups. v16 adds the optional `effects` stack to every node. v17
- * adds optional dash/cap/join/alignment fields to shapes. v18 adds the optional
- * shared `cornerRadius` to rectangles. v19 adds the `brush` leaf shape
- * (pressure-profiled variable-width strokes). v20 adds `doc.scripts` (user
- * parametric generators, backfilled as empty) and the optional `generator`
- * link on nodes. v21 unifies path, bezier, and polygon geometry as multi-
- * subpath `path` nodes with an optional fill rule. v22 moves compound-path
- * members into `nodes` and owns them through `childIds`. v23 adds document-level
- * global colours (`doc.swatches`/`swatchOrder`, backfilled empty) and the
- * `swatch` fill/stroke reference. v24 replaces the flat `doc.artboards` list
- * with `frame` container nodes (see docs/artboard-frames.md). Pre-v24 files
- * still open, but their artboards are intentionally NOT migrated to frames —
- * they are dropped on load (the rest of the document migrates as before).
+ * Only the current version is accepted; there is no migration from older
+ * formats — pre-v24 files fail to open with a clear message.
  */
-const MIGRATABLE_VERSIONS = new Set<unknown>([
-  8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23,
-]);
+export const CURRENT_FILE_VERSION = 24 as const;
 
 export interface VinegarFile {
   app: "vinegar";
@@ -243,149 +221,14 @@ export function parseDocument(text: string): Document {
   if (!isObject(data) || data.app !== "vinegar") {
     throw new Error("Not a Vinegar file.");
   }
-  if (data.version !== CURRENT_FILE_VERSION && !MIGRATABLE_VERSIONS.has(data.version)) {
+  if (data.version !== CURRENT_FILE_VERSION) {
     throw new Error(`Unsupported Vinegar file version: ${String(data.version)}.`);
-  }
-  if (data.version === 8 && isObject(data.document) && data.document.symbols === undefined) {
-    data.document.symbols = {};
-  }
-  if ((data.version === 8 || data.version === 9) && isObject(data.document)) {
-    migrateLegacyPaints(data.document);
-  }
-  if (
-    data.version !== CURRENT_FILE_VERSION &&
-    isObject(data.document) &&
-    data.document.scripts === undefined
-  ) {
-    data.document.scripts = {};
-  }
-  if (data.version !== CURRENT_FILE_VERSION && isObject(data.document)) {
-    if (data.document.swatches === undefined) data.document.swatches = {};
-    if (data.document.swatchOrder === undefined) data.document.swatchOrder = [];
-  }
-  if (typeof data.version === "number" && data.version <= 20 && isObject(data.document)) {
-    migrateUnifiedPaths(data.document);
-  }
-  if (data.version !== CURRENT_FILE_VERSION && isObject(data.document)) {
-    migrateCompoundPathNodes(data.document);
-  }
-  // v24 drops the flat artboard list. Pre-v24 artboards are intentionally not
-  // converted to frames; discard them so the rest of the document still opens.
-  if (
-    data.version !== CURRENT_FILE_VERSION &&
-    isObject(data.document) &&
-    "artboards" in data.document
-  ) {
-    delete data.document.artboards;
   }
   if (!isCurrentDocument(data.document)) {
     throw new Error("Document data is missing or malformed.");
   }
   validateTree(data.document);
   return structuredClone(data.document);
-}
-
-/** Move pre-v22 inline compound components into the document node registry. */
-function migrateCompoundPathNodes(doc: Record<string, unknown>): void {
-  const nodes = doc.nodes;
-  if (!isObject(nodes)) return;
-  const used = new Set(Object.keys(nodes));
-  let suffix = 0;
-  const freshId = (preferred: unknown): string => {
-    const base = typeof preferred === "string" && preferred.length
-      ? preferred
-      : "compound_component";
-    if (!used.has(base)) {
-      used.add(base);
-      return base;
-    }
-    let id = "";
-    do {
-      suffix += 1;
-      id = `${base}_${suffix}`;
-    } while (used.has(id));
-    used.add(id);
-    return id;
-  };
-  for (const node of Object.values(nodes)) {
-    if (!isObject(node) || node.type !== "compoundPath" || !Array.isArray(node.components)) {
-      continue;
-    }
-    const childIds: string[] = [];
-    for (const component of node.components) {
-      if (!isObject(component)) continue;
-      const id = freshId(component.id);
-      component.id = id;
-      nodes[id] = component;
-      childIds.push(id);
-    }
-    node.childIds = childIds;
-    delete node.components;
-    delete node.fillRule;
-  }
-}
-
-/** Convert pre-v21 path/bezier/polygon nodes to the canonical path layout. */
-function migrateUnifiedPaths(doc: Record<string, unknown>): void {
-  const nodes = doc.nodes;
-  if (!isObject(nodes)) return;
-  const migrate = (node: unknown): void => {
-    if (!isObject(node)) return;
-    if (node.type === "compoundPath" && Array.isArray(node.components)) {
-      node.components.forEach(migrate);
-      return;
-    }
-    if (node.type === "bezier") {
-      node.type = "path";
-      return;
-    }
-    if (node.type === "path") {
-      const points = node.points;
-      node.subpaths = Array.isArray(points)
-        ? [{
-            anchors: points.map((p) => ({ p, hIn: null, hOut: null })),
-            closed: node.closed,
-          }]
-        : points;
-      delete node.points;
-      delete node.closed;
-      return;
-    }
-    if (node.type === "polygon") {
-      const polys = node.polys;
-      node.type = "path";
-      node.fillRule = "evenodd";
-      node.subpaths = Array.isArray(polys)
-        ? polys.flatMap((poly) =>
-            Array.isArray(poly)
-              ? poly.map((ring) => ({
-                  anchors: Array.isArray(ring)
-                    ? ring.map((p) => ({ p, hIn: null, hOut: null }))
-                    : ring,
-                  closed: true,
-                }))
-              : [{ anchors: poly, closed: true }]
-          )
-        : polys;
-      delete node.polys;
-    }
-  };
-  Object.values(nodes).forEach(migrate);
-}
-
-/** Convert pre-v10 string fill/stroke to structured Paint, in place. */
-function migrateLegacyPaints(doc: Record<string, unknown>): void {
-  const nodes = doc.nodes;
-  if (!isObject(nodes)) return;
-  const migrate = (node: unknown) => {
-    if (!isObject(node)) return;
-    if ("fill" in node) node.fill = paintFromLegacy(node.fill);
-    if ("stroke" in node) node.stroke = paintFromLegacy(node.stroke);
-    if (node.type === "compoundPath" && Array.isArray(node.components)) {
-      node.components.forEach(migrate);
-    }
-  };
-  Object.values(nodes).forEach(migrate);
 }
 
 function isCurrentDocument(value: unknown): value is Document {

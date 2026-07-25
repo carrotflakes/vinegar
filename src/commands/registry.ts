@@ -504,11 +504,11 @@ export const COMMANDS: Command[] = [
   { id: "tool.pencil", label: "Pencil tool", group: "Tools", keys: [{ key: "b", shift: true }], run: (s) => s.setTool("pencil") },
   { id: "tool.bucket", label: "Bucket Fill tool", group: "Tools", keys: [{ key: "g" }], run: (s) => s.setTool("bucket") },
   { id: "tool.text", label: "Text tool", group: "Tools", keys: [{ key: "t" }], run: (s) => s.setTool("text") },
-  { id: "tool.artboard", label: "Frame tool", group: "Tools", keys: [{ key: "a" }], run: (s) => s.setTool("frame") },
+  { id: "tool.frame", label: "Frame tool", group: "Tools", keys: [{ key: "a" }], run: (s) => s.setTool("frame") },
 
   // Frames ------------------------------------------------------------------
   {
-    id: "artboard.add",
+    id: "frame.add",
     label: "Add frame",
     group: "Frame",
     run: (s) => {
@@ -517,14 +517,14 @@ export const COMMANDS: Command[] = [
     },
   },
   {
-    id: "artboard.duplicate",
+    id: "frame.duplicate",
     label: "Duplicate frame",
     group: "Frame",
     enabled: (s) => selectedFrame(s) != null,
     run: (s) => s.duplicateSelected(),
   },
   {
-    id: "artboard.delete",
+    id: "frame.delete",
     label: "Delete frame",
     group: "Frame",
     danger: true,
@@ -583,7 +583,7 @@ export const COMMANDS: Command[] = [
     run: (s) => fitViewport(s, drawingBounds(s)),
   },
   {
-    id: "view.fitArtboard",
+    id: "view.fitFrame",
     label: "Fit frame",
     group: "View",
     enabled: (s) => selectedFrame(s) != null,
@@ -710,7 +710,7 @@ export const COMMANDS: Command[] = [
     },
   },
   {
-    id: "file.exportArtboardPng",
+    id: "file.exportFramePng",
     label: "Export frame PNG",
     group: "File",
     enabled: (s) => selectedFrame(s) != null,
@@ -731,7 +731,7 @@ export const COMMANDS: Command[] = [
     },
   },
   {
-    id: "file.exportArtboardSvg",
+    id: "file.exportFrameSvg",
     label: "Export frame SVG",
     group: "File",
     enabled: (s) => selectedFrame(s) != null,
@@ -748,7 +748,7 @@ export const COMMANDS: Command[] = [
     },
   },
   {
-    id: "file.exportAllArtboardsPng",
+    id: "file.exportAllFramesPng",
     label: "Export all frames (PNG)",
     group: "File",
     enabled: (s) => framesInPaintOrder(s.doc).length > 0,

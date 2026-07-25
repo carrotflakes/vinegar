@@ -55,7 +55,7 @@ import { fontStack } from "../fonts";
 
 export interface SvgOptions {
   margin?: number;
-  /** Explicit crop region (e.g. an artboard). Overrides content bounds. */
+  /** Explicit crop region (e.g. a frame). Overrides content bounds. */
   bounds?: Bounds;
   /** Backdrop colour drawn behind the content; omit/null for transparent. */
   background?: string | null;

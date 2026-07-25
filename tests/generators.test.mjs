@@ -226,15 +226,8 @@ test("an opened document's scripts stay untrusted and never execute until enable
   assert.equal(useEditor.getState().scriptsTrusted, true);
 });
 
-test("v19 documents backfill an empty scripts registry; malformed scripts are rejected", () => {
+test("malformed scripts are rejected", () => {
   const doc = createEmptyDocument();
-  const file = JSON.parse(serializeDocument(doc));
-  // Simulate a pre-scripts (v19) file.
-  file.version = 19;
-  delete file.document.scripts;
-  const loaded = parseDocument(JSON.stringify(file));
-  assert.deepEqual(loaded.scripts, {});
-
   const malformed = JSON.parse(serializeDocument(doc));
   malformed.document.scripts = { s1: { id: "s1", name: "x", source: 123 } };
   assert.throws(() => parseDocument(JSON.stringify(malformed)), /missing or malformed/);

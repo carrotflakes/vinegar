@@ -1,6 +1,6 @@
 # Vinegar
 
-Vinegar is a browser-based vector graphics editor for precise drawing and illustration, with Bézier editing, pressure-sensitive brushes, reusable symbols, global colors, artboards, and flexible export.
+Vinegar is a browser-based vector graphics editor for precise drawing and illustration, with Bézier editing, pressure-sensitive brushes, reusable symbols, global colors, frames, and flexible export.
 
 ## Stack
 
@@ -23,7 +23,7 @@ pnpm test       # node --test (model, store, persistence, import and recovery)
 
 ## Features
 
-- Tools: Select, Edit Nodes, Rectangle, Ellipse, Line, **Pen (Bézier)**, **Brush** (pressure / variable width), **Eraser**, Pencil (freehand), **Bucket Fill**, Text, Artboard
+- Tools: Select, Edit Nodes, Rectangle, Ellipse, Line, **Pen (Bézier)**, **Brush** (pressure / variable width), **Eraser**, Pencil (freehand), **Bucket Fill**, Text, Frame
 - Pencil: freehand strokes are simplified and smoothed into an editable Bézier path (tweak it with the Node tool); end near the start to close it
 - Brush: pen-pressure capture with adjustable size, pressure curve, stabilizer and taper; strokes remain editable vector centerlines with a derived variable-width envelope, or can be converted to ordinary filled paths.
   Consecutive strokes collect in an active drawing group.
@@ -51,7 +51,10 @@ pnpm test       # node --test (model, store, persistence, import and recovery)
 - **Effects**: non-destructive, Illustrator-style **ordered effect stack** on any node (shape / group / instance) — **Drop Shadow**, **Gaussian Blur**, **Color Adjust** (brightness / contrast / saturation / hue) and **Color Overlay** (solid tint masked by the content's alpha), applied after content but before opacity/blend; the length-based effects (shadow, blur) scale with the transform and zoom, the color effects are unitless; rendered on Canvas, exported to SVG (`<filter>`/`feColorMatrix`) and raster images, with export bounds grown so shadows/blur aren't cropped
 - **Symbols** (reusable components): create from a selection, place instances (the panel's + button or drag a row onto the canvas), edit in an isolated view (double-click an instance), detach / rename / delete
 - **Global colors** (document color swatches): named solid colors stored on the document that a fill/stroke can *reference* by id — edit the color once and every use re-tints live. The **Global colors panel** creates a color from the selection, renames, applies it to the selection's fill/stroke, and deletes it (baking every reference back to its concrete color first, so nothing dangles). The color popover can link a paint to a global color or unlink it; SVG export bakes references to concrete colors.
-- **Artboards**: non-owning frames on the infinite plane — create/move/resize with the Artboard tool, per-board PNG/SVG export and all-board PNG export
+- **Frames** (formerly artboards): real **container nodes** in the scene tree — a frame owns its children, has its own local coordinate space (an SVG-like viewport), a background color (transparent frames show an editor-only checkerboard) and an optional **Clip content** toggle.
+  Create/move/resize with the Frame tool (resizing changes the content box only, so contents stay put); frames live at the top level and never nest.
+  Dragging a selection over a frame **re-homes it into that frame** (world position preserved, same undo step; Cmd/Ctrl on release opts out), and a frame is a selection boundary — its contents are picked directly while the frame itself is grabbed by its border or the **Frames panel**.
+  Per-frame PNG/SVG export and all-frames PNG export.
 - **Raster images**: place via File ▸ Place image…, the canvas context menu, or drag & drop; images select/move/resize/rotate and take opacity/blend like any shape; embedded in the file as document assets.
   The **Assets panel** (hidden by default; add it from the dock's panel menu) lists embedded assets with a thumbnail and reference count, places an asset back onto the canvas without re-importing (+ button or drag a row), and can delete unused ones.
 - **Text**: click for auto-width point text or drag for fixed-width wrapping text; in-place editing supports newlines, CJK wrapping, rotation, font/style controls, saved measured bounds, and Canvas/SVG/raster output
@@ -67,7 +70,7 @@ pnpm test       # node --test (model, store, persistence, import and recovery)
   Imported document scripts stay disabled until the user explicitly enables them and run in a watchdog-protected Web Worker.
 - Live **status bar**: pointer readout, per-tool hints, selection info, and live numbers during interactions (W×H while creating, ΔX/ΔY while moving, angle while rotating, new size while resizing)
 - Undo / redo
-- Pan (Space + drag, or middle mouse) and zoom (Ctrl/⌘ + wheel); fit all content (Shift+1), the selection (Shift+2), or the selected artboard from the zoom menu
+- Pan (Space + drag, or middle mouse) and zoom (Ctrl/⌘ + wheel); fit all content (Shift+1), the selection (Shift+2), or the selected frame from the zoom menu
 - **Responsive / touch** layout: icon-only toolbar rail, slide-in panels, enlarged hit targets for coarse pointers, pinch-to-zoom & two-finger pan, on-screen Shift/Alt modifier bar
 - Debug **project inspector** (app bar ▸ Inspect): searchable JSON tree of the whole store
 - **Browser recovery autosave**: dirty documents are saved locally in IndexedDB and, after a reload/crash, offered for restore on next launch (Cancel discards); progress is reported in the status bar
@@ -88,10 +91,11 @@ For editable exchange, expect to inspect and adjust the imported or exported res
 
 ## Document model
 
-The persisted `Document` is a **unified scene tree**: a flat `nodes` map keyed by id, with `rootIds` and each group/compound-path container's `childIds` as the only source of hierarchy and back-to-front paint order.
+The persisted `Document` is a **unified scene tree**: a flat `nodes` map keyed by id, with `rootIds` and each group/frame/compound-path container's `childIds` as the only source of hierarchy and back-to-front paint order.
 Every node carries a Canvas/SVG-compatible affine `transform` into its parent space plus a `transformOrigin`; parents, world matrices and leaf shapes are derived (not stored).
-The document also holds `symbols`, global-color `swatches` (with a `swatchOrder`), `artboards`, `assets` (embedded raster images), `settings` (unit, dpi, grid size), document-local generator `scripts`, `metadata` and namespaced `extensions`.
-The file wrapper is versioned — the current version is v23; v8–v22 files migrate automatically on load, while older versions are unsupported.
+Frames are ordinary nodes in that tree (top-level only), so there is no separate artboard list.
+The document also holds `symbols`, global-color `swatches` (with a `swatchOrder`), `assets` (embedded raster images), `settings` (unit, dpi, grid size), document-local generator `scripts`, `metadata` and namespaced `extensions`.
+The file wrapper is versioned — the current version is v24. There is no migration chain: older files are rejected with a clear message.
 See [docs/document-model.md](docs/document-model.md).
 
 ## Project layout
@@ -104,13 +108,13 @@ src/
              join/cut, path cleanup ops, outlineStroke, freehand),
              brush/ (brush geometry + erasing), generators/
   store/     zustand editor store split into slices (shapes, selection,
-             structure, symbols, artboards, clipboard, history, prefs),
+             structure, symbols, frames, clipboard, history, prefs),
              pointer & menu stores
   commands/  command registry (actions + shortcuts, drives menus & palette)
   canvas/    CanvasView (interaction), per-tool logic, rendering, overlay,
              handles, node chrome, image decode cache, text layout/editor
   script/    sandboxed one-shot drawing DSL (runScript + Web Worker)
-  io/        JSON save/load (versioned + migrations), raster/SVG export,
+  io/        JSON save/load (single current version), raster/SVG export,
              SVG/raster import, recovery autosave, export/snap bounds
   ui/        Toolbar, PropertiesPanel, LayersPanel, FileMenu, ColorField,
              ContextMenu, CommandPalette, export/preferences/script/generator

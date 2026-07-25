@@ -167,7 +167,7 @@ test("make/release actions preserve order and appearance and are undoable", () =
   assert.deepEqual(useEditor.getState().doc.rootIds, ["content", "mask"]);
 });
 
-test("Canvas, SVG, bounds, and v15 serialization share the clipping model", () => {
+test("Canvas, SVG, bounds, and serialization share the clipping model", () => {
   const doc = editableDocument();
   doc.nodes.clip = group("clip", ["content", "mask"], { clip: true });
   doc.rootIds = ["clip"];
@@ -219,16 +219,6 @@ test("Canvas, SVG, bounds, and v15 serialization share the clipping model", () =
   const loaded = parseDocument(json);
   assert.equal(loaded.nodes.clip.clip, true);
   assert.deepEqual(loaded.nodes.clip.childIds, ["content", "mask"]);
-
-  const old = JSON.parse(json);
-  old.version = 14;
-  delete old.document.nodes.clip.clip;
-  const oldMask = old.document.nodes.mask;
-  oldMask.type = "polygon";
-  oldMask.polys = [[oldMask.subpaths[0].anchors.map((anchor) => anchor.p)]];
-  delete oldMask.subpaths;
-  delete oldMask.fillRule;
-  assert.equal(parseDocument(JSON.stringify(old)).nodes.clip.clip, undefined);
 
   const falseClip = JSON.parse(json);
   falseClip.document.nodes.clip.clip = false;

@@ -9,7 +9,7 @@ export interface PngOptions {
   /** Background color; omit for a transparent PNG. */
   background?: string;
   margin?: number;
-  /** Explicit crop region (e.g. an artboard). Overrides content bounds. */
+  /** Explicit crop region (e.g. a frame). Overrides content bounds. */
   bounds?: Bounds;
   /** Encoded image MIME type. Defaults to `image/png`. */
   mimeType?: string;

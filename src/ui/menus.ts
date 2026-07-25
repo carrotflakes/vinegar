@@ -57,8 +57,8 @@ export function fileMenu(): MenuEntry[] {
       submenu: [
         exportItem("file.exportImage"),
         exportItem("file.exportSvg"),
-        exportItem("file.exportArtboardSvg"),
-        exportItem("file.exportAllArtboardsPng"),
+        exportItem("file.exportFrameSvg"),
+        exportItem("file.exportAllFramesPng"),
       ],
     },
     "separator",
@@ -120,15 +120,15 @@ export function canvasMenu(at: Vec2): MenuEntry[] {
   return [item("edit.paste", at), item("file.placeImage", at), item("select.all")];
 }
 
-/** Actions for the artboard selected by an Artboards panel row. */
-export function artboardMenu(): MenuEntry[] {
+/** Actions for the frame selected by a Frames panel row. */
+export function frameMenu(): MenuEntry[] {
   return [
-    item("view.fitArtboard"),
+    item("view.fitFrame"),
     "separator",
-    item("file.exportArtboardPng"),
-    item("file.exportArtboardSvg"),
+    item("file.exportFramePng"),
+    item("file.exportFrameSvg"),
     "separator",
-    item("artboard.duplicate"),
-    item("artboard.delete"),
+    item("frame.duplicate"),
+    item("frame.delete"),
   ];
 }

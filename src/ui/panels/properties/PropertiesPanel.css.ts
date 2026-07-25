@@ -13,7 +13,7 @@ globalStyle(".num", {
   fontSize: "12px",
 });
 
-globalStyle(".artboard-name", {
+globalStyle(".frame-name", {
   flex: "1",
   padding: "4px 6px",
   fontSize: "12px",
