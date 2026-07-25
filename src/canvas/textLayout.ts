@@ -18,14 +18,9 @@ export interface TextLayout {
 
 export type MeasureTextWidth = (text: string) => number;
 
-/**
- * Vertical font metrics, in px, used to place the baseline the same way a
- * browser lays a line box out — so the canvas/SVG render and the HTML text
- * editor overlay agree. Defaults approximate a 0.8/0.2 ascent split.
- */
-export interface TextFontMetrics {
-  ascent: number;
-  descent: number;
+/** Alphabetic baseline offset from the top of the first CSS line box. */
+export interface TextBaselineMetrics {
+  baseline: number;
 }
 
 const CJK = /[\u2e80-\u2fff\u3000-\u303f\u3040-\u30ff\u31f0-\u31ff\u3400-\u4dbf\u4e00-\u9fff\uac00-\ud7af\uf900-\ufaff]/u;
@@ -105,7 +100,7 @@ function wrapParagraph(
 export function layoutText(
   shape: Pick<TextShape, "text" | "textMode" | "width" | "fontSize" | "lineHeight" | "align">,
   measure: MeasureTextWidth,
-  metrics?: TextFontMetrics
+  metrics?: TextBaselineMetrics
 ): TextLayout {
   const paragraphs = shape.text.replace(/\r\n?/g, "\n").split("\n");
   const rawLines = shape.textMode === "area"
@@ -116,14 +111,12 @@ export function layoutText(
   const width = shape.textMode === "area"
     ? Math.max(1, shape.width)
     : Math.max(shape.fontSize * 0.5, measuredWidth);
-  const ascent = metrics?.ascent ?? shape.fontSize * 0.8;
-  const descent = metrics?.descent ?? shape.fontSize * 0.2;
   const lineBox = shape.fontSize * shape.lineHeight;
   const height = Math.max(1, rawLines.length) * lineBox;
-  // Match the browser's line-box model: centre the ascent+descent band inside
-  // the line box, then drop to the baseline. Keeps the render aligned with the
-  // HTML text-editor overlay.
-  const baselineInset = (lineBox - (ascent + descent)) / 2 + ascent;
+  // The fallback approximates an 0.8em ascent with half-leading. Browser
+  // rendering uses a measured CSS baseline instead (see browserBaseline).
+  const baselineInset = metrics?.baseline ??
+    (lineBox - shape.fontSize) / 2 + shape.fontSize * 0.8;
   return {
     width,
     height,
@@ -143,28 +136,62 @@ export function textFontCss(shape: Pick<TextShape, "italic" | "fontWeight" | "fo
   return `${shape.italic ? "italic " : ""}${shape.fontWeight} ${shape.fontSize}px ${fontStack(shape.fontFamily)}`;
 }
 
+let measuringContext: CanvasRenderingContext2D | null = null;
+const baselineCache = new Map<string, number>();
+
 /**
- * Read the active font's vertical metrics from a measuring context, falling
- * back to the 0.8/0.2 approximation when `fontBoundingBox*` is unavailable
- * (older engines, the SSR/test path). The probe string is irrelevant: these
- * are font-wide metrics, not per-glyph.
+ * Measure the baseline from the same CSS inline-formatting context used by the
+ * textarea editor. Canvas TextMetrics are deliberately not used here:
+ * `fontBoundingBox*` does not have to use the same ascent/descent metrics as
+ * CSS, especially when a font stack falls back for CJK glyphs.
  */
-function contextFontMetrics(
-  ctx: Pick<CanvasRenderingContext2D, "measureText">,
-  fontSize: number
-): TextFontMetrics {
-  const m = ctx.measureText("Mg");
-  const ascent = m.fontBoundingBoxAscent;
-  const descent = m.fontBoundingBoxDescent;
-  if (typeof ascent === "number" && typeof descent === "number" && ascent + descent > 0) {
-    return { ascent, descent };
-  }
-  return { ascent: fontSize * 0.8, descent: fontSize * 0.2 };
+function browserBaseline(shape: TextShape): TextBaselineMetrics | undefined {
+  if (typeof document === "undefined" || !document.body) return undefined;
+  const lineBox = shape.fontSize * shape.lineHeight;
+  const font = textFontCss(shape);
+  const key = `${font}\n${lineBox}`;
+  const cached = baselineCache.get(key);
+  if (cached !== undefined) return { baseline: cached };
+
+  const probe = document.createElement("div");
+  const marker = document.createElement("span");
+  Object.assign(probe.style, {
+    position: "absolute",
+    left: "-10000px",
+    top: "0",
+    visibility: "hidden",
+    pointerEvents: "none",
+    margin: "0",
+    padding: "0",
+    border: "0",
+    font,
+    lineHeight: `${lineBox}px`,
+    whiteSpace: "nowrap",
+  });
+  Object.assign(marker.style, {
+    display: "inline-block",
+    width: "0",
+    height: "0",
+    margin: "0",
+    padding: "0",
+    border: "0",
+    verticalAlign: "baseline",
+  });
+  probe.append(document.createTextNode("M"), marker);
+  document.body.append(probe);
+  const baseline = marker.getBoundingClientRect().top - probe.getBoundingClientRect().top;
+  probe.remove();
+  if (!Number.isFinite(baseline)) return undefined;
+  baselineCache.set(key, baseline);
+  return { baseline };
 }
 
-let measuringContext: CanvasRenderingContext2D | null = null;
+/** Clear measurements after the browser reports that available fonts changed. */
+export function clearTextLayoutMetricsCache(): void {
+  baselineCache.clear();
+}
 
-function browserMeasurer(shape: TextShape): { measure: MeasureTextWidth; metrics?: TextFontMetrics } {
+function browserMeasurer(shape: TextShape): { measure: MeasureTextWidth; metrics?: TextBaselineMetrics } {
   if (!measuringContext && typeof document !== "undefined") {
     measuringContext = document.createElement("canvas").getContext("2d");
   }
@@ -172,7 +199,7 @@ function browserMeasurer(shape: TextShape): { measure: MeasureTextWidth; metrics
     measuringContext.font = textFontCss(shape);
     return {
       measure: (text) => measuringContext!.measureText(text).width,
-      metrics: contextFontMetrics(measuringContext, shape.fontSize),
+      metrics: browserBaseline(shape),
     };
   }
   // SSR/test fallback. Browser documents are remeasured once fonts are ready.
@@ -187,7 +214,7 @@ export function layoutTextWithCanvas(
   return layoutText(
     shape,
     (text) => ctx.measureText(text).width,
-    contextFontMetrics(ctx, shape.fontSize)
+    browserBaseline(shape)
   );
 }
 

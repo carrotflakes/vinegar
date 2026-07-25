@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState, type RefObject } from "react";
 import type { TextShape } from "../../model/types";
 import { useEditor } from "../../store/editorStore";
-import { measureTextShape } from "../textLayout";
+import { clearTextLayoutMetricsCache, measureTextShape } from "../textLayout";
 
 export interface TextEditSession {
   shape: TextShape;
@@ -101,6 +101,7 @@ export function useTextEditing(scheduleDraw: () => void): TextEditing {
     let active = true;
     const refresh = () => {
       if (!active) return;
+      clearTextLayoutMetricsCache();
       useEditor.getState().remeasureTextShapes();
       const session = textEditRef.current;
       if (session) setTextEdit({ ...session, shape: measureTextShape(session.shape) });
