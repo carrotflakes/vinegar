@@ -2,6 +2,7 @@ import { solid, type Paint } from "../model/paint";
 import {
   BLEND_MODES,
   baseNodeDefaults,
+  baseShapeDefaults,
   makeId,
   type BlendMode,
   type Matrix,
@@ -104,17 +105,22 @@ function validFillRule(
   return value === "nonzero" || value === "evenodd" ? value : null;
 }
 
-/** Build a new shape from a created spec (rect/ellipse/line/path). */
-function buildCreated(spec: Record<string, unknown>): Shape | null {
+/**
+ * Build a new shape from a created spec (rect/ellipse/line/path). Exported for
+ * tests: the worker seam is not reachable from Node, and this is where a script
+ * shape gets its model fields.
+ */
+export function buildCreated(spec: Record<string, unknown>): Shape | null {
   const type = spec.type as string;
   if (!CREATABLE.has(type)) return null;
   const base = {
     id: makeId(type),
     name: typeof spec.name === "string" ? spec.name : type,
+    ...baseShapeDefaults(),
+    ...baseNodeDefaults(),
     fill: scriptPaint(spec.fill, null),
     stroke: scriptPaint(spec.stroke, null),
     strokeWidth: Math.max(0, num(spec.strokeWidth, 1)),
-    ...baseNodeDefaults(),
     opacity: clamp01(num(spec.opacity, 1)),
     blendMode: blendOr(spec.blendMode, "normal"),
     transform: transformOr(spec.transform, [1, 0, 0, 1, 0, 0]),
@@ -135,7 +141,7 @@ function buildCreated(spec: Record<string, unknown>): Shape | null {
           Math.max(0, num(spec.cornerRadius)),
           Math.min(width, height) / 2
         ),
-      } as Shape;
+      };
     }
     case "ellipse":
       return {
@@ -145,7 +151,7 @@ function buildCreated(spec: Record<string, unknown>): Shape | null {
         y: num(spec.y),
         width: Math.max(0, num(spec.width)),
         height: Math.max(0, num(spec.height)),
-      } as Shape;
+      };
     case "line":
       return {
         ...base,
@@ -155,7 +161,7 @@ function buildCreated(spec: Record<string, unknown>): Shape | null {
         y1: num(spec.y1),
         x2: num(spec.x2),
         y2: num(spec.y2),
-      } as Shape;
+      };
     case "path": {
       const subpaths = validSubpaths(spec.subpaths);
       const fillRule = validFillRule(spec.fillRule);
@@ -164,8 +170,8 @@ function buildCreated(spec: Record<string, unknown>): Shape | null {
         ...base,
         type: "path",
         subpaths,
-        fillRule,
-      } as Shape;
+        fillRule: fillRule ?? "nonzero",
+      };
     }
     default:
       return null;
