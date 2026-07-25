@@ -197,12 +197,13 @@ function reparentDroppedIntoFrames(doc: Document, ids: string[]): Document {
 export function finishSelectMove(
   ctx: ToolContext,
   state: EditorState,
-  inter: Extract<Interaction, { kind: "move" }>
+  inter: Extract<Interaction, { kind: "move" }>,
+  reparent: boolean
 ) {
   const moved = Object.keys(inter.originals).some(
     (id) => state.doc.nodes[id] && state.doc.nodes[id] !== inter.originals[id]
   );
-  if (moved && currentSymbolScope(state) === null) {
+  if (reparent && moved && currentSymbolScope(state) === null) {
     const next = reparentDroppedIntoFrames(state.doc, Object.keys(inter.originals));
     if (next !== state.doc) state.setDoc(next);
   }
@@ -379,7 +380,8 @@ export function onSelectMove(
   inter: SelectInteraction,
   screen: Vec2,
   world: Vec2,
-  shiftKey: boolean
+  shiftKey: boolean,
+  noReparent = false
 ) {
   switch (inter.kind) {
     case "pivot": {
@@ -419,6 +421,9 @@ export function onSelectMove(
       break;
     }
     case "move": {
+      // Record the live modifier so the drop-target highlight can hide while
+      // reparenting is suppressed.
+      inter.noReparent = noReparent;
       const rawDx = world.x - inter.start.x;
       const rawDy = world.y - inter.start.y;
       let dx = rawDx;

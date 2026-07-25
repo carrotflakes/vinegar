@@ -254,7 +254,7 @@ export function usePointerHandlers(deps: PointerHandlerDeps): PointerHandlers {
       case "rotate":
       case "corner-radius":
       case "marquee":
-        onSelectMove(ctx, state, inter, screen, world, mod.shift);
+        onSelectMove(ctx, state, inter, screen, world, mod.shift, e.metaKey || e.ctrlKey);
         break;
       case "create":
         onCreateMove(ctx, state, inter.start, world, mod.shift, mod.alt);
@@ -335,8 +335,9 @@ export function usePointerHandlers(deps: PointerHandlerDeps): PointerHandlers {
         ctx.scheduleDraw();
         break;
       case "move":
-        // A move drop may reparent the moved roots into/out of a frame.
-        finishSelectMove(ctx, state, inter);
+        // A move drop may reparent the moved roots into/out of a frame; holding
+        // Cmd/Ctrl on release suppresses that (drop stays in the current parent).
+        finishSelectMove(ctx, state, inter, !(e.metaKey || e.ctrlKey));
         break;
       case "resize":
       case "rotate":

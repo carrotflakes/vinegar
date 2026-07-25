@@ -36,6 +36,9 @@ export type Interaction =
       boxes: Bounds[];
       selectionPivot?: Vec2;
       selectionTransform?: Matrix;
+      /** Live: the drop would skip frame reparenting (Cmd/Ctrl held). Drives the
+       *  drop-target highlight; the drop reads the modifier authoritatively. */
+      noReparent?: boolean;
     }
   | {
       kind: "resize";

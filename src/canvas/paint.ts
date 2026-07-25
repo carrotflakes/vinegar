@@ -83,10 +83,12 @@ export function paintCanvas(input: PaintInput): void {
     gridColors: theme.grid,
     rootIds: scopeRoot !== null ? [scopeRoot] : undefined,
     hiddenShapeId: hiddenTextId,
+    editorChrome: true,
   });
 
-  // While dragging a selection, highlight the frame it would drop into.
-  if (interaction.kind === "move" && scope === null) {
+  // While dragging a selection, highlight the frame it would drop into (unless
+  // reparenting is suppressed with Cmd/Ctrl).
+  if (interaction.kind === "move" && !interaction.noReparent && scope === null) {
     const movable = selectionRoots(doc, selection).filter(
       (id) => !isFrame(doc.nodes[id])
     );

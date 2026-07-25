@@ -37,13 +37,45 @@ import { layoutTextWithCanvas } from "./textLayout";
  * an offscreen layer matching the target canvas, then composited in one draw.
  * `activeSymbols` tracks the symbol expansion stack to break (invalid) cycles.
  */
+/**
+ * A repeating transparency checkerboard tile (world-space cells), cached across
+ * frames. Used as editor chrome behind a transparent frame; null in headless
+ * contexts (SSR/tests) that lack canvas pattern support.
+ */
+let checkerTile: HTMLCanvasElement | null | undefined;
+function checkerPattern(ctx: CanvasRenderingContext2D): CanvasPattern | null {
+  if (typeof document === "undefined" || typeof ctx.createPattern !== "function") {
+    return null;
+  }
+  if (checkerTile === undefined) {
+    const tile = document.createElement("canvas");
+    tile.width = 16;
+    tile.height = 16;
+    const tctx = tile.getContext("2d");
+    if (!tctx) {
+      checkerTile = null;
+    } else {
+      tctx.fillStyle = "#fbfbfc";
+      tctx.fillRect(0, 0, 16, 16);
+      tctx.fillStyle = "#e2e4e8";
+      tctx.fillRect(0, 0, 8, 8);
+      tctx.fillRect(8, 8, 8, 8);
+      checkerTile = tile;
+    }
+  }
+  return checkerTile ? ctx.createPattern(checkerTile, "repeat") : null;
+}
+
 export function paintNode(
   ctx: CanvasRenderingContext2D,
   doc: Document,
   nodeId: string,
   preview?: Shape | null,
   hiddenShapeId?: string | null,
-  activeSymbols: Set<string> = new Set()
+  activeSymbols: Set<string> = new Set(),
+  /** Draw editor-only chrome (e.g. a transparent frame's checkerboard). Off for
+   *  export so a transparent frame exports as actual transparency. */
+  editorChrome = false
 ): void {
   const node = doc.nodes[nodeId];
   if (!node) return;
@@ -93,6 +125,14 @@ export function paintNode(
       if (frame.background) {
         target.fillStyle = frame.background;
         target.fillRect(0, 0, frame.width, frame.height);
+      } else if (editorChrome) {
+        // Transparent frame: show a checkerboard in the editor only (never in
+        // export, where the frame stays truly transparent).
+        const pattern = checkerPattern(target);
+        if (pattern) {
+          target.fillStyle = pattern;
+          target.fillRect(0, 0, frame.width, frame.height);
+        }
       }
       if (frame.clip ?? true) {
         target.beginPath();
@@ -113,7 +153,7 @@ export function paintNode(
   const effects = hasEffects(node.effects) ? node.effects : null;
   if (alpha >= 1 && !blend && !effects) {
     applyMask(ctx);
-    for (const childId of childIds) paintNode(ctx, doc, childId, preview, hiddenShapeId, activeSymbols);
+    for (const childId of childIds) paintNode(ctx, doc, childId, preview, hiddenShapeId, activeSymbols, editorChrome);
     ctx.restore();
     if (symbolId) activeSymbols.delete(symbolId);
     return;
@@ -128,7 +168,7 @@ export function paintNode(
   lctx.setTransform(ctx.getTransform());
   const scale = deviceScale(ctx);
   applyMask(lctx);
-  for (const childId of childIds) paintNode(lctx, doc, childId, preview, hiddenShapeId, activeSymbols);
+  for (const childId of childIds) paintNode(lctx, doc, childId, preview, hiddenShapeId, activeSymbols, editorChrome);
   ctx.restore();
   compositeEffects(ctx, layer, scale, effects, alpha, node.blendMode);
   if (symbolId) activeSymbols.delete(symbolId);
@@ -733,6 +773,8 @@ export interface RenderOptions {
   rootIds?: string[];
   /** Omit this shape while an HTML overlay edits it. */
   hiddenShapeId?: string | null;
+  /** Draw editor-only chrome (transparent-frame checkerboard). Off for export. */
+  editorChrome?: boolean;
 }
 
 /** Full scene render: background, grid, shapes, preview. */
@@ -757,7 +799,7 @@ export function renderScene(
   // A preview that shares a document shape's id supersedes it (the pen
   // extending an existing path); skip the stale copy underneath.
   for (const nodeId of opts.rootIds ?? doc.rootIds) {
-    paintNode(ctx, doc, nodeId, opts.preview, opts.hiddenShapeId);
+    paintNode(ctx, doc, nodeId, opts.preview, opts.hiddenShapeId, undefined, opts.editorChrome);
   }
   if (opts.preview && !doc.nodes[opts.preview.id]) {
     paintShape(ctx, opts.preview, doc.assets, doc, opts.preview);

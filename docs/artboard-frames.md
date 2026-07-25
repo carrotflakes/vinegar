@@ -187,11 +187,12 @@ the UX. Editing a frame's children is therefore always a single drill from root.
   geometric artboard code (this session's included). Rebuild the demo.
 - **Phase 2:** reparent-on-drag ✅ (dropping a moved selection over a frame
   re-homes it into that frame — or back out to the scene root — preserving world
-  position, as one undo step, with a live drop-target highlight). Remaining
-  polish: transparent-background checkerboard (editor-only chrome; needs an
-  editor flag threaded through `paintNode` so export stays transparent),
-  per-frame export-settings wiring. (Rotation handle and nested-frame UX are
-  permanently out — see Open questions.)
+  position, as one undo step, with a live drop-target highlight; hold Cmd/Ctrl on
+  release to suppress the reparent). Transparent-background checkerboard ✅
+  (editor-only chrome via an `editorChrome` flag threaded through `paintNode`, so
+  export stays truly transparent). Frame resize keeps contents fixed in world
+  space (only the box changes). Remaining: per-frame export-settings wiring.
+  (Rotation handle and nested-frame UX are permanently out — see Open questions.)
 
 ## Non-goals
 
