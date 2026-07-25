@@ -55,7 +55,7 @@ interface DNode {
   group?: Group;
   frame?: FrameNode;
   instance?: SymbolInstance;
-  children?: DNode[];
+  children?: DNode[] | undefined;
 }
 
 function toDisplayTree(doc: ReturnType<typeof useEditor.getState>["doc"], ids: string[]): DNode[] {

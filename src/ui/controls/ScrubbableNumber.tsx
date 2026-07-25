@@ -3,7 +3,7 @@ import { useRef } from "react";
 type Props = {
   value: number;
   onChange: (value: number) => void;
-  min?: number;
+  min?: number | undefined;
   max?: number;
   step?: number;
   className?: string;

@@ -15,6 +15,10 @@ active tool, selection, viewport and undo history does not belong in the file.
   validator rejects a file that omits a field. New fields follow the same rule
   (`T | null`, never `T?`) — optional fields only ever existed to make additive
   migrations free, and there is no migration chain any more.
+  `exactOptionalPropertyTypes` is on, so a patch may not smuggle an explicit
+  `undefined` into a required field either (`{ blendMode: undefined }` is a
+  compile error). Option bags outside the model that genuinely accept "absent
+  or undefined" declare it as `?: T | undefined`.
 - `rootIds` and each container's `childIds` are back-to-front and are the only
   persisted sources of hierarchy and paint order.
 - Every node is owned exactly once by either `rootIds` or one `childIds` list.

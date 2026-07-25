@@ -51,11 +51,11 @@ import { layoutTextInBrowser } from "../canvas/textLayout";
 import { fontStack } from "../fonts";
 
 export interface SvgOptions {
-  margin?: number;
+  margin?: number | undefined;
   /** Explicit crop region (e.g. a frame). Overrides content bounds. */
   bounds?: Bounds;
   /** Backdrop colour drawn behind the content; omit/null for transparent. */
-  background?: string | null;
+  background?: string | null | undefined;
 }
 
 /**

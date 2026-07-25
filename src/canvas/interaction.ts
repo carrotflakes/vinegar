@@ -23,8 +23,8 @@ export type Interaction =
   | { kind: "pan"; startScreen: Vec2; startOffset: Vec2 }
   | {
       kind: "pivot";
-      shapeId?: string;
-      groupId?: string;
+      shapeId?: string | undefined;
+      groupId?: string | undefined;
       persistent: boolean;
     }
   | {
@@ -34,8 +34,8 @@ export type Interaction =
       origUnion: Bounds;
       targets: SnapTargets;
       boxes: Bounds[];
-      selectionPivot?: Vec2;
-      selectionTransform?: Matrix;
+      selectionPivot?: Vec2 | undefined;
+      selectionTransform?: Matrix | undefined;
       /** Live: the drop would skip frame reparenting (Cmd/Ctrl held). Drives the
        *  drop-target highlight; the drop reads the modifier authoritatively. */
       noReparent?: boolean;
@@ -54,9 +54,9 @@ export type Interaction =
        * Resizing a frame changes its box only; children are kept fixed in world
        * space by compensating the frame's local-origin shift against these.
        */
-      frameChildren?: Record<string, SceneNode>;
-      selectionPivot?: Vec2;
-      selectionTransform?: Matrix;
+      frameChildren?: Record<string, SceneNode> | undefined;
+      selectionPivot?: Vec2 | undefined;
+      selectionTransform?: Matrix | undefined;
     }
   | {
       kind: "rotate";
@@ -65,8 +65,8 @@ export type Interaction =
       /** Frame rotation at drag start; magnetic snapping targets the result. */
       startRotation: number;
       originals: Record<string, SceneNode>;
-      selectionPivot?: Vec2;
-      selectionTransform?: Matrix;
+      selectionPivot?: Vec2 | undefined;
+      selectionTransform?: Matrix | undefined;
     }
   | {
       kind: "corner-radius";

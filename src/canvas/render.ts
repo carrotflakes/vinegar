@@ -767,7 +767,7 @@ export interface RenderOptions {
   /** Grid line colors per tier; falls back to light-theme defaults. */
   gridColors?: { minor: string; major: string; axis: string };
   /** Paint these roots instead of `doc.rootIds` (symbol local view). */
-  rootIds?: string[];
+  rootIds?: string[] | undefined;
   /** Omit this shape while an HTML overlay edits it. */
   hiddenShapeId?: string | null;
   /** Draw editor-only chrome (transparent-frame checkerboard). Off for export. */

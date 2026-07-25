@@ -297,7 +297,7 @@ export interface ResolvedGenerator {
   /** Native builder; present for built-ins only. */
   build?: (args: Record<string, number>) => PathSubpath[] | null;
   /** Compile error for a document script, if any. */
-  error?: string;
+  error?: string | undefined;
 }
 
 /**
@@ -309,7 +309,7 @@ export interface ScriptMeta {
   source: string;
   status: "compiling" | "ready" | "error";
   params: GeneratorParam[];
-  error?: string;
+  error?: string | undefined;
 }
 
 /** The generator's default argument set, keyed by param. */
@@ -376,7 +376,7 @@ export function resolveGenerator(
 interface CompiledScript {
   params: GeneratorParam[];
   build: (args: Record<string, number>) => PathSubpath[] | null;
-  error?: string;
+  error?: string | undefined;
 }
 
 const compileCache = new Map<string, CompiledScript>();

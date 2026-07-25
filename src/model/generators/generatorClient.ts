@@ -11,13 +11,13 @@ import type { PathSubpath } from "../types";
 
 export interface CompileResult {
   params: GeneratorParam[];
-  error?: string;
+  error?: string | undefined;
 }
 
 export interface BuildResult {
   subpaths: PathSubpath[] | null;
   /** Populated on compile error, a build failure, or a timeout. */
-  error?: string;
+  error?: string | undefined;
 }
 
 /** A compile/build slower than this is treated as a hang; the worker is killed. */

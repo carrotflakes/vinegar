@@ -100,7 +100,7 @@ function wrapParagraph(
 export function layoutText(
   shape: Pick<TextShape, "text" | "textMode" | "width" | "fontSize" | "lineHeight" | "align">,
   measure: MeasureTextWidth,
-  metrics?: TextBaselineMetrics
+  metrics?: TextBaselineMetrics | undefined
 ): TextLayout {
   const paragraphs = shape.text.replace(/\r\n?/g, "\n").split("\n");
   const rawLines = shape.textMode === "area"
@@ -191,7 +191,7 @@ export function clearTextLayoutMetricsCache(): void {
   baselineCache.clear();
 }
 
-function browserMeasurer(shape: TextShape): { measure: MeasureTextWidth; metrics?: TextBaselineMetrics } {
+function browserMeasurer(shape: TextShape): { measure: MeasureTextWidth; metrics?: TextBaselineMetrics | undefined } {
   if (!measuringContext && typeof document !== "undefined") {
     measuringContext = document.createElement("canvas").getContext("2d");
   }

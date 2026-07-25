@@ -11,7 +11,7 @@ export interface MenuItem {
   label: string;
   /** Human-readable shortcut hint, right-aligned (e.g. "Ctrl+C"). */
   shortcut?: string;
-  danger?: boolean;
+  danger?: boolean | undefined;
   disabled?: boolean;
   onSelect: () => void;
 }

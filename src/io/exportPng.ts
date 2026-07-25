@@ -7,14 +7,14 @@ export interface PngOptions {
   /** Pixel density multiplier (1 = bounds size, 2 = retina). */
   scale?: number;
   /** Background color; omit for a transparent PNG. */
-  background?: string;
+  background?: string | undefined;
   margin?: number;
   /** Explicit crop region (e.g. a frame). Overrides content bounds. */
   bounds?: Bounds;
   /** Encoded image MIME type. Defaults to `image/png`. */
   mimeType?: string;
   /** Lossy quality (0–1) for `image/jpeg` and `image/webp`. */
-  quality?: number;
+  quality?: number | undefined;
 }
 
 /** Render a document's shapes to a raster Blob, cropped to content or explicit bounds. */

@@ -216,6 +216,18 @@ export async function restoreRecoveryAtStartup(options: {
     return { restored: false };
   }
 
+  // Parse before prompting. A snapshot written by an older format can never be
+  // restored (there is no migration chain), and offering to bring back work we
+  // then fail to produce is worse than starting clean: drop it and say nothing.
+  let doc: Document;
+  try {
+    doc = parseDocument(snapshot.file);
+  } catch {
+    try { await storage.clear(); } catch { /* A later autosave can overwrite it. */ }
+    onStatus({ phase: "ready" });
+    return { restored: false };
+  }
+
   if (!confirmRestore(snapshot)) {
     // User chose to discard; drop the snapshot so it never resurfaces.
     try { await storage.clear(); } catch { /* A later autosave can overwrite it. */ }
@@ -223,17 +235,9 @@ export async function restoreRecoveryAtStartup(options: {
     return { restored: false };
   }
 
-  try {
-    const doc = parseDocument(snapshot.file);
-    useEditor.getState().recoverDocument(doc);
-    onStatus({ phase: "recovered", at: snapshot.savedAt });
-    return { restored: true };
-  } catch (error) {
-    try { await storage.clear(); } catch { /* A later autosave can overwrite it. */ }
-    const message = `Recovery could not be restored: ${errorMessage(error)}`;
-    onStatus({ phase: "error", error: message });
-    return { restored: false, error: message };
-  }
+  useEditor.getState().recoverDocument(doc);
+  onStatus({ phase: "recovered", at: snapshot.savedAt });
+  return { restored: true };
 }
 
 interface AutosaveState {

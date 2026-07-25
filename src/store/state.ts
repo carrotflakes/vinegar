@@ -45,7 +45,7 @@ export interface StyleDefaults {
 
 export interface HistoryEntry {
   /** Human-readable action name. Older or generic entries may omit it. */
-  label?: string;
+  label?: string | undefined;
   patches: DocumentPatch[];
   inversePatches: DocumentPatch[];
   beforeRevision: number;
@@ -56,7 +56,7 @@ export interface DocumentRevision { history: number; maintenance: number }
 
 export interface HistoryTransactionOptions {
   /** Human-readable action name shown in the History panel. */
-  label?: string;
+  label?: string | undefined;
   /** Repeated edits with the same key may collapse into one undo step. */
   coalesceKey?: string;
 }
@@ -129,7 +129,7 @@ export interface EditorData {
     beforeRevision: number;
     afterRevision: number | null;
     /** Human-readable action name for the eventual undo step. */
-    label?: string;
+    label?: string | undefined;
     /** Whether an intermediate document has been published. */
     dirty: boolean;
   } | null;

@@ -13,7 +13,7 @@ export interface Viewport {
   scale: number;
   rotation: number;
   offset: Vec2;
-  flipX?: boolean;
+  flipX?: boolean | undefined;
 }
 
 export interface ViewportSize {

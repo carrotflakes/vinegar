@@ -276,18 +276,24 @@ test("declining the restore prompt discards the snapshot without touching the st
   assert.equal(useEditor.getState().doc, before, "the current document is left untouched");
 });
 
-test("startup restore discards a snapshot it cannot parse", async () => {
+test("startup restore silently discards a snapshot it cannot parse", async () => {
   const storage = makeStorage();
   const fakeStorage = { ...storage, read: async () => ({ file: "{ not json", savedAt: new Date().toISOString() }) };
   const statuses = [];
+  let prompted = false;
 
   const result = await restoreRecoveryAtStartup({
     storage: fakeStorage,
     onStatus: (s) => statuses.push(s),
+    confirm: () => { prompted = true; return true; },
   });
 
   assert.equal(result.restored, false);
-  assert.equal(statuses.at(-1).phase, "error");
+  assert.equal(result.error, undefined, "an unrestorable snapshot is not an error");
+  // Parsing happens before the prompt, so the user is never offered work that
+  // cannot be brought back (e.g. a snapshot from an older file format).
+  assert.equal(prompted, false);
+  assert.equal(statuses.at(-1).phase, "ready");
   assert.deepEqual(storage.calls, ["clear"], "an unparseable snapshot is cleared");
 });
 
