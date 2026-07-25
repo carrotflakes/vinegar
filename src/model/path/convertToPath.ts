@@ -109,9 +109,10 @@ export function convertShapeToPath(
     ...strokeDetailFields(shape),
     opacity: shape.opacity,
     blendMode: shape.blendMode,
-    effects: shape.effects ? structuredClone(shape.effects) : undefined,
+    effects: structuredClone(shape.effects),
     hidden: shape.hidden,
     locked: shape.locked,
+    generator: shape.generator,
     transform: [...shape.transform],
     transformOrigin: shape.transformOrigin ? { ...shape.transformOrigin } : null,
   };

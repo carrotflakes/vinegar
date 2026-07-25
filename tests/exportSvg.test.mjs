@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
 import { createServer } from "vite";
+import { NODE_BASE } from "./nodeBase.mjs";
 
 let server;
 let createEmptyDocument;
@@ -118,6 +119,7 @@ test("SVG export embeds and reuses image patterns with placement and alpha", () 
     id: "rect",
     name: "Pattern",
     type: "rect",
+    ...NODE_BASE,
     x: 0,
     y: 0,
     width: 20,
@@ -168,6 +170,7 @@ test("SVG gradients use local coordinates without distorting their geometry", ()
     id: "rect",
     name: "Gradients",
     type: "rect",
+    ...NODE_BASE,
     x: 0,
     y: 0,
     width: 200,
@@ -199,6 +202,7 @@ test("SVG paths export their data-driven fill rule", () => {
     id: "path",
     name: "Even-odd path",
     type: "path",
+    ...NODE_BASE,
     fillRule: "evenodd",
     subpaths: [
       {
@@ -229,6 +233,7 @@ test("SVG color-adjust exports a chained feColorMatrix filter in sRGB", () => {
     id: "rect",
     name: "Adjusted",
     type: "rect",
+    ...NODE_BASE,
     x: 0,
     y: 0,
     width: 100,
@@ -263,6 +268,7 @@ test("SVG color-overlay exports a mix feColorMatrix preserving alpha", () => {
     id: "rect",
     name: "Tinted",
     type: "rect",
+    ...NODE_BASE,
     x: 0,
     y: 0,
     width: 100,

@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
 import { createServer } from "vite";
+import { NODE_BASE } from "./nodeBase.mjs";
 
 let server;
 let layoutText;
@@ -42,6 +43,7 @@ const textShape = (patch = {}) => ({
   id: "text1",
   name: "Text",
   type: "text",
+  ...NODE_BASE,
   text: "Hello",
   textMode: "point",
   x: 10,
@@ -105,7 +107,7 @@ test("text documents round-trip and malformed typography is rejected", () => {
   doc.nodes.text1 = textShape();
   doc.rootIds = ["text1"];
   const json = serializeDocument(doc);
-  assert.equal(JSON.parse(json).version, 24);
+  assert.equal(JSON.parse(json).version, 25);
   assert.deepEqual(parseDocument(json).nodes.text1, doc.nodes.text1);
 
   const malformed = JSON.parse(json);

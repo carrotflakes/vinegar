@@ -2,6 +2,7 @@ import { applyMatrix, IDENTITY } from "@/model/geometry/matrix";
 import { strokeDetailFields } from "../stroke";
 import {
   makeId,
+  baseNodeDefaults,
   type Matrix,
   type PathAnchor,
   type PathShape,
@@ -144,9 +145,9 @@ export function joinShapes(
     stroke: base.stroke,
     strokeWidth: base.strokeWidth,
     ...strokeDetailFields(base),
+    ...baseNodeDefaults(),
     opacity: base.opacity,
     blendMode: base.blendMode,
     transform: [...IDENTITY],
-    transformOrigin: null,
   };
 }

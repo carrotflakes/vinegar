@@ -20,6 +20,7 @@ import {
   withChildIds,
 } from "../model/scene";
 import {
+  baseNodeDefaults,
   makeId,
   type Document,
   type Group,
@@ -96,7 +97,7 @@ export function remapPayload(payload: ClipboardPayload, offset = 0): ClipboardPa
 }
 
 export function groupNode(id: string, childIds: string[]): Group {
-  return { id, name: "Group", type: "group", childIds, transform: [...IDENTITY], transformOrigin: null, opacity: 1 };
+  return { id, name: "Group", type: "group", childIds, transform: [...IDENTITY], ...baseNodeDefaults() };
 }
 
 export function instanceNode(id: string, symbolId: string, transform: Matrix): SymbolInstance {
@@ -106,8 +107,7 @@ export function instanceNode(id: string, symbolId: string, transform: Matrix): S
     type: "instance",
     symbolId,
     transform,
-    transformOrigin: null,
-    opacity: 1,
+    ...baseNodeDefaults(),
   };
 }
 

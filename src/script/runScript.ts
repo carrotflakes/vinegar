@@ -1,6 +1,7 @@
 import { solid, type Paint } from "../model/paint";
 import {
   BLEND_MODES,
+  baseNodeDefaults,
   makeId,
   type BlendMode,
   type Matrix,
@@ -38,11 +39,10 @@ const scriptPaint = (v: unknown, fallback: Paint | null): Paint | null => {
   }
   return fallback;
 };
-const blendOr = (v: unknown, fallback: BlendMode | undefined) => {
+const blendOr = (v: unknown, fallback: BlendMode): BlendMode => {
   if (v === undefined) return fallback;
-  return v !== "normal" && BLEND_MODES.includes(v as BlendMode)
-    ? (v as BlendMode)
-    : undefined;
+  // An unrecognised value falls back to the neutral mode, not to the fallback.
+  return BLEND_MODES.includes(v as BlendMode) ? (v as BlendMode) : "normal";
 };
 const transformOr = (v: unknown, fallback: Matrix): Matrix =>
   Array.isArray(v) && v.length === 6 && v.every(Number.isFinite)
@@ -114,8 +114,9 @@ function buildCreated(spec: Record<string, unknown>): Shape | null {
     fill: scriptPaint(spec.fill, null),
     stroke: scriptPaint(spec.stroke, null),
     strokeWidth: Math.max(0, num(spec.strokeWidth, 1)),
+    ...baseNodeDefaults(),
     opacity: clamp01(num(spec.opacity, 1)),
-    blendMode: blendOr(spec.blendMode, undefined),
+    blendMode: blendOr(spec.blendMode, "normal"),
     transform: transformOr(spec.transform, [1, 0, 0, 1, 0, 0]),
     transformOrigin: pointOrNull(spec.transformOrigin, null),
   };

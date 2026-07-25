@@ -6,6 +6,14 @@ active tool, selection, viewport and undo history does not belong in the file.
 ## Invariants
 
 - Every key in `nodes` equals that shape or group's `id`.
+- **The shared node fields are total.** `blendMode`, `effects`, `hidden`,
+  `locked` and `generator` are always present on every node: a defaulted field
+  carries its default explicitly (`"normal"`, `[]`, `false`) and a genuinely
+  absent link is `null`. `undefined` is never a legal value, so each state has
+  exactly one representation and the validator rejects a file that omits one.
+  New shared fields follow the same rule (`T | null`, never `T?`) — optional
+  fields only ever existed to make additive migrations free, and there is no
+  migration chain any more.
 - `rootIds` and each container's `childIds` are back-to-front and are the only
   persisted sources of hierarchy and paint order.
 - Every node is owned exactly once by either `rootIds` or one `childIds` list.
@@ -73,7 +81,7 @@ active tool, selection, viewport and undo history does not belong in the file.
   Typography is one style per node (`fontFamily`, size, weight, italic,
   line-height and alignment); line layout is derived from the text at render.
 
-The file wrapper version is deliberately strict. The current version is v24 and
+The file wrapper version is deliberately strict. The current version is v25 and
 it is the only accepted version — there is no migration chain, so older files
 are rejected outright. Changing the persisted shape of `Document` requires
 bumping `CURRENT_FILE_VERSION`.

@@ -54,8 +54,9 @@ export function defaultEffect(type: Effect["type"]): Effect {
   }
 }
 
-export function hasEffects(effects: Effect[] | undefined): effects is Effect[] {
-  return !!effects && effects.length > 0;
+/** Whether a stack actually paints anything (i.e. is non-empty). */
+export function hasEffects(effects: Effect[]): boolean {
+  return effects.length > 0;
 }
 
 /**
@@ -63,8 +64,7 @@ export function hasEffects(effects: Effect[] | undefined): effects is Effect[] {
  * result beyond the node's geometry. A safe symmetric over-estimate: effects
  * chain, so their reaches accumulate. Used to keep exports from clipping.
  */
-export function effectsMargin(effects: Effect[] | undefined): number {
-  if (!hasEffects(effects)) return 0;
+export function effectsMargin(effects: Effect[]): number {
   let margin = 0;
   for (const effect of effects) {
     if (effect.type === "blur") {

@@ -7,7 +7,7 @@
 
 import { create } from "zustand";
 import { IDENTITY } from "@/model/geometry/matrix";
-import { createEmptyDocument, type Shape } from "../model/types";
+import { baseNodeDefaults, createEmptyDocument, type Shape } from "../model/types";
 import { createClipboardActions } from "./clipboardSlice";
 import { createHistory, trimHistoryToLimit } from "./historySlice";
 import { usePreferences } from "./preferencesStore";
@@ -102,8 +102,7 @@ export function styleFromDefaults(style: StyleDefaults) {
     strokeCap: style.strokeCap,
     strokeJoin: style.strokeJoin,
     strokeAlignment: style.strokeAlignment,
-    opacity: 1,
+    ...baseNodeDefaults(),
     transform: [...IDENTITY] as Shape["transform"],
-    transformOrigin: null,
   };
 }

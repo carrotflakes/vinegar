@@ -17,7 +17,7 @@ function effectLabel(type: Effect["type"]): string {
 
 export default function EffectsSection({ node }: { node: SceneNode }) {
   const setNodeEffects = useEditor((state) => state.setNodeEffects);
-  const effects = node.effects ?? [];
+  const effects = node.effects;
 
   const replace = (index: number, next: Effect) =>
     setNodeEffects(

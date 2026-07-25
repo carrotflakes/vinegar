@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
 import { createServer } from "vite";
+import { NODE_BASE } from "./nodeBase.mjs";
 
 let server;
 let pathOpShape;
@@ -18,6 +19,7 @@ const pathShape = (subpaths, patch = {}) => ({
   id: "p1",
   name: "Path",
   type: "path",
+  ...NODE_BASE,
   subpaths,
   fill: solid("#ff6633"),
   stroke: solid("#112233"),
@@ -50,7 +52,7 @@ test("reverse flips anchor order and swaps handles, preserving closed", () => {
   assert.deepEqual(out.transform, shape.transform);
   assert.deepEqual(out.fill, shape.fill);
   assert.equal(out.id, shape.id);
-  assert.equal(out.generator, undefined);
+  assert.equal(out.generator, null);
 });
 
 test("flatten replaces curves with straight segments (no handles)", () => {

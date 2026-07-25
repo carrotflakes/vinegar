@@ -123,7 +123,15 @@ export const EFFECT_TYPES = [
   "color-overlay",
 ] as const;
 
-/** Fields shared by every persisted scene node. */
+/**
+ * Fields shared by every persisted scene node.
+ *
+ * No field here is optional. A defaulted field carries its default explicitly
+ * (`blendMode: "normal"`, `effects: []`) and a genuinely absent one is `null`,
+ * so each field has exactly one representation per state — `undefined` never
+ * means anything. Optional fields used to buy additive file migrations for
+ * free; the migration chain is gone, so they only bought tri-state bugs.
+ */
 export interface BaseNode {
   id: string;
   name: string;
@@ -134,19 +142,38 @@ export interface BaseNode {
   /** 0..1 */
   opacity: number;
   /** How the node composites onto what's below. */
-  blendMode?: BlendMode;
-  /** Ordered appearance-effect stack; absent/empty means no effects. */
-  effects?: Effect[];
-  hidden?: boolean;
-  locked?: boolean;
+  blendMode: BlendMode;
+  /** Ordered appearance-effect stack; empty means no effects. */
+  effects: Effect[];
+  hidden: boolean;
+  locked: boolean;
   /**
-   * Links this node's geometry to a parametric generator. When present, the
+   * Links this node's geometry to a parametric generator. When set, the
    * geometry is (re)produced from `args` and the node can be re-tuned via the
    * generator's parameters. Editing vertices directly detaches the link (the
-   * field is dropped), leaving a plain hand-editable node. Absent by default,
-   * so nodes without it need no migration.
+   * field goes back to null), leaving a plain hand-editable node.
    */
-  generator?: GeneratorRef;
+  generator: GeneratorRef | null;
+}
+
+/**
+ * The neutral value of every shared node field that has one. Spread this into
+ * a node literal, then override what the node actually needs — it keeps new
+ * BaseNode fields from having to be added at dozens of construction sites.
+ */
+export function baseNodeDefaults(): Pick<
+  BaseNode,
+  "transformOrigin" | "opacity" | "blendMode" | "effects" | "hidden" | "locked" | "generator"
+> {
+  return {
+    transformOrigin: null,
+    opacity: 1,
+    blendMode: "normal",
+    effects: [],
+    hidden: false,
+    locked: false,
+    generator: null,
+  };
 }
 
 /**
@@ -410,8 +437,7 @@ export function makeFrame(
     name,
     type: "frame",
     transform: [1, 0, 0, 1, x, y],
-    transformOrigin: null,
-    opacity: 1,
+    ...baseNodeDefaults(),
     childIds: [],
     width,
     height,

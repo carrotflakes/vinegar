@@ -78,7 +78,7 @@ export function pathOpShape(shape: PathShape, op: PathOp): PathShape | null {
     return {
       ...shape,
       subpaths: shape.subpaths.map(reverseSubpath),
-      generator: undefined,
+      generator: null,
     };
   }
   ensurePaper();
@@ -102,5 +102,5 @@ export function pathOpShape(shape: PathShape, op: PathOp): PathShape | null {
     return pathToSubpath(path, sp.closed);
   });
   if (!changed) return null;
-  return { ...shape, subpaths, generator: undefined };
+  return { ...shape, subpaths, generator: null };
 }

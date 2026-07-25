@@ -82,7 +82,7 @@ test("the built-in star generator inserts, retunes, and detaches on edit", () =>
 
   // Editing a subpath directly drops the parametric link.
   const detached = withSubpath(retuned, 0, retuned.subpaths[0]);
-  assert.equal(detached.generator, undefined);
+  assert.equal(detached.generator, null);
 });
 
 test("a user script compiles, builds geometry, and round-trips in the document", async () => {
@@ -178,7 +178,7 @@ test("toggling open/closed detaches a generated shape", () => {
 
   useEditor.getState().setClosedSelected(false); // hand-edit: open the star
   const shape = useEditor.getState().doc.nodes[id];
-  assert.equal(shape.generator, undefined);
+  assert.equal(shape.generator, null);
   assert.ok(shape.subpaths.every((sp) => sp.closed === false));
 });
 

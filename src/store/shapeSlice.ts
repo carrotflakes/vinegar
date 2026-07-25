@@ -14,7 +14,7 @@ import { applyWorldTransformToNode, boundsTransform, IDENTITY, invertMatrix, mul
 import { childIdsOf, descendantShapeIds, isGroup, isInstance, isNodeHidden, isNodeLocked, isShape, parentIdOf, referencedAssetIds, scopeLeafIds, scopeRootGroupId, selectionRoots, withChildIds } from "../model/scene";
 import { clampRectCornerRadius } from "../model/roundedRect";
 import { resizeShapeToBounds, translateShape } from "@/model/geometry/transforms";
-import { makeId, type PathShape, type Bounds, type ImageShape, type SceneNode, type Shape, type Vec2 } from "../model/types";
+import { baseNodeDefaults, makeId, type PathShape, type Bounds, type ImageShape, type SceneNode, type Shape, type Vec2 } from "../model/types";
 import { importImageFile, importImageFiles, isImageFile } from "../io/importImage";
 import { notify } from "./toastStore";
 import { measureTextShape } from "../canvas/textLayout";
@@ -65,9 +65,8 @@ export function createShapeActions({ set, get, transact, replaceDocumentWithoutH
       name,
       type: "path",
       subpaths,
+      ...baseNodeDefaults(),
       transform: [1, 0, 0, 1, at.x, at.y],
-      transformOrigin: null,
-      opacity: 1,
       fill: solid("#6b7cff"),
       stroke: null,
       strokeWidth: 1,
@@ -285,7 +284,7 @@ export function createShapeActions({ set, get, transact, replaceDocumentWithoutH
         ? shape.subpaths.filter((_, i) => i !== editNode.sub)
         : shape.subpaths.map((s, i) => (i === editNode.sub ? { ...s, anchors } : s));
       if (subpaths.length === 0) { const next = removeRoots(doc, [shape.id]); if (!hasValidSceneContainers(next)) return; transact(next, { label: "Delete path node" }); set({ selection: [], ...clearTransient }); }
-      else { const next = { ...doc, nodes: { ...doc.nodes, [shape.id]: { ...shape, subpaths, generator: undefined } } }; if (!hasValidSceneContainers(next)) return; transact(next, { label: "Delete path node" }); set({ editNodes: [] }); }
+      else { const next = { ...doc, nodes: { ...doc.nodes, [shape.id]: { ...shape, subpaths, generator: null } } }; if (!hasValidSceneContainers(next)) return; transact(next, { label: "Delete path node" }); set({ editNodes: [] }); }
     },
     cutSelectedNodes: () => {
       const { doc, editNodes } = get();
@@ -297,7 +296,7 @@ export function createShapeActions({ set, get, transact, replaceDocumentWithoutH
         if (!isShape(shape) || shape.type !== "path") continue;
         const next = cutPathAtNodes(shape, cuts);
         if (!next) continue;
-        nodes[shapeId] = { ...next, generator: undefined };
+        nodes[shapeId] = { ...next, generator: null };
         cut = true;
       }
       if (!cut) return;
@@ -330,9 +329,8 @@ export function createShapeActions({ set, get, transact, replaceDocumentWithoutH
           y: at.y - height / 2 + i * 24,
           width,
           height,
+          ...baseNodeDefaults(),
           transform: [1, 0, 0, 1, 0, 0],
-          transformOrigin: null,
-          opacity: 1,
           fill: null,
           stroke: null,
           strokeWidth: 0,
@@ -438,9 +436,8 @@ export function createShapeActions({ set, get, transact, replaceDocumentWithoutH
         y: at.y - height / 2,
         width,
         height,
+        ...baseNodeDefaults(),
         transform: [1, 0, 0, 1, 0, 0],
-        transformOrigin: null,
-        opacity: 1,
         fill: null,
         stroke: null,
         strokeWidth: 0,
@@ -611,7 +608,7 @@ export function createShapeActions({ set, get, transact, replaceDocumentWithoutH
     detachGenerator: (id) => {
       const doc = get().doc; const shape = doc.nodes[id];
       if (!isShape(shape) || !shape.generator) return;
-      transact({ ...doc, nodes: { ...doc.nodes, [id]: { ...shape, generator: undefined } } }, { label: "Detach generator" });
+      transact({ ...doc, nodes: { ...doc.nodes, [id]: { ...shape, generator: null } } }, { label: "Detach generator" });
     },
     addScript: (name, source) => {
       const id = makeId("script");
@@ -645,7 +642,7 @@ export function createShapeActions({ set, get, transact, replaceDocumentWithoutH
       );
     },
     setImageLockAspect: (id, lock) => { const doc = get().doc; const shape = doc.nodes[id]; if (!isShape(shape) || shape.type !== "image") return; const next = { ...shape, lockAspect: lock || undefined }; transact({ ...doc, nodes: { ...doc.nodes, [id]: next } }, { label: lock ? "Lock aspect ratio" : "Unlock aspect ratio", coalesceKey: "lockAspect:" + id }); },
-    setClosedSelected: (closed) => { const doc = get().doc; const nodes = { ...doc.nodes }; let changed = false; for (const id of selectionRoots(doc, get().selection)) { const shape = nodes[id]; if (!isShape(shape) || shape.type !== "path") continue; if (shape.subpaths.some((sp) => sp.closed !== closed)) { nodes[id] = { ...shape, subpaths: shape.subpaths.map((sp) => ({ ...sp, closed })), generator: undefined }; changed = true; } } const next = { ...doc, nodes }; if (changed && hasValidSceneContainers(next)) transact(next, { label: closed ? "Close path" : "Open path" }); },
+    setClosedSelected: (closed) => { const doc = get().doc; const nodes = { ...doc.nodes }; let changed = false; for (const id of selectionRoots(doc, get().selection)) { const shape = nodes[id]; if (!isShape(shape) || shape.type !== "path") continue; if (shape.subpaths.some((sp) => sp.closed !== closed)) { nodes[id] = { ...shape, subpaths: shape.subpaths.map((sp) => ({ ...sp, closed })), generator: null }; changed = true; } } const next = { ...doc, nodes }; if (changed && hasValidSceneContainers(next)) transact(next, { label: closed ? "Close path" : "Open path" }); },
     pathOpSelected: (op) => { const doc = get().doc; const nodes = { ...doc.nodes }; let changed = false; for (const id of selectionRoots(doc, get().selection)) { const shape = nodes[id]; if (!isShape(shape) || shape.type !== "path") continue; const result = pathOpShape(shape, op); if (result) { nodes[id] = result; changed = true; } } const next = { ...doc, nodes }; if (changed && hasValidSceneContainers(next)) transact(next, { label: PATH_OP_LABEL[op] }); },
   };
 }

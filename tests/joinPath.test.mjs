@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
 import { createServer } from "vite";
+import { NODE_BASE } from "./nodeBase.mjs";
 
 let server;
 let joinShapes;
@@ -18,6 +19,7 @@ const pathShape = (subpaths, patch = {}) => ({
   id: "p1",
   name: "Path",
   type: "path",
+  ...NODE_BASE,
   subpaths,
   fill: solid("#ff6633"),
   stroke: solid("#112233"),

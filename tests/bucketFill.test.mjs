@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
 import { createServer } from "vite";
+import { NODE_BASE } from "./nodeBase.mjs";
 
 let server;
 let computeBucketFill;
@@ -43,6 +44,7 @@ const strokedRect = (id, x, y, w, h) =>
   shape({
     id,
     type: "rect",
+    ...NODE_BASE,
     x,
     y,
     width: w,
@@ -116,6 +118,7 @@ test("gap tolerance closes small gaps and respects small tolerances", () => {
   const c = shape({
     id: "c",
     type: "path",
+    ...NODE_BASE,
     subpaths: [{
       closed: false,
       anchors: [
@@ -151,6 +154,7 @@ const filledRect = (id, x, y, w, h, color = "#ff0000") =>
   shape({
     id,
     type: "rect",
+    ...NODE_BASE,
     x,
     y,
     width: w,
@@ -259,6 +263,7 @@ test("centerline mode applies to brush strokes", () => {
     shape({
       id,
       type: "brush",
+      ...NODE_BASE,
       anchors: pts.map((p) => ({ p, hIn: null, hOut: null, w: 1 })),
       stroke: { type: "solid", color: "#000000", alpha: 1 },
       strokeWidth: 8, // envelope spans [-4, 4] around the centerline

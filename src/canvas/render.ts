@@ -92,7 +92,7 @@ export function paintNode(
     if (!acq) return;
     const { canvas: layer, lctx } = acq;
     lctx.setTransform(ctx.getTransform());
-    paintShape(lctx, { ...shape, opacity: 1, blendMode: undefined }, doc.assets, doc, preview);
+    paintShape(lctx, { ...shape, opacity: 1, blendMode: "normal" }, doc.assets, doc, preview);
     compositeEffects(ctx, layer, deviceScale(ctx), shape.effects, shape.opacity, shape.blendMode);
     return;
   }

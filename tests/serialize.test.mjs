@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
 import { createServer } from "vite";
+import { NODE_BASE } from "./nodeBase.mjs";
 
 let server;
 let createEmptyDocument;
@@ -77,6 +78,7 @@ test("fit commands frame content, selection, and the selected frame", () => {
     const style = {
       name: "rect",
       type: "rect",
+      ...NODE_BASE,
       fill: { type: "solid", color: "#ffffff", alpha: 1 },
       stroke: null,
       strokeWidth: 0,
@@ -140,19 +142,19 @@ test("Shift+number shortcuts match their physical digit keys", () => {
 test("a nested v8 scene tree survives save/load and remains usable", () => {
   const doc = createEmptyDocument();
   doc.nodes.empty = {
-    id: "empty", type: "group", name: "Empty", childIds: [], opacity: 1,
+    id: "empty", type: "group", ...NODE_BASE, name: "Empty", childIds: [], opacity: 1,
     transform: [1, 0, 0, 1, 0, 0], transformOrigin: null,
   };
   doc.nodes.outer = {
-    id: "outer", type: "group", name: "Outer", childIds: ["rect", "inner"], opacity: 0.8,
+    id: "outer", type: "group", ...NODE_BASE, name: "Outer", childIds: ["rect", "inner"], opacity: 0.8,
     transform: [1, 0, 0, 1, 100, 50], transformOrigin: { x: 15, y: 25 },
   };
   doc.nodes.inner = {
-    id: "inner", type: "group", name: "Inner", childIds: ["ellipse"], opacity: 1,
+    id: "inner", type: "group", ...NODE_BASE, name: "Inner", childIds: ["ellipse"], opacity: 1,
     transform: [1, 0, 0, 1, 10, 5], transformOrigin: null,
   };
   doc.nodes.rect = {
-    id: "rect", type: "rect", name: "Rectangle",
+    id: "rect", type: "rect", ...NODE_BASE, name: "Rectangle",
     x: 10, y: 20, width: 30, height: 40,
     transform: [2, 0, 0, 2, 0, 0], transformOrigin: { x: 12, y: 22 },
     fill: { type: "solid", color: "#123456", alpha: 1 },
@@ -160,7 +162,7 @@ test("a nested v8 scene tree survives save/load and remains usable", () => {
     strokeWidth: 2, opacity: 0.9,
   };
   doc.nodes.ellipse = {
-    id: "ellipse", type: "ellipse", name: "Ellipse",
+    id: "ellipse", type: "ellipse", ...NODE_BASE, name: "Ellipse",
     x: 0, y: 0, width: 20, height: 10,
     transform: [1, 0, 0, 1, 0, 0], transformOrigin: null,
     fill: { type: "solid", color: "#abcdef", alpha: 1 },
@@ -228,8 +230,8 @@ test("boolean ops keep curves and produce editable multi-subpath paths", () => {
     stroke: null, strokeWidth: 0, opacity: 1,
     transform: [1, 0, 0, 1, 0, 0], transformOrigin: null,
   };
-  const outer = { id: "a", type: "ellipse", x: 0, y: 0, width: 100, height: 100, ...style };
-  const inner = { id: "b", type: "ellipse", x: 30, y: 30, width: 40, height: 40, ...style };
+  const outer = { id: "a", type: "ellipse", ...NODE_BASE, x: 0, y: 0, width: 100, height: 100, ...style };
+  const inner = { id: "b", type: "ellipse", ...NODE_BASE, x: 30, y: 30, width: 40, height: 40, ...style };
 
   // Subtracting a fully contained ellipse cuts a hole: two closed subpaths.
   const ring = booleanShapes([outer, inner], "subtract");
@@ -264,11 +266,11 @@ test("compound paths own real children, cut even-odd holes, and release", () => 
   };
   const outerEffects = [{ type: "blur", radius: 1 }];
   doc.nodes.outer = {
-    id: "outer", type: "rect", x: 0, y: 0, width: 100, height: 100, ...base,
+    id: "outer", type: "rect", ...NODE_BASE, x: 0, y: 0, width: 100, height: 100, ...base,
     effects: outerEffects,
   };
   doc.nodes.inner = {
-    id: "inner", type: "ellipse", x: 25, y: 25, width: 50, height: 50,
+    id: "inner", type: "ellipse", ...NODE_BASE, x: 25, y: 25, width: 50, height: 50,
     ...base, name: "cutter", fill: { type: "solid", color: "#ff0000", alpha: 1 },
     transform: [1, 0, 0, 1, 5, 0],
   };
@@ -412,7 +414,7 @@ test("compound paths own real children, cut even-odd holes, and release", () => 
   const openDoc = createEmptyDocument();
   openDoc.nodes.a = { ...doc.nodes.outer, id: "a" };
   openDoc.nodes.b = {
-    id: "b", type: "path", name: "open",
+    id: "b", type: "path", ...NODE_BASE, name: "open",
     subpaths: [{
       anchors: [
         { p: { x: 0, y: 0 }, hIn: null, hOut: null },

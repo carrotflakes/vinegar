@@ -82,7 +82,10 @@ export function makeCompoundPath(shapes: Shape[]): CompoundPathNode | null {
     ...strokeDetailFields(base),
     opacity: base.opacity,
     blendMode: base.blendMode,
-    effects: base.effects ? structuredClone(base.effects) : undefined,
+    effects: structuredClone(base.effects),
+    hidden: base.hidden,
+    locked: base.locked,
+    generator: null,
     transform: [...IDENTITY],
     transformOrigin: null,
   };

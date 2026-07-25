@@ -12,6 +12,7 @@ import {
 } from "../model/paint";
 import {
   BLEND_MODES,
+  baseNodeDefaults,
   makeId,
   type PathShape,
   type PathSubpath,
@@ -66,15 +67,14 @@ function blendModeOf(item: paper.Item): BlendMode | undefined {
 }
 
 function baseNode(item: paper.Item, fallbackName: string) {
-  const blendMode = blendModeOf(item);
   return {
+    ...baseNodeDefaults(),
     name: nodeName(item, fallbackName),
     transform: matrixOf(item),
-    transformOrigin: null,
     opacity: clamp01(finite(item.opacity, 1)),
-    blendMode: blendMode && blendMode !== "normal" ? blendMode : undefined,
-    hidden: item.visible === false ? true : undefined,
-    locked: item.locked ? true : undefined,
+    blendMode: blendModeOf(item) ?? "normal",
+    hidden: item.visible === false,
+    locked: !!item.locked,
   };
 }
 
@@ -206,9 +206,8 @@ function compoundComponents(item: paper.CompoundPath): PrimitiveShape[] {
       name: nodeName(path, "Path"),
       type: "path",
       subpaths: [subpath],
+      ...baseNodeDefaults(),
       transform: matrixOf(path),
-      transformOrigin: null,
-      opacity: 1,
       fill: null,
       stroke: null,
       strokeWidth: 0,
@@ -322,9 +321,8 @@ export function convertSvgItem(
     name: name.trim() || "Imported SVG",
     type: "group",
     childIds: [childId],
+    ...baseNodeDefaults(),
     transform: [...IDENTITY],
-    transformOrigin: null,
-    opacity: 1,
   };
   return { nodes, rootId };
 }

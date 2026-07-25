@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
 import { createServer } from "vite";
+import { NODE_BASE } from "./nodeBase.mjs";
 
 let server;
 let createEmptyDocument;
@@ -44,6 +45,7 @@ const rect = (id, x, y, width, height, extra = {}) => ({
   id,
   name: id,
   type: "rect",
+  ...NODE_BASE,
   x,
   y,
   width,
@@ -61,6 +63,7 @@ const group = (id, childIds, extra = {}) => ({
   id,
   name: id,
   type: "group",
+  ...NODE_BASE,
   childIds,
   opacity: 1,
   transform: [...IDENTITY],
@@ -74,6 +77,7 @@ function clippedDocument() {
   doc.nodes.mask = {
     ...rect("mask", 0, 0, 0, 0, { fill: null, hidden: true }),
     type: "path",
+    ...NODE_BASE,
     fillRule: "evenodd",
     subpaths: [
       subpath([
@@ -104,15 +108,17 @@ test("clipping helpers accept area-bearing paths and preserve child order", () =
   const clip = doc.nodes.clip;
   assert.equal(isClippingMaskCandidate(doc.nodes.mask), true);
   assert.equal(isClippingMaskCandidate({ ...rect("line", 0, 0, 1, 1), type: "line" }), false);
-  assert.equal(isClippingMaskCandidate({ ...rect("path", 0, 0, 1, 1), type: "path", subpaths: [] }), false);
+  assert.equal(isClippingMaskCandidate({ ...rect("path", 0, 0, 1, 1), type: "path", ...NODE_BASE, subpaths: [] }), false);
   assert.equal(isClippingMaskCandidate({
     ...rect("path", 0, 0, 1, 1),
     type: "path",
+    ...NODE_BASE,
     subpaths: [subpath([{ x: 0, y: 0 }], false)],
   }), false);
   assert.equal(isClippingMaskCandidate({
     ...rect("path", 0, 0, 1, 1),
     type: "path",
+    ...NODE_BASE,
     subpaths: [subpath([
       { x: 0, y: 0 }, { x: 10, y: 0 }, { x: 0, y: 10 },
     ])],
@@ -135,6 +141,7 @@ test("selection validation uses sibling paint order and protects an existing mas
   doc.nodes.degenerate = {
     ...rect("degenerate", 0, 0, 10, 10),
     type: "path",
+    ...NODE_BASE,
     subpaths: [subpath([{ x: 0, y: 0 }], false)],
   };
   doc.nodes.front = rect("front", 0, 0, 10, 10);
@@ -182,6 +189,7 @@ test("a curved-path mask clips by its filled area (regression: flatten index lea
   doc.nodes.mask = {
     ...rect("mask", 0, 0, 0, 0, { fill: null }),
     type: "path",
+    ...NODE_BASE,
     subpaths: [
       {
         anchors: [anchor(20, 20), anchor(120, 20), anchor(120, 120), anchor(20, 120)],
@@ -232,6 +240,7 @@ test("symbol recursion applies definition masks and an instance's ancestor mask"
     id: "instance",
     name: "instance",
     type: "instance",
+    ...NODE_BASE,
     symbolId: "symbol",
     opacity: 1,
     transform: [1, 0, 0, 1, 200, 0],

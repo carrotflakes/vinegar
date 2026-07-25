@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
 import { createServer } from "vite";
+import { NODE_BASE } from "./nodeBase.mjs";
 
 let server;
 let createEmptyDocument;
@@ -21,6 +22,7 @@ function rectDoc() {
     id: "rect",
     name: "R",
     type: "rect",
+    ...NODE_BASE,
     x: 0,
     y: 0,
     width: 10,

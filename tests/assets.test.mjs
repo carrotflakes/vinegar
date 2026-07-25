@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
 import { createServer } from "vite";
+import { NODE_BASE } from "./nodeBase.mjs";
 
 let server;
 let useEditor;
@@ -32,6 +33,7 @@ const imageShape = (id, assetId) => ({
   id,
   name: id,
   type: "image",
+  ...NODE_BASE,
   assetId,
   x: 0,
   y: 0,

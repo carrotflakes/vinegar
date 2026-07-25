@@ -9,6 +9,7 @@ import { IDENTITY } from "@/model/geometry/matrix";
 import { roundedRectSubpath } from "../roundedRect";
 import { strokeDetailFields } from "../stroke";
 import {
+  baseNodeDefaults,
   makeId,
   type PathShape,
   type PathSubpath,
@@ -207,10 +208,10 @@ export function booleanShapes(
     stroke: base.stroke,
     strokeWidth: base.strokeWidth,
     ...strokeDetailFields(base),
+    ...baseNodeDefaults(),
     opacity: base.opacity,
     blendMode: base.blendMode,
     transform: [...IDENTITY],
-    transformOrigin: null,
   };
 }
 
@@ -242,10 +243,10 @@ function faceShape(region: paper.PathItem, style: Shape): PathShape | null {
     stroke: style.stroke,
     strokeWidth: style.strokeWidth,
     ...strokeDetailFields(style),
+    ...baseNodeDefaults(),
     opacity: style.opacity,
     blendMode: style.blendMode,
     transform: [...IDENTITY],
-    transformOrigin: null,
   };
 }
 

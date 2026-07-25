@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
 import { createServer } from "vite";
+import { NODE_BASE } from "./nodeBase.mjs";
 
 let server;
 let strokeOutline;
@@ -21,6 +22,7 @@ function compoundDocument(strokeAlignment) {
     id: "child",
     name: "Child",
     type: "rect",
+    ...NODE_BASE,
     x: 0,
     y: 0,
     width: 100,
@@ -36,6 +38,7 @@ function compoundDocument(strokeAlignment) {
     id: "compound",
     name: "Compound",
     type: "compoundPath",
+    ...NODE_BASE,
     childIds: [child.id],
     transform: [...IDENTITY],
     transformOrigin: null,

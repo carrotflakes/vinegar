@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { after, before, beforeEach, test } from "node:test";
 import { createServer } from "vite";
+import { NODE_BASE } from "./nodeBase.mjs";
 
 let server;
 let canConvertShapeToPath;
@@ -52,6 +53,7 @@ const rect = (id, patch = {}) => ({
   id,
   name: id,
   type: "rect",
+  ...NODE_BASE,
   x: 10,
   y: 20,
   width: 80,
@@ -65,6 +67,7 @@ const brush = (id, patch = {}) => ({
   id,
   name: id,
   type: "brush",
+  ...NODE_BASE,
   anchors: [
     {
       p: { x: 0, y: 0 },
@@ -94,6 +97,7 @@ test("rectangles, ellipses and lines convert to equivalent editable paths", () =
     {
       ...rect("Ellipse"),
       type: "ellipse",
+      ...NODE_BASE,
       x: -20,
       y: 5,
       width: 60,
@@ -102,6 +106,7 @@ test("rectangles, ellipses and lines convert to equivalent editable paths", () =
     {
       ...rect("Line"),
       type: "line",
+      ...NODE_BASE,
       x1: -4,
       y1: 8,
       x2: 30,
@@ -158,6 +163,7 @@ test("compound conversion bakes visible child transforms into even-odd subpaths"
     id: "curve",
     name: "curve",
     type: "path",
+    ...NODE_BASE,
     subpaths: [{
       closed: true,
       anchors: [
@@ -176,6 +182,7 @@ test("compound conversion bakes visible child transforms into even-odd subpaths"
     id: "compound",
     name: "Logo cutout",
     type: "compoundPath",
+    ...NODE_BASE,
     childIds: ["rect", "curve", "hidden"],
     ...appearance({ transform: [1, 0.2, -0.1, 1, 100, 50] }),
   };
@@ -230,6 +237,7 @@ test("store conversion removes compound children in one undoable transaction", (
     id: "compound",
     name: "compound",
     type: "compoundPath",
+    ...NODE_BASE,
     childIds: ["a", "b"],
     ...appearance({ transform: [...IDENTITY] }),
   };

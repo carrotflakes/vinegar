@@ -1,7 +1,7 @@
 import { computeBucketFill } from "../../model/bucketFill";
 import { IDENTITY } from "@/model/geometry/matrix";
 import { ringsToSubpaths } from "@/model/path/path";
-import { makeId, type PathShape } from "../../model/types";
+import { baseNodeDefaults, makeId, type PathShape } from "../../model/types";
 import type { Vec2 } from "../../model/types";
 import { useBucket } from "../../store/bucketStore";
 import type { EditorState } from "../../store/editorStore";
@@ -47,9 +47,8 @@ export function bucketFillAt(state: EditorState, world: Vec2): void {
     fill: paint,
     stroke: null,
     strokeWidth: 1,
-    opacity: 1,
+    ...baseNodeDefaults(),
     transform: [...IDENTITY],
-    transformOrigin: null,
   };
   state.addFillShape(shape, result.coverId);
 }

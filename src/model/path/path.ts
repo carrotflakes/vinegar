@@ -195,7 +195,7 @@ export function withSubpath(
 ): PathShape {
   const subpaths = shape.subpaths.slice();
   subpaths[sub] = next;
-  return { ...shape, subpaths, generator: undefined };
+  return { ...shape, subpaths, generator: null };
 }
 
 function reverseSubpath(sp: PathSubpath): PathSubpath {

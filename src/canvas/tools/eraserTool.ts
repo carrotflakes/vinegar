@@ -1,6 +1,6 @@
 import { brushAnchor } from "@/model/brush/brushOutline";
 import { IDENTITY } from "@/model/geometry/matrix";
-import { type BrushShape, type Vec2 } from "../../model/types";
+import { baseNodeDefaults, type BrushShape, type Vec2 } from "../../model/types";
 import { useBrush } from "../../store/brushStore";
 import type { EditorState } from "../../store/editorStore";
 import type { ToolContext } from "../interaction";
@@ -28,9 +28,8 @@ function previewShape(points: Vec2[], size: number): BrushShape {
     fill: null,
     stroke: { type: "solid", color: "#e5484d", alpha: 0.3 },
     strokeWidth: size,
-    opacity: 1,
+    ...baseNodeDefaults(),
     transform: [...IDENTITY],
-    transformOrigin: null,
   };
 }
 

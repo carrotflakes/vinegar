@@ -149,7 +149,7 @@ export function onPenDown(
       // Continuing a generated path by hand overrides its geometry, so drop the
       // generator link (kept off both draft and baseline so a no-op pickup that
       // changes nothing still compares equal and leaves the shape untouched).
-      const baseline = { ...picked, generator: undefined };
+      const baseline = { ...picked, generator: null };
       ctx.penExtend.current = baseline;
       const shape = structuredClone(baseline);
       ctx.penDraft.current = shape;

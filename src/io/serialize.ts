@@ -13,9 +13,9 @@ import {
 
 /**
  * Only the current version is accepted; there is no migration from older
- * formats — pre-v24 files fail to open with a clear message.
+ * formats — pre-v25 files fail to open with a clear message.
  */
-export const CURRENT_FILE_VERSION = 24 as const;
+export const CURRENT_FILE_VERSION = 25 as const;
 
 export interface VinegarFile {
   app: "vinegar";
@@ -113,25 +113,27 @@ const isEffect = (value: unknown): boolean => {
   }
   return false;
 };
-const isEffectsOrUndefined = (value: unknown): boolean =>
-  value === undefined || (Array.isArray(value) && value.every(isEffect));
+const isEffects = (value: unknown): boolean =>
+  Array.isArray(value) && value.every(isEffect);
 const isStrokeDashOrUndefined = (value: unknown): boolean =>
   value === undefined || (Array.isArray(value) && value.every((entry) => isNumber(entry) && entry >= 0));
-const isGeneratorOrUndefined = (value: unknown): boolean => {
-  if (value === undefined) return true;
+const isGeneratorOrNull = (value: unknown): boolean => {
+  if (value === null) return true;
   if (!isObject(value) || typeof value.scriptId !== "string" || !isObject(value.args)) return false;
   return Object.values(value.args).every(isNumber);
 };
+// Shared node fields are all required: `undefined` is not a legal value for any
+// of them, so a file that omits one is rejected rather than silently defaulted.
 const isNode = (id: string, node: unknown): boolean => {
   if (!isObject(node) || node.id !== id || typeof node.name !== "string" ||
       !NODE_TYPES.has(node.type as ShapeType | "group" | "instance") ||
       !isMatrix(node.transform) || !isPointOrNull(node.transformOrigin) ||
       !isNumber(node.opacity) || node.opacity < 0 || node.opacity > 1 ||
-      (node.blendMode !== undefined && !BLEND_MODES.includes(node.blendMode as never)) ||
-      !isEffectsOrUndefined(node.effects) ||
-      !isGeneratorOrUndefined(node.generator) ||
-      (node.hidden !== undefined && typeof node.hidden !== "boolean") ||
-      (node.locked !== undefined && typeof node.locked !== "boolean")) return false;
+      !BLEND_MODES.includes(node.blendMode as never) ||
+      !isEffects(node.effects) ||
+      !isGeneratorOrNull(node.generator) ||
+      typeof node.hidden !== "boolean" ||
+      typeof node.locked !== "boolean") return false;
   if (node.type === "group") {
     return (node.clip === undefined || node.clip === true) &&
       Array.isArray(node.childIds) &&

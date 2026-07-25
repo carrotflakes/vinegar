@@ -15,6 +15,7 @@ import {
   wouldCreateSymbolCycle,
 } from "../model/scene";
 import {
+  baseNodeDefaults,
   makeId,
   type Document,
   type Group,
@@ -89,7 +90,7 @@ export function createSymbolActions({ set, get, transact }: StoreCtx): SymbolAct
         const inst = doc.nodes[id];
         if (!isInstance(inst)) continue;
         const def = doc.symbols[inst.symbolId]; if (!def) continue;
-        effectsRemoved ||= !!inst.effects?.length || !!doc.nodes[def.rootNodeId]?.effects?.length;
+        effectsRemoved ||= inst.effects.length > 0 || !!doc.nodes[def.rootNodeId]?.effects.length;
         const contentIds = childIdsOf(doc, def.rootNodeId);
         const all = contentIds.flatMap((cid) => [cid, ...descendantNodeIds(doc, cid)]);
         const payloadNodes: Record<string, SceneNode> = {};
@@ -97,7 +98,7 @@ export function createSymbolActions({ set, get, transact }: StoreCtx): SymbolAct
         const dup = remapPayload({ nodes: payloadNodes, rootIds: contentIds });
         const gid = makeId("group");
         const group: Group = {
-          id: gid, name: def.name, type: "group", childIds: dup.rootIds,
+          id: gid, name: def.name, type: "group", childIds: dup.rootIds, ...baseNodeDefaults(),
           transform: [...inst.transform], transformOrigin: inst.transformOrigin ? { ...inst.transformOrigin } : null,
           opacity: inst.opacity, blendMode: inst.blendMode, hidden: inst.hidden, locked: inst.locked,
         };

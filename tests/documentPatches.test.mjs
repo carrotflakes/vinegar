@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
 import { createServer } from "vite";
+import { NODE_BASE } from "./nodeBase.mjs";
 
 let server;
 let applyDocumentPatches;
@@ -20,6 +21,7 @@ const rect = (id, x = 0) => ({
   id,
   name: id,
   type: "rect",
+  ...NODE_BASE,
   x,
   y: 0,
   width: 20,

@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
 import { createServer } from "vite";
+import { NODE_BASE } from "./nodeBase.mjs";
 
 let server;
 let divideShapes;
@@ -18,6 +19,7 @@ const rect = (id, x, y, w, h, fill) => ({
   id,
   name: "Rect",
   type: "rect",
+  ...NODE_BASE,
   x,
   y,
   width: w,

@@ -43,7 +43,7 @@ import {
   parentIdOf,
   selectionRoots,
 } from "../model/scene";
-import { makeId, type Bounds, type Document, type PathShape, type Shape } from "../model/types";
+import { baseNodeDefaults, makeId, type Bounds, type Document, type PathShape, type Shape } from "../model/types";
 import { groupNode, removeRoots, replaceChildren } from "./docOps";
 import {
   clearTransient,
@@ -75,7 +75,7 @@ function releaseGroups(
     const siblings = childIdsOf(doc, parent);
     const at = siblings.indexOf(id);
     if (at < 0) continue;
-    effectsRemoved ||= !!group.effects?.length;
+    effectsRemoved ||= group.effects.length > 0;
     const children = [...group.childIds];
     const nodes = { ...doc.nodes };
     for (const child of children) {
@@ -85,9 +85,11 @@ function releaseGroups(
         ...node,
         transform: multiply(group.transform, node.transform),
         opacity: node.opacity * group.opacity,
-        blendMode: node.blendMode ?? group.blendMode,
-        hidden: node.hidden || group.hidden || undefined,
-        locked: node.locked || group.locked || undefined,
+        // "normal" is the neutral value, so an unstyled child takes the
+        // dissolving group's blend rather than overriding it with normal.
+        blendMode: node.blendMode === "normal" ? group.blendMode : node.blendMode,
+        hidden: node.hidden || group.hidden,
+        locked: node.locked || group.locked,
       };
     }
     delete nodes[id];
@@ -271,15 +273,15 @@ export function createStructureActions({ set, get, transact }: StoreCtx): Struct
       for (const id of selectionRoots(doc, get().selection)) {
         const shape = doc.nodes[id]; if (!isShape(shape) || !shape.stroke || shape.strokeWidth <= 0) continue;
         const polys = strokeOutline(shape, undefined, doc); if (!polys?.length) continue;
-        const outline: Shape = { id: makeId("path"), name: "Outline", type: "path", fillRule: "evenodd", subpaths: ringsToSubpaths(polys.flat()), fill: shape.stroke, stroke: null, strokeWidth: 0, opacity: shape.opacity, blendMode: shape.blendMode, transform: [...IDENTITY], transformOrigin: null };
+        const outline: Shape = { id: makeId("path"), name: "Outline", type: "path", fillRule: "evenodd", subpaths: ringsToSubpaths(polys.flat()), fill: shape.stroke, stroke: null, strokeWidth: 0, ...baseNodeDefaults(), opacity: shape.opacity, blendMode: shape.blendMode, transform: [...IDENTITY] };
         const parent = parentIdOf(doc, id); const siblings = childIdsOf(doc, parent); const at = siblings.indexOf(id); const nodes = { ...doc.nodes };
         if (isAreal(shape) && shape.fill) { const gid = makeId("group"); nodes[id] = { ...shape, stroke: null }; nodes[outline.id] = outline; nodes[gid] = groupNode(gid, [id, outline.id]); const order = [...siblings]; order.splice(at, 1, gid); doc = replaceChildren({ ...doc, nodes }, parent, order); selected.push(gid); }
-        else { effectsRemoved ||= !!shape.effects?.length; for (const removed of [id, ...descendantNodeIds(doc, id)]) delete nodes[removed]; nodes[outline.id] = outline; const order = [...siblings]; order.splice(at, 1, outline.id); doc = replaceChildren({ ...doc, nodes }, parent, order); selected.push(outline.id); }
+        else { effectsRemoved ||= shape.effects.length > 0; for (const removed of [id, ...descendantNodeIds(doc, id)]) delete nodes[removed]; nodes[outline.id] = outline; const order = [...siblings]; order.splice(at, 1, outline.id); doc = replaceChildren({ ...doc, nodes }, parent, order); selected.push(outline.id); }
       }
       if (selected.length && hasValidSceneContainers(doc)) { transact(doc, { label: "Outline stroke" }); set({ selection: selected, ...clearTransient }); if (effectsRemoved) notifyEffectsRemoved(); }
     },
     booleanSelected: (op) => {
-      const doc = get().doc; const roots = selectionRoots(doc, get().selection); if (roots.length < 2 || !roots.every((id) => isShape(doc.nodes[id]))) return; const parent = parentIdOf(doc, roots[0]); if (!roots.every((id) => parentIdOf(doc, id) === parent)) return; const siblings = childIdsOf(doc, parent); const selected = new Set(roots); const ordered = siblings.filter((id) => selected.has(id)); const effectsRemoved = ordered.some((id) => !!doc.nodes[id]?.effects?.length); const result = booleanShapes(ordered.map((id) => doc.nodes[id] as Shape), op, doc); if (!result) return; const nodes = { ...doc.nodes }; for (const id of roots.flatMap((root) => [root, ...descendantNodeIds(doc, root)])) delete nodes[id]; nodes[result.id] = result; const order = siblings.filter((id) => !selected.has(id)); order.splice(siblings.slice(0, siblings.indexOf(ordered[0])).filter((id) => !selected.has(id)).length, 0, result.id); const next = replaceChildren({ ...doc, nodes }, parent, order); if (!hasValidSceneContainers(next)) return; transact(next, { label: `Boolean ${op}` }); set({ selection: [result.id], ...clearTransient }); if (effectsRemoved) notifyEffectsRemoved();
+      const doc = get().doc; const roots = selectionRoots(doc, get().selection); if (roots.length < 2 || !roots.every((id) => isShape(doc.nodes[id]))) return; const parent = parentIdOf(doc, roots[0]); if (!roots.every((id) => parentIdOf(doc, id) === parent)) return; const siblings = childIdsOf(doc, parent); const selected = new Set(roots); const ordered = siblings.filter((id) => selected.has(id)); const effectsRemoved = ordered.some((id) => !!doc.nodes[id]?.effects.length); const result = booleanShapes(ordered.map((id) => doc.nodes[id] as Shape), op, doc); if (!result) return; const nodes = { ...doc.nodes }; for (const id of roots.flatMap((root) => [root, ...descendantNodeIds(doc, root)])) delete nodes[id]; nodes[result.id] = result; const order = siblings.filter((id) => !selected.has(id)); order.splice(siblings.slice(0, siblings.indexOf(ordered[0])).filter((id) => !selected.has(id)).length, 0, result.id); const next = replaceChildren({ ...doc, nodes }, parent, order); if (!hasValidSceneContainers(next)) return; transact(next, { label: `Boolean ${op}` }); set({ selection: [result.id], ...clearTransient }); if (effectsRemoved) notifyEffectsRemoved();
     },
     divideSelected: () => {
       const doc = get().doc;
@@ -303,7 +305,7 @@ export function createStructureActions({ set, get, transact }: StoreCtx): Struct
         );
         return;
       }
-      const effectsRemoved = ordered.some((id) => !!doc.nodes[id]?.effects?.length);
+      const effectsRemoved = ordered.some((id) => !!doc.nodes[id]?.effects.length);
       const faces = divideShapes(ordered.map((id) => doc.nodes[id] as Shape), doc);
       if (!faces) return;
       const nodes = { ...doc.nodes };
@@ -331,7 +333,7 @@ export function createStructureActions({ set, get, transact }: StoreCtx): Struct
       const siblings = childIdsOf(doc, parent);
       const selected = new Set(pathRoots);
       const ordered = siblings.filter((id) => selected.has(id));
-      const effectsRemoved = ordered.some((id) => !!doc.nodes[id]?.effects?.length);
+      const effectsRemoved = ordered.some((id) => !!doc.nodes[id]?.effects.length);
       const result = joinShapes(ordered.map((id) => doc.nodes[id] as PathShape));
       if (!result) {
         notify.error("No path ends were close enough to join.");
@@ -357,7 +359,7 @@ export function createStructureActions({ set, get, transact }: StoreCtx): Struct
       const siblings = childIdsOf(doc, parent);
       const selected = new Set(roots);
       const ordered = siblings.filter((id) => selected.has(id));
-      const effectsRemoved = ordered.some((id) => !!doc.nodes[id]?.effects?.length);
+      const effectsRemoved = ordered.some((id) => !!doc.nodes[id]?.effects.length);
       const compound = makeCompoundPath(ordered.map((id) => doc.nodes[id] as Shape));
       if (!compound) return;
       const nodes = { ...doc.nodes };
@@ -394,7 +396,7 @@ export function createStructureActions({ set, get, transact }: StoreCtx): Struct
       for (const id of roots) {
         const compound = doc.nodes[id];
         if (!compound || compound.type !== "compoundPath") continue;
-        effectsRemoved ||= !!compound.effects?.length;
+        effectsRemoved ||= compound.effects.length > 0;
         const parent = parentIdOf(doc, id);
         const siblings = childIdsOf(doc, parent);
         const at = siblings.indexOf(id);
@@ -422,7 +424,7 @@ export function createStructureActions({ set, get, transact }: StoreCtx): Struct
       const node = doc.nodes[id];
       if (!node) return;
       transact(
-        { ...doc, nodes: { ...doc.nodes, [id]: { ...node, effects: effects.length ? effects : undefined } } },
+        { ...doc, nodes: { ...doc.nodes, [id]: { ...node, effects } } },
         { label: "Edit effects", coalesceKey: "effects:" + id }
       );
     },

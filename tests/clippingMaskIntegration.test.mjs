@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
 import { createServer } from "vite";
+import { NODE_BASE } from "./nodeBase.mjs";
 
 let server;
 let createEmptyDocument;
@@ -37,6 +38,7 @@ const rect = (id, x, y, width, height, extra = {}) => ({
   id,
   name: id,
   type: "rect",
+  ...NODE_BASE,
   x,
   y,
   width,
@@ -54,6 +56,7 @@ const group = (id, childIds, extra = {}) => ({
   id,
   name: id,
   type: "group",
+  ...NODE_BASE,
   childIds,
   opacity: 1,
   transform: [...IDENTITY],
@@ -101,6 +104,7 @@ function editableDocument() {
     id: "mask",
     name: "mask",
     type: "path",
+    ...NODE_BASE,
     fillRule: "evenodd",
     subpaths: [{
       anchors: [
@@ -215,7 +219,7 @@ test("Canvas, SVG, bounds, and serialization share the clipping model", () => {
   assert.doesNotMatch(svg, /isolation:isolate/);
 
   const json = serializeDocument(doc);
-  assert.equal(JSON.parse(json).version, 24);
+  assert.equal(JSON.parse(json).version, 25);
   const loaded = parseDocument(json);
   assert.equal(loaded.nodes.clip.clip, true);
   assert.deepEqual(loaded.nodes.clip.childIds, ["content", "mask"]);
@@ -279,7 +283,7 @@ test("nested masks get distinct SVG definitions and invalid tree edits are refus
 
   const invalid = createEmptyDocument();
   invalid.nodes.line = {
-    id: "line", name: "line", type: "line", x1: 0, y1: 0, x2: 50, y2: 50,
+    id: "line", name: "line", type: "line", ...NODE_BASE, x1: 0, y1: 0, x2: 50, y2: 50,
     fill: null, stroke: paint("#000000"), strokeWidth: 1, opacity: 1,
     transform: [...IDENTITY], transformOrigin: null,
   };
