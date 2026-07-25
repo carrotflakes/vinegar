@@ -1,5 +1,9 @@
 import { withSubpath } from "@/model/path/path";
-import { applyMatrix } from "@/model/geometry/matrix";
+import { applyMatrix, matrixScale } from "@/model/geometry/matrix";
+import {
+  brushAnchorNormal,
+  brushAnchorRadius,
+} from "@/model/brush/brushWidth";
 import type { PathShape, BrushShape, Matrix, Vec2 } from "../model/types";
 import { worldToScreen, type Viewport } from "@/model/geometry/viewport";
 
@@ -41,6 +45,81 @@ function shiftV(v: Vec2 | null, dx: number, dy: number): Vec2 | null {
 /** Screen-space sizes (px) for the node-editing chrome. */
 export const ANCHOR_SIZE = 9;
 export const HANDLE_DOT = 7;
+export const WIDTH_KNOB = 8;
+/**
+ * A knob never sits closer to its anchor than this, so a hairline (or
+ * zero-width) anchor still has something to grab clear of its anchor square.
+ * Only the drawn/hit position is nudged out; the width a drag produces is
+ * always read from the real distance.
+ */
+export const WIDTH_KNOB_MIN_PX = 7;
+
+/** One grabbable width knob of a brush anchor, in screen space. */
+export interface WidthKnob {
+  index: number;
+  /** +1 on the left normal, −1 on the right; both edit the same `w`. */
+  side: 1 | -1;
+  screen: Vec2;
+  anchorScreen: Vec2;
+}
+
+/**
+ * Width knobs for the *selected* anchors of a brush. Restricted to the
+ * selection on purpose: a fitted freehand stroke has dozens of anchors, and
+ * knobs on all of them would bury the stroke.
+ */
+export function brushWidthKnobs(
+  shape: BrushShape,
+  transform: Matrix,
+  viewport: Viewport,
+  active: readonly number[],
+  minOffsetPx = WIDTH_KNOB_MIN_PX
+): WidthKnob[] {
+  const toS = (w: Vec2) => worldToScreen(viewport, applyMatrix(transform, w));
+  // Local units per screen pixel, so the minimum offset is a screen distance.
+  const perPx = 1 / Math.max(1e-9, matrixScale(transform) * viewport.scale);
+  const knobs: WidthKnob[] = [];
+  for (const index of new Set(active)) {
+    const anchor = shape.anchors[index];
+    if (!anchor) continue;
+    const normal = brushAnchorNormal(shape, index);
+    const r = Math.max(brushAnchorRadius(shape, index), minOffsetPx * perPx);
+    const anchorScreen = toS(anchor.p);
+    for (const side of [1, -1] as const) {
+      knobs.push({
+        index,
+        side,
+        anchorScreen,
+        screen: toS({
+          x: anchor.p.x + normal.x * r * side,
+          y: anchor.p.y + normal.y * r * side,
+        }),
+      });
+    }
+  }
+  return knobs;
+}
+
+/** Hit-test the width knobs of the selected brush anchors. */
+export function hitBrushWidth(
+  shape: BrushShape,
+  transform: Matrix,
+  screen: Vec2,
+  viewport: Viewport,
+  active: readonly number[],
+  grabPx = 8
+): WidthKnob | null {
+  let best: WidthKnob | null = null;
+  let bestDistance = grabPx;
+  for (const knob of brushWidthKnobs(shape, transform, viewport, active)) {
+    const d = Math.hypot(knob.screen.x - screen.x, knob.screen.y - screen.y);
+    if (d <= bestDistance) {
+      best = knob;
+      bestDistance = d;
+    }
+  }
+  return best;
+}
 
 /**
  * Hit-test the anchors and control handles of a Bézier shape against a screen

@@ -100,6 +100,19 @@ export type Interaction =
       part: "in" | "out";
       orig: PathShape | BrushShape;
     }
+  | {
+      /** Dragging a brush anchor's width knob along the centerline normal. */
+      kind: "node-width";
+      shapeId: string;
+      index: number;
+      orig: BrushShape;
+      /** Anchor indices scaled together, by the grabbed anchor's ratio. */
+      selected: number[];
+      /** Unit normal in local space, captured at pointer-down. */
+      normal: Vec2;
+      /** Grab point's overshoot past the true half-width, held for the drag. */
+      grabOffset: number;
+    }
   | { kind: "marquee"; start: Vec2; additive: boolean }
   | {
       kind: "node-marquee";

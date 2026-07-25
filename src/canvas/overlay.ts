@@ -9,10 +9,19 @@ import {
   frameRotationPoint,
   type SelectionFrame,
 } from "./frame";
-import { ANCHOR_SIZE, HANDLE_DOT, nodeSubpaths, type NodeEditShape } from "./nodes";
+import {
+  ANCHOR_SIZE,
+  HANDLE_DOT,
+  WIDTH_KNOB,
+  brushWidthKnobs,
+  nodeSubpaths,
+  type NodeEditShape,
+} from "./nodes";
 import { CORNER_RADIUS_HANDLE_SIZE } from "./cornerRadiusHandle";
 
 const ACCENT = "#3b82f6";
+/** Width knobs get their own hue so they read apart from Bézier handles. */
+const WIDTH_ACCENT = "#f0a132";
 
 export interface OverlayOptions {
   dpr: number;
@@ -272,6 +281,16 @@ function square(ctx: CanvasRenderingContext2D, c: Vec2, size: number): void {
   ctx.rect(Math.round(c.x - h), Math.round(c.y - h), size, size);
 }
 
+function diamond(ctx: CanvasRenderingContext2D, c: Vec2, size: number): void {
+  const h = size / 2;
+  ctx.beginPath();
+  ctx.moveTo(c.x, c.y - h);
+  ctx.lineTo(c.x + h, c.y);
+  ctx.lineTo(c.x, c.y + h);
+  ctx.lineTo(c.x - h, c.y);
+  ctx.closePath();
+}
+
 function dot(ctx: CanvasRenderingContext2D, c: Vec2, r: number): void {
   ctx.beginPath();
   ctx.arc(c.x, c.y, r, 0, Math.PI * 2);
@@ -286,7 +305,8 @@ export function drawNodes(
   transform: Matrix,
   active: readonly { sub: number; index: number }[],
   anchorSize = ANCHOR_SIZE,
-  dotSize = HANDLE_DOT
+  dotSize = HANDLE_DOT,
+  knobSize = WIDTH_KNOB
 ): void {
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   const toS = (w: Vec2) => worldToScreen(viewport, applyMatrix(transform, w));
@@ -313,6 +333,30 @@ export function drawNodes(
         ctx.stroke();
         ctx.strokeStyle = "#9bbcf6";
       }
+    }
+  }
+
+  // Width knobs, on the selected anchors of a brush only. Drawn under the
+  // anchor squares so the anchor stays readable when the stroke is thin.
+  if (shape.type === "brush") {
+    const knobs = brushWidthKnobs(
+      shape,
+      transform,
+      viewport,
+      active.filter((node) => node.sub === 0).map((node) => node.index)
+    );
+    ctx.lineWidth = 1;
+    for (const knob of knobs) {
+      // A bar from the anchor out to the knob, reading as the half-width.
+      ctx.strokeStyle = WIDTH_ACCENT;
+      ctx.beginPath();
+      ctx.moveTo(knob.anchorScreen.x, knob.anchorScreen.y);
+      ctx.lineTo(knob.screen.x, knob.screen.y);
+      ctx.stroke();
+      diamond(ctx, knob.screen, knobSize);
+      ctx.fillStyle = "#ffffff";
+      ctx.fill();
+      ctx.stroke();
     }
   }
 

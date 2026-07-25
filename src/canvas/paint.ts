@@ -15,7 +15,7 @@ import {
 } from "./frame";
 import { HANDLE_SIZE } from "./handles";
 import { TOUCH_DRAW_SCALE, type Interaction } from "./interaction";
-import { ANCHOR_SIZE, HANDLE_DOT } from "./nodes";
+import { ANCHOR_SIZE, HANDLE_DOT, WIDTH_KNOB } from "./nodes";
 import {
   drawFrameDropTarget,
   drawFrameLabels,
@@ -181,7 +181,8 @@ export function paintCanvas(input: PaintInput): void {
         shapeWorldMatrix(doc, sel),
         active,
         ANCHOR_SIZE * chrome,
-        HANDLE_DOT * chrome
+        HANDLE_DOT * chrome,
+        WIDTH_KNOB * chrome
       );
     }
   }

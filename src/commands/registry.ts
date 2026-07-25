@@ -171,6 +171,21 @@ function canCutNodes(s: EditorState): boolean {
   return false;
 }
 
+/**
+ * Ratio per `[` / `]` press. Geometric rather than additive so the steps stay
+ * proportionate whether the stroke is hairline or heavy.
+ */
+const WIDTH_STEP = 1.2;
+
+/** Whether the node selection contains anchors of a brush stroke. */
+function hasBrushNodes(s: EditorState): boolean {
+  for (const shapeId of groupEditNodesByShape(s.editNodes).keys()) {
+    const shape = s.doc.nodes[shapeId];
+    if (isShape(shape) && shape.type === "brush") return true;
+  }
+  return false;
+}
+
 /** The lone selected frame node, or null. */
 function selectedFrame(s: EditorState): FrameNode | null {
   if (s.selection.length !== 1) return null;
@@ -431,6 +446,22 @@ export const COMMANDS: Command[] = [
     group: "Path",
     enabled: (s) => canCutNodes(s),
     run: (s) => s.cutSelectedNodes(),
+  },
+  {
+    id: "brush.width.decrease",
+    label: "Thinner nodes",
+    group: "Path",
+    keys: [{ key: "[" }],
+    enabled: (s) => hasBrushNodes(s),
+    run: (s) => s.setEditNodeWidths({ factor: 1 / WIDTH_STEP }),
+  },
+  {
+    id: "brush.width.increase",
+    label: "Thicker nodes",
+    group: "Path",
+    keys: [{ key: "]" }],
+    enabled: (s) => hasBrushNodes(s),
+    run: (s) => s.setEditNodeWidths({ factor: WIDTH_STEP }),
   },
   {
     id: "path.union",

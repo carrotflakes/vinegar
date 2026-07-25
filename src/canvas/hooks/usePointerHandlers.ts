@@ -43,6 +43,7 @@ import {
   onNodeMarqueeMove,
   onNodeMarqueeUp,
   onNodeMove,
+  onNodeWidthMove,
 } from "../tools/nodeTool";
 import {
   commitPenDraft,
@@ -313,6 +314,9 @@ export function usePointerHandlers(deps: PointerHandlerDeps): PointerHandlers {
       case "node-handle":
         onNodeMove(ctx, state, inter, world, mod.shift, mod.alt);
         break;
+      case "node-width":
+        onNodeWidthMove(ctx, state, inter, world, mod.alt);
+        break;
       case "node-marquee":
         onNodeMarqueeMove(ctx, state, inter, screen);
         break;
@@ -366,6 +370,7 @@ export function usePointerHandlers(deps: PointerHandlerDeps): PointerHandlers {
       case "corner-radius":
       case "node-anchor":
       case "node-handle":
+      case "node-width":
         state.endInteraction();
         ctx.scheduleDraw();
         break;

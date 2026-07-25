@@ -20,6 +20,7 @@ export function cancelActiveInteraction(ctx: ToolContext): void {
     case "pivot":
     case "node-anchor":
     case "node-handle":
+    case "node-width":
       // These commit through begin/endInteraction; roll back the snapshot.
       state.cancelInteraction();
       break;

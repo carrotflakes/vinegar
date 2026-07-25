@@ -7,6 +7,10 @@ import { buildGenerator, compileGenerator, type CompileResult } from "@/model/ge
 import { GENERATORS, defaultArgs, type ScriptMeta } from "@/model/generators/generators";
 import { solid } from "../model/paint";
 import { deleteBrushAnchor, toggleBrushAnchorSmooth } from "@/model/brush/brushEdit";
+import {
+  scaleBrushAnchorWidths,
+  setBrushAnchorWidths,
+} from "@/model/brush/brushWidth";
 import { expandBounds, instanceWorldBounds, intersectBounds, shapeBounds, unionNodeWorldBounds, worldShapeBounds } from "@/model/geometry/bounds";
 import { hasValidSceneContainers } from "../model/sceneValidation";
 import { eraseBrush } from "@/model/brush/eraser";
@@ -261,6 +265,34 @@ export function createShapeActions({ set, get, transact, replaceDocumentWithoutH
           : null;
       if (!next) return;
       transact({ ...doc, nodes: { ...doc.nodes, [id]: next } }, { label: "Toggle smooth node" });
+    },
+    setEditNodeWidths: (change) => {
+      const { doc, editNodes } = get();
+      const nodes = { ...doc.nodes };
+      const touched: string[] = [];
+      for (const [shapeId, targets] of groupEditNodesByShape(editNodes)) {
+        const shape = doc.nodes[shapeId];
+        if (!isShape(shape) || shape.type !== "brush") continue;
+        const indices = [
+          ...new Set(
+            targets.filter((t) => t.sub === 0).map((t) => t.index)
+          ),
+        ].sort((a, b) => a - b);
+        const next = "factor" in change
+          ? scaleBrushAnchorWidths(shape, indices, change.factor)
+          : setBrushAnchorWidths(shape, indices, () => change.width);
+        if (next === shape) continue;
+        nodes[shapeId] = next;
+        touched.push(`${shapeId}:${indices.join(",")}`);
+      }
+      if (touched.length === 0) return;
+      // Coalesced so a scrub or a run of [ / ] presses is one undo step. The
+      // key names the exact anchors, so retargeting the selection and editing
+      // again within the coalesce window starts a new step instead of merging.
+      transact({ ...doc, nodes }, {
+        label: "Edit brush width",
+        coalesceKey: `brush-width:${touched.join("|")}`,
+      });
     },
     deleteEditNode: () => {
       const { doc, editNodes } = get();

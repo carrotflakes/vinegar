@@ -266,6 +266,14 @@ export interface ShapeActions {
   /** Refresh persisted text bounds after browser fonts become available. */
   remeasureTextShapes: () => void;
   toggleNodeSmooth: (shapeId: string, sub: number, index: number) => void;
+  /**
+   * Retune the width of the selected brush anchors. `factor` scales them (the
+   * taper is preserved); `width` levels them all to one multiplier. Anchors on
+   * non-brush shapes in the selection are ignored.
+   */
+  setEditNodeWidths: (
+    change: { factor: number } | { width: number }
+  ) => void;
   deleteEditNode: () => void;
   cutSelectedNodes: () => void;
   applyScriptChanges: (changes: { created: Shape[]; updated: Shape[]; deleted: string[] }) => void;

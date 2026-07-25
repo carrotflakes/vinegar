@@ -18,6 +18,7 @@ import GeneratorSection from "./GeneratorSection";
 import GroupSection from "./GroupSection";
 import SelectionActionsSection from "./SelectionActionsSection";
 import ImageSection from "./ImageSection";
+import NodeWidthSection from "./NodeWidthSection";
 import TextSection from "./TextSection";
 import SymbolInstanceSection from "./SymbolInstanceSection";
 import TransformSection from "./TransformSection";
@@ -68,6 +69,7 @@ export default function PropertiesPanel() {
       {tool === "brush" && <BrushPanel />}
       {tool === "eraser" && <EraserPanel />}
       {tool === "bucket" && <BucketPanel />}
+      {tool === "node" && <NodeWidthSection />}
 
       {selectedInstance && (
         <SymbolInstanceSection

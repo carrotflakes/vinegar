@@ -6,9 +6,9 @@ sampling, pressure curve, EMA stabilizer, taper, width-aware fit, minimal palm
 rejection) all landed, plus stroke collection into an active drawing group
 (see "Stroke container" below), the vector eraser, and node-tool editing of
 brush anchors (move/insert/delete/smooth-toggle with the width preserved; a
-brush is treated as one open subpath). Brush envelopes can also be converted to
-ordinary nonzero-filled paths. Phase 3 remainder: per-anchor width editing (a
-width tool) and an incremental preview envelope. Deviations from the original draft below: brush
+brush is treated as one open subpath) including per-anchor width knobs. Brush
+envelopes can also be converted to ordinary nonzero-filled paths. Phase 3
+remainder: an incremental preview envelope. Deviations from the original draft below: brush
 size lives in a dedicated persisted `brushStore` (not the shared style
 `strokeWidth`); the Brush tool binds `B` and Pencil moved to `Shift+B`.
 
@@ -207,8 +207,30 @@ scope for v1.
   carrying `w`: clicking the path inserts an anchor (width linearly
   interpolated; de Casteljau split keeps the curve exact), Delete removes the
   active anchor (or the whole brush below two), and double-click toggles
-  corner/smooth. Per-anchor width editing (an Illustrator-style width tool) is
-  still deferred.
+  corner/smooth.
+- **Per-anchor width editing** (shipped): each *selected* brush anchor grows a
+  pair of width knobs, offset along the centerline normal by the local
+  half-width (`strokeWidth × w / 2`) — the Illustrator Width Tool / Inkscape
+  PowerStroke idiom, minus asymmetric sides, which the single scalar `w` cannot
+  express. Knobs are drawn as diamonds in their own hue so they read apart from
+  the tangential Bézier handles, and only on the selection: a fitted freehand
+  stroke has dozens of anchors and knobs on all of them would bury the artwork.
+  A knob never sits closer than `WIDTH_KNOB_MIN_PX` to its anchor so hairline
+  anchors stay grabbable. That nudge moves the drawn position only, so the drag
+  captures a *grab offset* at pointer-down (how far the grab point sits beyond
+  the anchor's true half-width) and subtracts it throughout: without it the
+  width would jump on the first pixel of movement, which at the default brush
+  size — half-width 4px against a 7px minimum — is the common case, not an edge
+  case. The offset also absorbs grabbing a knob slightly off-center, making the
+  whole drag relative. Pick order is Bézier handle → width knob → anchor. Dragging scales *every* selected anchor by the grabbed one's
+  ratio, preserving the taper; Alt levels them to one absolute width instead
+  (also the fallback when the grabbed anchor starts at zero, where no ratio
+  exists). Geometry helpers live in `model/brush/brushWidth.ts`, knob placement
+  and hit-testing in `canvas/nodes.ts`, the drag in `canvas/tools/nodeTool.ts`
+  (`node-width` interaction). Off-canvas: `[` / `]` step the selection by ×1.2,
+  and the Node width panel section gives an absolute figure for a single brush.
+  Still deferred: a "rub to thicken" width brush, which scales better than
+  per-vertex knobs for dense freehand strokes.
 - **Convert to path** on a brush (shipped): copy the same cached envelope used
   by rendering and hit-testing into a data-driven nonzero `PathShape`. This
   preserves self-intersections exactly as rendered and unlocks ordinary path
@@ -247,4 +269,4 @@ simplification keeps a mid-stroke pressure spike; v19 round-trip through
 2. **Brush tool**: capture pipeline, coalesced events, pressure curve,
    stabilizer, taper, tool options UI.
 3. **Polish**: node-tool integration, Outline Stroke conversion, incremental
-   preview envelope, width tool.
+   preview envelope, width knobs.

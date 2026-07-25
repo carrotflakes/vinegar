@@ -13,6 +13,7 @@ import { isShape } from "../../model/scene";
 import type { Bounds, Vec2 } from "../../model/types";
 import { worldToScreen } from "@/model/geometry/viewport";
 import { useEditor, type EditorState } from "../../store/editorStore";
+import { setReadout } from "../../store/pointerStore";
 import {
   CLICK_SLOP,
   NODE_GRAB,
@@ -20,12 +21,19 @@ import {
   type ToolContext,
 } from "../interaction";
 import {
+  hitBrushWidth,
   hitNodes,
   moveAnchors,
   moveHandle,
   nodeSubpaths,
   type NodeEditShape,
 } from "../nodes";
+import {
+  brushAnchorNormal,
+  setBrushAnchorWidths,
+  widthFromDrag,
+  widthGrabOffset,
+} from "@/model/brush/brushWidth";
 import {
   pickShape,
   pickTolerance,
@@ -41,6 +49,8 @@ export type NodeInteraction = Extract<
 >;
 
 type NodeMarquee = Extract<Interaction, { kind: "node-marquee" }>;
+
+export type NodeWidthInteraction = Extract<Interaction, { kind: "node-width" }>;
 
 type NodeRef = { shapeId: string; sub: number; index: number };
 
@@ -128,6 +138,38 @@ function closestSegmentTarget(
   return best;
 }
 
+/** Indices of the anchors of `shapeId` currently selected in the node tool. */
+function selectedAnchorIndices(state: EditorState, shapeId: string): number[] {
+  return state.editNodes
+    .filter((node) => node.shapeId === shapeId && node.sub === 0)
+    .map((node) => node.index);
+}
+
+/**
+ * The width knob under the cursor, across the brushes being node-edited. Only
+ * selected anchors carry knobs, so this is empty until an anchor is picked.
+ */
+function pickWidthKnob(
+  ctx: ToolContext,
+  state: EditorState,
+  shapes: NodeEditShape[],
+  screen: Vec2
+) {
+  for (const shape of shapes) {
+    if (shape.type !== "brush") continue;
+    const knob = hitBrushWidth(
+      shape,
+      shapeWorldMatrix(state.doc, shape),
+      screen,
+      state.viewport,
+      selectedAnchorIndices(state, shape.id),
+      NODE_GRAB * ctx.hitScale()
+    );
+    if (knob) return { shape, knob };
+  }
+  return null;
+}
+
 export function onNodeDown(
   ctx: ToolContext,
   state: EditorState,
@@ -147,6 +189,30 @@ export function onNodeDown(
     );
     return hit ? [{ shape, hit }] : [];
   })[0];
+  // Width knobs sit between the two: a Bézier handle still wins over a knob,
+  // but a knob wins over the anchor it hangs off (they can overlap on a thin
+  // anchor, where the knob is nudged out to its minimum offset).
+  const widthTarget =
+    !hitTarget || (hitTarget.hit.part === "anchor" && !shiftKey)
+      ? pickWidthKnob(ctx, state, candidates, screen)
+      : null;
+  if (widthTarget) {
+    const { shape, knob } = widthTarget;
+    const inverse = invertMatrix(shapeWorldMatrix(state.doc, shape));
+    const local = inverse ? applyMatrix(inverse, world) : world;
+    const normal = brushAnchorNormal(shape, knob.index);
+    state.beginInteraction("Edit brush width");
+    ctx.interaction.current = {
+      kind: "node-width",
+      shapeId: shape.id,
+      index: knob.index,
+      orig: shape,
+      selected: selectedAnchorIndices(state, shape.id),
+      normal,
+      grabOffset: widthGrabOffset(shape, knob.index, normal, local),
+    };
+    return;
+  }
   const segmentTarget = hitTarget
     ? null
     : closestSegmentTarget(ctx, state, candidates, world);
@@ -352,6 +418,44 @@ export function onNodeMove(
   });
 }
 
+/**
+ * Drag a brush anchor's width knob. Other selected anchors follow by the same
+ * *ratio* so the stroke keeps its taper; Alt levels them to one absolute width
+ * instead (also the behaviour when the grabbed anchor starts at zero, where a
+ * ratio is meaningless).
+ */
+export function onNodeWidthMove(
+  ctx: ToolContext,
+  state: EditorState,
+  inter: NodeWidthInteraction,
+  world: Vec2,
+  altKey: boolean
+) {
+  const current = state.doc.nodes[inter.shapeId];
+  const inverse = isShape(current)
+    ? invertMatrix(shapeWorldMatrix(state.doc, current))
+    : null;
+  const local = inverse ? applyMatrix(inverse, world) : world;
+
+  const width = widthFromDrag(
+    inter.orig,
+    inter.index,
+    inter.normal,
+    local,
+    inter.grabOffset
+  );
+  const startWidth = inter.orig.anchors[inter.index]?.w ?? 0;
+  const absolute = altKey || startWidth < 1e-3;
+  const next = setBrushAnchorWidths(
+    inter.orig,
+    inter.selected.length ? inter.selected : [inter.index],
+    absolute ? () => width : (w) => (w * width) / startWidth
+  );
+  state.applyShapes({ [inter.shapeId]: next });
+  setReadout(`W ${(width * inter.orig.strokeWidth).toFixed(1)}`);
+  ctx.scheduleDraw();
+}
+
 export function onNodeDoubleClick(
   ctx: ToolContext,
   state: EditorState,
@@ -392,6 +496,7 @@ export function nodeCursor(
 ): string {
   const state = useEditor.getState();
   const shapes = selectedNodeShapes(state);
+  if (pickWidthKnob(ctx, state, shapes, screen)) return "move";
   if (shapes.some((shape) => hitNodes(
     shape,
     shapeWorldMatrix(state.doc, shape),
