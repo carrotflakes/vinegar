@@ -33,10 +33,12 @@ active tool, selection, viewport and undo history does not belong in the file.
   belong directly in a node. `image` nodes and `pattern` fills/strokes both
   reference an image asset; an asset survives save only while something still
   references it (see `referencedAssetIds`).
-- `fill`/`stroke` are a `Paint` union: `solid`, linear/radial `gradient`, or a
-  `pattern` (an image asset tiled in the shape's local space, placed by
-  `scale`/`rotation`/`offset`). A pattern that references a decoding/missing
-  asset simply paints nothing that frame.
+- `fill`/`stroke` are a `Paint` union: `solid`, linear/radial `gradient`, a
+  `pattern` (an image asset mapped onto the shape by an explicit `mode` —
+  tile / fill / fit / stretch — plus `scale`/`rotation`/`offset`), or a
+  `swatch` reference (`swatchId` plus a per-use `alpha`, `1` = the swatch's
+  own alpha unchanged). A pattern that references a decoding/missing asset
+  simply paints nothing that frame.
 - Stroke appearance is stored directly on each shape: width, dash array/offset,
   cap, join and alignment. An empty dash array means a solid stroke.
   Inside/outside alignment is effective only for closed vector geometry and
@@ -82,7 +84,7 @@ active tool, selection, viewport and undo history does not belong in the file.
   Typography is one style per node (`fontFamily`, size, weight, italic,
   line-height and alignment); line layout is derived from the text at render.
 
-The file wrapper version is deliberately strict. The current version is v26 and
+The file wrapper version is deliberately strict. The current version is v27 and
 it is the only accepted version — there is no migration chain, so older files
 are rejected outright. Changing the persisted shape of `Document` requires
 bumping `CURRENT_FILE_VERSION`.

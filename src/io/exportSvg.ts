@@ -15,7 +15,6 @@ import {
   gradientToSvg,
   hexToRgb,
   paintToSvgAttrs,
-  patternMode,
   patternPlacement,
   resolvePaintRef,
   type Paint,
@@ -153,10 +152,10 @@ function makeDefs(doc: Document): Defs {
   ) => {
     // Tile mode reuses a shared natural-size <image>; the fit modes size the
     // image to the shape's bounds, so they also key on the bounds.
-    const tiled = patternMode(paint) === "tile";
+    const tiled = paint.mode === "tile";
     const image = tiled ? imageId(asset, size) : "";
     const key = JSON.stringify([
-      patternMode(paint),
+      paint.mode,
       image || asset.source.data,
       size.width,
       size.height,
@@ -270,7 +269,7 @@ function patternToSvg(
   asset: DocumentAsset,
   bounds: Bounds
 ): string {
-  if (patternMode(paint) === "tile") {
+  if (paint.mode === "tile") {
     const transform = [
       `translate(${num(paint.offset.x)} ${num(paint.offset.y)})`,
       `rotate(${num((paint.rotation * 180) / Math.PI)})`,

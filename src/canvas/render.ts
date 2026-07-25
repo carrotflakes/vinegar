@@ -11,7 +11,6 @@ import { hasEffects } from "../model/effects";
 import { isIdentity } from "@/model/geometry/matrix";
 import {
   isSwatchRef,
-  patternMode,
   patternPlacement,
   resolvePaint,
   resolvePaintRef,
@@ -685,7 +684,7 @@ function resolvePattern(
   const img = asset ? getAssetImage(asset) : null;
   if (!img) return null;
   // The pattern lives in the shape's local space (transform already applied).
-  if (patternMode(paint) === "tile") {
+  if (paint.mode === "tile") {
     const pat = ctx.createPattern(img, "repeat");
     if (!pat) return null;
     pat.setTransform(

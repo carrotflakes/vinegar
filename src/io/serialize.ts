@@ -13,9 +13,9 @@ import {
 
 /**
  * Only the current version is accepted; there is no migration from older
- * formats — pre-v26 files fail to open with a clear message.
+ * formats — pre-v27 files fail to open with a clear message.
  */
-export const CURRENT_FILE_VERSION = 26 as const;
+export const CURRENT_FILE_VERSION = 27 as const;
 
 export interface VinegarFile {
   app: "vinegar";
@@ -73,8 +73,7 @@ const isPaint = (value: unknown): boolean => {
   if (value.type === "linear") return isStops(value.stops) && isNumber(value.angle);
   if (value.type === "radial") return isStops(value.stops);
   if (value.type === "pattern") {
-    const modeOk = value.mode === undefined ||
-      value.mode === "tile" || value.mode === "fill" ||
+    const modeOk = value.mode === "tile" || value.mode === "fill" ||
       value.mode === "fit" || value.mode === "stretch";
     return typeof value.assetId === "string" && modeOk &&
       isNumber(value.scale) && isNumber(value.rotation) && isPoint(value.offset) &&
@@ -82,8 +81,7 @@ const isPaint = (value: unknown): boolean => {
   }
   if (value.type === "swatch") {
     return typeof value.swatchId === "string" &&
-      (value.alpha === undefined ||
-        (isNumber(value.alpha) && value.alpha >= 0 && value.alpha <= 1));
+      isNumber(value.alpha) && value.alpha >= 0 && value.alpha <= 1;
   }
   return false;
 };

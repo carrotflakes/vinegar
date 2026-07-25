@@ -45,7 +45,6 @@ export type GradientPaint = LinearGradientPaint | RadialGradientPaint;
  * - `fill`: scale uniformly to cover the shape's bounds, cropping overflow.
  * - `fit`: scale uniformly to sit inside the bounds (margins stay transparent).
  * - `stretch`: scale non-uniformly to exactly fill the bounds.
- * Absent on legacy paints (pre-mode); treat a missing value as `tile`.
  */
 export type PatternMode = "tile" | "fill" | "fit" | "stretch";
 
@@ -62,8 +61,8 @@ export interface PatternPaint {
   type: "pattern";
   /** Id of a `kind: "image"` asset in `doc.assets`. */
   assetId: string;
-  /** Image-to-shape mapping; missing means `tile` (legacy). */
-  mode?: PatternMode;
+  /** Image-to-shape mapping. */
+  mode: PatternMode;
   /** tile: ×natural pixel size. fill/fit: zoom ×baseline. stretch: ignored. */
   scale: number;
   /** Rotation of the tiling lattice, radians (canvas convention, y-down).
@@ -73,11 +72,6 @@ export interface PatternPaint {
   offset: Vec2;
   /** 0..1 opacity of this paint, independent of the node's opacity. */
   alpha: number;
-}
-
-/** A pattern's effective mode, defaulting legacy (mode-less) paints to `tile`. */
-export function patternMode(paint: PatternPaint): PatternMode {
-  return paint.mode ?? "tile";
 }
 
 /**
@@ -93,11 +87,11 @@ export function patternPlacement(
 ): { x: number; y: number; width: number; height: number } {
   const { width: iw, height: ih } = natural;
   const { x: bx, y: by, width: bw, height: bh } = bounds;
-  if (patternMode(paint) === "stretch") {
+  if (paint.mode === "stretch") {
     return { x: bx, y: by, width: bw, height: bh };
   }
   const base =
-    patternMode(paint) === "fit"
+    paint.mode === "fit"
       ? Math.min(bw / iw, bh / ih)
       : Math.max(bw / iw, bh / ih); // fill
   const s = base * paint.scale;
@@ -121,8 +115,8 @@ export interface SwatchRefPaint {
   type: "swatch";
   /** Id of a Swatch in doc.swatches. */
   swatchId: string;
-  /** Optional per-use tint 0..1, multiplied onto the swatch's own alpha. */
-  alpha?: number;
+  /** Per-use tint 0..1, multiplied onto the swatch's own alpha (1 = as stored). */
+  alpha: number;
 }
 
 export type Paint = SolidPaint | GradientPaint | PatternPaint | SwatchRefPaint;
@@ -132,10 +126,8 @@ export type ConcretePaint = Exclude<Paint, SwatchRefPaint>;
 
 const clamp01 = (n: number) => Math.max(0, Math.min(1, n));
 
-export function swatchRef(swatchId: string, alpha?: number): SwatchRefPaint {
-  return alpha == null
-    ? { type: "swatch", swatchId }
-    : { type: "swatch", swatchId, alpha: clamp01(alpha) };
+export function swatchRef(swatchId: string, alpha = 1): SwatchRefPaint {
+  return { type: "swatch", swatchId, alpha: clamp01(alpha) };
 }
 
 /** Whether a paint is an (unresolved) reference to a document swatch. */
@@ -157,7 +149,7 @@ export function resolvePaintRef(
   const s = swatches[paint.swatchId];
   if (!s) return null; // dangling — treat as no paint
   const base = s.paint;
-  if (paint.alpha != null && base.type === "solid") {
+  if (base.type === "solid") {
     return { ...base, alpha: clamp01(base.alpha * paint.alpha) };
   }
   return base;

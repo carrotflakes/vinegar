@@ -14,7 +14,6 @@ import {
   linearGradient,
   paintToCss,
   pattern,
-  patternMode,
   radialGradient,
   resolvePaintRef,
   solid,
@@ -141,7 +140,7 @@ export default function ColorField({ label, value, onChange }: Props) {
   const imageAssets = Object.values(assets);
   const updatePattern = (patch: Partial<PatternPaint>) =>
     patternPaint && onChange({ ...patternPaint, ...patch });
-  const pMode = patternPaint ? patternMode(patternPaint) : "tile";
+  const pMode = patternPaint ? patternPaint.mode : "tile";
   // Point the pattern at an existing asset, keeping its other settings.
   const chooseAsset = (assetId: string) =>
     onChange(pattern(assetId, patternPaint ?? lastPattern.current ?? undefined));
