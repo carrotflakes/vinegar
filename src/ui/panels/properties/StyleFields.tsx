@@ -15,19 +15,16 @@ export function BlendModeField({
   onChange,
 }: {
   label: string;
-  value: BlendMode | undefined;
-  onChange: (value: BlendMode | undefined) => void;
+  value: BlendMode;
+  onChange: (value: BlendMode) => void;
 }) {
   return (
     <div className="field-inline">
       <label>{label}</label>
       <select
         className="blend-select"
-        value={value ?? "normal"}
-        onChange={(event) => {
-          const next = event.target.value as BlendMode;
-          onChange(next === "normal" ? undefined : next);
-        }}
+        value={value}
+        onChange={(event) => onChange(event.target.value as BlendMode)}
       >
         {BLEND_MODES.map((mode) => (
           <option key={mode} value={mode}>

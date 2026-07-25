@@ -77,10 +77,11 @@ function clippedDocument() {
   const doc = createEmptyDocument();
   doc.nodes.content = rect("content", 0, 0, 150, 150);
   doc.nodes.mask = {
+    ...SHAPE_BASE,
+    ...NODE_BASE,
+    fillRule: "nonzero",
     ...rect("mask", 0, 0, 0, 0, { fill: null, hidden: true }),
     type: "path",
-    ...SHAPE_BASE, fillRule: "nonzero",
-    ...NODE_BASE,
     fillRule: "evenodd",
     subpaths: [
       subpath([
@@ -193,10 +194,11 @@ test("a curved-path mask clips by its filled area (regression: flatten index lea
   doc.nodes.content = rect("content", 0, 0, 150, 150);
   const anchor = (x, y) => ({ p: { x, y }, hIn: null, hOut: null });
   doc.nodes.mask = {
+    ...SHAPE_BASE,
+    ...NODE_BASE,
+    fillRule: "nonzero",
     ...rect("mask", 0, 0, 0, 0, { fill: null }),
     type: "path",
-    ...SHAPE_BASE, fillRule: "nonzero",
-    ...NODE_BASE,
     subpaths: [
       {
         anchors: [anchor(20, 20), anchor(120, 20), anchor(120, 120), anchor(20, 120)],

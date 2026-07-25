@@ -98,18 +98,11 @@ export default function AppearanceSection({
         : {}),
     };
     if (hasSelection) {
-      // Shapes keep dash fields sparse: empty dash / zero offset are dropped.
       updateSelectedStyle({
         ...shared,
-        ...(patch.dash !== undefined
-          ? {
-              strokeDash: patch.dash.length
-                ? [...patch.dash]
-                : undefined,
-            }
-          : {}),
+        ...(patch.dash !== undefined ? { strokeDash: [...patch.dash] } : {}),
         ...(patch.dashOffset !== undefined
-          ? { strokeDashOffset: patch.dashOffset || undefined }
+          ? { strokeDashOffset: patch.dashOffset }
           : {}),
       });
       return;
