@@ -25,9 +25,11 @@ import {
 } from "../../io/exportImage";
 import { exportPng } from "../../io/exportPng";
 import { useEditor } from "../../store/editorStore";
+import { anyMenuOpen } from "../../store/menuStore";
 import { notify } from "../../store/toastStore";
 import "../Modal.css";
 import "./DialogForm.css";
+import ColorInput from "@/ui/controls/ColorInput";
 import ScrubbableNumber from "@/ui/controls/ScrubbableNumber";
 import "./ExportDialog.css";
 
@@ -141,11 +143,13 @@ export default function ExportDialog({ open, onClose }: Props) {
   useEffect(() => {
     if (!open) return;
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") {
-        event.preventDefault();
-        event.stopPropagation();
-        onClose();
-      }
+      if (event.key !== "Escape") return;
+      // An open popover (a colour picker, a menu) owns Escape; let it close
+      // first and keep the dialog up.
+      if (anyMenuOpen()) return;
+      event.preventDefault();
+      event.stopPropagation();
+      onClose();
     };
     window.addEventListener("keydown", onKeyDown, true);
     return () => window.removeEventListener("keydown", onKeyDown, true);
@@ -328,12 +332,11 @@ export default function ExportDialog({ open, onClose }: Props) {
               )}
             </div>
             <div className="pref-control export-size">
-              <input
-                type="color"
+              <ColorInput
                 className="export-swatch"
                 value={settings.background}
                 disabled={canTransparent && settings.transparent}
-                onChange={(e) => update({ background: e.target.value })}
+                onChange={(hex) => update({ background: hex })}
                 aria-label="Background color"
               />
               <button

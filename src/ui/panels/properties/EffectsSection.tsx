@@ -6,6 +6,7 @@ import type {
   SceneNode,
 } from "../../../model/types";
 import { useEditor } from "../../../store/editorStore";
+import ColorInput from "@/ui/controls/ColorInput";
 import ScrubbableNumber from "@/ui/controls/ScrubbableNumber";
 
 function effectLabel(type: Effect["type"]): string {
@@ -143,12 +144,10 @@ export default function EffectsSection({ node }: { node: SceneNode }) {
             <div className="field-inline">
               <label>Color</label>
               <div className="num-suffix">
-                <input
-                  type="color"
+                <ColorInput
                   value={effect.color}
-                  onChange={(event) =>
-                    replace(index, { ...effect, color: event.target.value })
-                  }
+                  title="Overlay color"
+                  onChange={(hex) => replace(index, { ...effect, color: hex })}
                 />
                 <ScrubbableNumber
                   className="num"
@@ -187,15 +186,10 @@ export default function EffectsSection({ node }: { node: SceneNode }) {
               <div className="field-inline">
                 <label>Color</label>
                 <div className="num-suffix">
-                  <input
-                    type="color"
+                  <ColorInput
                     value={(effect as DropShadowEffect).color}
-                    onChange={(event) =>
-                      replace(index, {
-                        ...effect,
-                        color: event.target.value,
-                      })
-                    }
+                    title="Shadow color"
+                    onChange={(hex) => replace(index, { ...effect, color: hex })}
                   />
                   <ScrubbableNumber
                     className="num"

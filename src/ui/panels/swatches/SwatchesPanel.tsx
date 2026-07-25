@@ -1,8 +1,9 @@
 import { useMemo, useState } from "react";
 import { LuPaintBucket, LuPlus, LuSquarePen, LuTrash2 } from "react-icons/lu";
-import { paintToCss, solid } from "../../../model/paint";
+import { solid } from "../../../model/paint";
 import { swatchUsageCounts } from "../../../model/swatches";
 import { useEditor } from "../../../store/editorStore";
+import ColorInput from "../../controls/ColorInput";
 import "../../Panel.css";
 import "../PanelList.css";
 import "./SwatchesPanel.css";
@@ -64,15 +65,18 @@ export default function SwatchesPanel() {
             const count = counts.get(id) ?? 0;
             return (
               <div key={id} className="swatch-row">
-                <label className="swatch-chip" title="Edit color" style={{ background: paintToCss(sw.paint) }}>
-                  <input
-                    type="color"
-                    value={sw.paint.color}
-                    onChange={(e) =>
-                      updateSwatch(id, { paint: solid(e.target.value, sw.paint.alpha) })
-                    }
-                  />
-                </label>
+                <ColorInput
+                  className="swatch-chip"
+                  title="Edit color"
+                  value={sw.paint.color}
+                  alpha={sw.paint.alpha}
+                  onChange={(hex) =>
+                    updateSwatch(id, { paint: solid(hex, sw.paint.alpha) })
+                  }
+                  onAlphaChange={(a) =>
+                    updateSwatch(id, { paint: solid(sw.paint.color, a) })
+                  }
+                />
                 {editing === id ? (
                   <input
                     className="layer-name-input"

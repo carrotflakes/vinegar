@@ -282,3 +282,5 @@ additional effects, or other feature expansion.
 - [ ] ドックのフローティング、マルチカラム化
 - [ ] Assetという名前は問題ないか。raster imageではないか。
 - [ ] subpath分割コマンド、統合コマンド
+- [x] color picker — own HSV picker (`ColorPicker`), reusable `ColorInput`
+  swatch replaces every `<input type="color">`

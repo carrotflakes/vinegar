@@ -44,12 +44,6 @@ globalStyle(".color-popover", {
   gap: "8px",
 });
 
-globalStyle(".color-pop-row", {
-  display: "flex",
-  alignItems: "center",
-  gap: "6px",
-});
-
 globalStyle(".paint-type-row", {
   display: "flex",
   gap: "4px",
@@ -152,14 +146,10 @@ globalStyle(".gradient-stop", {
   gap: "6px",
 });
 
+/* Sizes ColorInput down for the stop rows; its own checkerboard is kept. */
 globalStyle(".gradient-stop .stop-color", {
   width: "26px",
   height: "22px",
-  flex: "none",
-  padding: "0",
-  border: `1px solid ${vars.border}`,
-  borderRadius: "5px",
-  background: "none",
 });
 
 globalStyle(".gradient-stop input[type=\"range\"]", {
@@ -199,15 +189,6 @@ globalStyle(".color-pop-alpha .alpha-value", {
   minWidth: "34px",
   textAlign: "right",
   fontVariantNumeric: "tabular-nums",
-});
-
-globalStyle(".color-spectrum", {
-  width: "34px",
-  height: "28px",
-  padding: "0",
-  border: `1px solid ${vars.border}`,
-  borderRadius: "6px",
-  background: "none",
 });
 
 globalStyle(".hex-input", {

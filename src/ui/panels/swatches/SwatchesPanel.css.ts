@@ -17,7 +17,9 @@ globalStyle(".swatch-row .layer-name", {
   flex: "1",
 });
 
-globalStyle(".swatch-chip", {
+// Overrides ColorInput's default swatch size; kept specific so the rule wins
+// regardless of stylesheet order.
+globalStyle(".swatch-row .swatch-chip", {
   position: "relative",
   width: "20px",
   height: "20px",
@@ -28,15 +30,3 @@ globalStyle(".swatch-chip", {
   cursor: "pointer",
 });
 
-// The native colour input drives the chip but stays invisible over it.
-globalStyle(".swatch-chip input", {
-  position: "absolute",
-  inset: "0",
-  width: "100%",
-  height: "100%",
-  padding: "0",
-  margin: "0",
-  border: "none",
-  opacity: "0",
-  cursor: "pointer",
-});

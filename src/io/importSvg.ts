@@ -10,6 +10,7 @@ import {
   type GradientStop,
   type Paint,
 } from "../model/paint";
+import { rgbToHex } from "../model/color";
 import {
   BLEND_MODES,
   baseNodeDefaults,
@@ -81,11 +82,8 @@ function baseNode(item: paper.Item, fallbackName: string) {
 
 function colorHex(color: paper.Color): string {
   const rgb = color.type === "rgb" ? color : color.convert("rgb");
-  const byte = (value: number) =>
-    Math.round(clamp01(finite(value)) * 255)
-      .toString(16)
-      .padStart(2, "0");
-  return `#${byte(rgb.red)}${byte(rgb.green)}${byte(rgb.blue)}`;
+  const byte = (value: number) => clamp01(finite(value)) * 255;
+  return rgbToHex(byte(rgb.red), byte(rgb.green), byte(rgb.blue));
 }
 
 function gradientStopsOf(color: paper.Color): GradientStop[] {

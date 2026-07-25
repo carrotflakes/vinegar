@@ -5,7 +5,7 @@ import {
   shift,
   useFloating,
 } from "@floating-ui/react-dom";
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { LuLink2Off, LuPipette, LuPlus } from "react-icons/lu";
 import {
@@ -25,7 +25,11 @@ import {
   type PatternPaint,
 } from "@/model/paint";
 import { pickImageFiles } from "@/io/importImage";
+import ColorInput from "./ColorInput";
+import ColorPicker from "./ColorPicker";
+import HexInput from "./HexInput";
 import ScrubbableNumber from "./ScrubbableNumber";
+import { usePopoverDismiss } from "./usePopoverDismiss";
 import { useEditor } from "@/store/editorStore";
 import "@/ui/Panel.css";
 import "./ColorField.css";
@@ -47,16 +51,6 @@ const PATTERN_MODE_HINTS: Record<PatternMode, string> = {
 
 /** Round to one decimal for the offset number inputs. */
 const round1 = (n: number) => Math.round(n * 10) / 10;
-
-/** Normalize user-entered hex (#rgb or #rrggbb) to #rrggbb, or null if invalid. */
-function normalizeHex(input: string): string | null {
-  let v = input.trim().toLowerCase();
-  if (!v.startsWith("#")) v = "#" + v;
-  if (/^#[0-9a-f]{3}$/.test(v)) {
-    v = "#" + v.slice(1).split("").map((c) => c + c).join("");
-  }
-  return /^#[0-9a-f]{6}$/.test(v) ? v : null;
-}
 
 interface Props {
   label: string;
@@ -189,32 +183,16 @@ export default function ColorField({ label, value, onChange }: Props) {
     if (enabled && value?.type !== "pattern") addRecentColor(color);
   };
 
-  // Dismiss on outside press or Escape. Uses pointerdown (not mousedown):
-  // the canvas captures pointers on pointerdown, which suppresses the
-  // compatibility mouse events a mousedown listener would rely on.
-  useEffect(() => {
-    if (!open) return;
-    const onDown = (e: PointerEvent) => {
-      const t = e.target as Node;
-      if (rootRef.current?.contains(t)) return;
-      if (refs.floating.current?.contains(t)) return; // popover lives in a portal
-      close();
-    };
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") {
-        // Capture phase: closing the popover shouldn't also clear selection.
-        e.stopPropagation();
-        close();
-      }
-    };
-    window.addEventListener("pointerdown", onDown, true);
-    window.addEventListener("keydown", onKey, true);
-    return () => {
-      window.removeEventListener("pointerdown", onDown, true);
-      window.removeEventListener("keydown", onKey, true);
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, value]);
+  usePopoverDismiss(
+    open,
+    (t) =>
+      !!rootRef.current?.contains(t) ||
+      // The popover lives in a portal, and nested picker popovers (gradient
+      // stops) portal to <body> as well.
+      !!refs.floating.current?.contains(t) ||
+      (t instanceof Element && !!t.closest("[data-color-popover]")),
+    close
+  );
 
   return (
     <div className="field color-field" ref={rootRef}>
@@ -297,13 +275,12 @@ export default function ColorField({ label, value, onChange }: Props) {
 
           {kind === "solid" && (
             <>
-              <div className="color-pop-row">
-                <input
-                  type="color"
-                  className="color-spectrum"
-                  value={color}
-                  onChange={(e) => setColor(e.target.value)}
-                />
+              <ColorPicker
+                value={color}
+                onChange={setColor}
+                alpha={alpha}
+                onAlphaChange={setAlpha}
+              >
                 {hasEyeDropper && (
                   <button
                     className="icon-btn"
@@ -313,33 +290,9 @@ export default function ColorField({ label, value, onChange }: Props) {
                     <LuPipette aria-hidden />
                   </button>
                 )}
-                <input
-                  key={color}
-                  className="hex-input"
-                  defaultValue={color.replace("#", "")}
-                  placeholder="rrggbb"
-                  spellCheck={false}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") e.currentTarget.blur();
-                  }}
-                  onBlur={(e) => {
-                    const n = normalizeHex(e.target.value);
-                    if (n) setColor(n);
-                  }}
-                />
-              </div>
-
-              <div className="color-pop-alpha">
-                <span className="alpha-label">Alpha</span>
-                <input
-                  type="range"
-                  min={0}
-                  max={100}
-                  value={Math.round(alpha * 100)}
-                  onChange={(e) => setAlpha(Number(e.target.value) / 100)}
-                />
+                <HexInput value={color} onChange={setColor} />
                 <span className="alpha-value">{Math.round(alpha * 100)}%</span>
-              </div>
+              </ColorPicker>
 
               <div className="color-pop-label">
                 Saved
@@ -471,11 +424,13 @@ export default function ColorField({ label, value, onChange }: Props) {
               </div>
               {stops.map((s, i) => (
                 <div className="gradient-stop" key={i}>
-                  <input
-                    type="color"
+                  <ColorInput
                     className="stop-color"
                     value={s.color}
-                    onChange={(e) => updateStop(i, { color: e.target.value })}
+                    onChange={(hex) => updateStop(i, { color: hex })}
+                    alpha={s.alpha}
+                    onAlphaChange={(a) => updateStop(i, { alpha: a })}
+                    title="Stop color"
                   />
                   <input
                     type="range"
@@ -487,17 +442,6 @@ export default function ColorField({ label, value, onChange }: Props) {
                       updateStop(i, { offset: Number(e.target.value) / 100 })
                     }
                     title="Position"
-                  />
-                  <input
-                    type="range"
-                    className="stop-alpha"
-                    min={0}
-                    max={100}
-                    value={Math.round(s.alpha * 100)}
-                    onChange={(e) =>
-                      updateStop(i, { alpha: Number(e.target.value) / 100 })
-                    }
-                    title="Alpha"
                   />
                   <button
                     className="stop-remove"

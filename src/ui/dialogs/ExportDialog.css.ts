@@ -82,17 +82,8 @@ globalStyle(".export-dims.over", {
 
 /* --- Background swatch --------------------------------------------------- */
 
-globalStyle(".export-swatch", {
+/* Sizing only; the swatch itself is a ColorInput (checkerboard included). */
+globalStyle(".export-size .export-swatch", {
   width: "34px",
   height: "26px",
-  padding: "0",
-  border: `1px solid ${vars.border}`,
-  borderRadius: "6px",
-  cursor: "pointer",
-  background: "transparent",
-});
-
-globalStyle(".export-swatch:disabled", {
-  opacity: "0.4",
-  cursor: "not-allowed",
 });

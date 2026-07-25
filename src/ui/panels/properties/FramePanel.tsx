@@ -1,5 +1,6 @@
 import type { FrameNode } from "../../../model/types";
 import { useEditor } from "../../../store/editorStore";
+import ColorInput from "@/ui/controls/ColorInput";
 import ScrubbableNumber from "@/ui/controls/ScrubbableNumber";
 
 const FRAME_PRESETS: { label: string; w: number; h: number }[] = [
@@ -74,12 +75,10 @@ export default function FramePanel({ frame }: { frame: FrameNode }) {
         <div className="panel-title">Background</div>
         <div className="field">
           <div className="field-row">
-            <input
-              type="color"
+            <ColorInput
               value={transparent ? "#ffffff" : frame.background ?? "#ffffff"}
-              onChange={(event) =>
-                update(frame.id, { background: event.target.value })
-              }
+              title="Frame background"
+              onChange={(hex) => update(frame.id, { background: hex })}
             />
             <label className="checkbox-row">
               <input

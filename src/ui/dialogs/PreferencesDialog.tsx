@@ -11,6 +11,7 @@ import {
   type ThemePreference,
   type UiLocale,
 } from "../../preferences/model";
+import { anyMenuOpen } from "../../store/menuStore";
 import { usePreferences } from "../../store/preferencesStore";
 import { useDock } from "../dock/dockStore";
 import "../Modal.css";
@@ -99,6 +100,9 @@ export default function PreferencesDialog({ open, onClose }: Props) {
     if (!open) return;
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key !== "Escape") return;
+      // An open popover (a colour picker, a menu) owns Escape; let it close
+      // first and keep the dialog up.
+      if (anyMenuOpen()) return;
       event.preventDefault();
       event.stopPropagation();
       onClose();
