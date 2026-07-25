@@ -337,7 +337,7 @@ function validateTree(doc: Document): void {
     throw new Error("Scene contains unreachable nodes.");
   }
   // Top-level frame invariant: a frame lives only at the scene root, never
-  // inside a group, symbol, or another frame. See docs/artboard-frames.md.
+  // inside a group, symbol, or another frame. See docs/document-model.md.
   const rootSet = new Set(doc.rootIds);
   for (const node of Object.values(doc.nodes)) {
     if (node.type === "frame" && !rootSet.has(node.id)) {

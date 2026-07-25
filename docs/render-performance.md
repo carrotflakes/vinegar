@@ -7,8 +7,9 @@ render pipeline and a prioritized list of optimizations.
 
 - Single canvas; every store change schedules one rAF-coalesced full redraw
   (`scheduleDraw` in `src/canvas/CanvasView.tsx`).
-- `renderScene` (`src/canvas/render.ts`) repaints background, grid, artboards,
-  every node, preview and overlay chrome from scratch each frame.
+- `renderScene` (`src/canvas/render.ts`) repaints background, grid, every node
+  (frames included, as ordinary container nodes), preview and overlay chrome
+  from scratch each frame.
 - Partial optimizations already in place: a pool of full-canvas offscreen
   layers for compositing (opacity groups, effects, masks, outside strokes),
   and `cachedBrushEnvelope` for brush geometry.

@@ -28,7 +28,7 @@ ignored because their interaction boundary is no longer active.
 ## Immutability contract
 
 History entries retain changed values by shared reference. Code must not mutate
-a document, node, symbol, artboard, asset or nested value after it has been put
+a document, node, symbol, swatch, asset or nested value after it has been put
 in the editor Store. A change replaces every affected object or array on the
 path to the root while retaining references to unchanged values.
 
@@ -60,8 +60,9 @@ Callers may attach a short semantic `label` when committing a transaction or
 starting a pointer interaction. The History panel uses it when present and
 falls back to deriving a generic label from the patches for unlabeled entries.
 
-Map-like fields (`nodes`, `symbols`, `assets` and `extensions`) are patched by
-key. `rootIds` and `artboards` use a single changed-range splice. Small
+Map-like fields (`nodes`, `symbols`, `swatches`, `scripts`, `assets` and
+`extensions`) are patched by key. `rootIds` and `swatchOrder` use a single
+changed-range splice. Small
 `settings` and `metadata` objects are replaced atomically. Values are retained
 by immutable reference, so unchanged geometry, image data and extension values
 never enter an entry.
@@ -79,7 +80,7 @@ History preserves these observable rules:
 - an interaction stores only its start-to-finish change, never pointer-move
   intermediates;
 - cancel restores the interaction start without creating history;
-- undo and redo keep selection, symbol-edit and artboard state valid for the
+- undo and redo keep selection and symbol-edit state valid for the
   resulting document;
 - returning to the manually saved revision is clean, while recovered work
   remains dirty;

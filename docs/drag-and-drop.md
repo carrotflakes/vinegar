@@ -14,7 +14,7 @@ new draggable surface; do not reintroduce `draggable`.
 ## `useTouchDrag` — reordering and in-panel drags
 
 `src/ui/useTouchDrag.ts` drives drags whose drop targets live in the DOM: the
-Dock tabs, and the Layers, Artboards, Assets and Symbols rows. It returns a
+Dock tabs, and the Layers, Assets and Symbols rows. It returns a
 `startDrag(event, payload)` to wire to a draggable element's `onPointerDown`;
 the `payload` is threaded back to every callback so one hook instance serves a
 whole list.

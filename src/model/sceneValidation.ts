@@ -5,7 +5,7 @@ import type { Document } from "./types";
 /** Whether every hierarchy-owning node preserves its structural invariant. */
 export function hasValidSceneContainers(doc: Document): boolean {
   // Frames live only at the top level (never inside a group/symbol/other frame),
-  // so no node's childIds may reference a frame. See docs/artboard-frames.md.
+  // so no node's childIds may reference a frame. See docs/document-model.md.
   const framesOnlyAtRoot = Object.values(doc.nodes).every(
     (node) =>
       node.type !== "group" && node.type !== "frame" && node.type !== "compoundPath"

@@ -44,6 +44,17 @@ active tool, selection, viewport and undo history does not belong in the file.
   while contained; the compound's appearance paints the combined outline once
   using the even-odd rule. Scene picking remains atomic at the compound while
   the node tool can edit path children.
+- A frame is a container node with a content box: `width`/`height` in its own
+  local space (origin at `0,0`, i.e. an SVG-style viewport), a `background`
+  paint colour (`null` = transparent) and an optional `clip` flag that defaults
+  to on. Its `childIds` are authored in frame-local coordinates and move with
+  the frame through the ordinary transform chain — membership is structural, not
+  geometric.
+- **Frames live only at the top level.** A frame id appears in `rootIds` and
+  never in any node's `childIds` or inside a symbol definition, so frames never
+  nest and are never grouped, clipped or made into symbol content. Frame order
+  within `rootIds` is also the export order. Every reparent/group operation and
+  the file validator enforce this.
 - A group with `clip: true` uses its final (frontmost) child as a vector
   clipping mask and paints only the preceding children. The mask must be an
   area-bearing vector shape; its paint and visibility fields are preserved but
@@ -62,9 +73,10 @@ active tool, selection, viewport and undo history does not belong in the file.
   Typography is one style per node (`fontFamily`, size, weight, italic,
   line-height and alignment); line layout is derived from the text at render.
 
-The file wrapper version is deliberately strict. The current version is v22;
-v8–v21 files are migrated before validation. Changing the
-persisted shape of `Document` requires bumping `CURRENT_FILE_VERSION`.
+The file wrapper version is deliberately strict. The current version is v24 and
+it is the only accepted version — there is no migration chain, so older files
+are rejected outright. Changing the persisted shape of `Document` requires
+bumping `CURRENT_FILE_VERSION`.
 
 ## Coordinate policy
 

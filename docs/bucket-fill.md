@@ -102,8 +102,9 @@ Both live in the Bucket panel, persisted in `bucketStore`.
 - No hover preview of the region (would need an obstacle-union cache keyed on
   the document revision; the same cache would speed up rapid repeated fills).
 - Text bounds as ink are the line box, not glyph outlines.
-- Artboard edges do not bound a region; an open sketch on a board cannot be
-  filled to the board edge.
+- Frame edges do not bound a region; an open sketch inside a frame cannot be
+  filled to the frame edge (even when the frame clips — clipping affects
+  painting, not region detection).
 - Covers are assumed opaque: a semi-transparent cover lets ink beneath show
   through visually, but that ink still doesn't bound the fill (it is below
   the cover in paint order). Likewise, ink above the cover bounds the region

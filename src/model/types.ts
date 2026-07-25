@@ -383,7 +383,7 @@ export interface Group extends BaseNode {
  * Invariant: a frame lives only at the top-level scene scope. Its id appears
  * only in `Document.rootIds`; it is never a descendant of a group, symbol, or
  * another frame (so frames never nest). Enforced by the serializer and by every
- * reparent/group operation. See docs/artboard-frames.md.
+ * reparent/group operation. See docs/document-model.md.
  */
 export interface FrameNode extends BaseNode {
   type: "frame";
