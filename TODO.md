@@ -284,3 +284,4 @@ additional effects, or other feature expansion.
 - [ ] subpath分割コマンド、統合コマンド
 - [x] color picker — own HSV picker (`ColorPicker`), reusable `ColorInput`
   swatch replaces every `<input type="color">`
+- [ ] Layersパネル、キー操作でアイテム移動

@@ -1,4 +1,5 @@
-import type { PathAnchor, PathShape, PathSubpath, Vec2 } from "../types";
+import type { PathShape, PathSubpath, Vec2 } from "../types";
+import { setAnchorType } from "./anchorType";
 
 export interface CubicSegment {
   p0: Vec2;
@@ -177,8 +178,16 @@ export function insertAnchorOnSegment(
   const r1 = lerp(q1, q2, t);
   const s = lerp(r0, r1, t);
 
-  anchors[segIndex] = { ...cur, hOut: q0 };
-  anchors[(segIndex + 1) % n] = { ...next, hIn: q2 };
+  anchors[segIndex] = {
+    ...cur,
+    hOut: q0,
+    ...(cur.t === "symmetric" ? { t: "smooth" as const } : {}),
+  };
+  anchors[(segIndex + 1) % n] = {
+    ...next,
+    hIn: q2,
+    ...(next.t === "symmetric" ? { t: "smooth" as const } : {}),
+  };
   anchors.splice(segIndex + 1, 0, { p: s, hIn: r0, hOut: r1 });
   return withSubpath(shape, sub, { ...sp, anchors });
 }
@@ -202,7 +211,7 @@ function reverseSubpath(sp: PathSubpath): PathSubpath {
   const anchors = sp.anchors
     .slice()
     .reverse()
-    .map((a) => ({ p: a.p, hIn: a.hOut, hOut: a.hIn }));
+    .map((a) => ({ ...a, hIn: a.hOut, hOut: a.hIn }));
   return { ...sp, anchors };
 }
 
@@ -230,7 +239,10 @@ export function toggleAnchorSmooth(
   const anchors = sp.anchors.slice();
 
   if (a.hIn || a.hOut) {
-    anchors[index] = { ...a, hIn: null, hOut: null };
+    anchors[index] = setAnchorType(
+      { ...a, hIn: null, hOut: null },
+      "cusp"
+    );
     return withSubpath(shape, sub, { ...sp, anchors });
   }
 
@@ -239,25 +251,6 @@ export function toggleAnchorSmooth(
   const next =
     index < n - 1 ? sp.anchors[index + 1] : sp.closed ? sp.anchors[0] : null;
 
-  let smoothed: PathAnchor = a;
-  if (prev && next) {
-    const dx = next.p.x - prev.p.x;
-    const dy = next.p.y - prev.p.y;
-    const len = Math.hypot(dx, dy) || 1;
-    const ux = dx / len;
-    const uy = dy / len;
-    const inLen = Math.hypot(a.p.x - prev.p.x, a.p.y - prev.p.y) / 3;
-    const outLen = Math.hypot(next.p.x - a.p.x, next.p.y - a.p.y) / 3;
-    smoothed = {
-      ...a,
-      hIn: { x: a.p.x - ux * inLen, y: a.p.y - uy * inLen },
-      hOut: { x: a.p.x + ux * outLen, y: a.p.y + uy * outLen },
-    };
-  } else if (next) {
-    smoothed = { ...a, hOut: lerp(a.p, next.p, 1 / 3) };
-  } else if (prev) {
-    smoothed = { ...a, hIn: lerp(a.p, prev.p, 1 / 3) };
-  }
-  anchors[index] = smoothed;
+  anchors[index] = setAnchorType(a, "smooth", prev, next);
   return withSubpath(shape, sub, { ...sp, anchors });
 }

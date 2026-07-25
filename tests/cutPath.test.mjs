@@ -65,8 +65,10 @@ test("distributes handles so the cut preserves the drawn curve", () => {
   const right = out.subpaths[1].anchors[0];
   assert.deepEqual(left.hIn, { x: 8, y: -2 });
   assert.equal(left.hOut, null);
+  assert.equal(left.t, "cusp");
   assert.equal(right.hIn, null);
   assert.deepEqual(right.hOut, { x: 12, y: 2 });
+  assert.equal(right.t, "cusp");
 });
 
 test("cut then join round-trips back to the original contour", () => {
@@ -83,6 +85,7 @@ test("cut then join round-trips back to the original contour", () => {
   assert.deepEqual(junction.p, { x: 10, y: 0 });
   assert.deepEqual(junction.hIn, { x: 8, y: -2 });
   assert.deepEqual(junction.hOut, { x: 12, y: 2 });
+  assert.equal(junction.t, "cusp");
 });
 
 test("opens a closed subpath at one anchor without splitting it", () => {

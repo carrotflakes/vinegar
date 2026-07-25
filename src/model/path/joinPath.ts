@@ -28,6 +28,7 @@ function mid(a: Vec2, b: Vec2): Vec2 {
 /** Bake a matrix into an anchor's point and both handles. */
 function transformAnchor(m: Matrix, a: PathAnchor): PathAnchor {
   return {
+    ...a,
     p: applyMatrix(m, a.p),
     hIn: a.hIn ? applyMatrix(m, a.hIn) : null,
     hOut: a.hOut ? applyMatrix(m, a.hOut) : null,
@@ -36,7 +37,7 @@ function transformAnchor(m: Matrix, a: PathAnchor): PathAnchor {
 
 /** Reverse a run of anchors: flip order and swap each anchor's handles. */
 function reverseAnchors(anchors: PathAnchor[]): PathAnchor[] {
-  return anchors.map((a) => ({ p: a.p, hIn: a.hOut, hOut: a.hIn })).reverse();
+  return anchors.map((a) => ({ ...a, hIn: a.hOut, hOut: a.hIn })).reverse();
 }
 
 /** Whether a path shape carries any open subpath that could be joined. */
@@ -103,6 +104,7 @@ export function joinShapes(
           p: mid(first[first.length - 1].p, second[0].p),
           hIn: first[first.length - 1].hIn,
           hOut: second[0].hOut,
+          t: "cusp",
         };
         open[i] = [...first.slice(0, -1), junction, ...second.slice(1)];
         open.splice(j, 1);
@@ -125,6 +127,7 @@ export function joinShapes(
         p: mid(head.p, tail.p),
         hIn: tail.hIn,
         hOut: head.hOut,
+        t: "cusp",
       };
       welded = true;
       return { anchors: [merged, ...anchors.slice(1, -1)], closed: true };

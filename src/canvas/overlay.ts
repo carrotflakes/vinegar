@@ -1,5 +1,6 @@
 import type { Guide, Spacing } from "@/model/geometry/snap";
 import { applyMatrix } from "@/model/geometry/matrix";
+import { effectiveAnchorType } from "@/model/path/anchorType";
 import type { Bounds, PathShape, Matrix, Vec2 } from "../model/types";
 import { worldToScreen, type Viewport } from "@/model/geometry/viewport";
 import { HANDLE_IDS, HANDLE_SIZE } from "./handles";
@@ -360,12 +361,15 @@ export function drawNodes(
     }
   }
 
-  // Anchor squares.
+  // Anchor markers: cusp = square, smooth = circle, symmetric = diamond.
   ctx.lineWidth = 1.5;
   subpaths.forEach((subpath, sub) => {
     subpath.anchors.forEach((a, i) => {
       const sp = toS(a.p);
-      square(ctx, sp, anchorSize);
+      const type = effectiveAnchorType(a);
+      if (type === "smooth") dot(ctx, sp, anchorSize / 2);
+      else if (type === "symmetric") diamond(ctx, sp, anchorSize);
+      else square(ctx, sp, anchorSize);
       ctx.fillStyle = selected.has(`${sub}:${i}`) ? ACCENT : "#ffffff";
       ctx.fill();
       ctx.strokeStyle = ACCENT;

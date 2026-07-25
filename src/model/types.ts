@@ -276,10 +276,14 @@ export interface LineShape extends BaseShape {
  * points in the shape's local space. A `null` handle
  * means that side is a sharp corner.
  */
+export type AnchorType = "cusp" | "smooth" | "symmetric";
+
 export interface PathAnchor {
   p: Vec2;
   hIn: Vec2 | null;
   hOut: Vec2 | null;
+  /** Handle-linkage rule. Absent means it is derived from the handles. */
+  t?: AnchorType;
 }
 
 /** One contour of a path shape. */
@@ -341,6 +345,8 @@ export interface BrushAnchor {
   p: Vec2;
   hIn: Vec2 | null;
   hOut: Vec2 | null;
+  /** Handle-linkage rule. Absent means it is derived from the handles. */
+  t?: AnchorType;
   /** Width multiplier at this anchor, `>= 0`; `1` = the full `strokeWidth`. */
   w: number;
 }

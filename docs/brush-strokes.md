@@ -48,6 +48,8 @@ export interface BrushAnchor {
   p: Vec2;
   hIn: Vec2 | null;
   hOut: Vec2 | null;
+  /** Optional cusp/smooth/symmetric linkage; absent means geometry-derived. */
+  t?: AnchorType;
   /** Width multiplier at this anchor, ≥ 0; 1 = full strokeWidth. */
   w: number;
 }
@@ -60,8 +62,9 @@ export interface BrushShape extends BaseShape {
 ```
 
 - Geometry reuses the `path` anchor convention (absolute handles in local
-  space, `null` = corner), so `subpathSegments`-style code, the node tool and
-  Catmull-Rom fitting transfer directly.
+  space, `null` = corner, optional `t` = handle linkage), so
+  `subpathSegments`-style code, the node tool and Catmull-Rom fitting transfer
+  directly.
 - Effective width at an anchor is `strokeWidth × w`; between anchors `w`
   interpolates linearly in the segment parameter `t`. `w` may exceed 1 (future
   width-tool edits) but capture clamps pressure to 0..1.

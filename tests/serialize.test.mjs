@@ -140,6 +140,45 @@ test("Shift+number shortcuts match their physical digit keys", () => {
   assert.equal(match?.cmd.id, "view.fitAll");
 });
 
+test("tagged and legacy untagged anchors both survive save and load", () => {
+  const doc = createEmptyDocument();
+  doc.nodes.curve = {
+    id: "curve",
+    name: "Curve",
+    type: "path",
+    ...SHAPE_BASE,
+    fillRule: "nonzero",
+    ...NODE_BASE,
+    subpaths: [{
+      closed: false,
+      anchors: [
+        {
+          p: { x: 0, y: 0 },
+          hIn: { x: -5, y: 0 },
+          hOut: { x: 10, y: 0 },
+          t: "smooth",
+        },
+        {
+          p: { x: 20, y: 0 },
+          hIn: null,
+          hOut: null,
+        },
+      ],
+    }],
+    transform: [1, 0, 0, 1, 0, 0],
+  };
+  doc.rootIds = ["curve"];
+
+  const loaded = parseDocument(serializeDocument(doc));
+  assert.equal(loaded.nodes.curve.subpaths[0].anchors[0].t, "smooth");
+  assert.equal("t" in loaded.nodes.curve.subpaths[0].anchors[1], false);
+
+  const legacy = JSON.parse(serializeDocument(doc));
+  delete legacy.document.nodes.curve.subpaths[0].anchors[0].t;
+  const loadedLegacy = parseDocument(JSON.stringify(legacy));
+  assert.equal("t" in loadedLegacy.nodes.curve.subpaths[0].anchors[0], false);
+});
+
 test("a nested v8 scene tree survives save/load and remains usable", () => {
   const doc = createEmptyDocument();
   doc.nodes.empty = {

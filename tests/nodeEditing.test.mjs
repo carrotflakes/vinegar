@@ -4,14 +4,27 @@ import { createServer } from "vite";
 import { NODE_BASE, SHAPE_BASE } from "./nodeBase.mjs";
 
 let server;
+let deriveAnchorType;
+let effectiveAnchorType;
 let moveAnchors;
+let moveHandle;
 let onNodeDown;
 let onNodeMove;
+let resizeShapeToBounds;
+let reversePath;
+let setAnchorType;
 let useEditor;
 
 before(async () => {
   server = await createServer({ server: { middlewareMode: true } });
-  ({ moveAnchors } = await server.ssrLoadModule("/src/canvas/nodes.ts"));
+  ({ moveAnchors, moveHandle } =
+    await server.ssrLoadModule("/src/canvas/nodes.ts"));
+  ({ deriveAnchorType, effectiveAnchorType, setAnchorType } =
+    await server.ssrLoadModule("/src/model/path/anchorType.ts"));
+  ({ reversePath } =
+    await server.ssrLoadModule("/src/model/path/path.ts"));
+  ({ resizeShapeToBounds } =
+    await server.ssrLoadModule("/src/model/geometry/transforms.ts"));
   ({ onNodeDown, onNodeMove } =
     await server.ssrLoadModule("/src/canvas/tools/nodeTool.ts"));
   ({ useEditor } =
@@ -55,6 +68,156 @@ const pathShape = () => ({
   opacity: 1,
   transform: [1, 0, 0, 1, 0, 0],
   transformOrigin: null,
+});
+
+test("derives anchor types from geometry at any scale", () => {
+  assert.equal(deriveAnchorType(anchor(0, 0)), "cusp");
+  assert.equal(
+    deriveAnchorType(anchor(0, 0, {
+      hIn: { x: -10, y: 0 },
+      hOut: { x: 10, y: 0 },
+    })),
+    "symmetric"
+  );
+  assert.equal(
+    deriveAnchorType(anchor(0, 0, {
+      hIn: { x: -5, y: 0 },
+      hOut: { x: 10, y: 0 },
+    })),
+    "smooth"
+  );
+  assert.equal(
+    deriveAnchorType(anchor(0, 0, {
+      hIn: { x: -5, y: 0 },
+      hOut: { x: 0, y: 10 },
+    })),
+    "cusp"
+  );
+  for (const scale of [1e-9, 1e9]) {
+    assert.equal(
+      deriveAnchorType(anchor(0, 0, {
+        hIn: { x: -5 * scale, y: 0 },
+        hOut: { x: 10 * scale, y: 0 },
+      })),
+      "smooth"
+    );
+  }
+});
+
+test("smooth handle drags rotate the opposite handle without changing its length", () => {
+  const shape = pathShape();
+  shape.subpaths[0].anchors[0] = anchor(0, 0, {
+    hIn: { x: -5, y: 0 },
+    hOut: { x: 10, y: 0 },
+  });
+
+  const moved = moveHandle(shape, 0, 0, "out", { x: 0, y: 20 }, false);
+  const movedAnchor = moved.subpaths[0].anchors[0];
+  assert.deepEqual(movedAnchor.hOut, { x: 0, y: 20 });
+  assert.deepEqual(movedAnchor.hIn, { x: 0, y: -5 });
+  assert.equal(effectiveAnchorType(movedAnchor), "smooth");
+});
+
+test("breaking handle symmetry commits a cusp and keeps the opposite handle", () => {
+  const shape = pathShape();
+  shape.subpaths[0].anchors[0] = anchor(0, 0, {
+    hIn: { x: -10, y: 0 },
+    hOut: { x: 10, y: 0 },
+  });
+
+  const moved = moveHandle(shape, 0, 0, "out", { x: 0, y: 20 }, true);
+  const movedAnchor = moved.subpaths[0].anchors[0];
+  assert.deepEqual(movedAnchor.hIn, { x: -10, y: 0 });
+  assert.deepEqual(movedAnchor.hOut, { x: 0, y: 20 });
+  assert.equal(movedAnchor.t, "cusp");
+});
+
+test("a degenerate smooth drag leaves the opposite handle finite and unchanged", () => {
+  const shape = pathShape();
+  shape.subpaths[0].anchors[0] = anchor(0, 0, {
+    hIn: { x: -5, y: 0 },
+    hOut: { x: 10, y: 0 },
+    t: "smooth",
+  });
+
+  const moved = moveHandle(shape, 0, 0, "out", { x: 0, y: 0 }, false);
+  assert.deepEqual(moved.subpaths[0].anchors[0].hIn, { x: -5, y: 0 });
+  assert.deepEqual(moved.subpaths[0].anchors[0].hOut, { x: 0, y: 0 });
+});
+
+test("anchor type normalization and path reversal preserve linkage", () => {
+  const smooth = setAnchorType(
+    anchor(0, 0, {
+      hIn: { x: -5, y: 0 },
+      hOut: { x: 10, y: 0 },
+    }),
+    "smooth"
+  );
+  const symmetric = setAnchorType(smooth, "symmetric");
+  const roundTripped = setAnchorType(symmetric, "smooth");
+  assert.equal(effectiveAnchorType(roundTripped), "smooth");
+  assert.ok(Math.abs(
+    roundTripped.hIn.x * roundTripped.hOut.y -
+      roundTripped.hIn.y * roundTripped.hOut.x
+  ) < 1e-9);
+
+  const shape = pathShape();
+  shape.subpaths[0].anchors[0] = roundTripped;
+  const reversed = reversePath(shape);
+  const reversedAnchor = reversed.subpaths[0].anchors.at(-1);
+  assert.equal(reversedAnchor.t, "smooth");
+  assert.deepEqual(reversedAnchor.hIn, roundTripped.hOut);
+  assert.deepEqual(reversedAnchor.hOut, roundTripped.hIn);
+});
+
+test("changing the selected node type normalizes every target in one undo step", () => {
+  useEditor.getState().addShape(pathShape());
+  useEditor.getState().setEditNodes([
+    { shapeId: "curve", sub: 0, index: 1 },
+    { shapeId: "curve", sub: 0, index: 2 },
+  ]);
+  const beforeHistory = useEditor.getState().history.past.length;
+
+  useEditor.getState().setEditNodeType("smooth");
+
+  const anchors = useEditor.getState().doc.nodes.curve.subpaths[0].anchors;
+  assert.equal(anchors[1].t, "smooth");
+  assert.ok(anchors[1].hIn);
+  assert.ok(anchors[1].hOut);
+  assert.equal(anchors[2].t, "smooth");
+  assert.ok(anchors[2].hIn);
+  assert.equal(anchors[2].hOut, null);
+  assert.equal(useEditor.getState().history.past.length, beforeHistory + 1);
+
+  // Re-applying the type anchors is a no-op and must not pollute the history.
+  const settled = useEditor.getState().doc;
+  useEditor.getState().setEditNodeType("smooth");
+  assert.equal(useEditor.getState().doc, settled);
+  assert.equal(useEditor.getState().history.past.length, beforeHistory + 1);
+});
+
+test("non-uniform resizing demotes tagged symmetric anchors to smooth", () => {
+  const shape = pathShape();
+  shape.subpaths[0].anchors[0] = anchor(0, 0, {
+    hIn: { x: -5, y: 0 },
+    hOut: { x: 5, y: 0 },
+    t: "symmetric",
+  });
+  const from = { x: 0, y: 0, width: 20, height: 20 };
+
+  const uniform = resizeShapeToBounds(
+    shape,
+    from,
+    { x: 0, y: 0, width: 40, height: 40 }
+  );
+  assert.equal(uniform.subpaths[0].anchors[0].t, "symmetric");
+
+  const nonUniform = resizeShapeToBounds(
+    shape,
+    from,
+    { x: 0, y: 0, width: 40, height: 20 }
+  );
+  assert.equal(nonUniform.subpaths[0].anchors[0].t, "smooth");
 });
 
 const context = () => ({

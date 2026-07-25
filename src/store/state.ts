@@ -10,6 +10,7 @@ import type { ScriptMeta } from "@/model/generators/generators";
 import type { Paint, SolidPaint } from "../model/paint";
 import type {
   BaseNode,
+  AnchorType,
   BlendMode,
   Document,
   Effect,
@@ -266,6 +267,8 @@ export interface ShapeActions {
   /** Refresh persisted text bounds after browser fonts become available. */
   remeasureTextShapes: () => void;
   toggleNodeSmooth: (shapeId: string, sub: number, index: number) => void;
+  /** Apply one handle-linkage type to every selected path/brush anchor. */
+  setEditNodeType: (type: AnchorType) => void;
   /**
    * Retune the width of the selected brush anchors. `factor` scales them (the
    * taper is preserved); `width` levels them all to one multiplier. Anchors on

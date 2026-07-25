@@ -50,6 +50,7 @@ test("welds two open subpaths that share an endpoint into one contour", () => {
   assert.equal(out.subpaths.length, 1);
   assert.equal(out.subpaths[0].closed, false);
   assert.equal(out.subpaths[0].anchors.length, 3);
+  assert.equal(out.subpaths[0].anchors[1].t, "cusp");
   // Baked into parent space with an identity transform.
   assert.deepEqual(out.transform, [1, 0, 0, 1, 0, 0]);
   assert.deepEqual(out.fill, shape.fill);
@@ -66,6 +67,7 @@ test("closes a subpath when the welded ends meet back at the start", () => {
   assert.equal(out.subpaths.length, 1);
   assert.equal(out.subpaths[0].closed, true);
   assert.equal(out.subpaths[0].anchors.length, 3);
+  assert.equal(out.subpaths[0].anchors[0].t, "cusp");
 });
 
 test("joins two separate shapes across their transforms", () => {

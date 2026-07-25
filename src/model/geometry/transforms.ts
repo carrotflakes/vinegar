@@ -60,6 +60,7 @@ export function transformShape(shape: Shape, fn: (p: Vec2) => Vec2): Shape {
         subpaths: shape.subpaths.map((sp) => ({
           ...sp,
           anchors: sp.anchors.map((an) => ({
+            ...an,
             p: fn(an.p),
             hIn: an.hIn ? fn(an.hIn) : null,
             hOut: an.hOut ? fn(an.hOut) : null,
@@ -74,10 +75,10 @@ export function transformShape(shape: Shape, fn: (p: Vec2) => Vec2): Shape {
       return {
         ...shape,
         anchors: shape.anchors.map((an) => ({
+          ...an,
           p: fn(an.p),
           hIn: an.hIn ? fn(an.hIn) : null,
           hOut: an.hOut ? fn(an.hOut) : null,
-          w: an.w,
         })),
         transformOrigin,
       };
@@ -125,8 +126,32 @@ export function resizeShapeToBounds(
   }
   const sx = from.width === 0 ? 1 : to.width / from.width;
   const sy = from.height === 0 ? 1 : to.height / from.height;
-  return transformShape(shape, (p) => ({
+  const resized = transformShape(shape, (p) => ({
     x: to.x + (p.x - from.x) * sx,
     y: to.y + (p.y - from.y) * sy,
   }));
+  const scaleMagnitude = Math.max(Math.abs(sx), Math.abs(sy), 1);
+  const nonUniform =
+    Math.abs(Math.abs(sx) - Math.abs(sy)) > 1e-9 * scaleMagnitude;
+  if (!nonUniform) return resized;
+  if (resized.type === "path") {
+    return {
+      ...resized,
+      subpaths: resized.subpaths.map((sp) => ({
+        ...sp,
+        anchors: sp.anchors.map((anchor) =>
+          anchor.t === "symmetric" ? { ...anchor, t: "smooth" } : anchor
+        ),
+      })),
+    };
+  }
+  if (resized.type === "brush") {
+    return {
+      ...resized,
+      anchors: resized.anchors.map((anchor) =>
+        anchor.t === "symmetric" ? { ...anchor, t: "smooth" } : anchor
+      ),
+    };
+  }
+  return resized;
 }

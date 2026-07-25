@@ -62,6 +62,7 @@ function transformSubpath(subpath: PathSubpath, matrix: Matrix): PathSubpath {
   return {
     closed: subpath.closed,
     anchors: subpath.anchors.map((anchor) => ({
+      ...anchor,
       p: applyMatrix(matrix, anchor.p),
       hIn: anchor.hIn ? applyMatrix(matrix, anchor.hIn) : null,
       hOut: anchor.hOut ? applyMatrix(matrix, anchor.hOut) : null,

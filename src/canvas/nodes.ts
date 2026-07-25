@@ -1,4 +1,8 @@
 import { withSubpath } from "@/model/path/path";
+import {
+  deriveAnchorType,
+  effectiveAnchorType,
+} from "@/model/path/anchorType";
 import { applyMatrix, matrixScale } from "@/model/geometry/matrix";
 import {
   brushAnchorNormal,
@@ -220,8 +224,8 @@ export function moveAnchors(
 }
 
 /**
- * Move one control handle to `world`. When `symmetric` and the opposite handle
- * exists, mirror it across the anchor to keep the node smooth.
+ * Move one control handle according to the anchor's effective linkage type.
+ * Alt-style breaking writes a persistent cusp tag.
  */
 export function moveHandle(
   shape: NodeEditShape,
@@ -229,18 +233,48 @@ export function moveHandle(
   index: number,
   part: "in" | "out",
   world: Vec2,
-  symmetric: boolean
+  breakSymmetry: boolean
 ): NodeEditShape {
   const anchorsOf = shape.type === "brush" ? shape.anchors : shape.subpaths[sub]?.anchors;
   const a = anchorsOf?.[index];
   if (!a || !anchorsOf) return shape;
-  const mirror: Vec2 = { x: 2 * a.p.x - world.x, y: 2 * a.p.y - world.y };
+  const type = breakSymmetry ? "cusp" : effectiveAnchorType(a);
+  const dx = world.x - a.p.x;
+  const dy = world.y - a.p.y;
+  const draggedLength = Math.hypot(dx, dy);
+  const mirror: Vec2 = { x: a.p.x - dx, y: a.p.y - dy };
   const anchors = anchorsOf.slice();
+  let moved = { ...a };
   if (part === "out") {
-    anchors[index] = { ...a, hOut: world, hIn: symmetric && a.hIn ? mirror : a.hIn };
+    let hIn = a.hIn;
+    if (type === "symmetric" && hIn) {
+      hIn = mirror;
+    } else if (type === "smooth" && hIn && draggedLength > 0) {
+      const oppositeLength = Math.hypot(hIn.x - a.p.x, hIn.y - a.p.y);
+      hIn = {
+        x: a.p.x - (dx / draggedLength) * oppositeLength,
+        y: a.p.y - (dy / draggedLength) * oppositeLength,
+      };
+    }
+    moved = { ...a, hOut: world, hIn };
   } else {
-    anchors[index] = { ...a, hIn: world, hOut: symmetric && a.hOut ? mirror : a.hOut };
+    let hOut = a.hOut;
+    if (type === "symmetric" && hOut) {
+      hOut = mirror;
+    } else if (type === "smooth" && hOut && draggedLength > 0) {
+      const oppositeLength = Math.hypot(hOut.x - a.p.x, hOut.y - a.p.y);
+      hOut = {
+        x: a.p.x - (dx / draggedLength) * oppositeLength,
+        y: a.p.y - (dy / draggedLength) * oppositeLength,
+      };
+    }
+    moved = { ...a, hIn: world, hOut };
   }
+  // `moved` already carries `a.t`; only pin a tag when the drag would otherwise
+  // change the linkage the geometry derives to.
+  if (breakSymmetry) moved = { ...moved, t: "cusp" };
+  else if (!a.t && deriveAnchorType(moved) !== type) moved = { ...moved, t: type };
+  anchors[index] = moved;
   if (shape.type === "brush") return { ...shape, anchors: anchors as BrushShape["anchors"] };
   return withSubpath(shape, sub, { ...shape.subpaths[sub], anchors: anchors as PathShape["subpaths"][number]["anchors"] });
 }

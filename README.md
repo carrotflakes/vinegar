@@ -32,7 +32,7 @@ pnpm test       # node --test (model, store, persistence, import and recovery)
   Clicking a filled shape or image treats it as the region's background: the fill spreads up to its edges and the strokes drawn on top, and is inserted directly above it — paint a background, draw line art, fill in between.
   An optional **"Fill to stroke centers"** mode stops fills at stroke/brush centerlines so adjacent fills stay seamless if the line art changes later (see [docs/bucket-fill.md](docs/bucket-fill.md))
 - Pen tool: click for corner anchors, click-drag for smooth anchors; click the first anchor to close, or Enter / double-click to finish, Esc to cancel; click an endpoint of an existing open path to continue it
-- Node editing: drag anchors and control handles (Alt to break handle symmetry), click a segment to insert an anchor (curve-preserving), double-click an anchor to toggle smooth ↔ corner, Delete to remove an anchor; Brush anchors use the same editing model; path children remain node-editable inside a compound path; open/close a path via the properties panel
+- Node editing: cusp, smooth, and symmetric anchor types with distinct on-canvas markers; drag anchors and control handles (Alt breaks the linkage into a cusp), click a segment to insert an anchor (curve-preserving), double-click an anchor to toggle smooth ↔ corner (handles removed), Delete to remove an anchor; Brush anchors use the same editing model; path children remain node-editable inside a compound path; open/close a path via the properties panel
 - Move, resize (8 handles), **rotate** (rotation handle; Shift snaps to 15°) — all driven by per-node **affine matrices**, so rotated/nested resize is exact
 - Rectangles support one shared **corner radius** for all four corners, editable numerically or with an on-canvas control and preserved across export/geometry operations
 - **Movable rotation centers** (transform origin) per shape and group; a transient pivot for multi-selection
@@ -98,7 +98,7 @@ Every node carries a Canvas/SVG-compatible affine `transform` into its parent sp
 Frames are ordinary nodes in that tree (top-level only), so there is no separate artboard list.
 The document also holds `symbols`, global-color `swatches` (with a `swatchOrder`), `assets` (embedded raster images), `settings` (unit, dpi, grid size), document-local generator `scripts`, `metadata` and namespaced `extensions`.
 The file wrapper is versioned — the current version is v27. There is no migration chain: older files are rejected with a clear message.
-The model has **no optional fields**: every node writes its defaults explicitly (`blendMode: "normal"`, `effects: []`, `strokeDash: []`, `cornerRadius: 0`, …) and uses `null` for genuinely absent values, so `undefined` never stands in for a default.
+The model generally has **no optional fields**: every node writes its defaults explicitly (`blendMode: "normal"`, `effects: []`, `strokeDash: []`, `cornerRadius: 0`, …) and uses `null` for genuinely absent values. The deliberate exception is an anchor's optional linkage tag `t`; old and generated geometry can omit it because cusp/smooth/symmetric linkage is derived from the handles.
 See [docs/document-model.md](docs/document-model.md).
 
 ## Project layout

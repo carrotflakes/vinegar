@@ -1,6 +1,7 @@
 // Creating and mutating individual shapes (geometry, style, path anchors).
 
 import { toggleAnchorSmooth } from "@/model/path/path";
+import { setAnchorType } from "@/model/path/anchorType";
 import { cutPathAtNodes } from "@/model/path/cutPath";
 import { PATH_OP_LABEL, pathOpShape } from "@/model/path/pathOps";
 import { buildGenerator, compileGenerator, type CompileResult } from "@/model/generators/generatorClient";
@@ -18,7 +19,7 @@ import { applyWorldTransformToNode, boundsTransform, IDENTITY, invertMatrix, mul
 import { childIdsOf, descendantShapeIds, isGroup, isInstance, isNodeHidden, isNodeLocked, isShape, parentIdOf, referencedAssetIds, scopeLeafIds, scopeRootGroupId, selectionRoots, withChildIds } from "../model/scene";
 import { clampRectCornerRadius } from "../model/roundedRect";
 import { resizeShapeToBounds, translateShape } from "@/model/geometry/transforms";
-import { baseNodeDefaults, baseShapeDefaults, makeId, type PathShape, type Bounds, type ImageShape, type SceneNode, type Shape, type Vec2 } from "../model/types";
+import { baseNodeDefaults, baseShapeDefaults, makeId, type AnchorType, type PathShape, type Bounds, type ImageShape, type SceneNode, type Shape, type Vec2 } from "../model/types";
 import { importImageFile, importImageFiles, isImageFile } from "../io/importImage";
 import { notify } from "./toastStore";
 import { measureTextShape } from "../canvas/textLayout";
@@ -265,6 +266,67 @@ export function createShapeActions({ set, get, transact, replaceDocumentWithoutH
           : null;
       if (!next) return;
       transact({ ...doc, nodes: { ...doc.nodes, [id]: next } }, { label: "Toggle smooth node" });
+    },
+    setEditNodeType: (type: AnchorType) => {
+      const { doc, editNodes } = get();
+      const nodes = { ...doc.nodes };
+      let changed = false;
+      for (const [shapeId, targets] of groupEditNodesByShape(editNodes)) {
+        const shape = doc.nodes[shapeId];
+        if (!isShape(shape)) continue;
+        if (shape.type === "brush") {
+          const targetIndices = new Set(
+            targets.filter((target) => target.sub === 0).map((target) => target.index)
+          );
+          const anchors = shape.anchors.map((anchor, index) => {
+            if (!targetIndices.has(index)) return anchor;
+            return setAnchorType(
+              anchor,
+              type,
+              shape.anchors[index - 1] ?? null,
+              shape.anchors[index + 1] ?? null
+            );
+          });
+          if (anchors.every((anchor, index) => anchor === shape.anchors[index])) continue;
+          nodes[shapeId] = { ...shape, anchors };
+          changed = true;
+          continue;
+        }
+        if (shape.type !== "path") continue;
+        const bySub = new Map<number, Set<number>>();
+        for (const target of targets) {
+          const indices = bySub.get(target.sub) ?? new Set<number>();
+          indices.add(target.index);
+          bySub.set(target.sub, indices);
+        }
+        const subpaths = shape.subpaths.map((subpath, sub) => {
+          const indices = bySub.get(sub);
+          if (!indices) return subpath;
+          const count = subpath.anchors.length;
+          const anchors = subpath.anchors.map((anchor, index) => {
+            if (!indices.has(index)) return anchor;
+            const previous = index > 0
+              ? subpath.anchors[index - 1]
+              : subpath.closed
+                ? subpath.anchors[count - 1] ?? null
+                : null;
+            const next = index < count - 1
+              ? subpath.anchors[index + 1]
+              : subpath.closed
+                ? subpath.anchors[0] ?? null
+                : null;
+            return setAnchorType(anchor, type, previous, next);
+          });
+          return anchors.every((anchor, index) => anchor === subpath.anchors[index])
+            ? subpath
+            : { ...subpath, anchors };
+        });
+        if (subpaths.every((subpath, sub) => subpath === shape.subpaths[sub])) continue;
+        nodes[shapeId] = { ...shape, subpaths, generator: null };
+        changed = true;
+      }
+      if (!changed) return;
+      transact({ ...doc, nodes }, { label: "Change anchor type" });
     },
     setEditNodeWidths: (change) => {
       const { doc, editNodes } = get();

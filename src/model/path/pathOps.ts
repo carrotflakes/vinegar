@@ -62,7 +62,7 @@ function pathToSubpath(path: paper.Path, closed: boolean): PathSubpath {
 /** Flip a subpath's direction: reverse the anchor order and swap each handle. */
 function reverseSubpath(sp: PathSubpath): PathSubpath {
   const anchors = sp.anchors
-    .map((a) => ({ p: a.p, hIn: a.hOut, hOut: a.hIn }))
+    .map((a) => ({ ...a, hIn: a.hOut, hOut: a.hIn }))
     .reverse();
   return { anchors, closed: sp.closed };
 }

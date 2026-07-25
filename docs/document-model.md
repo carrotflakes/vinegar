@@ -29,7 +29,8 @@ active tool, selection, viewport and undo history does not belong in the file.
 - Leaf shape types are `rect`, `ellipse`, `line`, `path`, `image`, `text`, and
   `brush`. A `path` is the canonical vector-outline shape:
   it stores one or more `subpaths`, each with cubic anchors (`p`, `hIn`,
-  `hOut`) and a `closed` flag. Null handles make straight segments.
+  `hOut`, and optional linkage tag `t`) and a `closed` flag. Null handles make
+  straight segments; absent `t` is derived from the handle geometry.
 - A path's `fillRule` is either `nonzero` or `evenodd`. The rule applies to all subpaths consistently in
   rendering, hit-testing, clipping, boolean input, and SVG export. Filling
   implicitly closes open subpaths without closing their strokes.
@@ -75,8 +76,8 @@ active tool, selection, viewport and undo history does not belong in the file.
   area-bearing vector shape; its paint and visibility fields are preserved but
   ignored while it supplies clip geometry.
 - A brush shape is a pressure-profiled variable-width stroke. It stores an open
-  cubic-Bézier centerline as `anchors` (same anchor convention as `path`: an
-  absolute-handle point, `null` handles for corners) where each anchor also
+  cubic-Bézier centerline as `anchors` (same anchor convention and optional
+  cusp/smooth/symmetric linkage tag as `path`) where each anchor also
   carries a width multiplier `w >= 0`. The rendered shape is the filled envelope
   of that centerline (`strokeWidth * w` wide, round end caps), painted with the
   `stroke` paint using the nonzero winding rule. `fill` and the stroke detail

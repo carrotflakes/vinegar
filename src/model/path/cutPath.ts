@@ -9,8 +9,8 @@ import type { PathAnchor, PathShape, PathSubpath } from "../types";
  */
 function severAnchor(a: PathAnchor): [PathAnchor, PathAnchor] {
   return [
-    { p: a.p, hIn: a.hIn, hOut: null },
-    { p: a.p, hIn: null, hOut: a.hOut },
+    { p: a.p, hIn: a.hIn, hOut: null, t: "cusp" },
+    { p: a.p, hIn: null, hOut: a.hOut, t: "cusp" },
   ];
 }
 

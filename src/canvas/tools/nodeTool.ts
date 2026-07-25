@@ -413,7 +413,7 @@ export function onNodeMove(
       inter.index,
       inter.part,
       localWorld,
-      !altKey
+      altKey
     ),
   });
 }
