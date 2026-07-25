@@ -516,21 +516,8 @@ export const COMMANDS: Command[] = [
       s.addFrame(screenToWorld(s.viewport, canvasCenter()));
     },
   },
-  {
-    id: "frame.duplicate",
-    label: "Duplicate frame",
-    group: "Frame",
-    enabled: (s) => selectedFrame(s) != null,
-    run: (s) => s.duplicateSelected(),
-  },
-  {
-    id: "frame.delete",
-    label: "Delete frame",
-    group: "Frame",
-    danger: true,
-    enabled: (s) => selectedFrame(s) != null,
-    run: (s) => s.deleteSelected(),
-  },
+  // Duplicate/delete are deliberately absent: a frame is an ordinary node, so
+  // edit.duplicate / edit.delete already cover it.
 
   // View --------------------------------------------------------------------
   {

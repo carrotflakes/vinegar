@@ -1,38 +1,15 @@
 // Frames: export/layout container nodes on the plane. Frames are ordinary scene
-// nodes, so selection, rename, delete, duplicate and move all reuse the normal
-// node actions; only creation and export-order reordering are frame-specific.
+// nodes, so selection, rename, delete, duplicate, reorder and move all reuse the
+// normal node actions (Layers panel included); only creation and content-box
+// edits are frame-specific.
 
-import { makeFrame, type Document } from "../model/types";
+import { makeFrame } from "../model/types";
 import { framesInPaintOrder } from "../model/scene";
 import { appendToScope } from "./docOps";
 import { clearTransient, type FrameActions, type StoreCtx } from "./state";
 
 /** Default size for a frame created without a drag (e.g. the Add command). */
 const DEFAULT_SIZE = { width: 1080, height: 1080 };
-
-/** Reorder the top-level frames so `id` lands at frame-index `toIndex`, leaving
- *  loose (non-frame) roots in place. Returns the same doc when nothing moves. */
-export function reorderFrameInRootIds(
-  doc: Document,
-  id: string,
-  toIndex: number
-): Document {
-  const frameIds = framesInPaintOrder(doc).map((frame) => frame.id);
-  const from = frameIds.indexOf(id);
-  if (from < 0) return doc;
-  const reordered = [...frameIds];
-  const [moved] = reordered.splice(from, 1);
-  const clamped = Math.max(0, Math.min(toIndex, reordered.length));
-  if (clamped === from) return doc;
-  reordered.splice(clamped, 0, moved);
-  // Rebuild rootIds: non-frame roots keep their slots; frame slots are filled
-  // from the reordered frame order.
-  let cursor = 0;
-  const rootIds = doc.rootIds.map((rootId) =>
-    doc.nodes[rootId]?.type === "frame" ? reordered[cursor++] : rootId
-  );
-  return { ...doc, rootIds };
-}
 
 export function createFrameActions({ set, get, transact }: StoreCtx): FrameActions {
   return {
@@ -71,14 +48,6 @@ export function createFrameActions({ set, get, transact }: StoreCtx): FrameActio
           coalesceKey: `frame:${id}:${Object.keys(patch).sort().join(",")}`,
         }
       );
-    },
-    reorderFrame: (id, toIndex) => {
-      const next = reorderFrameInRootIds(get().doc, id, toIndex);
-      if (next === get().doc) return;
-      transact(next, {
-        label: "Reorder frame",
-        coalesceKey: `frame:${id}:reorder`,
-      });
     },
   };
 }

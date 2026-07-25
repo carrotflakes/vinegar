@@ -1,5 +1,4 @@
 import type { ReactNode } from "react";
-import FramesPanel from "../panels/frames/FramesPanel";
 import AssetsPanel from "../panels/assets/AssetsPanel";
 import GeneratorsPanel from "../panels/generators/GeneratorsPanel";
 import HistoryPanel from "../panels/history/HistoryPanel";
@@ -23,7 +22,6 @@ export const PANELS: PanelDef[] = [
   { id: "swatches", title: "Global colors", render: () => <SwatchesPanel /> },
   { id: "generators", title: "Generators", render: () => <GeneratorsPanel /> },
   { id: "assets", title: "Assets", render: () => <AssetsPanel /> },
-  { id: "frames", title: "Frames", render: () => <FramesPanel /> },
   { id: "history", title: "History", render: () => <HistoryPanel /> },
 ];
 

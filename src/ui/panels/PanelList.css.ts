@@ -21,7 +21,7 @@ globalStyle(".layers-title", {
   gap: "8px",
 });
 
-/* Trailing header action (e.g. Frames' "add"): don't let the 22px button
+/* Trailing header action (e.g. Swatches' "add"): don't let the 22px button
    inflate the title row past its plain-text height in other panels. */
 globalStyle(".title-add", {
   flex: "none",

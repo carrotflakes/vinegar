@@ -36,7 +36,7 @@ export function defaultLayout(): DockLayout {
     { id: newGroupId(), tabs: ["properties"], active: "properties", flex: 1.3 },
     {
       id: newGroupId(),
-      tabs: ["layers", "symbols", "swatches", "frames", "generators"],
+      tabs: ["layers", "symbols", "swatches", "generators"],
       active: "layers",
       flex: 1,
     },

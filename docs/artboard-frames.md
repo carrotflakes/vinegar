@@ -131,10 +131,12 @@ can be discarded.**
   grouped, or the frame is left at root); reparent / move-into-container ops
   (incl. phase-2 drag-into-frame) reject a frame as the moved node. A frame is
   never a valid drop *child*.
-- **Artboards panel**: a filtered view of frame nodes (list / rename / reorder =
-  reorder among `rootIds` = export order / select). Frames can additionally
-  appear in the Layers tree (they are real nodes) — decide whether to show them
-  in both.
+- **No frames panel**: settled — the Layers tree *is* the frames list. The old
+  Artboards panel existed only because artboards were a data structure parallel
+  to the scene tree; frames are real nodes, so a filtered second view would
+  duplicate select / rename / reorder (`rootIds` order = export order), all of
+  which the Layers tree already does under the top-level invariant. Frame-only
+  actions (fit, per-frame export) ride on the shared selection menu instead.
 - **serialize.ts**: bump `CURRENT_FILE_VERSION`; drop `artboards` from the
   document validator; add `frame` to the node validator (container with
   `childIds` + `width`/`height`/`background`). **Validate the top-level

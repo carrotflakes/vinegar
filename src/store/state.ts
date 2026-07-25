@@ -319,8 +319,9 @@ export interface StructureActions {
 
 /**
  * Frames (export/layout container nodes). Frames are ordinary scene nodes, so
- * selection, rename, delete, duplicate and move all go through the normal node
- * actions; only creation and export-order reordering need frame-specific ops.
+ * selection, rename, delete, duplicate, reorder and move all go through the
+ * normal node actions; only creation and content-box edits need frame-specific
+ * ops.
  */
 export interface FrameActions {
   /** Create a frame at the top level, centered on `at`, and select it. */
@@ -330,8 +331,6 @@ export interface FrameActions {
     id: string,
     patch: Partial<{ x: number; y: number; width: number; height: number; background: string | null; clip: boolean }>
   ) => void;
-  /** Move frame `id` to `toIndex` among the top-level frames (= export order). */
-  reorderFrame: (id: string, toIndex: number) => void;
 }
 
 export interface ClipboardActions {

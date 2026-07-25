@@ -105,6 +105,13 @@ export function selectionMenu(): MenuEntry[] {
   entries.push("separator", item("symbol.create"));
   if (enabled("symbol.editSelected")) entries.push(item("symbol.editSelected"));
   if (enabled("symbol.detach")) entries.push(item("symbol.detach"));
+  // Frame-specific actions (fit, per-frame export) live here rather than in a
+  // panel of their own: a frame is an ordinary node, so every surface that can
+  // select one — canvas, Layers panel — offers them through this menu.
+  const frameItems = ["view.fitFrame", "file.exportFramePng", "file.exportFrameSvg"]
+    .filter(enabled)
+    .map((id) => item(id));
+  if (frameItems.length) entries.push("separator", ...frameItems);
   entries.push(
     "separator",
     item("structure.bringToFront"),
@@ -118,17 +125,4 @@ export function selectionMenu(): MenuEntry[] {
 /** Menu for empty canvas space. `at` is the click point in world coords. */
 export function canvasMenu(at: Vec2): MenuEntry[] {
   return [item("edit.paste", at), item("file.placeImage", at), item("select.all")];
-}
-
-/** Actions for the frame selected by a Frames panel row. */
-export function frameMenu(): MenuEntry[] {
-  return [
-    item("view.fitFrame"),
-    "separator",
-    item("file.exportFramePng"),
-    item("file.exportFrameSvg"),
-    "separator",
-    item("frame.duplicate"),
-    item("frame.delete"),
-  ];
 }
