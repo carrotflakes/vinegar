@@ -317,9 +317,13 @@ additional effects, or other feature expansion.
   - [ ] マスクの分割 — 全輪郭が閉じている場合に限り group ではなく compoundPath で
     包めば有効なマスクのまま分割できる（穴の読みまで保たれる）。開いた subpath を
     含むマスクは compound の子になれないので引き続き拒否
-  - [ ] `structure.releaseCompound` に同じマスク破壊バグがある（マスクの compound を
-    リリースすると最前面の子だけがマスクに残り、他は中身に降格）。実証済み・未修正。
-    `structure.ungroup` / `path.outlineStroke` / `path.divide` も同種の監査対象
+  - [x] `structure.releaseCompound` の同じマスク破壊バグを修正（マスクの compound を
+    リリースすると最前面の子だけがマスクに残り、他は中身に降格していた）。子が 1 個
+    だけの compound は 1:1 置換なので従来どおり許可。共通メッセージは
+    `maskMultiNodeError`、回帰テストは `tests/clippingMaskIntegration.test.mjs`
+  - [ ] `path.outlineStroke` / `path.divide` は結果を group に包むため、マスクに対して
+    実行すると `hasValidSceneContainers` で落ちて**無言で何も起きない**（破壊はしない）。
+    同じ `maskMultiNodeError` を出して理由を伝えるべき
 - [x] color picker — own HSV picker (`ColorPicker`), reusable `ColorInput`
   swatch replaces every `<input type="color">`
 - [ ] Layersパネル、キー操作でアイテム移動

@@ -58,8 +58,14 @@ import {
 } from "./state";
 import { notify, notifyEffectsRemoved } from "./toastStore";
 
-const SPLIT_MASK_ERROR =
-  "A clipping mask cannot be split. Release the clipping mask first.";
+/**
+ * A clipping mask is its group's frontmost child, so an op that turns one node
+ * into several would either leave the clip invalid (a group is not a valid
+ * mask) or silently demote all but the frontmost piece to clipped content.
+ * Such ops refuse and say so rather than rewriting the clip.
+ */
+const maskMultiNodeError = (verb: string) =>
+  `A clipping mask cannot be ${verb}. Release the clipping mask first.`;
 
 interface AlignItem { id: string; bounds: Bounds }
 function selectionItems(doc: Document, selection: string[]): AlignItem[] {
@@ -369,10 +375,8 @@ export function createStructureActions({ set, get, transact }: StoreCtx): Struct
       for (const id of roots) {
         const shape = doc.nodes[id];
         if (!canSplitSubpaths(shape)) continue;
-        // A clipping mask is its group's frontmost child, and a group is not a
-        // valid mask: splitting one would leave the clip group invalid (and
-        // splitting it flat would silently demote every piece but the last to
-        // clipped content). Release the clipping mask first.
+        // Splitting always yields several nodes, so a mask can never be split
+        // (see maskMultiNodeError).
         if (isClippingMaskNode(doc, id)) {
           maskSkipped = true;
           continue;
@@ -402,7 +406,7 @@ export function createStructureActions({ set, get, transact }: StoreCtx): Struct
         doc = replaceChildren({ ...doc, nodes }, parent, order);
         selected.push(...(flat ? flat.map((piece) => piece.id) : [result.group.id]));
       }
-      if (maskSkipped) notify.error(SPLIT_MASK_ERROR);
+      if (maskSkipped) notify.error(maskMultiNodeError("split"));
       if (!selected.length || !hasValidSceneContainers(doc)) return;
       transact(doc, { label: "Split subpaths" });
       set({ selection: selected, ...clearTransient });
@@ -449,14 +453,22 @@ export function createStructureActions({ set, get, transact }: StoreCtx): Struct
       if (!canReleaseCompoundPathSelection(doc, roots)) return;
       const selected: string[] = [];
       let effectsRemoved = false;
+      let maskSkipped = false;
       for (const id of roots) {
         const compound = doc.nodes[id];
         if (!compound || compound.type !== "compoundPath") continue;
-        effectsRemoved ||= compound.effects.length > 0;
         const parent = parentIdOf(doc, id);
         const siblings = childIdsOf(doc, parent);
         const at = siblings.indexOf(id);
         const released = releaseCompoundPath(doc, compound);
+        // Releasing a mask into several shapes would rewrite the clip (see
+        // maskMultiNodeError). A lone child replaces the mask one-for-one, so
+        // that case stays allowed.
+        if (released.length > 1 && isClippingMaskNode(doc, id)) {
+          maskSkipped = true;
+          continue;
+        }
+        effectsRemoved ||= compound.effects.length > 0;
         const nodes = { ...doc.nodes };
         delete nodes[id];
         for (const shape of released) nodes[shape.id] = shape;
@@ -465,6 +477,7 @@ export function createStructureActions({ set, get, transact }: StoreCtx): Struct
         doc = replaceChildren({ ...doc, nodes }, parent, order);
         selected.push(...released.map((shape) => shape.id));
       }
+      if (maskSkipped) notify.error(maskMultiNodeError("released"));
       if (selected.length && hasValidSceneContainers(doc)) {
         transact(doc, { label: "Release compound path" });
         set({ selection: selected, ...clearTransient });

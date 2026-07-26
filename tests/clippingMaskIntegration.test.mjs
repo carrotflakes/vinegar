@@ -331,3 +331,38 @@ test("standard clipping-mask shortcuts are registered", () => {
   assert.equal(make?.cmd.id, "structure.makeClippingMask");
   assert.equal(release?.cmd.id, "structure.releaseClippingMask");
 });
+
+test("ops that turn the mask into several nodes refuse instead of rewriting the clip", () => {
+  // The mask is a compound path of two rects: releasing it would leave only
+  // the frontmost released rect masking and demote the other to content.
+  const doc = createEmptyDocument();
+  doc.nodes.content = rect("content", 0, 0, 80, 80);
+  doc.nodes.m1 = rect("m1", 0, 0, 20, 20);
+  doc.nodes.m2 = rect("m2", 40, 0, 20, 20);
+  doc.nodes.comp = {
+    id: "comp", name: "Compound Path", type: "compoundPath",
+    ...SHAPE_BASE, ...NODE_BASE,
+    childIds: ["m1", "m2"], fill: paint("#ff0000"),
+    transform: [...IDENTITY],
+  };
+  doc.nodes.clip = group("clip", ["content", "comp"], { clipsToMask: true });
+  doc.rootIds = ["clip"];
+  useEditor.getState().loadDocument(doc);
+  useEditor.getState().setSelection(["comp"]);
+  useEditor.getState().releaseCompoundPathSelected();
+  assert.deepEqual(useEditor.getState().doc.nodes.clip.childIds, ["content", "comp"]);
+  assert.deepEqual(useEditor.getState().doc.nodes.comp.childIds, ["m1", "m2"]);
+
+  // A compound holding a single child replaces the mask one-for-one, so that
+  // release stays allowed.
+  const lone = createEmptyDocument();
+  lone.nodes.content2 = rect("content2", 0, 0, 80, 80);
+  lone.nodes.only = rect("only", 0, 0, 20, 20);
+  lone.nodes.comp2 = { ...doc.nodes.comp, id: "comp2", childIds: ["only"] };
+  lone.nodes.clip2 = group("clip2", ["content2", "comp2"], { clipsToMask: true });
+  lone.rootIds = ["clip2"];
+  useEditor.getState().loadDocument(lone);
+  useEditor.getState().setSelection(["comp2"]);
+  useEditor.getState().releaseCompoundPathSelected();
+  assert.deepEqual(useEditor.getState().doc.nodes.clip2.childIds, ["content2", "only"]);
+});
