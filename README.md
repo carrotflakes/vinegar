@@ -2,15 +2,6 @@
 
 Vinegar is a browser-based vector graphics editor for precise drawing and illustration, with Bézier editing, pressure-sensitive brushes, reusable symbols, global colors, frames, and flexible export.
 
-## Stack
-
-- React 19 + TypeScript + Vite
-- Zustand for state
-- Canvas 2D rendering (no SVG/WebGL)
-- Paper.js for boolean path operations; `clipper-lib` for stroke outlining
-- `react-icons` (Lucide) for the toolbar; `@floating-ui/react` for menus and popovers
-- Package manager: **pnpm**
-
 ## Getting started
 
 ```bash
@@ -21,117 +12,35 @@ pnpm typecheck  # types only
 pnpm test       # node --test (model, store, persistence, import and recovery)
 ```
 
+Built with React 19 + TypeScript + Vite, Zustand and Canvas 2D rendering.
+
 ## Features
 
-- Tools: Select, Edit Nodes, Rectangle, Ellipse, Line, **Pen (Bézier)**, **Brush** (pressure / variable width), **Eraser**, Pencil (freehand), **Bucket Fill**, Text, Frame
-- Pencil: freehand strokes are simplified and smoothed into an editable Bézier path (tweak it with the Node tool); end near the start to close it
-- Brush: pen-pressure capture with adjustable size, pressure curve, stabilizer and taper; strokes remain editable vector centerlines with a derived variable-width envelope, or can be converted to ordinary filled paths.
-  Consecutive strokes collect in an active drawing group.
-- Eraser: split or trim Brush strokes with a vector centerline eraser while preserving the surviving Bézier geometry and width profile
-- **Bucket Fill**: click an enclosed empty region to fill it with the current fill color — detected **vectorially** (no raster tracing), with an adjustable **gap-closing** tolerance for not-quite-closed line art; the fill lands as an ordinary editable even-odd path *below* the surrounding strokes.
-  Clicking a filled shape or image treats it as the region's background: the fill spreads up to its edges and the strokes drawn on top, and is inserted directly above it — paint a background, draw line art, fill in between.
-  An optional **"Fill to stroke centers"** mode stops fills at stroke/brush centerlines so adjacent fills stay seamless if the line art changes later (see [docs/bucket-fill.md](docs/bucket-fill.md))
-- Pen tool: click for corner anchors, click-drag for smooth anchors; click the first anchor to close, or Enter / double-click to finish, Esc to cancel; click an endpoint of an existing open path to continue it
-- Node editing: cusp, smooth, and symmetric anchor types with distinct on-canvas markers; drag anchors and control handles (Alt breaks the linkage into a cusp), click a segment to insert an anchor (curve-preserving), double-click an anchor to toggle smooth ↔ corner (handles removed), Delete to remove an anchor; Brush anchors use the same editing model; path children remain node-editable inside a compound path; open/close a path via the properties panel
-- Move, resize (8 handles), **rotate** (rotation handle; Shift snaps to 15°) — all driven by per-node **affine matrices**, so rotated/nested resize is exact
-- Rectangles support one shared **corner radius** for all four corners, editable numerically or with an on-canvas control and preserved across export/geometry operations
-- **Movable rotation centers** (transform origin) per shape and group; a transient pivot for multi-selection
-- **Group / ungroup**, including **nested groups**; grouped shapes select together
-- **Clipping masks**: use the frontmost closed vector shape to clip a group; nested masks work in Canvas, PNG and SVG output and can be released for editing
-- Multi-select (shift-click & marquee)
-- Copy / cut / paste / duplicate (groups stay grouped on paste; **Paste here** from the canvas context menu)
-- **Boolean operations**: union, subtract, intersect, exclude (Paper.js; curve-preserving — the result is a node-editable compound Bézier); **Divide** splits overlapping shapes into their distinct faces, each styled by the frontmost covering shape and grouped
-- **Path ops**: **Join** welds selected open paths' nearby endpoints into continuous contours (closing a contour whose ends meet); **Cut** breaks a contour at selected anchors (the exact inverse of Join); **Combine** gathers several paths into one multi-contour path without moving anything — the container open contours otherwise lack, since a compound path only takes closed children; **Split subpaths** breaks a multi-contour path back into one path per contour, inside a group that preserves the original's compositing; and one-shot **Simplify / Smooth / Flatten / Reverse** cleanup (see [docs/path-commands.md](docs/path-commands.md))
-- **Compound paths**: own real, nested layer nodes for their closed source shapes, paint them through one shared even-odd appearance, allow path-anchor and hide/reorder editing, and release back to the original shape types
-- **Outline stroke**: convert a shape's stroke into a filled path (`clipper-lib`)
-- **Paint model** for fill/stroke: solid colors with **per-color alpha** and **gradients** (linear & radial, with a stop editor), plus tiled raster **patterns** — rendered on Canvas.
-  Solids and gradients export to SVG; pattern SVG export is intentionally limited (see SVG interoperability below).
-  Swatch popover with preset palette, recent colors, saved swatches, hex input, "none" and the **eyedropper**.
-- Stroke width plus **dash pattern/offset, cap, join and inside/center/outside alignment** (closed vectors and text), opacity, and per-node **blend modes** (multiply, screen, overlay, … — shapes and groups)
-- **Effects**: non-destructive, Illustrator-style **ordered effect stack** on any node (shape / group / instance) — **Drop Shadow**, **Gaussian Blur**, **Color Adjust** (brightness / contrast / saturation / hue) and **Color Overlay** (solid tint masked by the content's alpha), applied after content but before opacity/blend; the length-based effects (shadow, blur) scale with the transform and zoom, the color effects are unitless; rendered on Canvas, exported to SVG (`<filter>`/`feColorMatrix`) and raster images, with export bounds grown so shadows/blur aren't cropped
-- **Symbols** (reusable components): create from a selection, place instances (the panel's + button or drag a row onto the canvas), edit in an isolated view (double-click an instance), detach / rename / delete
-- **Global colors** (document color swatches): named solid colors stored on the document that a fill/stroke can *reference* by id — edit the color once and every use re-tints live. The **Global colors panel** creates a color from the selection, renames, applies it to the selection's fill/stroke, and deletes it (baking every reference back to its concrete color first, so nothing dangles). The color popover can link a paint to a global color or unlink it; SVG export bakes references to concrete colors.
-- **Frames** (formerly artboards): real **container nodes** in the scene tree — a frame owns its children, has its own local coordinate space (an SVG-like viewport), a background color (transparent frames show an editor-only checkerboard) and an optional **Clip content** toggle.
-  Create/move/resize with the Frame tool (resizing changes the content box only, so contents stay put); frames live at the top level and never nest.
-  Dragging a selection over a frame **re-homes it into that frame** (world position preserved, same undo step; Cmd/Ctrl on release opts out), and a frame is a selection boundary — its contents are picked directly while the frame itself is grabbed by its border or the Layers panel.
-  There is no separate frames panel — frames are nodes, so the Layers tree lists them and their z-order there is the export order; fit-to-frame and per-frame PNG/SVG export sit in the selection context menu, plus all-frames PNG export.
-- **Raster images**: place via File ▸ Place image…, the canvas context menu, or drag & drop; images select/move/resize/rotate and take opacity/blend like any shape; embedded in the file as document assets.
-  The **Assets panel** (hidden by default; add it from the dock's panel menu) lists embedded assets with a thumbnail and reference count, places an asset back onto the canvas without re-importing (+ button or drag a row), and can delete unused ones.
-- **Text**: click for auto-width point text or drag for fixed-width wrapping text; in-place editing supports newlines, CJK wrapping, rotation, font/style controls, saved measured bounds, and Canvas/SVG/raster output
-- Numeric **X / Y / W / H** editing, **align & distribute** buttons
-- Arrange: bring to front / send to back
-- **Layers panel**: tree view of groups (collapse, show/hide, lock/unlock), z-order list, click to select, drag to reorder (across parents), double-click to rename
-- **Command registry**: one source of truth for actions, driving keyboard shortcuts, the File menu, context menus and the **command palette** (Ctrl/⌘+K — shortcuts are discoverable there and in the menus)
-- **Menus**: the File menu and canvas/layers **context menus** share one data model and Floating UI-based renderer, with submenus, keyboard navigation + typeahead, shortcut hints and flip/shift overflow handling
-- **Snapping**: edges/centers snap to other shapes (magenta alignment guides), equal-spacing distribution between neighbours (spacing markers), and an optional grid (adjustable size).
-  Works while moving, **drawing, resizing, and editing pen vertices** — toggle "Snap" / "Grid" in the status bar.
-- **Rulers and guides**: rulers along the top/left edges label document units and count from the **active frame** (which follows selection and frame creation, never panning — Illustrator's artboard rulers) or from the document origin, per the "Ruler origin" preference; drag out of a ruler for a persistent guide, drag it to move, drop it back on a ruler (or press Delete) to remove it.
-  Guides are saved with the document, are undoable like any edit, snap alongside objects and the grid, and can be hidden or locked from the "Snap" status-bar menu (see [docs/rulers-and-guides.md](docs/rulers-and-guides.md))
-- **Scripting**: a one-shot drawing DSL that runs in a sandboxed Web Worker and applies its changes in a single undo step; can create shapes and read/edit existing ones (open via the "Script" button in the app bar)
-- **Parametric generators (experimental)**: insert the built-in Star generator or author document-local generator scripts whose numeric parameters rebuild editable Bézier geometry.
-  Imported document scripts stay disabled until the user explicitly enables them and run in a watchdog-protected Web Worker.
-- Live **status bar**: pointer readout, per-tool hints, selection info, and live numbers during interactions (W×H while creating, ΔX/ΔY while moving, angle while rotating, new size while resizing)
-- Undo / redo
-- Pan (Space + drag, or middle mouse) and zoom (Ctrl/⌘ + wheel); fit all content (Shift+1), the selection (Shift+2), or the selected frame from the zoom menu
-- **Responsive / touch** layout: icon-only toolbar rail, slide-in panels, enlarged hit targets for coarse pointers, pinch-to-zoom & two-finger pan, on-screen Shift/Alt modifier bar
-- Debug **project inspector** (app bar ▸ Inspect): searchable JSON tree of the whole store
-- **Browser recovery autosave**: dirty documents are saved locally in IndexedDB and, after a reload/crash, offered for restore on next launch (Cancel discards); progress is reported in the status bar
-- File: New, Open, Save / Save As (`.vinegar.json`), import SVG, place raster images, export PNG/JPEG/WebP with range, size, background and quality controls, export SVG, and load Demo
-- **Document identity**: the document name is edited in the middle of the app bar and drives the browser tab title, the suggested save filename and every export filename. Where the browser supports the File System Access API (Chromium today), Open and Save As remember the chosen file so ⌘/Ctrl+S overwrites it in place; elsewhere both fall back to a download named after the document
+- **Drawing tools** — Pen (Bézier), Brush with pen pressure and variable width, Pencil, Eraser, Bucket Fill, Rectangle, Ellipse, Line, Text and Frame
+- **Node editing** — cusp / smooth / symmetric anchors, handle dragging, inserting and removing anchors, opening and closing paths
+- **Transforms** — move, resize, rotate and movable rotation centers, all on exact affine matrices
+- **Structure** — groups, nested groups, clipping masks, compound paths and a drag-to-reorder layers tree
+- **Path operations** — boolean union / subtract / intersect / exclude and divide, join, cut, combine, split subpaths, simplify, smooth, flatten, reverse, and outline stroke
+- **Appearance** — solid colors, gradients and raster patterns, stroke dashes / caps / joins / alignment, opacity, blend modes, and a non-destructive effect stack (drop shadow, blur, color adjust, color overlay)
+- **Reuse** — symbols with editable instances, and global colors that re-tint every use at once
+- **Frames** — container nodes with their own coordinate space, background and optional clipping; drag artwork in and out, and export per frame
+- **Images and text** — embedded raster assets, point and wrapping text with CJK support
+- **Scripting** — a sandboxed drawing DSL and experimental parametric generators
+- **Workspace** — snapping and guides, rulers, command palette, context menus, touch and pen support, undo / redo, and autosave recovery after a crash
+- **Files** — save and open `.vinegar.json`, import SVG, export PNG / JPEG / WebP and SVG
+
+The full, detailed list is in [docs/features.md](docs/features.md).
 
 ## SVG interoperability
 
 Vinegar uses Canvas 2D and its own document model as the source of truth.
 SVG import and export are **best-effort interchange features**, not a goal of full SVG specification coverage or lossless round-tripping.
+For appearance-critical exchange, use raster export; for editable exchange, expect to inspect and adjust the result.
+Details: [docs/features.md](docs/features.md#svg-interoperability).
 
-- Import uses Paper.js and converts supported shapes, paths, compound paths, groups/layers, transforms, clipping groups and basic solid fill/stroke styles into editable Vinegar nodes
-- SVG text, embedded images, gradients, patterns, filters and other unsupported SVG constructs may be omitted or lose appearance during import
-- Export covers Vinegar vector geometry, text, embedded images, gradients, clipping masks, Brush outlines, blend modes and the supported effect stack
-- Raster pattern paints currently export as a neutral placeholder rather than an SVG `<pattern>`; filter and blend rendering can also vary between SVG viewers
+## Documentation
 
-For appearance-critical exchange, use raster export.
-For editable exchange, expect to inspect and adjust the imported or exported result.
-
-## Document model
-
-The persisted `Document` is a **unified scene tree**: a flat `nodes` map keyed by id, with `rootIds` and each group/frame/compound-path container's `childIds` as the only source of hierarchy and back-to-front paint order.
-Every node carries a Canvas/SVG-compatible affine `transform` into its parent space plus a `transformOrigin`; parents, world matrices and leaf shapes are derived (not stored).
-Frames are ordinary nodes in that tree (top-level only), so there is no separate artboard list.
-The document also holds `symbols`, global-color `swatches` (with a `swatchOrder`), `assets` (embedded raster images), `settings` (unit, dpi, grid size), document-local generator `scripts`, `metadata` and namespaced `extensions`.
-The file wrapper is versioned — the current version is v27. There is no migration chain: older files are rejected with a clear message.
-The model generally has **no optional fields**: every node writes its defaults explicitly (`blendMode: "normal"`, `effects: []`, `strokeDash: []`, `cornerRadius: 0`, …) and uses `null` for genuinely absent values. The deliberate exception is an anchor's optional linkage tag `t`; old and generated geometry can omit it because cusp/smooth/symmetric linkage is derived from the handles.
-See [docs/document-model.md](docs/document-model.md).
-
-## Project layout
-
-```
-src/
-  model/     types + scene index, groups, paint, bucketFill, plus subfolders:
-             geometry/ (matrix/affine transforms, bounds, hit-testing,
-             snapping, viewport), path/ (paths, boolean, compound paths,
-             join/cut/combine/split, path cleanup ops, outlineStroke,
-             freehand),
-             brush/ (brush geometry + erasing), generators/
-  store/     zustand editor store split into slices (shapes, selection,
-             structure, symbols, frames, clipboard, history, prefs),
-             pointer & menu stores
-  commands/  command registry (actions + shortcuts, drives menus & palette)
-  canvas/    CanvasView (interaction), per-tool logic, rendering, overlay,
-             handles, node chrome, image decode cache, text layout/editor
-  script/    sandboxed one-shot drawing DSL (runScript + Web Worker)
-  io/        JSON save/load (single current version), raster/SVG export,
-             SVG/raster import, recovery autosave, export/snap bounds
-  ui/        Toolbar, PropertiesPanel, LayersPanel, FileMenu, ColorField,
-             ContextMenu, CommandPalette, export/preferences/script/generator
-             dialogs, Inspector, dockable panels
-  demo/      demo document
-  App.tsx    layout, app bar, global shortcuts
-docs/        document model and feature design notes
-tests/       node --test model/store/persistence tests via Vite SSR
-```
-
-Imports into `src/` use the `@/` path alias (e.g. `@/model/path/boolean`); same-folder siblings stay relative.
-
-## Roadmap
-
-See [TODO.md](TODO.md).
+- [docs/architecture.md](docs/architecture.md) — stack, document model and project layout
+- [docs/features.md](docs/features.md) — full feature reference
+- [docs/](docs/) — per-feature design notes
+- [TODO.md](TODO.md) — roadmap
