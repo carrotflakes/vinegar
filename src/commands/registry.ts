@@ -24,6 +24,7 @@ import { createDemoDocument } from "../demo/createDemoDocument";
 import { canGroupSelection, selectionUnits } from "../model/groups";
 import { isAreal } from "@/model/path/boolean";
 import { joinableSubpathCount } from "@/model/path/joinPath";
+import { canSplitSubpaths } from "@/model/path/splitSubpaths";
 import { hasCuttableNodes } from "@/model/path/cutPath";
 import { framesInPaintOrder, isFrame, isInstance, isShape, parentIdOf, selectionRoots } from "../model/scene";
 import { nodeWorldBounds, unionNodeWorldBounds } from "@/model/geometry/bounds";
@@ -146,6 +147,7 @@ function sel(s: EditorState) {
         (n, sh) => n + (sh.type === "path" ? joinableSubpathCount(sh) : 0),
         0
       ) >= 2,
+    canSplitSubpaths: roots.some((id) => canSplitSubpaths(s.doc.nodes[id])),
     canBoolean:
       shapeRoots.length === roots.length &&
       roots.length >= 2 &&
@@ -445,6 +447,15 @@ export const COMMANDS: Command[] = [
     group: "Path",
     enabled: (s) => sel(s).canJoin,
     run: (s) => s.joinSelected(),
+  },
+  {
+    id: "path.splitSubpaths",
+    label: "Split subpaths",
+    group: "Path",
+    // No default chord: the obvious one (Inkscape's Ctrl+Shift+K) opens
+    // Firefox's Web Console and cannot be overridden by the page.
+    enabled: (s) => sel(s).canSplitSubpaths,
+    run: (s) => s.splitSubpathsSelected(),
   },
   {
     id: "path.cut",

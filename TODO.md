@@ -299,8 +299,29 @@ additional effects, or other feature expansion.
 - [ ] generatorの編集ロック prefへ
 - [ ] ドックのフローティング、マルチカラム化
 - [ ] Assetという名前は問題ないか。raster imageではないか。
-- [ ] subpath分割コマンド、統合コマンド
+- [x] subpath分割コマンド — `path.splitSubpaths` (`model/path/splitSubpaths.ts`)。
+  multi-subpath の path を輪郭ごとの path ノードへ分け、**それらを包む group** が
+  元ノードの親・z 位置を引き継ぐ。トレース画像やグリフ由来の数百輪郭パスでも
+  レイヤーパネルが 1 行で済み、`transform`/opacity/blendMode/effects を group 側へ
+  移すことで見た目が完全に保たれる（重なりの二重合成もぼかし半径のスケールも一致。
+  effects を落とす必要がない）。ピースは identity transform + 中立な合成状態。
+  唯一の損失は fillRule による穴（`structure.makeCompound` で復元可能）。
+  compound path の子は group を入れられないのでフラットに展開（`flattenSplitPieces`）。
+  clip group のマスクは拒否 + トースト（group は有効なマスクになれない）。
+  `path.join` は開いた端点しか溶接しないので逆操作にはならない。キー割り当てなし
+  （Ctrl+Shift+K は Firefox の Web Console）
+  - [ ] 統合コマンド — 複数 path を 1 ノードの multi-subpath へ潰す（Inkscape の
+    Combine）。`structure.makeCompound`（コンテナを残す・even-odd 固定）と
+    `path.join`（端点を溶接）との違いは「破壊的に leaf 1 個へ・fillRule 選択可」。
+    split が実質片道操作（undo 以外に戻り道がない）なので対として価値が高い
+  - [ ] マスクの分割 — 全輪郭が閉じている場合に限り group ではなく compoundPath で
+    包めば有効なマスクのまま分割できる（穴の読みまで保たれる）。開いた subpath を
+    含むマスクは compound の子になれないので引き続き拒否
+  - [ ] `structure.releaseCompound` に同じマスク破壊バグがある（マスクの compound を
+    リリースすると最前面の子だけがマスクに残り、他は中身に降格）。実証済み・未修正。
+    `structure.ungroup` / `path.outlineStroke` / `path.divide` も同種の監査対象
 - [x] color picker — own HSV picker (`ColorPicker`), reusable `ColorInput`
   swatch replaces every `<input type="color">`
 - [ ] Layersパネル、キー操作でアイテム移動
 - [ ] ペン使用時のタッチ入力抑制
+- [ ] Layersパネル仮想化

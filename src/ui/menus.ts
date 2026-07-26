@@ -91,6 +91,7 @@ export function selectionMenu(): MenuEntry[] {
     "path.flatten",
     "path.reverse",
     "path.join",
+    "path.splitSubpaths",
     "path.cut",
   ]
     .filter(enabled)

@@ -222,15 +222,26 @@ export default function SelectionActionsSection({
               </div>
             </>
           )}
-          {can("path.join") && (
+          {(can("path.join") || can("path.splitSubpaths")) && (
             <div className="btn-row">
-              <button
-                className="ghost-btn"
-                title="Connect open path ends that meet"
-                onClick={() => runCommand("path.join")}
-              >
-                Join
-              </button>
+              {can("path.join") && (
+                <button
+                  className="ghost-btn"
+                  title="Connect open path ends that meet"
+                  onClick={() => runCommand("path.join")}
+                >
+                  Join
+                </button>
+              )}
+              {can("path.splitSubpaths") && (
+                <button
+                  className="ghost-btn"
+                  title="Break each contour into its own path, inside a group"
+                  onClick={() => runCommand("path.splitSubpaths")}
+                >
+                  Split subpaths
+                </button>
+              )}
             </div>
           )}
           {canConvertToPath && (

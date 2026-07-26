@@ -336,6 +336,8 @@ export interface StructureActions {
   divideSelected: () => void;
   /** Weld selected paths' open endpoints into continuous contours. */
   joinSelected: () => void;
+  /** Break selected multi-subpath paths into one path node per contour. */
+  splitSubpathsSelected: () => void;
   makeCompoundPathSelected: () => void;
   releaseCompoundPathSelected: () => void;
   toggleHidden: (id: string) => void;

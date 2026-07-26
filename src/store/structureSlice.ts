@@ -15,6 +15,7 @@ import {
   canMakeClippingMaskSelection,
   canReleaseClippingMaskSelection,
   isClippingGroup,
+  isClippingMaskNode,
 } from "../model/clippingMask";
 import {
   canConvertShapeToPath,
@@ -31,6 +32,11 @@ import {
 } from "@/model/geometry/matrix";
 import { strokeOutline } from "@/model/path/outlineStroke";
 import { ringsToSubpaths } from "@/model/path/path";
+import {
+  canSplitSubpaths,
+  flattenSplitPieces,
+  splitSubpaths,
+} from "@/model/path/splitSubpaths";
 import {
   childIdsOf,
   descendantNodeIds,
@@ -51,6 +57,9 @@ import {
   type StructureActions,
 } from "./state";
 import { notify, notifyEffectsRemoved } from "./toastStore";
+
+const SPLIT_MASK_ERROR =
+  "A clipping mask cannot be split. Release the clipping mask first.";
 
 interface AlignItem { id: string; bounds: Bounds }
 function selectionItems(doc: Document, selection: string[]): AlignItem[] {
@@ -350,6 +359,53 @@ export function createStructureActions({ set, get, transact }: StoreCtx): Struct
       transact(next, { label: "Join path" });
       set({ selection: [result.id], ...clearTransient });
       if (effectsRemoved) notifyEffectsRemoved();
+    },
+    splitSubpathsSelected: () => {
+      let doc = get().doc;
+      const roots = selectionRoots(doc, get().selection);
+      if (!roots.some((id) => canSplitSubpaths(doc.nodes[id]))) return;
+      const selected: string[] = [];
+      let maskSkipped = false;
+      for (const id of roots) {
+        const shape = doc.nodes[id];
+        if (!canSplitSubpaths(shape)) continue;
+        // A clipping mask is its group's frontmost child, and a group is not a
+        // valid mask: splitting one would leave the clip group invalid (and
+        // splitting it flat would silently demote every piece but the last to
+        // clipped content). Release the clipping mask first.
+        if (isClippingMaskNode(doc, id)) {
+          maskSkipped = true;
+          continue;
+        }
+        const result = splitSubpaths(shape);
+        if (!result) continue;
+        const parent = parentIdOf(doc, id);
+        const siblings = childIdsOf(doc, parent);
+        const nodes = { ...doc.nodes };
+        delete nodes[id];
+        // Subpaths are drawn back-to-front, matching childIds order, so the
+        // pieces keep their order in the slot the source held. They normally
+        // arrive wrapped in a group; a compound path parent takes them flat
+        // because it accepts areal leaves only.
+        const flat = isCompoundPath(doc.nodes[parent ?? ""])
+          ? flattenSplitPieces(result)
+          : null;
+        const inserted = flat ?? result.pieces;
+        for (const piece of inserted) nodes[piece.id] = piece;
+        if (!flat) nodes[result.group.id] = result.group;
+        const order = [...siblings];
+        order.splice(
+          siblings.indexOf(id),
+          1,
+          ...(flat ? flat.map((piece) => piece.id) : [result.group.id])
+        );
+        doc = replaceChildren({ ...doc, nodes }, parent, order);
+        selected.push(...(flat ? flat.map((piece) => piece.id) : [result.group.id]));
+      }
+      if (maskSkipped) notify.error(SPLIT_MASK_ERROR);
+      if (!selected.length || !hasValidSceneContainers(doc)) return;
+      transact(doc, { label: "Split subpaths" });
+      set({ selection: selected, ...clearTransient });
     },
     makeCompoundPathSelected: () => {
       const doc = get().doc;
