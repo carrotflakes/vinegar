@@ -50,7 +50,7 @@ globalStyle(".layer-row", {
   userSelect: "none",
 });
 
-globalStyle(".layer-row:hover", {
+globalStyle(".layers:not(.dragging) .layer-row:hover", {
   background: vars.bg,
 });
 
@@ -130,6 +130,10 @@ globalStyle(".drop-line-flow", {
   margin: "-1px 6px",
   background: vars.accent,
   borderRadius: "2px",
+  // The line is inserted directly under the pointer. Keep it transparent to
+  // elementFromPoint so the Layers drag continues to hit the adjacent row
+  // instead of briefly treating the pointer as being over the list itself.
+  pointerEvents: "none",
 });
 
 globalStyle(".drop-line-flow::before", {

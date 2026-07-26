@@ -198,8 +198,9 @@ export default function LayersPanel() {
         const gid = rowEl.dataset.rowGroup;
         const r = rowEl.getBoundingClientRect();
         const ratio = (y - r.top) / r.height;
+        const expandedContainer = !!gid && !collapsed.has(gid);
         if (
-          gid && ratio > 0.28 && ratio < 0.72 &&
+          gid && ratio > 0.28 && (expandedContainer || ratio < 0.72) &&
           gid !== d.id &&
           !descendantNodeIds(doc, d.id).includes(gid)
         ) {
@@ -267,7 +268,7 @@ export default function LayersPanel() {
           (selection.includes(id) ? " selected" : "") +
           (shape.hidden || dim ? " hidden" : "") +
           (isCompound ? " group-header" : "") +
-          (drop?.inside === id ? " drop-inside" : "")
+          (drop?.inside === id && isCollapsed ? " drop-inside" : "")
         }
         title={isMask ? "Clipping mask" : undefined}
         style={{ paddingLeft: 6 + depth * 16 }}
@@ -438,7 +439,7 @@ export default function LayersPanel() {
           "layer-row group-header" +
           (selected ? " selected" : "") +
           (group.hidden || dim ? " hidden" : "") +
-          (drop?.inside === gid ? " drop-inside" : "")
+          (drop?.inside === gid && isCollapsed ? " drop-inside" : "")
         }
         style={{ paddingLeft: 6 + depth * 16 }}
         {...rowDnd(gid, path, gid)}
@@ -577,7 +578,7 @@ export default function LayersPanel() {
   const scopeName = scope ? doc.symbols[scope]?.name ?? "Symbol" : null;
 
   return (
-    <div className="layers">
+    <div className={"layers" + (drag ? " dragging" : "")}>
       <div className="panel-title layers-title">Layers</div>
       {scopeName !== null && (
         <button className="layers-scope" onClick={exitSymbolEdit}>
