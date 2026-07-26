@@ -201,7 +201,7 @@ export async function restoreRecoveryAtStartup(options: {
   const storage = options.storage ?? createIndexedDbRecoveryStorage();
   const onStatus = options.onStatus ?? setRecoveryStatus;
   const confirmRestore = options.confirm ?? defaultRestorePrompt;
-  const notice = options.notice ?? ((message: string) => notify.info(message));
+  const notice = options.notice ?? ((message: string) => notify.error(message));
   let snapshot: RecoverySnapshot | null;
 
   try {
