@@ -14,7 +14,7 @@ new draggable surface; do not reintroduce `draggable`.
 ## `useTouchDrag` — reordering and in-panel drags
 
 `src/ui/useTouchDrag.ts` drives drags whose drop targets live in the DOM: the
-Dock tabs, and the Layers, Assets and Symbols rows. It returns a
+Dock tabs, and the Layers, Assets, Symbols and Generators rows. It returns a
 `startDrag(event, payload)` to wire to a draggable element's `onPointerDown`;
 the `payload` is threaded back to every callback so one hook instance serves a
 whole list.
@@ -46,7 +46,7 @@ capture.
 ## `usePanelCanvasDrag` — library item onto the canvas
 
 `src/ui/usePanelCanvasDrag.ts` wraps `useTouchDrag` (with `capture: true`) for
-dragging an asset or symbol out of a panel and dropping it onto the drawing.
+dragging an asset, symbol or generator out of a panel and dropping it onto the drawing.
 Because there is no native drag image, it appends a floating **ghost** to
 `document.body` that follows the pointer, and on release over the canvas it
 computes the world-space drop point with `canvasDropPlacement(clientX, clientY)`

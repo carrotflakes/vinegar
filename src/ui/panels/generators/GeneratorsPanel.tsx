@@ -4,6 +4,7 @@ import { canvasCenterPlacement } from "../../../canvas/canvasDrag";
 import { useEditor } from "../../../store/editorStore";
 import { useUi } from "../../../store/uiStore";
 import { NEW_SCRIPT_SOURCE } from "../../dialogs/GeneratorsDialog";
+import { usePanelCanvasDrag } from "../../usePanelCanvasDrag";
 import "../../Panel.css";
 import "../PanelList.css";
 
@@ -30,6 +31,13 @@ export default function GeneratorsPanel() {
     const id = addScript("Untitled generator", NEW_SCRIPT_SOURCE);
     openGenerators(id);
   };
+
+  const startDrag = usePanelCanvasDrag<string>({
+    ghost: (id) => ({ label: scripts[id]?.name || "Generator" }),
+    onDrop: (id, { at }) => {
+      void insertGenerator(id, at);
+    },
+  });
 
   return (
     <div className="layers">
@@ -59,7 +67,15 @@ export default function GeneratorsPanel() {
           <div className="layers-empty">No generators yet</div>
         ) : (
           list.map((def) => (
-            <div key={def.id} className="layer-row">
+            <div
+              key={def.id}
+              className={`layer-row generator-row${trusted ? "" : " disabled"}`}
+              onPointerDown={
+                trusted && editing !== def.id
+                  ? (e) => startDrag(e, def.id)
+                  : undefined
+              }
+            >
               <span className="layer-type" aria-hidden>
                 <LuCode />
               </span>

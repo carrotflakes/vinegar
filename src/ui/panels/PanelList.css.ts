@@ -50,6 +50,10 @@ globalStyle(".layer-row", {
   userSelect: "none",
 });
 
+globalStyle(".generator-row:not(.disabled)", {
+  cursor: "grab",
+});
+
 globalStyle(".layers:not(.dragging) .layer-row:hover", {
   background: vars.bg,
 });
