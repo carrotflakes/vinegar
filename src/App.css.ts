@@ -123,6 +123,11 @@ globalStyle(".left", {
   borderRight: `1px solid ${vars.border}`,
   padding: "4px",
   overflowY: "auto",
+  scrollbarWidth: "none",
+});
+
+globalStyle(".left::-webkit-scrollbar", {
+  display: "none",
 });
 
 globalStyle(".stage", {
