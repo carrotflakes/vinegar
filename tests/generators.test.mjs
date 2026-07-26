@@ -45,6 +45,28 @@ test("built-in generators build valid geometry (curves, open paths, holes)", () 
   assert.equal(flower[0].closed, true);
   assert.ok(flower[0].anchors.every((a) => a.hIn && a.hOut));
 
+  // Arrow: one closed, sharp, right-pointing outline centered on the origin.
+  const arrow = build("arrow");
+  assert.equal(arrow.length, 1);
+  assert.equal(arrow[0].closed, true);
+  assert.equal(arrow[0].anchors.length, 7);
+  assert.ok(arrow[0].anchors.every((a) => !a.hIn && !a.hOut));
+  assert.deepEqual(arrow[0].anchors[3].p, { x: 60, y: 0 });
+  assert.deepEqual(arrow[0].anchors[0].p, { x: -100, y: -20 });
+  assert.equal(arrow[0].anchors[1].p.x, 0);
+  assert.equal(arrow[0].anchors[1].p.x - arrow[0].anchors[0].p.x, 100);
+
+  // Length excludes the absolute head length.
+  const resizedArrow = GENERATORS.arrow.build({
+    length: 120,
+    height: 80,
+    headLength: 30,
+    shaftRatio: 0.5,
+  });
+  assert.deepEqual(resizedArrow[0].anchors[0].p, { x: -120, y: -20 });
+  assert.deepEqual(resizedArrow[0].anchors[1].p, { x: 0, y: -20 });
+  assert.deepEqual(resizedArrow[0].anchors[3].p, { x: 30, y: 0 });
+
   // Moon: one closed 4-anchor outline; at full phase the terminator mirrors the
   // limb (a full disc), at half the terminator collapses to the vertical axis.
   const full = GENERATORS.moon.build({ phase: 0.5, radius: 80 });

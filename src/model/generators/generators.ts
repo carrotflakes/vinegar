@@ -168,6 +168,34 @@ function buildFlower(args: Record<string, number>): PathSubpath[] {
 }
 
 /**
+ * A simple right-pointing block arrow. `length` measures only the shaft; the
+ * arrowhead extends beyond it by the absolute `headLength`.
+ */
+function buildArrow(args: Record<string, number>): PathSubpath[] {
+  const length = Math.max(1, args.length ?? 100);
+  const headLength = Math.max(1, args.headLength ?? 60);
+  const height = Math.max(1, args.height ?? 100);
+  const shaftHeight = height * clamp(args.shaftRatio, 0.05, 1);
+  const left = -length;
+  const shoulder = 0;
+  const right = headLength;
+  const halfHeight = height / 2;
+  const halfShaft = shaftHeight / 2;
+  return [{
+    anchors: [
+      sharp({ x: left, y: -halfShaft }),
+      sharp({ x: shoulder, y: -halfShaft }),
+      sharp({ x: shoulder, y: -halfHeight }),
+      sharp({ x: right, y: 0 }),
+      sharp({ x: shoulder, y: halfHeight }),
+      sharp({ x: shoulder, y: halfShaft }),
+      sharp({ x: left, y: halfShaft }),
+    ],
+    closed: true,
+  }];
+}
+
+/**
  * Moon phase: the lit region bounded by the disc's limb (a semicircle) and the
  * terminator (a semi-ellipse whose signed horizontal radius shrinks and crosses
  * over as the phase advances). `phase` runs a full cycle — 0/1 new, 0.25 waxing
@@ -267,6 +295,18 @@ export const GENERATORS: Record<string, GeneratorDef> = {
     ],
     buildFlower,
     [clamp, polar, smoothAnchors]
+  ),
+  arrow: defineGenerator(
+    "arrow",
+    "Arrow",
+    [
+      { key: "length", label: "Length", min: 1, max: 2000, step: 1, default: 100 },
+      { key: "height", label: "Height", min: 1, max: 1000, step: 1, default: 100 },
+      { key: "headLength", label: "Head length", min: 1, max: 1000, step: 1, default: 60 },
+      { key: "shaftRatio", label: "Shaft width", min: 0.05, max: 1, step: 0.01, default: 0.4 },
+    ],
+    buildArrow,
+    [clamp, sharp]
   ),
   moon: defineGenerator(
     "moon",
