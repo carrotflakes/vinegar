@@ -17,6 +17,14 @@ export interface PreferencesActions {
   setCanvasRotationEnabled: (enabled: boolean) => void;
   setCanvasRotationSnap: (snap: boolean) => void;
   setRulerOrigin: (origin: RulerOriginPreference) => void;
+  setFingerDrawing: (enabled: boolean) => void;
+  /**
+   * Record that a pen contact was seen. The first one switches finger drawing
+   * off, so an iPad user who picks up a stylus stops painting with their palm
+   * or thumb. Returns true exactly once — when that switch happened — so the
+   * caller can tell the user about it.
+   */
+  notePenInput: () => boolean;
   setRecoveryEnabled: (enabled: boolean) => void;
   setRecoveryMaxWaitMs: (maxWaitMs: number) => void;
   setUndoHistoryLimit: (limit: number) => void;
@@ -62,6 +70,19 @@ export function createPreferencesStore(storage?: PreferencesStorage) {
         patch("canvas", { ...get().canvas, rotationSnap: snap }),
       setRulerOrigin: (rulerOrigin) =>
         patch("canvas", { ...get().canvas, rulerOrigin }),
+      setFingerDrawing: (fingerDrawing) =>
+        patch("canvas", { ...get().canvas, fingerDrawing }),
+      notePenInput: () => {
+        const canvas = get().canvas;
+        if (canvas.penDetected) return false;
+        const autoDisabled = canvas.fingerDrawing;
+        patch("canvas", {
+          ...canvas,
+          penDetected: true,
+          fingerDrawing: false,
+        });
+        return autoDisabled;
+      },
       setRecoveryEnabled: (enabled) =>
         patch("recovery", { ...get().recovery, enabled }),
       setRecoveryMaxWaitMs: (maxWaitMs) => {

@@ -86,6 +86,7 @@ export default function PreferencesDialog({ open, onClose }: Props) {
     (state) => state.setCanvasRotationSnap
   );
   const setRulerOrigin = usePreferences((state) => state.setRulerOrigin);
+  const setFingerDrawing = usePreferences((state) => state.setFingerDrawing);
   const setRecoveryEnabled = usePreferences((state) => state.setRecoveryEnabled);
   const setRecoveryMaxWaitMs = usePreferences(
     (state) => state.setRecoveryMaxWaitMs
@@ -213,6 +214,21 @@ export default function PreferencesDialog({ open, onClose }: Props) {
                   disabled={!canvas.rotationEnabled}
                   className={"pref-switch" + (canvas.rotationSnap ? " on" : "")}
                   onClick={() => setCanvasRotationSnap(!canvas.rotationSnap)}
+                >
+                  <span className="pref-switch-knob" aria-hidden />
+                </button>
+              }
+            />
+            <Row
+              title="Draw with finger"
+              description="Let a finger paint with the brush, pencil and eraser. Off, it only pans and pinches — turned off automatically once a pen is used."
+              control={
+                <button
+                  type="button"
+                  role="switch"
+                  aria-checked={canvas.fingerDrawing}
+                  className={"pref-switch" + (canvas.fingerDrawing ? " on" : "")}
+                  onClick={() => setFingerDrawing(!canvas.fingerDrawing)}
                 >
                   <span className="pref-switch-knob" aria-hidden />
                 </button>

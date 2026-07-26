@@ -45,6 +45,7 @@ export default function CanvasView() {
   const penExtendRef = useRef<PathShape | null>(null);
   const lastInsertRef = useRef<LastInsert | null>(null);
   const hoverRef = useRef<Vec2 | null>(null);
+  const brushHoverRef = useRef<{ p: Vec2; radius: number } | null>(null);
   const guidesRef = useRef<Guide[]>([]);
   const spacingsRef = useRef<Spacing[]>([]);
   const rafRef = useRef<number | null>(null);
@@ -71,6 +72,7 @@ export default function CanvasView() {
       interaction: interactionRef.current,
       penDraft: penDraftRef.current,
       hover: hoverRef.current,
+      brushHover: brushHoverRef.current,
       guides: guidesRef.current,
       spacings: spacingsRef.current,
       hiddenTextId: textEditRef.current?.original?.id ?? null,
@@ -104,6 +106,7 @@ export default function CanvasView() {
       penExtend: penExtendRef,
       lastInsert: lastInsertRef,
       hover: hoverRef,
+      brushHover: brushHoverRef,
       guides: guidesRef,
       spacings: spacingsRef,
       hitScale: () => (coarseRef.current ? TOUCH_HIT_SCALE : 1),
@@ -166,7 +169,11 @@ export default function CanvasView() {
         onPointerMove={onPointerMove}
         onPointerUp={onPointerUp}
         onPointerCancel={onPointerCancel}
-        onPointerLeave={() => setPointer(null)}
+        onPointerLeave={() => {
+          setPointer(null);
+          brushHoverRef.current = null;
+          scheduleDraw();
+        }}
         onDoubleClick={onDoubleClick}
         onContextMenu={onContextMenu}
         onDragOver={(e) => {

@@ -69,6 +69,7 @@ Per-area notes live alongside this file in `docs/`:
 - [drag-and-drop.md](drag-and-drop.md) — pointer-based drag conventions
 - [global-colors.md](global-colors.md) — document color swatches and references
 - [path-commands.md](path-commands.md) — join / cut / combine / split and cleanup ops
+- [pen-and-touch.md](pen-and-touch.md) — stylus vs finger roles, palm rejection, touch gestures
 - [path-modifiers.md](path-modifiers.md) — direction for a non-destructive modifier stack
 - [path-unification.md](path-unification.md) — unifying shape and path representations
 - [recent-files.md](recent-files.md) — recent-files list (*shelved design proposal, not implemented*)

@@ -66,7 +66,22 @@ import {
 } from "../tools/textTool";
 import { useCanvasContextMenu } from "./useCanvasContextMenu";
 import type { CanvasGestures } from "./useCanvasGestures";
+import { useTouchTapGesture } from "./useTouchTapGesture";
 import type { TextEditing } from "./useTextEditing";
+import { useBrush } from "../../store/brushStore";
+import { usePreferences } from "../../store/preferencesStore";
+import { notify } from "../../store/toastStore";
+import { useRef } from "react";
+
+/**
+ * How long touch stays suppressed after the pen leaves the glass. A palm lifts
+ * a moment after the pen tip does, and the contact it leaves behind would
+ * otherwise pan the canvas out from under the stroke that just ended.
+ */
+const PEN_COOLDOWN_MS = 300;
+
+/** Tools whose drag paints; these are the ones a finger may be kept out of. */
+const DRAWING_TOOLS = new Set(["brush", "pencil", "eraser"]);
 
 interface PointerHandlerDeps {
   ctx: ToolContext;
@@ -94,6 +109,20 @@ export function usePointerHandlers(deps: PointerHandlerDeps): PointerHandlers {
     gestures;
   const { textEditRef, beginTextEdit, commitTextEdit } = text;
   const contextMenu = useCanvasContextMenu({ ctx, canvasRef, sizeRef });
+  const tap = useTouchTapGesture();
+
+  /** A pen is on the glass right now. */
+  const penDownRef = useRef(false);
+  /** When the pen last reported anything, for the post-stroke cooldown. */
+  const penSeenAtRef = useRef(0);
+  /** Touch contacts rejected at pointerdown; their later events are dead. */
+  const rejectedTouchRef = useRef<Set<number>>(new Set());
+  /** Which kind of pointer started the interaction currently in progress. */
+  const interactionPointerTypeRef = useRef<string>("mouse");
+
+  /** Touch is inert while the pen draws and briefly after it lifts. */
+  const penOwnsCanvas = () =>
+    penDownRef.current || performance.now() - penSeenAtRef.current < PEN_COOLDOWN_MS;
 
   const screenPoint = (e: { clientX: number; clientY: number }): Vec2 => {
     const rect = canvasRef.current!.getBoundingClientRect();
@@ -113,29 +142,85 @@ export function usePointerHandlers(deps: PointerHandlerDeps): PointerHandlers {
     );
   };
 
+  /**
+   * Show the brush/eraser tip outline while a pen hovers over the canvas, and
+   * take it away for every other pointer. Only pens hover, so this is the one
+   * affordance touch cannot have — and the one that makes a stylus feel aimed.
+   */
+  const updateBrushHover = (isPen: boolean, tool: string, world: Vec2) => {
+    const wanted = isPen && (tool === "brush" || tool === "eraser");
+    if (!wanted) {
+      if (!ctx.brushHover.current) return;
+      ctx.brushHover.current = null;
+      ctx.scheduleDraw();
+      return;
+    }
+    const brush = useBrush.getState();
+    ctx.brushHover.current = {
+      p: world,
+      radius: (tool === "brush" ? brush.size : brush.eraserSize) / 2,
+    };
+    ctx.scheduleDraw();
+  };
+
   const onPointerDown = (e: ReactPointerEvent<HTMLCanvasElement>) => {
     // Right button is reserved for the context menu (see onContextMenu).
     if (e.button === 2) return;
-    // Palm rejection: while a pen brush/eraser stroke is live, ignore touch
-    // contacts so a resting palm/finger cannot hijack it into a gesture.
-    if (
-      (ctx.interaction.current.kind === "brush" ||
-        ctx.interaction.current.kind === "eraser") &&
-      e.pointerType === "touch"
-    )
+    const isPen = e.pointerType === "pen";
+    const isTouch = e.pointerType === "touch";
+
+    if (isPen) {
+      penDownRef.current = true;
+      penSeenAtRef.current = performance.now();
+      // The first pen contact hands the canvas to the stylus for good.
+      if (usePreferences.getState().notePenInput()) {
+        notify.info("Pen detected — the finger now pans instead of drawing.");
+      }
+      // The pen outranks anything a hand resting on the glass had started:
+      // drop a live pinch and any touch-driven drag rather than fight them.
+      contextMenu.cancelTouch();
+      tap.reset();
+      if (gestureRef.current) {
+        gestureRef.current = null;
+        pointersRef.current.clear();
+      } else if (
+        ctx.interaction.current.kind !== "none" &&
+        interactionPointerTypeRef.current === "touch"
+      ) {
+        cancelActiveInteraction(ctx);
+      }
+    }
+
+    // Palm rejection: a touch landing while the pen owns the canvas is a
+    // resting hand, not an intent. A finger-drawn stroke deliberately does
+    // *not* reject the next finger — that second contact is how a touch-only
+    // user pinches or taps out of the brush tool (it promotes to a gesture
+    // below, discarding the stroke in progress).
+    if (isTouch && penOwnsCanvas()) {
+      rejectedTouchRef.current.add(e.pointerId);
+      // While the pen is actually down every contact is hand, so no tap can be
+      // brewing. Once it has lifted, the cooldown only holds off drags: a
+      // two-finger tap still undoes the stroke that just ended.
+      if (penDownRef.current) tap.reset();
+      else tap.down(e.pointerId, screenPoint(e));
       return;
+    }
     const activeTextId = textEditRef.current?.shape.id;
     if (activeTextId) commitTextEdit(activeTextId);
     const canvas = canvasRef.current!;
     canvas.setPointerCapture(e.pointerId);
     const screen = screenPoint(e);
+    interactionPointerTypeRef.current = e.pointerType;
+    // The tip outline is a hover affordance; the stroke itself replaces it.
+    ctx.brushHover.current = null;
 
     // Pinch/pan gestures are touch-only. Tracking pen/mouse pointers here would
     // let a lingering pen contact — e.g. two rapid Apple Pencil strokes whose
     // up/down interleave — be miscounted as a second finger and hijack the
     // fresh stroke into a two-finger gesture.
-    if (e.pointerType === "touch") {
+    if (isTouch) {
       pointersRef.current.set(e.pointerId, screen);
+      tap.down(e.pointerId, screen);
       // A second touch promotes the interaction to a two-finger gesture.
       if (pointersRef.current.size >= 2) {
         contextMenu.cancelTouch();
@@ -148,10 +233,7 @@ export function usePointerHandlers(deps: PointerHandlerDeps): PointerHandlers {
     }
 
     const state = useEditor.getState();
-    if (
-      e.pointerType === "touch" &&
-      (state.tool === "select" || state.tool === "node")
-    ) {
+    if (isTouch && (state.tool === "select" || state.tool === "node")) {
       contextMenu.startTouch(e.pointerId, e.clientX, e.clientY);
     }
     const world = screenToWorld(state.viewport, screen);
@@ -174,6 +256,21 @@ export function usePointerHandlers(deps: PointerHandlerDeps): PointerHandlers {
 
     const tool = state.tool;
 
+    // With finger drawing off, a lone finger pans instead of painting: the
+    // canvas belongs to the pen, the finger stays a navigation device.
+    if (
+      isTouch &&
+      DRAWING_TOOLS.has(tool) &&
+      !usePreferences.getState().canvas.fingerDrawing
+    ) {
+      ctx.interaction.current = {
+        kind: "pan",
+        startScreen: screen,
+        startOffset: { ...state.viewport.offset },
+      };
+      return;
+    }
+
     if (tool === "select") {
       onSelectDown(ctx, state, screen, world, mod.shift);
       return;
@@ -195,7 +292,7 @@ export function usePointerHandlers(deps: PointerHandlerDeps): PointerHandlers {
         ctx,
         state,
         world,
-        e.pointerType === "pen" ? e.pressure : 1,
+        isPen ? e.pressure : 1,
         e.pointerId
       );
       return;
@@ -229,8 +326,18 @@ export function usePointerHandlers(deps: PointerHandlerDeps): PointerHandlers {
   };
 
   const onPointerMove = (e: ReactPointerEvent<HTMLCanvasElement>) => {
+    const isPen = e.pointerType === "pen";
+    if (isPen) penSeenAtRef.current = performance.now();
     const screen = screenPoint(e);
+    // A rejected palm keeps emitting moves; none of them may reach a tool, but
+    // travelling still disqualifies the tap it might have been part of.
+    if (rejectedTouchRef.current.has(e.pointerId)) {
+      tap.move(e.pointerId, screen);
+      return;
+    }
+
     contextMenu.moveTouch(e.pointerId, e.clientX, e.clientY);
+    if (e.pointerType === "touch") tap.move(e.pointerId, screen);
     if (pointersRef.current.has(e.pointerId)) {
       pointersRef.current.set(e.pointerId, screen);
     }
@@ -257,6 +364,7 @@ export function usePointerHandlers(deps: PointerHandlerDeps): PointerHandlers {
       if (state.tool === "pen" && ctx.penDraft.current) {
         onPenHoverMove(ctx, state, world, mod.shift);
       }
+      updateBrushHover(isPen, state.tool, world);
       updateHoverCursor(screen, world);
       return;
     }
@@ -333,11 +441,31 @@ export function usePointerHandlers(deps: PointerHandlerDeps): PointerHandlers {
   };
 
   const onPointerUp = (e: ReactPointerEvent<HTMLCanvasElement>) => {
+    if (e.pointerType === "pen") {
+      penDownRef.current = false;
+      penSeenAtRef.current = performance.now();
+    }
+    // Two- and three-finger taps mean undo/redo. A contact held back by the
+    // pen cooldown is still part of its run, so this is judged before the
+    // rejected contacts drop out.
+    const tapped = e.pointerType === "touch" && tap.up(e.pointerId);
+    if (rejectedTouchRef.current.delete(e.pointerId) && !tapped) return;
+
     contextMenu.endTouch(e.pointerId);
     const canvas = canvasRef.current!;
     if (canvas.hasPointerCapture(e.pointerId))
       canvas.releasePointerCapture(e.pointerId);
     pointersRef.current.delete(e.pointerId);
+
+    // A fired tap consumes the release, so no tool sees the lift as the end of
+    // a drag.
+    if (tapped) {
+      gestureRef.current = null;
+      // Usually nothing is in flight (the second finger cancelled it), but a
+      // stroke the palm filter let slip past must be discarded, not committed.
+      cancelActiveInteraction(ctx);
+      return;
+    }
 
     // Winding down a gesture: end it once fewer than two pointers remain. A
     // lone leftover finger stays inert until lifted (no tool restart).
@@ -419,6 +547,13 @@ export function usePointerHandlers(deps: PointerHandlerDeps): PointerHandlers {
   };
 
   const onPointerCancel = (e: ReactPointerEvent<HTMLCanvasElement>) => {
+    if (e.pointerType === "pen") {
+      penDownRef.current = false;
+      penSeenAtRef.current = performance.now();
+    }
+    // A cancelled contact can never have been a clean tap.
+    if (e.pointerType === "touch") tap.reset();
+    if (rejectedTouchRef.current.delete(e.pointerId)) return;
     contextMenu.endTouch(e.pointerId);
     const canvas = canvasRef.current!;
     if (canvas.hasPointerCapture(e.pointerId))

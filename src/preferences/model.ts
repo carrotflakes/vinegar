@@ -28,6 +28,15 @@ export interface PreferencesV1 {
     rotationSnap: boolean;
     /** Whether the rulers count from the active frame or the world origin. */
     rulerOrigin: RulerOriginPreference;
+    /**
+     * Whether a bare finger may draw with the brush/pencil/eraser. Off means
+     * the finger only pans and pinches, leaving the canvas to the pen. Turned
+     * off automatically the first time a pen contact is seen (`penDetected`).
+     * See docs/pen-and-touch.md.
+     */
+    fingerDrawing: boolean;
+    /** A pen has touched this canvas at least once in this browser. */
+    penDetected: boolean;
   };
   recovery: {
     enabled: boolean;
@@ -79,6 +88,8 @@ export function createDefaultPreferences(): PreferencesV1 {
       rotationEnabled: true,
       rotationSnap: true,
       rulerOrigin: "artboard",
+      fingerDrawing: true,
+      penDetected: false,
     },
     recovery: {
       enabled: true,
@@ -117,6 +128,12 @@ function validateV1(value: Record<string, unknown>): PreferencesV1 {
       rulerOrigin: isRulerOrigin(canvas.rulerOrigin)
         ? canvas.rulerOrigin
         : defaults.canvas.rulerOrigin,
+      fingerDrawing: typeof canvas.fingerDrawing === "boolean"
+        ? canvas.fingerDrawing
+        : defaults.canvas.fingerDrawing,
+      penDetected: typeof canvas.penDetected === "boolean"
+        ? canvas.penDetected
+        : defaults.canvas.penDetected,
     },
     recovery: {
       enabled: typeof recovery.enabled === "boolean"

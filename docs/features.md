@@ -78,8 +78,9 @@ Related design notes: [path-unification.md](path-unification.md), [path-modifier
 - Pan (Space + drag, or middle mouse), zoom (Ctrl/⌘ + wheel), and optionally rotate the canvas from the zoom menu or with a two-finger twist (with 90° snapping); the view can also be flipped horizontally, reset, or fitted to all content (Shift+1), the selection (Shift+2), or the selected frame
 - Live **status bar**: pointer readout, per-tool hints, selection info, and live numbers during interactions (W×H while creating, ΔX/ΔY while moving, angle while rotating, new size while resizing)
 - **Responsive / touch** layout: icon-only toolbar rail, slide-in panels, enlarged hit targets for coarse pointers, pinch-to-zoom & two-finger pan, on-screen Shift/Alt modifier bar. Drag conventions: [drag-and-drop.md](drag-and-drop.md)
+- **Pen and touch roles** (tablets): the pen draws while the finger navigates. Palm rejection ignores touch while the pen is on the glass and briefly after it lifts, a **two-finger tap undoes** and a **three-finger tap redoes**, and a hovering pen previews the brush/eraser tip. Finger drawing is a preference that switches itself off the first time a pen is used, after which a one-finger drag pans instead of painting. See [pen-and-touch.md](pen-and-touch.md)
 - **Dockable panels**: panel tabs can be reordered, moved between vertically resizable groups, split into new groups, closed and restored from the add-panel menu; the layout is saved locally and can be reset from Preferences
-- **Preferences**: light / dark / system theme, canvas rotation and 90° snapping, ruler origin, recovery autosave interval, undo-history limit, and dock-layout reset
+- **Preferences**: light / dark / system theme, canvas rotation and 90° snapping, ruler origin, finger drawing, recovery autosave interval, undo-history limit, and dock-layout reset
 - Browser fullscreen toggle
 - Debug **project inspector** (app bar ▸ Inspect): searchable JSON tree of the whole store
 

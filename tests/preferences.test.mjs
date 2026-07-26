@@ -72,7 +72,13 @@ test("valid v1 preferences load while unknown fields are ignored", () => {
   assert.deepEqual(loaded, {
     version: 1,
     general: { theme: "light", locale: "en" },
-    canvas: { rotationEnabled: true, rotationSnap: true, rulerOrigin: "artboard" },
+    canvas: {
+      rotationEnabled: true,
+      rotationSnap: true,
+      rulerOrigin: "artboard",
+      fingerDrawing: true,
+      penDetected: false,
+    },
     recovery: { enabled: false, maxWaitMs: 12345 },
     history: { limit: 75 },
   });
@@ -100,7 +106,13 @@ test("invalid fields fall back independently", () => {
   assert.deepEqual(loaded, {
     version: 1,
     general: { theme: "dark", locale: "en" },
-    canvas: { rotationEnabled: true, rotationSnap: true, rulerOrigin: "artboard" },
+    canvas: {
+      rotationEnabled: true,
+      rotationSnap: true,
+      rulerOrigin: "artboard",
+      fingerDrawing: true,
+      penDetected: false,
+    },
     recovery: { enabled: true, maxWaitMs: 5000 },
     history: { limit: 100 },
   });
@@ -119,6 +131,8 @@ test("canvas rotation preferences load and fall back per field", () => {
     rotationEnabled: false,
     rotationSnap: true,
     rulerOrigin: "artboard",
+    fingerDrawing: true,
+    penDetected: false,
   });
 });
 
@@ -129,16 +143,48 @@ test("the preference store updates canvas rotation toggles", () => {
   store.getState().setCanvasRotationEnabled(false);
   store.getState().setCanvasRotationSnap(false);
 
+  const expected = {
+    rotationEnabled: false,
+    rotationSnap: false,
+    rulerOrigin: "artboard",
+    fingerDrawing: true,
+    penDetected: false,
+  };
+  assert.deepEqual(store.getState().canvas, expected);
+  assert.deepEqual(JSON.parse(fake.value).canvas, expected);
+});
+
+test("the first pen contact disables finger drawing exactly once", () => {
+  const fake = makeStorage();
+  const store = createPreferencesStore(fake.storage);
+
+  assert.equal(store.getState().canvas.fingerDrawing, true);
+  assert.equal(store.getState().notePenInput(), true);
   assert.deepEqual(store.getState().canvas, {
-    rotationEnabled: false,
-    rotationSnap: false,
+    rotationEnabled: true,
+    rotationSnap: true,
     rulerOrigin: "artboard",
+    fingerDrawing: false,
+    penDetected: true,
   });
-  assert.deepEqual(JSON.parse(fake.value).canvas, {
-    rotationEnabled: false,
-    rotationSnap: false,
-    rulerOrigin: "artboard",
-  });
+
+  // Later pen contacts report nothing, and never fight a manual re-enable.
+  assert.equal(store.getState().notePenInput(), false);
+  store.getState().setFingerDrawing(true);
+  assert.equal(store.getState().notePenInput(), false);
+  assert.equal(store.getState().canvas.fingerDrawing, true);
+});
+
+test("a returning user who never drew with a finger is not notified", () => {
+  const fake = makeStorage(JSON.stringify({
+    version: 1,
+    general: { theme: "dark", locale: "en" },
+    canvas: { fingerDrawing: false },
+  }));
+  const store = createPreferencesStore(fake.storage);
+
+  assert.equal(store.getState().notePenInput(), false);
+  assert.equal(store.getState().canvas.penDetected, true);
 });
 
 test("unsupported preference versions fall back safely", () => {
@@ -176,7 +222,13 @@ test("the preference store persists complete updates and resets", () => {
   assert.deepEqual(JSON.parse(fake.value), {
     version: 1,
     general: { theme: "light", locale: "en" },
-    canvas: { rotationEnabled: true, rotationSnap: true, rulerOrigin: "artboard" },
+    canvas: {
+      rotationEnabled: true,
+      rotationSnap: true,
+      rulerOrigin: "artboard",
+      fingerDrawing: true,
+      penDetected: false,
+    },
     recovery: { enabled: false, maxWaitMs: 12345 },
     history: { limit: 75 },
   });

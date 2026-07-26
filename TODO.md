@@ -145,12 +145,6 @@ additional effects, or other feature expansion.
   selected unit consistently in coordinates, dimensions and export settings
 - [ ] **Layer search / filtering** — find nodes by name/type and quickly reveal the
   selected result in deeply nested documents
-- [x] **Path unification** — `path` / `polygon` / `bezier` merged into one
-  canonical `path` type (`PathNode` = `subpaths` + `fillRule`); plan was
-  docs/path-unification.md
-- [x] **Compound paths as real nodes** — inline retained `components` replaced by
-  real `childIds` children (editable, layers-visible); plan was
-  docs/compound-path-nodes.md
 
 ## Mobile / touch
 - [ ] On-screen alternatives for the remaining keyboard-only actions (delete, copy/paste, group, pen finish/cancel)
@@ -317,18 +311,18 @@ additional effects, or other feature expansion.
   - [ ] マスクの分割 — 全輪郭が閉じている場合に限り group ではなく compoundPath で
     包めば有効なマスクのまま分割できる（穴の読みまで保たれる）。開いた subpath を
     含むマスクは compound の子になれないので引き続き拒否
-  - [x] `structure.releaseCompound` の同じマスク破壊バグを修正（マスクの compound を
-    リリースすると最前面の子だけがマスクに残り、他は中身に降格していた）。子が 1 個
-    だけの compound は 1:1 置換なので従来どおり許可。共通メッセージは
-    `maskMultiNodeError`、回帰テストは `tests/clippingMaskIntegration.test.mjs`
   - [ ] `path.outlineStroke` / `path.divide` は結果を group に包むため、マスクに対して
     実行すると `hasValidSceneContainers` で落ちて**無言で何も起きない**（破壊はしない）。
     同じ `maskMultiNodeError` を出して理由を伝えるべき
-- [x] color picker — own HSV picker (`ColorPicker`), reusable `ColorInput`
-  swatch replaces every `<input type="color">`
 - [ ] Layersパネル、キー操作でアイテム移動
-- [ ] ペン使用時のタッチ入力抑制
+- [x] ペン使用時のタッチ入力抑制 — ペン接地中と離してから 300ms は touch を拒否。
+  指で描くかは設定 (`canvas.fingerDrawing`)、初回のペン接触で自動 off。
+  docs/pen-and-touch.md
 - [ ] Layersパネル仮想化
 - [ ] fillruleを変える手段 — 現状 `fillRule` は生成時に決まるだけで、ストアのパッチ
   経路も UI もない（新規パスは nonzero、outlineStroke / compound 変換は evenodd）
 - [ ] brush <-> path 相互変換
+- [ ] ツールバーからgeneratorの図形挿入
+- [ ] Layersパネル、項目ホバーでキャンバスにハイライト
+- [x] 二本指タップでUNDO — 三本指で REDO。docs/pen-and-touch.md
+- [ ] symbol編集モードUI

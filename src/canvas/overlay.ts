@@ -378,6 +378,33 @@ export function drawNodes(
   });
 }
 
+/**
+ * Draw the brush/eraser tip outline under a hovering pen. Pens report hover
+ * before they touch down, so this previews the stroke width at the exact spot
+ * the next stroke will start. Fingers have no hover, so this never appears for
+ * touch and never needs to be cleared by one.
+ */
+export function drawBrushCursor(
+  ctx: CanvasRenderingContext2D,
+  dpr: number,
+  viewport: Viewport,
+  hover: Vec2,
+  worldRadius: number
+): void {
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  const p = worldToScreen(viewport, hover);
+  const r = worldRadius * viewport.scale;
+  ctx.beginPath();
+  ctx.arc(p.x, p.y, Math.max(r, 1), 0, Math.PI * 2);
+  // A dark hairline under a light one, so the ring reads on any artwork.
+  ctx.lineWidth = 3;
+  ctx.strokeStyle = "rgba(0, 0, 0, 0.35)";
+  ctx.stroke();
+  ctx.lineWidth = 1;
+  ctx.strokeStyle = "rgba(255, 255, 255, 0.9)";
+  ctx.stroke();
+}
+
 /** Draw the in-progress pen path: placed anchors plus a rubber-band segment. */
 export function drawPenDraft(
   ctx: CanvasRenderingContext2D,

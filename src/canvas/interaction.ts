@@ -173,6 +173,8 @@ export interface ToolContext {
   penExtend: { current: PathShape | null };
   lastInsert: { current: LastInsert | null };
   hover: { current: Vec2 | null };
+  /** Brush/eraser tip preview under a hovering pen (world units), if any. */
+  brushHover: { current: { p: Vec2; radius: number } | null };
   guides: { current: Guide[] };
   spacings: { current: Spacing[] };
   /** Multiplier that enlarges hit targets when the primary pointer is touch. */

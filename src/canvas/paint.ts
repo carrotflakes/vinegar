@@ -18,6 +18,7 @@ import { TOUCH_DRAW_SCALE, type Interaction } from "./interaction";
 import { ANCHOR_SIZE, HANDLE_DOT, WIDTH_KNOB } from "./nodes";
 import {
   drawFrameDropTarget,
+  drawBrushCursor,
   drawFrameLabels,
   drawGuides,
   drawNodes,
@@ -44,6 +45,8 @@ export interface PaintInput {
   interaction: Interaction;
   penDraft: PathShape | null;
   hover: Vec2 | null;
+  /** Hovering pen tip for the brush/eraser, with its radius in world units. */
+  brushHover: { p: Vec2; radius: number } | null;
   guides: Guide[];
   spacings: Spacing[];
   /** Shape hidden from the scene while its text is being edited in the DOM. */
@@ -63,6 +66,7 @@ export function paintCanvas(input: PaintInput): void {
     interaction,
     penDraft,
     hover,
+    brushHover,
     guides,
     spacings,
     hiddenTextId,
@@ -195,6 +199,9 @@ export function paintCanvas(input: PaintInput): void {
       shapeWorldMatrix(doc, penDraft),
       hover
     );
+  }
+  if (brushHover && (tool === "brush" || tool === "eraser")) {
+    drawBrushCursor(ctx2d, dpr, viewport, brushHover.p, brushHover.radius);
   }
   if (interaction.kind === "text-create") {
     drawTextDraft(ctx2d, dpr, viewport, interaction.start, interaction.current);
