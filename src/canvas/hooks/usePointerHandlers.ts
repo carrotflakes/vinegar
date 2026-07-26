@@ -72,16 +72,7 @@ import { useBrush } from "../../store/brushStore";
 import { usePreferences } from "../../store/preferencesStore";
 import { notify } from "../../store/toastStore";
 import { useRef } from "react";
-
-/**
- * How long touch stays suppressed after the pen leaves the glass. A palm lifts
- * a moment after the pen tip does, and the contact it leaves behind would
- * otherwise pan the canvas out from under the stroke that just ended.
- */
-const PEN_COOLDOWN_MS = 300;
-
-/** Tools whose drag paints; these are the ones a finger may be kept out of. */
-const DRAWING_TOOLS = new Set(["brush", "pencil", "eraser"]);
+import { routeContact, type ContactRoute } from "../inputRouting";
 
 interface PointerHandlerDeps {
   ctx: ToolContext;
@@ -117,12 +108,35 @@ export function usePointerHandlers(deps: PointerHandlerDeps): PointerHandlers {
   const penSeenAtRef = useRef(0);
   /** Touch contacts rejected at pointerdown; their later events are dead. */
   const rejectedTouchRef = useRef<Set<number>>(new Set());
-  /** Which kind of pointer started the interaction currently in progress. */
-  const interactionPointerTypeRef = useRef<string>("mouse");
+  /**
+   * The pointer that started the interaction in progress. Every interaction is
+   * owned by exactly one contact: on a tablet, a palm, a second finger or a
+   * hovering pen all deliver events into a live drag, and none of them may
+   * steer or end it. Interactions only ever begin in `onPointerDown`, so this
+   * is the single place ownership needs to be recorded.
+   */
+  const ownerRef = useRef<{ pointerId: number; pointerType: string } | null>(
+    null
+  );
 
-  /** Touch is inert while the pen draws and briefly after it lifts. */
-  const penOwnsCanvas = () =>
-    penDownRef.current || performance.now() - penSeenAtRef.current < PEN_COOLDOWN_MS;
+  /** Whether `pointerId` may drive the interaction currently in progress. */
+  const ownsInteraction = (pointerId: number) =>
+    ownerRef.current === null || ownerRef.current.pointerId === pointerId;
+
+  /** Ask `inputRouting` what a contact landing right now means. */
+  const routeDown = (e: ReactPointerEvent<HTMLCanvasElement>): ContactRoute => {
+    const state = useEditor.getState();
+    return routeContact({
+      pointerType: e.pointerType,
+      penDown: penDownRef.current,
+      sincePen: penSeenAtRef.current
+        ? performance.now() - penSeenAtRef.current
+        : Infinity,
+      liveTouches: pointersRef.current.size,
+      tool: state.tool,
+      fingerDrawing: usePreferences.getState().canvas.fingerDrawing,
+    });
+  };
 
   const screenPoint = (e: { clientX: number; clientY: number }): Vec2 => {
     const rect = canvasRef.current!.getBoundingClientRect();
@@ -168,13 +182,18 @@ export function usePointerHandlers(deps: PointerHandlerDeps): PointerHandlers {
     if (e.button === 2) return;
     const isPen = e.pointerType === "pen";
     const isTouch = e.pointerType === "touch";
+    // Read the verdict before the pen bookkeeping below changes the inputs.
+    const route = routeDown(e);
 
     if (isPen) {
       penDownRef.current = true;
       penSeenAtRef.current = performance.now();
       // The first pen contact hands the canvas to the stylus for good.
       if (usePreferences.getState().notePenInput()) {
-        notify.info("Pen detected — the finger now pans instead of drawing.");
+        notify.info(
+          "Pen detected — your finger now pans instead of drawing. " +
+            "Two-finger tap to undo; change it under Finger in the modifier bar."
+        );
       }
       // The pen outranks anything a hand resting on the glass had started:
       // drop a live pinch and any touch-driven drag rather than fight them.
@@ -185,23 +204,19 @@ export function usePointerHandlers(deps: PointerHandlerDeps): PointerHandlers {
         pointersRef.current.clear();
       } else if (
         ctx.interaction.current.kind !== "none" &&
-        interactionPointerTypeRef.current === "touch"
+        ownerRef.current?.pointerType === "touch"
       ) {
         cancelActiveInteraction(ctx);
+        ownerRef.current = null;
       }
     }
 
-    // Palm rejection: a touch landing while the pen owns the canvas is a
-    // resting hand, not an intent. A finger-drawn stroke deliberately does
-    // *not* reject the next finger — that second contact is how a touch-only
-    // user pinches or taps out of the brush tool (it promotes to a gesture
-    // below, discarding the stroke in progress).
-    if (isTouch && penOwnsCanvas()) {
+    if (route === "reject-palm" || route === "reject-cooldown") {
       rejectedTouchRef.current.add(e.pointerId);
-      // While the pen is actually down every contact is hand, so no tap can be
-      // brewing. Once it has lifted, the cooldown only holds off drags: a
-      // two-finger tap still undoes the stroke that just ended.
-      if (penDownRef.current) tap.reset();
+      // A palm rules out any tap that was brewing. A contact merely held back
+      // by the cooldown still joins one, so "draw a stroke, immediately
+      // two-finger undo" is not swallowed by palm rejection.
+      if (route === "reject-palm") tap.reset();
       else tap.down(e.pointerId, screenPoint(e));
       return;
     }
@@ -210,7 +225,7 @@ export function usePointerHandlers(deps: PointerHandlerDeps): PointerHandlers {
     const canvas = canvasRef.current!;
     canvas.setPointerCapture(e.pointerId);
     const screen = screenPoint(e);
-    interactionPointerTypeRef.current = e.pointerType;
+    ownerRef.current = { pointerId: e.pointerId, pointerType: e.pointerType };
     // The tip outline is a hover affordance; the stroke itself replaces it.
     ctx.brushHover.current = null;
 
@@ -221,8 +236,7 @@ export function usePointerHandlers(deps: PointerHandlerDeps): PointerHandlers {
     if (isTouch) {
       pointersRef.current.set(e.pointerId, screen);
       tap.down(e.pointerId, screen);
-      // A second touch promotes the interaction to a two-finger gesture.
-      if (pointersRef.current.size >= 2) {
+      if (route === "gesture") {
         contextMenu.cancelTouch();
         beginGesture();
         return;
@@ -257,12 +271,9 @@ export function usePointerHandlers(deps: PointerHandlerDeps): PointerHandlers {
     const tool = state.tool;
 
     // With finger drawing off, a lone finger pans instead of painting: the
-    // canvas belongs to the pen, the finger stays a navigation device.
-    if (
-      isTouch &&
-      DRAWING_TOOLS.has(tool) &&
-      !usePreferences.getState().canvas.fingerDrawing
-    ) {
+    // canvas belongs to the pen, the finger stays a navigation device. Guides
+    // are checked first, so a finger can still pull one out of a ruler.
+    if (route === "pan") {
       ctx.interaction.current = {
         kind: "pan",
         startScreen: screen,
@@ -288,17 +299,11 @@ export function usePointerHandlers(deps: PointerHandlerDeps): PointerHandlers {
       return;
     }
     if (tool === "brush") {
-      startBrush(
-        ctx,
-        state,
-        world,
-        isPen ? e.pressure : 1,
-        e.pointerId
-      );
+      startBrush(ctx, state, world, isPen ? e.pressure : 1);
       return;
     }
     if (tool === "eraser") {
-      startEraser(ctx, world, e.pointerId);
+      startEraser(ctx, world);
       return;
     }
     if (tool === "bucket") {
@@ -327,7 +332,10 @@ export function usePointerHandlers(deps: PointerHandlerDeps): PointerHandlers {
 
   const onPointerMove = (e: ReactPointerEvent<HTMLCanvasElement>) => {
     const isPen = e.pointerType === "pen";
-    if (isPen) penSeenAtRef.current = performance.now();
+    // Only contact keeps the cooldown alive. A pen *hovering* also reports
+    // moves, and treating those as pen activity would suppress touch for as
+    // long as the stylus is held near the glass.
+    if (isPen && e.buttons !== 0) penSeenAtRef.current = performance.now();
     const screen = screenPoint(e);
     // A rejected palm keeps emitting moves; none of them may reach a tool, but
     // travelling still disqualifies the tap it might have been part of.
@@ -347,14 +355,10 @@ export function usePointerHandlers(deps: PointerHandlerDeps): PointerHandlers {
     }
 
     const inter = ctx.interaction.current;
-    // A touch contact ignored by a drawing tool's pointerdown handler can
-    // still deliver events through implicit pointer capture. Only the pointer
-    // that started the interaction may contribute samples.
-    if (
-      (inter.kind === "brush" || inter.kind === "eraser") &&
-      e.pointerId !== inter.pointerId
-    )
-      return;
+    // Only the owner drives a live drag; a palm or second finger delivering
+    // events through implicit pointer capture is dropped here. With nothing in
+    // progress every pointer is free to update the hover chrome below.
+    if (inter.kind !== "none" && !ownsInteraction(e.pointerId)) return;
     const state = useEditor.getState();
     const world = screenToWorld(state.viewport, screen);
     const mod = readModifiers(e);
@@ -475,12 +479,10 @@ export function usePointerHandlers(deps: PointerHandlerDeps): PointerHandlers {
     }
 
     const inter = ctx.interaction.current;
-    // Do not let an ignored palm/finger end the active drawing interaction.
-    if (
-      (inter.kind === "brush" || inter.kind === "eraser") &&
-      e.pointerId !== inter.pointerId
-    )
-      return;
+    // Only the owner can end what it started: a palm lifting must not commit
+    // (or cancel) someone else's drag.
+    if (inter.kind !== "none" && !ownsInteraction(e.pointerId)) return;
+    ownerRef.current = null;
     ctx.interaction.current = { kind: "none" };
     const state = useEditor.getState();
     ctx.guides.current = [];
@@ -564,14 +566,11 @@ export function usePointerHandlers(deps: PointerHandlerDeps): PointerHandlers {
       return;
     }
     const inter = ctx.interaction.current;
-    // Likewise, cancellation of an unrelated touch pointer must not cancel
-    // the pointer that owns the drawing interaction.
-    if (
-      (inter.kind === "brush" || inter.kind === "eraser") &&
-      e.pointerId !== inter.pointerId
-    )
-      return;
-    if (inter.kind !== "none") cancelActiveInteraction(ctx);
+    // Likewise, cancelling an unrelated contact must not cancel the drag its
+    // owner is still performing.
+    if (inter.kind === "none" || !ownsInteraction(e.pointerId)) return;
+    ownerRef.current = null;
+    cancelActiveInteraction(ctx);
   };
 
   const onDoubleClick = (e: ReactMouseEvent<HTMLCanvasElement>) => {

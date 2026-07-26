@@ -57,14 +57,13 @@ export function startBrush(
   ctx: ToolContext,
   state: EditorState,
   world: Vec2,
-  pressure: number,
-  pointerId: number
+  pressure: number
 ) {
   const opts = useBrush.getState();
   const w = pressureToWidth(pressure, opts);
   active = { raw: [{ p: world, w }], smoothed: world, last: world, opts };
   ctx.preview.current = buildPreview(state, anchorsFromRaw(active.raw));
-  ctx.interaction.current = { kind: "brush", pointerId };
+  ctx.interaction.current = { kind: "brush" };
   ctx.scheduleDraw();
 }
 

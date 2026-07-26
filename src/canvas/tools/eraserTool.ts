@@ -34,15 +34,11 @@ function previewShape(points: Vec2[], size: number): BrushShape {
   };
 }
 
-export function startEraser(
-  ctx: ToolContext,
-  world: Vec2,
-  pointerId: number
-) {
+export function startEraser(ctx: ToolContext, world: Vec2) {
   const size = useBrush.getState().eraserSize;
   active = { points: [world], size };
   ctx.preview.current = previewShape(active.points, size);
-  ctx.interaction.current = { kind: "eraser", pointerId };
+  ctx.interaction.current = { kind: "eraser" };
   ctx.scheduleDraw();
 }
 

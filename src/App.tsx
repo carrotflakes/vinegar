@@ -34,6 +34,7 @@ import SnapMenu from "./ui/SnapMenu";
 import Toasts from "./ui/Toasts";
 import Toolbar from "./ui/Toolbar";
 import ZoomMenu from "./ui/ZoomMenu";
+import { useCoarsePointer } from "./ui/useCoarsePointer";
 import ExportDialog from "./ui/dialogs/ExportDialog";
 import Inspector from "./ui/dialogs/Inspector";
 import PreferencesDialog from "./ui/dialogs/PreferencesDialog";
@@ -99,10 +100,23 @@ const TOOL_HINTS: Record<ToolId, string> = {
   frame: "Drag to create a frame · move/resize it with the Select tool",
 };
 
+/**
+ * Gestures that no key or button advertises, so the status bar is where a
+ * touch user finds out they exist. See docs/pen-and-touch.md.
+ */
+const TOUCH_HINT =
+  "Two-finger tap: undo · three-finger: redo · pinch to zoom";
+
 /** Per-tool usage hint for the status bar. */
 function ToolHint() {
   const tool = useEditor((s) => s.tool);
-  return <span className="status-hint">{TOOL_HINTS[tool]}</span>;
+  const coarse = useCoarsePointer();
+  return (
+    <span className="status-hint">
+      {TOOL_HINTS[tool]}
+      {coarse && ` · ${TOUCH_HINT}`}
+    </span>
+  );
 }
 
 function recoveryTime(value?: string): string {

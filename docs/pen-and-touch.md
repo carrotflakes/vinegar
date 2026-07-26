@@ -12,10 +12,25 @@ role, the way iPad painting apps have taught people to expect:
 | Three fingers | **Tap = redo** |
 | Mouse | Unchanged desktop behaviour |
 
-All of it lives in `src/canvas/hooks/usePointerHandlers.ts`, with the tap
-gesture in `useTouchTapGesture.ts` and the pinch in `useCanvasGestures.ts`. Tool
-modules never see `pointerType`: by the time a tool is called, the contact has
-already been accepted, rejected or rerouted.
+The *policy* — what a contact means — lives in `src/canvas/inputRouting.ts` as
+pure functions (`routeContact`, `judgeTap`), so it can be read and tested
+without a DOM (`tests/inputRouting.test.mjs`). The *mechanics* — capture,
+bookkeeping, dispatch — live in `src/canvas/hooks/usePointerHandlers.ts`, with
+the tap run in `useTouchTapGesture.ts` and the pinch in `useCanvasGestures.ts`.
+Put new rules in `inputRouting.ts` and let the hook ask.
+
+Tool modules never see `pointerType`: by the time a tool is called, the contact
+has already been accepted, rejected or rerouted.
+
+## One contact owns an interaction
+
+An interaction belongs to the pointer that started it. On a tablet a palm, a
+second finger and a hovering pen all deliver events into a live drag, and none
+of them may steer or end it — so `usePointerHandlers` records the owning
+pointer at `pointerdown` (interactions only ever begin there) and drops
+`pointermove`/`pointerup`/`pointercancel` from anyone else. Interaction
+variants therefore carry no pointer id of their own; ownership is not a
+per-tool concern.
 
 ## Finger drawing is a preference that turns itself off
 
@@ -26,6 +41,11 @@ contact is seen** — `notePenInput()` in `src/store/preferencesStore.ts`, guard
 by `canvas.penDetected` so it happens exactly once ever and a manual re-enable
 is never overridden. The switch raises a toast, because silent mode changes are
 worse than the problem they solve.
+
+The switch is also on the canvas: the touch **modifier bar** grows a `Finger`
+toggle while a painting tool is active, because the state is otherwise
+invisible ("why does my finger not draw any more?") and is worth flipping
+mid-drawing, which a trip to Preferences is not.
 
 With it off, a one-finger drag on those tools becomes a **pan** instead of doing
 nothing: in pen mode the finger is a navigation device, and making it inert
@@ -72,6 +92,12 @@ Contacts rejected by the **cooldown** are still fed to the tap tracker (those
 rejected while the pen is actually down are not, and reset the run). Without
 that, "draw a bad stroke, immediately two-finger undo" — the most common pair of
 actions in a painting app — would be swallowed by palm rejection.
+
+A tap that lands on an empty history stack says so ("Nothing to undo") rather
+than doing nothing: silence reads as a gesture that failed to register. The
+gestures themselves are advertised in the status-bar hint on coarse pointers,
+and in the toast raised when a pen is first detected — nothing else on screen
+suggests they exist.
 
 ## Why a second finger never gets rejected mid-stroke
 

@@ -2,11 +2,8 @@ import { useCallback, useRef } from "react";
 import type { Viewport } from "@/model/geometry/viewport";
 import type { Vec2 } from "../../model/types";
 import { useEditor } from "../../store/editorStore";
-
-/** A multi-touch tap must lift within this long to count as a tap. */
-const TAP_MAX_MS = 300;
-/** Any contact travelling further than this makes it a drag, not a tap. */
-const TAP_TOLERANCE = 16;
+import { notify } from "../../store/toastStore";
+import { exceedsTapTolerance, judgeTap } from "../inputRouting";
 
 interface TapRun {
   /** Where each contact still on the glass landed, keyed by pointerId. */
@@ -71,9 +68,7 @@ export function useTouchTapGesture(): TouchTapGesture {
     if (!run || run.moved) return;
     const start = run.starts.get(pointerId);
     if (!start) return;
-    if (Math.hypot(screen.x - start.x, screen.y - start.y) > TAP_TOLERANCE) {
-      run.moved = true;
-    }
+    if (exceedsTapTolerance(start, screen)) run.moved = true;
   }, []);
 
   const up = useCallback((pointerId: number) => {
@@ -83,13 +78,22 @@ export function useTouchTapGesture(): TouchTapGesture {
     // Judge the run only once every finger has left the glass.
     if (run.starts.size > 0) return false;
     runRef.current = null;
-    if (run.moved || performance.now() - run.startTime > TAP_MAX_MS) {
-      return false;
-    }
-    if (run.maxPointers !== 2 && run.maxPointers !== 3) return false;
+    const verdict = judgeTap({
+      maxPointers: run.maxPointers,
+      elapsedMs: performance.now() - run.startTime,
+      moved: run.moved,
+    });
+    if (!verdict) return false;
     const state = useEditor.getState();
     state.setViewport(run.startViewport);
-    if (run.maxPointers === 2) state.undo();
+    // A gesture that lands on an empty stack would be completely silent, and
+    // silence reads as "the gesture did not register". Say which it was.
+    const stack = verdict === "undo" ? state.history.past : state.history.future;
+    if (stack.length === 0) {
+      notify.info(verdict === "undo" ? "Nothing to undo" : "Nothing to redo");
+      return true;
+    }
+    if (verdict === "undo") state.undo();
     else state.redo();
     return true;
   }, []);

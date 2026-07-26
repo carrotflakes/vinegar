@@ -1,27 +1,20 @@
-import { useEffect, useState } from "react";
+import { useEditor } from "../store/editorStore";
 import { useInput } from "../store/inputStore";
+import { usePreferences } from "../store/preferencesStore";
+import { useCoarsePointer } from "../ui/useCoarsePointer";
+import { DRAWING_TOOLS } from "./inputRouting";
 import "./ModifierBar.css";
-
-/** True when the primary pointer is coarse (touch/pen), tracked live. */
-function useCoarsePointer(): boolean {
-  const [coarse, setCoarse] = useState(
-    typeof matchMedia === "function" && matchMedia("(pointer: coarse)").matches
-  );
-  useEffect(() => {
-    if (typeof matchMedia !== "function") return;
-    const mq = matchMedia("(pointer: coarse)");
-    const update = () => setCoarse(mq.matches);
-    mq.addEventListener("change", update);
-    return () => mq.removeEventListener("change", update);
-  }, []);
-  return coarse;
-}
 
 /**
  * On-screen Shift/Alt toggles for touch, where tool constraints (Shift = 45°/
  * square, Alt = from-center/break-symmetry) have no physical keys. Toggles are
  * sticky; they also light up while the matching physical key is held. Read
  * through inputStore.readModifiers so tools honour keys and toggles alike.
+ *
+ * On the painting tools it also carries the finger-drawing switch. That state
+ * is otherwise invisible — "why does my finger not draw any more?" — and it is
+ * worth flipping mid-drawing, which a trip to Preferences is not.
+ * See docs/pen-and-touch.md.
  */
 export default function ModifierBar() {
   const coarse = useCoarsePointer();
@@ -31,6 +24,9 @@ export default function ModifierBar() {
   const physAlt = useInput((s) => s.physAlt);
   const toggleStickyShift = useInput((s) => s.toggleStickyShift);
   const toggleStickyAlt = useInput((s) => s.toggleStickyAlt);
+  const tool = useEditor((s) => s.tool);
+  const fingerDrawing = usePreferences((s) => s.canvas.fingerDrawing);
+  const setFingerDrawing = usePreferences((s) => s.setFingerDrawing);
 
   if (!coarse) return null;
 
@@ -50,6 +46,20 @@ export default function ModifierBar() {
       >
         Alt
       </button>
+      {DRAWING_TOOLS.has(tool) && (
+        <button
+          className={"modifier-btn" + (fingerDrawing ? " active" : "")}
+          aria-pressed={fingerDrawing}
+          title={
+            fingerDrawing
+              ? "Finger draws — tap to let it pan instead"
+              : "Finger pans; the pen draws — tap to draw with the finger too"
+          }
+          onClick={() => setFingerDrawing(!fingerDrawing)}
+        >
+          Finger
+        </button>
+      )}
     </div>
   );
 }
