@@ -2,6 +2,7 @@
 // shape conversions (boolean ops, outline stroke, compound paths).
 
 import { booleanShapes, divideShapes, DIVIDE_MAX_INPUTS, isAreal } from "@/model/path/boolean";
+import { canCombineSelection, combineShapes } from "@/model/path/combinePaths";
 import { joinShapes } from "@/model/path/joinPath";
 import { nodeWorldBounds, unionNodeWorldBounds } from "@/model/geometry/bounds";
 import {
@@ -336,6 +337,36 @@ export function createStructureActions({ set, get, transact }: StoreCtx): Struct
       if (!hasValidSceneContainers(next)) return;
       transact(next, { label: "Divide" });
       set({ selection: [gid], ...clearTransient });
+      if (effectsRemoved) notifyEffectsRemoved();
+    },
+    combineSelected: () => {
+      const doc = get().doc;
+      const selection = get().selection;
+      if (!canCombineSelection(doc, selection)) return;
+      const roots = selectionRoots(doc, selection);
+      const parent = parentIdOf(doc, roots[0]);
+      const siblings = childIdsOf(doc, parent);
+      const selected = new Set(roots);
+      const ordered = siblings.filter((id) => selected.has(id));
+      // Combining the mask with anything would leave the clip group without a
+      // mask or without content (see maskMultiNodeError).
+      if (ordered.some((id) => isClippingMaskNode(doc, id))) {
+        notify.error(maskMultiNodeError("combined"));
+        return;
+      }
+      const effectsRemoved = ordered.some((id) => !!doc.nodes[id]?.effects.length);
+      const result = combineShapes(ordered.map((id) => doc.nodes[id] as PathShape));
+      if (!result) return;
+      const nodes = { ...doc.nodes };
+      for (const id of ordered) delete nodes[id];
+      nodes[result.id] = result;
+      const order = siblings.filter((id) => !selected.has(id));
+      const at = siblings.slice(0, siblings.indexOf(ordered[0])).filter((id) => !selected.has(id)).length;
+      order.splice(at, 0, result.id);
+      const next = replaceChildren({ ...doc, nodes }, parent, order);
+      if (!hasValidSceneContainers(next)) return;
+      transact(next, { label: "Combine paths" });
+      set({ selection: [result.id], ...clearTransient });
       if (effectsRemoved) notifyEffectsRemoved();
     },
     joinSelected: () => {

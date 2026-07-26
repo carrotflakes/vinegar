@@ -222,7 +222,7 @@ export default function SelectionActionsSection({
               </div>
             </>
           )}
-          {(can("path.join") || can("path.splitSubpaths")) && (
+          {(can("path.join") || can("path.combine") || can("path.splitSubpaths")) && (
             <div className="btn-row">
               {can("path.join") && (
                 <button
@@ -231,6 +231,15 @@ export default function SelectionActionsSection({
                   onClick={() => runCommand("path.join")}
                 >
                   Join
+                </button>
+              )}
+              {can("path.combine") && (
+                <button
+                  className="ghost-btn"
+                  title="Gather the paths into one path, keeping the backmost path's style"
+                  onClick={() => runCommand("path.combine")}
+                >
+                  Combine
                 </button>
               )}
               {can("path.splitSubpaths") && (

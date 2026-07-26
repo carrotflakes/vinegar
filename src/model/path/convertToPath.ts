@@ -1,8 +1,8 @@
 import { compoundChildren } from "./compoundPath";
 import { cachedBrushEnvelope } from "@/model/brush/brushOutline";
 import { ellipseSubpath } from "../ellipse";
-import { applyMatrix } from "@/model/geometry/matrix";
 import { roundedRectSubpath } from "../roundedRect";
+import { transformSubpath } from "./path";
 import { strokeDetailFields } from "../stroke";
 import type {
   CompoundPathNode,
@@ -10,7 +10,6 @@ import type {
   Document,
   EllipseShape,
   LineShape,
-  Matrix,
   PathShape,
   PathSubpath,
   PrimitiveShape,
@@ -58,18 +57,6 @@ function primitiveSubpaths(shape: PrimitiveShape): PathSubpath[] {
   }
 }
 
-function transformSubpath(subpath: PathSubpath, matrix: Matrix): PathSubpath {
-  return {
-    closed: subpath.closed,
-    anchors: subpath.anchors.map((anchor) => ({
-      ...anchor,
-      p: applyMatrix(matrix, anchor.p),
-      hIn: anchor.hIn ? applyMatrix(matrix, anchor.hIn) : null,
-      hOut: anchor.hOut ? applyMatrix(matrix, anchor.hOut) : null,
-    })),
-  };
-}
-
 function brushSubpaths(shape: BrushShape): PathSubpath[] {
   const ring = cachedBrushEnvelope(shape);
   if (ring.length < 3) return [];
@@ -87,7 +74,7 @@ export function convertShapeToPath(
   const subpaths = shape.type === "compoundPath"
     ? compoundChildren(doc, shape).flatMap((child) =>
         primitiveSubpaths(child).map((subpath) =>
-          transformSubpath(subpath, child.transform)
+          transformSubpath(child.transform, subpath)
         )
       )
     : shape.type === "brush"

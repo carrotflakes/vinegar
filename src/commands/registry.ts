@@ -24,6 +24,7 @@ import { createDemoDocument } from "../demo/createDemoDocument";
 import { canGroupSelection, selectionUnits } from "../model/groups";
 import { isAreal } from "@/model/path/boolean";
 import { joinableSubpathCount } from "@/model/path/joinPath";
+import { canCombineSelection } from "@/model/path/combinePaths";
 import { canSplitSubpaths } from "@/model/path/splitSubpaths";
 import { hasCuttableNodes } from "@/model/path/cutPath";
 import { framesInPaintOrder, isFrame, isInstance, isShape, parentIdOf, selectionRoots } from "../model/scene";
@@ -447,6 +448,13 @@ export const COMMANDS: Command[] = [
     group: "Path",
     enabled: (s) => sel(s).canJoin,
     run: (s) => s.joinSelected(),
+  },
+  {
+    id: "path.combine",
+    label: "Combine paths",
+    group: "Path",
+    enabled: (s) => canCombineSelection(s.doc, s.selection),
+    run: (s) => s.combineSelected(),
   },
   {
     id: "path.splitSubpaths",

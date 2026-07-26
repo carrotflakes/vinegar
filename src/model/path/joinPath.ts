@@ -1,9 +1,9 @@
-import { applyMatrix, IDENTITY } from "@/model/geometry/matrix";
+import { IDENTITY } from "@/model/geometry/matrix";
 import { strokeDetailFields } from "../stroke";
+import { transformAnchor } from "./path";
 import {
   makeId,
   baseNodeDefaults,
-  type Matrix,
   type PathAnchor,
   type PathShape,
   type PathSubpath,
@@ -23,16 +23,6 @@ function dist(a: Vec2, b: Vec2): number {
 
 function mid(a: Vec2, b: Vec2): Vec2 {
   return { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
-}
-
-/** Bake a matrix into an anchor's point and both handles. */
-function transformAnchor(m: Matrix, a: PathAnchor): PathAnchor {
-  return {
-    ...a,
-    p: applyMatrix(m, a.p),
-    hIn: a.hIn ? applyMatrix(m, a.hIn) : null,
-    hOut: a.hOut ? applyMatrix(m, a.hOut) : null,
-  };
 }
 
 /** Reverse a run of anchors: flip order and swap each anchor's handles. */

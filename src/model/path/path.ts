@@ -1,4 +1,5 @@
-import type { PathShape, PathSubpath, Vec2 } from "../types";
+import { applyMatrix } from "@/model/geometry/matrix";
+import type { Matrix, PathAnchor, PathShape, PathSubpath, Vec2 } from "../types";
 import { setAnchorType } from "./anchorType";
 
 export interface CubicSegment {
@@ -14,6 +15,21 @@ export function ringsToSubpaths(rings: Vec2[][]): PathSubpath[] {
     anchors: ring.map((p) => ({ p, hIn: null, hOut: null })),
     closed: true,
   }));
+}
+
+/** Bake a matrix into an anchor's point and both handles. */
+export function transformAnchor(m: Matrix, a: PathAnchor): PathAnchor {
+  return {
+    ...a,
+    p: applyMatrix(m, a.p),
+    hIn: a.hIn ? applyMatrix(m, a.hIn) : null,
+    hOut: a.hOut ? applyMatrix(m, a.hOut) : null,
+  };
+}
+
+/** Bake a matrix into a whole contour, keeping its open/closed state. */
+export function transformSubpath(m: Matrix, sp: PathSubpath): PathSubpath {
+  return { closed: sp.closed, anchors: sp.anchors.map((a) => transformAnchor(m, a)) };
 }
 
 /** Point on a cubic Bézier at parameter t in [0, 1]. */

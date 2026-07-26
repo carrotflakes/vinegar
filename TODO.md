@@ -310,10 +310,28 @@ additional effects, or other feature expansion.
   clip group のマスクは拒否 + トースト（group は有効なマスクになれない）。
   `path.join` は開いた端点しか溶接しないので逆操作にはならない。キー割り当てなし
   （Ctrl+Shift+K は Firefox の Web Console）
-  - [ ] 統合コマンド — 複数 path を 1 ノードの multi-subpath へ潰す（Inkscape の
-    Combine）。`structure.makeCompound`（コンテナを残す・even-odd 固定）と
-    `path.join`（端点を溶接）との違いは「破壊的に leaf 1 個へ・fillRule 選択可」。
-    split が実質片道操作（undo 以外に戻り道がない）なので対として価値が高い
+  - [x] 統合コマンド — `path.combine` (`model/path/combinePaths.ts`)。同一親の
+    `path` 2 個以上を 1 ノードの multi-subpath へ。**存在理由は「開いた輪郭に器が
+    ないこと」**（`compoundPath` は閉じた子しか受け付けず、`path.join` は許容距離内の
+    端点しか溶接しない）。穴を作るための機能ではないので `fillRule` は基準メンバーの
+    値をそのまま引き継ぐ（そもそも fillRule を編集する UI もストア経路もまだない）。
+    ジオメトリは変えない = **split の真の逆操作**。スタイル基準は最背面メンバー
+    （`joinShapes` / `makeCompoundPath` / Inkscape と同じ）、effects は落として通知、
+    結果は最背面メンバーのスロットへ。マスクを含む選択は拒否。キー割り当てなし。
+    **結果は基準メンバーの `transform` を維持**し、他メンバーをその空間へ写す
+    （boolean/outline/join の「ベイクして identity」とは意図的に違う）。`strokeWidth`
+    と `strokeDash` は node-local 単位でレンダラが transform でスケールするので、
+    ベイクするとスタイルを引き継いだ当の図形の線幅が変わってしまう。基準の transform
+    が非可逆なときだけ親空間へベイクにフォールバック
+    - [ ] `path.join` に同じ線幅バグがある（ベイクして identity + 基準の strokeWidth を
+      そのままコピー）。既存の出荷済みコマンドの挙動変更になるので未着手
+    - [ ] group を選んで統合（split の結果を 1 手で戻せるようにする）。今は
+      グループ内のピースを選び直す必要がある
+    - [ ] rect / ellipse / line を入力に許す（`convertShapeToPath` の再利用で済む）。
+      brush はエンベロープ輪郭になってしまうので対象外が妥当
+    - [ ] 副産物: アンカー/輪郭のトランスフォーム適用を `path.ts` の
+      `transformAnchor` / `transformSubpath` に共通化（joinPath と convertToPath に
+      同じ private コピーがあった）
   - [ ] マスクの分割 — 全輪郭が閉じている場合に限り group ではなく compoundPath で
     包めば有効なマスクのまま分割できる（穴の読みまで保たれる）。開いた subpath を
     含むマスクは compound の子になれないので引き続き拒否
@@ -329,3 +347,4 @@ additional effects, or other feature expansion.
 - [ ] Layersパネル、キー操作でアイテム移動
 - [ ] ペン使用時のタッチ入力抑制
 - [ ] Layersパネル仮想化
+- [ ] fillruleを変える手段
