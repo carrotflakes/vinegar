@@ -7,9 +7,8 @@ import {
 } from "@floating-ui/react-dom";
 import { useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { LuPipette } from "react-icons/lu";
+import { useEditor } from "@/store/editorStore";
 import ColorPicker from "./ColorPicker";
-import HexInput from "./HexInput";
 import { usePopoverDismiss } from "./usePopoverDismiss";
 import "./ColorInput.css";
 import "./ColorField.css";
@@ -41,6 +40,7 @@ export default function ColorInput({
   "aria-label": ariaLabel,
 }: Props) {
   const [open, setOpen] = useState(false);
+  const addRecentColor = useEditor((s) => s.addRecentColor);
   const buttonRef = useRef<HTMLButtonElement | null>(null);
   const { refs, floatingStyles } = useFloating({
     placement: "bottom-start",
@@ -48,23 +48,17 @@ export default function ColorInput({
     whileElementsMounted: autoUpdate,
   });
 
+  const close = () => {
+    setOpen(false);
+    addRecentColor(value);
+  };
+
   usePopoverDismiss(
     open,
     (t) =>
       !!buttonRef.current?.contains(t) || !!refs.floating.current?.contains(t),
-    () => setOpen(false)
+    close
   );
-
-  const hasEyeDropper = typeof window !== "undefined" && !!window.EyeDropper;
-  const pickFromScreen = async () => {
-    if (!window.EyeDropper) return;
-    try {
-      const { sRGBHex } = await new window.EyeDropper().open();
-      onChange(sRGBHex.toLowerCase());
-    } catch {
-      // user cancelled
-    }
-  };
 
   return (
     <>
@@ -78,7 +72,7 @@ export default function ColorInput({
         disabled={disabled}
         title={title ?? "Edit color"}
         aria-label={ariaLabel ?? title ?? "Edit color"}
-        onClick={() => setOpen((o) => !o)}
+        onClick={() => (open ? close() : setOpen(true))}
       >
         <span
           className="color-input-fill"
@@ -97,19 +91,7 @@ export default function ColorInput({
               value={value}
               onChange={onChange}
               {...(alpha != null && onAlphaChange ? { alpha, onAlphaChange } : {})}
-            >
-              {hasEyeDropper && (
-                <button
-                  type="button"
-                  className="icon-btn"
-                  title="Pick color from screen"
-                  onClick={pickFromScreen}
-                >
-                  <LuPipette aria-hidden />
-                </button>
-              )}
-              <HexInput value={value} onChange={onChange} />
-            </ColorPicker>
+            />
           </div>,
           document.body
         )}

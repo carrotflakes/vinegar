@@ -7,7 +7,7 @@ import {
 } from "@floating-ui/react-dom";
 import { useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { LuLink2Off, LuPipette, LuPlus } from "react-icons/lu";
+import { LuLink2Off, LuPlus } from "react-icons/lu";
 import {
   isGradient,
   isSwatchRef,
@@ -27,19 +27,11 @@ import {
 import { pickImageFiles } from "@/io/importImage";
 import ColorInput from "./ColorInput";
 import ColorPicker from "./ColorPicker";
-import HexInput from "./HexInput";
 import ScrubbableNumber from "./ScrubbableNumber";
 import { usePopoverDismiss } from "./usePopoverDismiss";
 import { useEditor } from "@/store/editorStore";
 import "@/ui/Panel.css";
 import "./ColorField.css";
-
-/** A curated default palette (grayscale + a hue wheel + tints). */
-const PALETTE = [
-  "#000000", "#434343", "#666666", "#999999", "#b7b7b7", "#cccccc", "#efefef", "#ffffff",
-  "#e53935", "#fb8c00", "#fdd835", "#43a047", "#1e88e5", "#3949ab", "#8e24aa", "#d81b60",
-  "#ffcdd2", "#ffe0b2", "#fff9c4", "#c8e6c9", "#bbdefb", "#c5cae9", "#e1bee7", "#f8bbd0",
-];
 
 /** Tooltips for the raster paint mapping modes. */
 const PATTERN_MODE_HINTS: Record<PatternMode, string> = {
@@ -59,11 +51,7 @@ interface Props {
 }
 
 export default function ColorField({ label, value, onChange }: Props) {
-  const recentColors = useEditor((s) => s.recentColors);
   const addRecentColor = useEditor((s) => s.addRecentColor);
-  const savedSwatches = useEditor((s) => s.savedSwatches);
-  const addSwatch = useEditor((s) => s.addSwatch);
-  const removeSwatch = useEditor((s) => s.removeSwatch);
   const assets = useEditor((s) => s.doc.assets);
   const addPatternImage = useEditor((s) => s.addPatternImage);
   // Document colours (global swatches) referenced by the current paint.
@@ -104,7 +92,6 @@ export default function ColorField({ label, value, onChange }: Props) {
   const createDocColor = () => onChange(swatchRef(createSwatch("", solid(color, alpha))));
   // Detach: bake the reference back to its concrete paint on this field only.
   const unlink = () => onChange(concrete);
-  const hasEyeDropper = typeof window !== "undefined" && !!window.EyeDropper;
 
   // ---- gradient editing --------------------------------------------------
   const stops: GradientStop[] = gradient
@@ -167,16 +154,6 @@ export default function ColorField({ label, value, onChange }: Props) {
     whileElementsMounted: autoUpdate,
   });
 
-  const pickFromScreen = async () => {
-    if (!window.EyeDropper) return;
-    try {
-      const { sRGBHex } = await new window.EyeDropper().open();
-      setColor(sRGBHex.toLowerCase());
-    } catch {
-      // user cancelled
-    }
-  };
-
   const close = () => {
     setOpen(false);
     // Patterns have no meaningful colour; don't push the gray fallback.
@@ -201,7 +178,7 @@ export default function ColorField({ label, value, onChange }: Props) {
         <button
           ref={refs.setReference}
           className={"color-swatch" + (enabled ? "" : " is-none")}
-          onClick={() => setOpen((o) => !o)}
+          onClick={() => (open ? close() : setOpen(true))}
           title="Edit color"
         >
           {concrete && (
@@ -280,74 +257,8 @@ export default function ColorField({ label, value, onChange }: Props) {
                 onChange={setColor}
                 alpha={alpha}
                 onAlphaChange={setAlpha}
-              >
-                {hasEyeDropper && (
-                  <button
-                    className="icon-btn"
-                    title="Pick color from screen"
-                    onClick={pickFromScreen}
-                  >
-                    <LuPipette aria-hidden />
-                  </button>
-                )}
-                <HexInput value={color} onChange={setColor} />
-                <span className="alpha-value">{Math.round(alpha * 100)}%</span>
-              </ColorPicker>
-
-              <div className="color-pop-label">
-                Saved
-                <button
-                  className="swatch-add"
-                  title="Save current color"
-                  onClick={() => addSwatch(color)}
-                >
-                  +
-                </button>
-              </div>
-              <div className="swatch-grid">
-                {savedSwatches.length === 0 && (
-                  <span className="swatch-hint">Save colors with +</span>
-                )}
-                {savedSwatches.map((c) => (
-                  <button
-                    key={c}
-                    className="mini-swatch"
-                    style={{ background: c }}
-                    title={`${c} — Alt-click to remove`}
-                    onClick={(e) => (e.altKey ? removeSwatch(c) : setColor(c))}
-                  />
-                ))}
-              </div>
-
-              {recentColors.length > 0 && (
-                <>
-                  <div className="color-pop-label">Recent</div>
-                  <div className="swatch-grid">
-                    {recentColors.map((c) => (
-                      <button
-                        key={c}
-                        className="mini-swatch"
-                        style={{ background: c }}
-                        title={c}
-                        onClick={() => setColor(c)}
-                      />
-                    ))}
-                  </div>
-                </>
-              )}
-
-              <div className="color-pop-label">Palette</div>
-              <div className="swatch-grid">
-                {PALETTE.map((c) => (
-                  <button
-                    key={c}
-                    className="mini-swatch"
-                    style={{ background: c }}
-                    title={c}
-                    onClick={() => setColor(c)}
-                  />
-                ))}
-              </div>
+                showAlphaValue
+              />
 
               <div className="color-pop-label">
                 Global colors

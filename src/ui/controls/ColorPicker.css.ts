@@ -16,6 +16,80 @@ globalStyle(".color-picker", {
   gap: "8px",
 });
 
+globalStyle(".color-picker-panel", {
+  display: "flex",
+  flexDirection: "column",
+  gap: "8px",
+});
+
+globalStyle(".hex-input", {
+  flex: "1",
+  minWidth: "0",
+  padding: "5px 7px",
+  border: `1px solid ${vars.border}`,
+  borderRadius: "6px",
+  fontSize: "12px",
+  fontVariantNumeric: "tabular-nums",
+});
+
+globalStyle(".color-pop-label", {
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "space-between",
+  fontSize: "11px",
+  color: vars.muted,
+  textTransform: "uppercase",
+  letterSpacing: "0.04em",
+});
+
+globalStyle(".swatch-add", {
+  width: "18px",
+  height: "18px",
+  lineHeight: "1",
+  padding: "0",
+  border: `1px solid ${vars.border}`,
+  borderRadius: "4px",
+  background: vars.panel,
+  color: vars.muted,
+  fontSize: "13px",
+});
+
+globalStyle(".swatch-add:hover:not(:disabled)", {
+  borderColor: vars.accent,
+  color: vars.accent,
+});
+
+globalStyle(".swatch-add:disabled", {
+  opacity: "0.4",
+  cursor: "default",
+});
+
+globalStyle(".swatch-hint", {
+  gridColumn: "1 / -1",
+  fontSize: "11px",
+  color: vars.muted,
+});
+
+globalStyle(".swatch-grid", {
+  display: "grid",
+  gridTemplateColumns: "repeat(8, 1fr)",
+  gap: "4px",
+});
+
+globalStyle(".mini-swatch", {
+  width: "100%",
+  aspectRatio: "1",
+  padding: "0",
+  border: `1px solid ${vars.border}`,
+  borderRadius: "4px",
+  cursor: "pointer",
+});
+
+globalStyle(".mini-swatch:hover, .mini-swatch.selected", {
+  outline: `2px solid ${vars.accent}`,
+  outlineOffset: "1px",
+});
+
 /* Saturation (x) by brightness (y), painted over the pure hue. */
 globalStyle(".cp-area", {
   position: "relative",
