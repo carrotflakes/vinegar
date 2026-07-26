@@ -1,4 +1,93 @@
 import type { PathSubpath, Vec2 } from "../../model/types";
+import { readCanvasTheme } from "../../canvas/canvasTheme";
+
+const GRID_MAJOR_EVERY = 5;
+const GRID_TARGET_PX = 40;
+
+/** Choose a readable world-space grid interval from the 1, 2, 5 sequence. */
+export function previewGridStep(scale: number): number {
+  const target = GRID_TARGET_PX / scale;
+  const power = 10 ** Math.floor(Math.log10(target));
+  const normalized = target / power;
+  const multiple = normalized <= 1 ? 1 : normalized <= 2 ? 2 : normalized <= 5 ? 5 : 10;
+  return multiple * power;
+}
+
+function formatGridStep(step: number): string {
+  if (step >= 1) return step.toLocaleString("en-US");
+  return step.toLocaleString("en-US", {
+    maximumFractionDigits: Math.max(0, -Math.floor(Math.log10(step))),
+  });
+}
+
+function drawPreviewGrid(
+  ctx: CanvasRenderingContext2D,
+  width: number,
+  height: number,
+  scale: number,
+  offsetX: number,
+  offsetY: number
+): void {
+  const theme = readCanvasTheme();
+  const worldStep = previewGridStep(scale);
+  const screenStep = worldStep * scale;
+  const minColumn = Math.ceil(-offsetX / screenStep);
+  const maxColumn = Math.floor((width - offsetX) / screenStep);
+  const minRow = Math.ceil(-offsetY / screenStep);
+  const maxRow = Math.floor((height - offsetY) / screenStep);
+
+  ctx.save();
+  ctx.lineWidth = 1;
+  for (let column = minColumn; column <= maxColumn; column++) {
+    const x = Math.round(offsetX + column * screenStep) + 0.5;
+    ctx.beginPath();
+    ctx.moveTo(x, 0);
+    ctx.lineTo(x, height);
+    ctx.strokeStyle =
+      column === 0
+        ? theme.grid.axis
+        : column % GRID_MAJOR_EVERY === 0
+          ? theme.grid.major
+          : theme.grid.minor;
+    ctx.stroke();
+  }
+  for (let row = minRow; row <= maxRow; row++) {
+    const y = Math.round(offsetY + row * screenStep) + 0.5;
+    ctx.beginPath();
+    ctx.moveTo(0, y);
+    ctx.lineTo(width, y);
+    ctx.strokeStyle =
+      row === 0
+        ? theme.grid.axis
+        : row % GRID_MAJOR_EVERY === 0
+          ? theme.grid.major
+          : theme.grid.minor;
+    ctx.stroke();
+  }
+
+  ctx.fillStyle = theme.grid.axis;
+  ctx.font = "10px system-ui, sans-serif";
+
+  // A scale key keeps the grid meaningful even when auto-fit changes the zoom.
+  const label = `${formatGridStep(worldStep)} units`;
+  const labelWidth = ctx.measureText(label).width;
+  const keyWidth = Math.max(labelWidth, screenStep);
+  const keyX = width - keyWidth - 10;
+  const labelX = keyX + (keyWidth - labelWidth) / 2;
+  const lineX = keyX + (keyWidth - screenStep) / 2;
+  const keyY = height - 9;
+  ctx.fillText(label, labelX, keyY);
+  ctx.beginPath();
+  ctx.moveTo(lineX, keyY - 13.5);
+  ctx.lineTo(lineX + screenStep, keyY - 13.5);
+  ctx.moveTo(lineX, keyY - 16.5);
+  ctx.lineTo(lineX, keyY - 10.5);
+  ctx.moveTo(lineX + screenStep, keyY - 16.5);
+  ctx.lineTo(lineX + screenStep, keyY - 10.5);
+  ctx.strokeStyle = theme.grid.axis;
+  ctx.stroke();
+  ctx.restore();
+}
 
 /**
  * Draw generator geometry into a preview canvas, fitted and centered. All
@@ -38,6 +127,13 @@ export function drawGeometryPreview(
   }
   if (!Number.isFinite(minX)) return;
 
+  // Keep the generator's local origin visible, including for geometry that
+  // lives entirely on one side of it.
+  minX = Math.min(minX, 0);
+  minY = Math.min(minY, 0);
+  maxX = Math.max(maxX, 0);
+  maxY = Math.max(maxY, 0);
+
   const bw = maxX - minX || 1;
   const bh = maxY - minY || 1;
   const pad = 14;
@@ -45,6 +141,8 @@ export function drawGeometryPreview(
   const ox = (w - bw * scale) / 2 - minX * scale;
   const oy = (h - bh * scale) / 2 - minY * scale;
   const T = (p: Vec2): Vec2 => ({ x: p.x * scale + ox, y: p.y * scale + oy });
+
+  drawPreviewGrid(ctx, w, h, scale, ox, oy);
 
   ctx.beginPath();
   for (const sp of subpaths) {
