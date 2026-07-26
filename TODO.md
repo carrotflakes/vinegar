@@ -331,3 +331,4 @@ additional effects, or other feature expansion.
 - [ ] Layersパネル仮想化
 - [ ] fillruleを変える手段 — 現状 `fillRule` は生成時に決まるだけで、ストアのパッチ
   経路も UI もない（新規パスは nonzero、outlineStroke / compound 変換は evenodd）
+- [ ] brush <-> path 相互変換
