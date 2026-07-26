@@ -82,6 +82,18 @@ globalStyle(".layer-icon-btn:hover", {
   color: vars.text,
 });
 
+globalStyle(".layer-state-btn.state-idle", {
+  opacity: "0.4",
+});
+
+globalStyle(".layer-state-btn.state-set", {
+  color: vars.text,
+});
+
+globalStyle(".layer-state-btn:hover", {
+  opacity: "1",
+});
+
 globalStyle(".layer-type", {
   display: "inline-flex",
   alignItems: "center",

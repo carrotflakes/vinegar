@@ -48,6 +48,9 @@ const TYPE_ICON: Record<Shape["type"], ComponentType> = {
   brush: LuBrush,
 };
 
+const stateButtonClass = (isSet: boolean) =>
+  `layer-icon-btn layer-state-btn ${isSet ? "state-set" : "state-idle"}`;
+
 /** Display node: the render tree with every level front-most first. */
 interface DNode {
   key: string;
@@ -305,7 +308,7 @@ export default function LayersPanel() {
           </button>
         )}
         <button
-          className="layer-icon-btn"
+          className={stateButtonClass(shape.hidden)}
           title={shape.hidden ? "Show" : "Hide"}
           onClick={(e) => {
             e.stopPropagation();
@@ -315,7 +318,7 @@ export default function LayersPanel() {
           {shape.hidden ? <LuEyeOff /> : <LuEye />}
         </button>
         <button
-          className="layer-icon-btn"
+          className={stateButtonClass(shape.locked)}
           title={shape.locked ? "Unlock" : "Lock"}
           onClick={(e) => {
             e.stopPropagation();
@@ -384,7 +387,7 @@ export default function LayersPanel() {
         }}
       >
         <button
-          className="layer-icon-btn"
+          className={stateButtonClass(instance.hidden)}
           title={instance.hidden ? "Show" : "Hide"}
           onClick={(e) => {
             e.stopPropagation();
@@ -394,7 +397,7 @@ export default function LayersPanel() {
           {instance.hidden ? <LuEyeOff /> : <LuEye />}
         </button>
         <button
-          className="layer-icon-btn"
+          className={stateButtonClass(instance.locked)}
           title={instance.locked ? "Unlock" : "Lock"}
           onClick={(e) => {
             e.stopPropagation();
@@ -475,7 +478,7 @@ export default function LayersPanel() {
           {isCollapsed ? <LuChevronRight /> : <LuChevronDown />}
         </button>
         <button
-          className="layer-icon-btn"
+          className={stateButtonClass(group.hidden)}
           title={`${group.hidden ? "Show" : "Hide"} ${kind}`}
           onClick={(e) => {
             e.stopPropagation();
@@ -485,7 +488,7 @@ export default function LayersPanel() {
           {group.hidden ? <LuEyeOff /> : <LuEye />}
         </button>
         <button
-          className="layer-icon-btn"
+          className={stateButtonClass(group.locked)}
           title={`${group.locked ? "Unlock" : "Lock"} ${kind}`}
           onClick={(e) => {
             e.stopPropagation();
