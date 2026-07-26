@@ -6,25 +6,17 @@ import type {
 } from "react";
 import { handleFromDataTransferItem } from "../../io/fileSystem";
 import { isDocumentFile, openDocumentFile } from "../../io/openDocument";
-import {
-  drillScopeRoot,
-  expandToGroups,
-  isWithinGroup,
-} from "../../model/groups";
+import { drillScopeRoot, expandToGroups } from "../../model/groups";
 import { isGroup, scopeRootGroupId } from "../../model/scene";
 import type { Vec2 } from "../../model/types";
 import { screenToWorld } from "@/model/geometry/viewport";
 import { currentSymbolScope, useEditor } from "../../store/editorStore";
 import { readModifiers } from "../../store/inputStore";
-import { openContextMenu } from "../../store/menuStore";
 import { setPointer, setReadout } from "../../store/pointerStore";
-import { canvasMenu, guideMenu, selectionMenu } from "../../ui/menus";
 import { resolveCursor } from "../cursor";
 import { type ToolContext } from "../interaction";
 import { cancelActiveInteraction } from "../interactionLifecycle";
 import { pickShape } from "../picking";
-import { pickGuide } from "../guides";
-import { overRulers } from "../rulers";
 import {
   finishFrame,
   onFrameDown,
@@ -72,6 +64,7 @@ import {
   moveTextCreate,
   startTextCreate,
 } from "../tools/textTool";
+import { useCanvasContextMenu } from "./useCanvasContextMenu";
 import type { CanvasGestures } from "./useCanvasGestures";
 import type { TextEditing } from "./useTextEditing";
 
@@ -100,6 +93,7 @@ export function usePointerHandlers(deps: PointerHandlerDeps): PointerHandlers {
   const { pointersRef, gestureRef, beginGesture, updateGesture, captureGestureBaseline } =
     gestures;
   const { textEditRef, beginTextEdit, commitTextEdit } = text;
+  const contextMenu = useCanvasContextMenu({ ctx, canvasRef, sizeRef });
 
   const screenPoint = (e: { clientX: number; clientY: number }): Vec2 => {
     const rect = canvasRef.current!.getBoundingClientRect();
@@ -144,6 +138,7 @@ export function usePointerHandlers(deps: PointerHandlerDeps): PointerHandlers {
       pointersRef.current.set(e.pointerId, screen);
       // A second touch promotes the interaction to a two-finger gesture.
       if (pointersRef.current.size >= 2) {
+        contextMenu.cancelTouch();
         beginGesture();
         return;
       }
@@ -153,6 +148,12 @@ export function usePointerHandlers(deps: PointerHandlerDeps): PointerHandlers {
     }
 
     const state = useEditor.getState();
+    if (
+      e.pointerType === "touch" &&
+      (state.tool === "select" || state.tool === "node")
+    ) {
+      contextMenu.startTouch(e.pointerId, e.clientX, e.clientY);
+    }
     const world = screenToWorld(state.viewport, screen);
     const mod = readModifiers(e);
 
@@ -229,6 +230,7 @@ export function usePointerHandlers(deps: PointerHandlerDeps): PointerHandlers {
 
   const onPointerMove = (e: ReactPointerEvent<HTMLCanvasElement>) => {
     const screen = screenPoint(e);
+    contextMenu.moveTouch(e.pointerId, e.clientX, e.clientY);
     if (pointersRef.current.has(e.pointerId)) {
       pointersRef.current.set(e.pointerId, screen);
     }
@@ -331,6 +333,7 @@ export function usePointerHandlers(deps: PointerHandlerDeps): PointerHandlers {
   };
 
   const onPointerUp = (e: ReactPointerEvent<HTMLCanvasElement>) => {
+    contextMenu.endTouch(e.pointerId);
     const canvas = canvasRef.current!;
     if (canvas.hasPointerCapture(e.pointerId))
       canvas.releasePointerCapture(e.pointerId);
@@ -416,6 +419,7 @@ export function usePointerHandlers(deps: PointerHandlerDeps): PointerHandlers {
   };
 
   const onPointerCancel = (e: ReactPointerEvent<HTMLCanvasElement>) => {
+    contextMenu.endTouch(e.pointerId);
     const canvas = canvasRef.current!;
     if (canvas.hasPointerCapture(e.pointerId))
       canvas.releasePointerCapture(e.pointerId);
@@ -505,55 +509,13 @@ export function usePointerHandlers(deps: PointerHandlerDeps): PointerHandlers {
     void state.placeImageFiles(files, world, fitWithin);
   };
 
-  const onContextMenu = (e: ReactMouseEvent<HTMLCanvasElement>) => {
-    e.preventDefault();
-    const state = useEditor.getState();
-    const screen = screenPoint(e);
-    const world = screenToWorld(state.viewport, screen);
-    // Right-clicking a ruler or a guide opens the guide menu instead.
-    const size = sizeRef.current;
-    const onRuler = state.rulersVisible && overRulers(screen, size);
-    const guide = state.guidesVisible
-      ? pickGuide(state.doc, state.viewport, screen, size, 4 * ctx.hitScale())
-      : null;
-    if (onRuler || guide) {
-      if (guide && !state.guidesLocked) state.setSelectedGuide(guide.id);
-      openContextMenu(e.clientX, e.clientY, guideMenu());
-      return;
-    }
-    if (state.tool === "select" || state.tool === "node") {
-      const hitId = pickShape(ctx, world);
-      if (hitId) {
-        // Mirror onSelectDown's drill-aware resolution so right-clicking a
-        // child inside the active group keeps it selected instead of jumping
-        // out to the whole group.
-        const symbolRoot = scopeRootGroupId(state.doc, currentSymbolScope(state));
-        const activeGroup =
-          state.activeGroupId && isGroup(state.doc.nodes[state.activeGroupId])
-            ? state.activeGroupId
-            : null;
-        const insideActive =
-          activeGroup != null && isWithinGroup(state.doc, hitId, activeGroup);
-        if (activeGroup && !insideActive) state.setActiveGroup(null);
-        const scopeRoot = insideActive ? activeGroup : symbolRoot;
-        const expanded = expandToGroups(state.doc, [hitId], scopeRoot);
-        if (!expanded.some((id) => state.selection.includes(id))) {
-          state.setSelection(expanded);
-        }
-        openContextMenu(e.clientX, e.clientY, selectionMenu());
-        return;
-      }
-    }
-    openContextMenu(e.clientX, e.clientY, canvasMenu(world));
-  };
-
   return {
     onPointerDown,
     onPointerMove,
     onPointerUp,
     onPointerCancel,
     onDoubleClick,
-    onContextMenu,
+    onContextMenu: contextMenu.onContextMenu,
     onDrop,
   };
 }
