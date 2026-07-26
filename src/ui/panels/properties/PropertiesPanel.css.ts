@@ -55,6 +55,26 @@ globalStyle(".stroke-detail-grid label", {
   color: vars.muted,
 });
 
+globalStyle(".brush-options-grid", {
+  display: "grid",
+  gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
+  gap: "8px",
+});
+
+globalStyle(".brush-options-grid label", {
+  display: "flex",
+  flexDirection: "column",
+  gap: "5px",
+  minWidth: "0",
+  fontSize: "12px",
+  color: vars.muted,
+});
+
+globalStyle(".brush-options-grid .num", {
+  boxSizing: "border-box",
+  width: "100%",
+});
+
 globalStyle(".dash-input", {
   width: "100%",
   padding: "5px 7px",

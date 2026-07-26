@@ -11,17 +11,9 @@ export default function BrushPanel() {
     <div className="panel-section">
       <div className="panel-title">Brush</div>
 
-      <div className="field">
-        <label>Size</label>
-        <div className="field-row">
-          <input
-            type="range"
-            min={0.5}
-            max={80}
-            step={0.5}
-            value={size}
-            onChange={(e) => setBrush({ size: Number(e.target.value) })}
-          />
+      <div className="brush-options-grid">
+        <label>
+          <span>Size</span>
           <ScrubbableNumber
             className="num"
             min={0.5}
@@ -30,35 +22,23 @@ export default function BrushPanel() {
             onChange={(v) => setBrush({ size: v })}
             aria-label="Brush size"
           />
-        </div>
-      </div>
+        </label>
 
-      <div className="field">
-        <label>Min width</label>
-        <div className="field-row">
-          <input
-            type="range"
+        <label>
+          <span>Min width (%)</span>
+          <ScrubbableNumber
+            className="num"
             min={0}
-            max={1}
-            step={0.01}
-            value={minWidth}
-            onChange={(e) => setBrush({ minWidth: Number(e.target.value) })}
+            max={100}
+            step={1}
+            value={Math.round(minWidth * 100)}
+            onChange={(v) => setBrush({ minWidth: v / 100 })}
+            aria-label="Minimum width percent"
           />
-          <span className="num readout">{Math.round(minWidth * 100)}%</span>
-        </div>
-      </div>
+        </label>
 
-      <div className="field">
-        <label>Pressure</label>
-        <div className="field-row">
-          <input
-            type="range"
-            min={0.25}
-            max={4}
-            step={0.05}
-            value={pressureGamma}
-            onChange={(e) => setBrush({ pressureGamma: Number(e.target.value) })}
-          />
+        <label>
+          <span>Pressure</span>
           <ScrubbableNumber
             className="num"
             min={0.25}
@@ -68,35 +48,23 @@ export default function BrushPanel() {
             onChange={(v) => setBrush({ pressureGamma: v })}
             aria-label="Pressure response"
           />
-        </div>
-      </div>
+        </label>
 
-      <div className="field">
-        <label>Smoothing</label>
-        <div className="field-row">
-          <input
-            type="range"
+        <label>
+          <span>Smoothing (%)</span>
+          <ScrubbableNumber
+            className="num"
             min={0}
-            max={0.95}
-            step={0.01}
-            value={stabilizer}
-            onChange={(e) => setBrush({ stabilizer: Number(e.target.value) })}
-          />
-          <span className="num readout">{Math.round(stabilizer * 100)}%</span>
-        </div>
-      </div>
-
-      <div className="field">
-        <label>Taper</label>
-        <div className="field-row">
-          <input
-            type="range"
-            min={0}
-            max={100}
+            max={95}
             step={1}
-            value={taper}
-            onChange={(e) => setBrush({ taper: Number(e.target.value) })}
+            value={Math.round(stabilizer * 100)}
+            onChange={(v) => setBrush({ stabilizer: v / 100 })}
+            aria-label="Smoothing percent"
           />
+        </label>
+
+        <label>
+          <span>Taper</span>
           <ScrubbableNumber
             className="num"
             min={0}
@@ -105,7 +73,7 @@ export default function BrushPanel() {
             onChange={(v) => setBrush({ taper: v })}
             aria-label="Taper length"
           />
-        </div>
+        </label>
       </div>
     </div>
   );
@@ -117,17 +85,9 @@ export function EraserPanel() {
   return (
     <div className="panel-section">
       <div className="panel-title">Eraser</div>
-      <div className="field">
-        <label>Size</label>
-        <div className="field-row">
-          <input
-            type="range"
-            min={1}
-            max={120}
-            step={1}
-            value={eraserSize}
-            onChange={(e) => setBrush({ eraserSize: Number(e.target.value) })}
-          />
+      <div className="brush-options-grid">
+        <label>
+          <span>Size</span>
           <ScrubbableNumber
             className="num"
             min={1}
@@ -136,7 +96,7 @@ export function EraserPanel() {
             onChange={(v) => setBrush({ eraserSize: v })}
             aria-label="Eraser size"
           />
-        </div>
+        </label>
       </div>
     </div>
   );
