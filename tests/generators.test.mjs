@@ -107,6 +107,26 @@ test("the built-in star generator inserts, retunes, and detaches on edit", () =>
   assert.equal(detached.generator, null);
 });
 
+test("generator insertion uses configured preview arguments", () => {
+  const editor = useEditor.getState();
+  editor.newDocument();
+  editor.insertGenerator(
+    "star",
+    { x: 20, y: 30 },
+    { points: 8, radius: 120, innerRatio: 0.25 }
+  );
+
+  const [id] = useEditor.getState().selection;
+  const shape = useEditor.getState().doc.nodes[id];
+  assert.deepEqual(shape.generator.args, {
+    points: 8,
+    radius: 120,
+    innerRatio: 0.25,
+  });
+  assert.equal(shape.subpaths[0].anchors.length, 16);
+  assert.deepEqual(shape.transform, [1, 0, 0, 1, 20, 30]);
+});
+
 test("a user script compiles, builds geometry, and round-trips in the document", async () => {
   const source = `
     const params = [
@@ -139,14 +159,19 @@ test("a user script compiles, builds geometry, and round-trips in the document",
   assert.equal(gen.build, undefined);
 
   // Document scripts build in a Worker (main-thread sync fallback under Node).
-  await useEditor.getState().insertGenerator(scriptId, { x: 0, y: 0 });
+  await useEditor.getState().insertGenerator(
+    scriptId,
+    { x: 0, y: 0 },
+    { sides: 7, radius: 75 }
+  );
   const [nodeId] = useEditor.getState().selection;
-  assert.equal(useEditor.getState().doc.nodes[nodeId].subpaths[0].anchors.length, 4);
+  assert.equal(useEditor.getState().doc.nodes[nodeId].subpaths[0].anchors.length, 7);
 
   const loaded = parseDocument(serializeDocument(useEditor.getState().doc));
   assert.equal(loaded.scripts[scriptId].source, source);
   assert.equal(loaded.nodes[nodeId].generator.scriptId, scriptId);
-  assert.equal(loaded.nodes[nodeId].generator.args.sides, 4);
+  assert.equal(loaded.nodes[nodeId].generator.args.sides, 7);
+  assert.equal(loaded.nodes[nodeId].generator.args.radius, 75);
 });
 
 test("retuning a script node commits args and geometry atomically when built", async () => {

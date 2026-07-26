@@ -636,12 +636,12 @@ export function createShapeActions({ set, get, transact, replaceDocumentWithoutH
       );
       transact({ ...doc, nodes: { ...doc.nodes, [id]: next } }, options);
     },
-    insertGenerator: (generatorId, at) => {
+    insertGenerator: (generatorId, at, previewArgs) => {
       const s = get();
       const builtin = GENERATORS[generatorId];
       if (builtin) {
         // Native generator: build synchronously so insertion is immediate.
-        const args = defaultArgs(builtin);
+        const args = { ...defaultArgs(builtin), ...previewArgs };
         const subpaths = builtin.build(args);
         if (subpaths) placeGeneratorNode(generatorId, args, subpaths, at, builtin.name);
         return;
@@ -654,7 +654,7 @@ export function createShapeActions({ set, get, transact, replaceDocumentWithoutH
       return (async () => {
         const compiled = await compileAndCache(generatorId, script.source);
         if (compiled.error) return;
-        const args = defaultArgs({ params: compiled.params });
+        const args = { ...defaultArgs({ params: compiled.params }), ...previewArgs };
         const { subpaths } = await buildGenerator(script.source, args);
         if (!subpaths) return;
         // The document may have been replaced (new/open) or the script edited

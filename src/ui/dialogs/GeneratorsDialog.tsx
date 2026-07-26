@@ -213,7 +213,11 @@ export default function GeneratorsDialog({ open, focusId, onClose }: Props) {
     if (draft) updateScript(selected, draft);
     const { viewport } = useEditor.getState();
     // Document scripts build in a Worker; await so the node lands before closing.
-    await insertGenerator(selected, screenToWorld(viewport, canvasCenter()));
+    await insertGenerator(
+      selected,
+      screenToWorld(viewport, canvasCenter()),
+      args
+    );
     onClose();
   };
 

@@ -287,9 +287,10 @@ export interface ShapeActions {
   /**
    * Insert a new parametric shape from a generator, centered on `at`. Built-ins
    * resolve synchronously; document scripts build in a Worker, so this may
-   * return a Promise that settles once the node is placed.
+   * return a Promise that settles once the node is placed. `args` overrides
+   * generator defaults, allowing a configured preview to be inserted as shown.
    */
-  insertGenerator: (generatorId: string, at: Vec2) => void | Promise<void>;
+  insertGenerator: (generatorId: string, at: Vec2, args?: Record<string, number>) => void | Promise<void>;
   /**
    * Retune a parametric node. Built-ins regenerate synchronously; document
    * scripts commit the new args immediately and patch geometry asynchronously
