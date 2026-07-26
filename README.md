@@ -41,7 +41,7 @@ pnpm test       # node --test (model, store, persistence, import and recovery)
 - Multi-select (shift-click & marquee)
 - Copy / cut / paste / duplicate (groups stay grouped on paste; **Paste here** from the canvas context menu)
 - **Boolean operations**: union, subtract, intersect, exclude (Paper.js; curve-preserving — the result is a node-editable compound Bézier); **Divide** splits overlapping shapes into their distinct faces, each styled by the frontmost covering shape and grouped
-- **Path ops**: **Join** (⌘J) welds selected open paths' nearby endpoints into continuous contours (closing a contour whose ends meet); **Cut** breaks a contour at selected anchors (the exact inverse of Join); and one-shot **Simplify / Smooth / Flatten / Reverse** cleanup
+- **Path ops**: **Join** welds selected open paths' nearby endpoints into continuous contours (closing a contour whose ends meet); **Cut** breaks a contour at selected anchors (the exact inverse of Join); **Combine** gathers several paths into one multi-contour path without moving anything — the container open contours otherwise lack, since a compound path only takes closed children; **Split subpaths** breaks a multi-contour path back into one path per contour, inside a group that preserves the original's compositing; and one-shot **Simplify / Smooth / Flatten / Reverse** cleanup (see [docs/path-commands.md](docs/path-commands.md))
 - **Compound paths**: own real, nested layer nodes for their closed source shapes, paint them through one shared even-odd appearance, allow path-anchor and hide/reorder editing, and release back to the original shape types
 - **Outline stroke**: convert a shape's stroke into a filled path (`clipper-lib`)
 - **Paint model** for fill/stroke: solid colors with **per-color alpha** and **gradients** (linear & radial, with a stop editor), plus tiled raster **patterns** — rendered on Canvas.
@@ -109,7 +109,8 @@ src/
   model/     types + scene index, groups, paint, bucketFill, plus subfolders:
              geometry/ (matrix/affine transforms, bounds, hit-testing,
              snapping, viewport), path/ (paths, boolean, compound paths,
-             join/cut, path cleanup ops, outlineStroke, freehand),
+             join/cut/combine/split, path cleanup ops, outlineStroke,
+             freehand),
              brush/ (brush geometry + erasing), generators/
   store/     zustand editor store split into slices (shapes, selection,
              structure, symbols, frames, clipboard, history, prefs),

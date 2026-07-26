@@ -74,7 +74,11 @@ active tool, selection, viewport and undo history does not belong in the file.
   from the frame's `clipsContent` on purpose: the two used to share the name
   `clip` with opposite defaults. The mask must be an
   area-bearing vector shape; its paint and visibility fields are preserved but
-  ignored while it supplies clip geometry.
+  ignored while it supplies clip geometry. Because "the mask" is a *position*
+  rather than a flag, an editing operation that replaces the mask with several
+  nodes, or with a group, leaves a tree that is still structurally valid but no
+  longer means what it did — see the clipping-mask rule in
+  [path-commands.md](path-commands.md).
 - A brush shape is a pressure-profiled variable-width stroke. It stores an open
   cubic-Bézier centerline as `anchors` (same anchor convention and optional
   cusp/smooth/symmetric linkage tag as `path`) where each anchor also
@@ -89,7 +93,7 @@ active tool, selection, viewport and undo history does not belong in the file.
   Typography is one style per node (`fontFamily`, size, weight, italic,
   line-height and alignment); line layout is derived from the text at render.
 
-The file wrapper version is deliberately strict. The current version is v27 and
+The file wrapper version is deliberately strict. The current version is v29 and
 it is the only accepted version — there is no migration chain, so older files
 are rejected outright. Changing the persisted shape of `Document` requires
 bumping `CURRENT_FILE_VERSION`.
@@ -107,3 +111,16 @@ Ad-hoc multi-selection pivots are editor state and are not persisted.
 
 Rendering, bounds, hit-testing, snapping, editing and export must all use the
 same composed matrix. A partially applied transform is invalid document state.
+
+**Lengths are node-local too.** `strokeWidth`, `strokeDash`/`strokeDashOffset`,
+effect radii and offsets, and a brush anchor's width all live in the node's own
+units and are scaled by the transform chain, exactly like the geometry — the
+renderer applies `node.transform` and *then* sets `ctx.lineWidth`. So a node's
+stored `strokeWidth` is not its rendered thickness unless its world matrix has
+unit scale.
+
+The consequence for editing operations: baking a transform into anchors while
+copying those fields verbatim silently rescales every one of them. An operation
+that flattens a transform must either scale the lengths to match or keep the
+space it took the style from. See [path-commands.md](path-commands.md) for how
+each shape command handles this.

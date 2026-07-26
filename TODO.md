@@ -299,39 +299,21 @@ additional effects, or other feature expansion.
 - [ ] generatorの編集ロック prefへ
 - [ ] ドックのフローティング、マルチカラム化
 - [ ] Assetという名前は問題ないか。raster imageではないか。
-- [x] subpath分割コマンド — `path.splitSubpaths` (`model/path/splitSubpaths.ts`)。
-  multi-subpath の path を輪郭ごとの path ノードへ分け、**それらを包む group** が
-  元ノードの親・z 位置を引き継ぐ。トレース画像やグリフ由来の数百輪郭パスでも
-  レイヤーパネルが 1 行で済み、`transform`/opacity/blendMode/effects を group 側へ
-  移すことで見た目が完全に保たれる（重なりの二重合成もぼかし半径のスケールも一致。
-  effects を落とす必要がない）。ピースは identity transform + 中立な合成状態。
-  唯一の損失は fillRule による穴（`structure.makeCompound` で復元可能）。
-  compound path の子は group を入れられないのでフラットに展開（`flattenSplitPieces`）。
-  clip group のマスクは拒否 + トースト（group は有効なマスクになれない）。
-  `path.join` は開いた端点しか溶接しないので逆操作にはならない。キー割り当てなし
-  （Ctrl+Shift+K は Firefox の Web Console）
-  - [x] 統合コマンド — `path.combine` (`model/path/combinePaths.ts`)。同一親の
-    `path` 2 個以上を 1 ノードの multi-subpath へ。**存在理由は「開いた輪郭に器が
-    ないこと」**（`compoundPath` は閉じた子しか受け付けず、`path.join` は許容距離内の
-    端点しか溶接しない）。穴を作るための機能ではないので `fillRule` は基準メンバーの
-    値をそのまま引き継ぐ（そもそも fillRule を編集する UI もストア経路もまだない）。
-    ジオメトリは変えない = **split の真の逆操作**。スタイル基準は最背面メンバー
-    （`joinShapes` / `makeCompoundPath` / Inkscape と同じ）、effects は落として通知、
-    結果は最背面メンバーのスロットへ。マスクを含む選択は拒否。キー割り当てなし。
-    **結果は基準メンバーの `transform` を維持**し、他メンバーをその空間へ写す
-    （boolean/outline/join の「ベイクして identity」とは意図的に違う）。`strokeWidth`
-    と `strokeDash` は node-local 単位でレンダラが transform でスケールするので、
-    ベイクするとスタイルを引き継いだ当の図形の線幅が変わってしまう。基準の transform
-    が非可逆なときだけ親空間へベイクにフォールバック
-    - [ ] `path.join` に同じ線幅バグがある（ベイクして identity + 基準の strokeWidth を
-      そのままコピー）。既存の出荷済みコマンドの挙動変更になるので未着手
-    - [ ] group を選んで統合（split の結果を 1 手で戻せるようにする）。今は
-      グループ内のピースを選び直す必要がある
-    - [ ] rect / ellipse / line を入力に許す（`convertShapeToPath` の再利用で済む）。
-      brush はエンベロープ輪郭になってしまうので対象外が妥当
-    - [ ] 副産物: アンカー/輪郭のトランスフォーム適用を `path.ts` の
-      `transformAnchor` / `transformSubpath` に共通化（joinPath と convertToPath に
-      同じ private コピーがあった）
+- [x] subpath分割コマンド / 統合コマンド — `path.splitSubpaths` +
+  `path.combine`（`model/path/splitSubpaths.ts`, `model/path/combinePaths.ts`）。
+  **設計と共通規約は `docs/path-commands.md` に文書化**（スタイルは最背面メンバー、
+  effects は落とす、ベイクするか座標空間を保つかの判断、clip mask ルール、
+  compound の子の制約）。統合の存在理由は「開いた輪郭に器がないこと」で、穴を
+  作るための機能ではない。分割はピースを group に包んで合成状態を保つ。両者は
+  互いの正確な逆操作。キー割り当てはどちらもなし（Ctrl+Shift+K は Firefox の
+  Web Console）
+  - [ ] `path.join` に線幅バグがある（ベイクして identity + 基準の `strokeWidth` を
+    そのままコピーするので、スケールを持つパスを join すると線幅が変わる）。既存の
+    出荷済みコマンドの挙動変更になるので未着手。`docs/path-commands.md` 参照
+  - [ ] group を選んで統合（split の結果を 1 手で戻せるようにする）。今は
+    グループ内のピースを選び直す必要がある
+  - [ ] rect / ellipse / line を統合の入力に許す（`convertShapeToPath` の再利用で
+    済む）。brush はエンベロープ輪郭になってしまうので対象外が妥当
   - [ ] マスクの分割 — 全輪郭が閉じている場合に限り group ではなく compoundPath で
     包めば有効なマスクのまま分割できる（穴の読みまで保たれる）。開いた subpath を
     含むマスクは compound の子になれないので引き続き拒否
@@ -347,4 +329,5 @@ additional effects, or other feature expansion.
 - [ ] Layersパネル、キー操作でアイテム移動
 - [ ] ペン使用時のタッチ入力抑制
 - [ ] Layersパネル仮想化
-- [ ] fillruleを変える手段
+- [ ] fillruleを変える手段 — 現状 `fillRule` は生成時に決まるだけで、ストアのパッチ
+  経路も UI もない（新規パスは nonzero、outlineStroke / compound 変換は evenodd）
