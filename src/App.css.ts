@@ -147,6 +147,8 @@ globalStyle(".statusbar", {
 
 globalStyle(".statusbar .dot", {
   opacity: "0.5",
+  // Separators are `.status-hint` too; keep them from being squeezed away.
+  flex: "none",
 });
 
 globalStyle(".pointer-readout", {
@@ -314,6 +316,13 @@ globalStyle(".panel-backdrop", {
 });
 
 globalStyle(".status-hint", {
+  // The hint is the one elastic item in the bar: it absorbs the shrinking so a
+  // long tool hint truncates instead of pushing the autosave state and snap
+  // menu off the end.
+  minWidth: "0",
+  overflow: "hidden",
+  textOverflow: "ellipsis",
+  whiteSpace: "nowrap",
   "@media": {
     "(max-width: 720px)": {
       display: "none",
