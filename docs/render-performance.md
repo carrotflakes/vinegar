@@ -1,7 +1,7 @@
 # Canvas render performance — plan
 
-Status: viewport culling and immutable-reference caches are implemented.
-Tight layers and interaction snapshots remain proposals.
+Status: viewport culling, immutable-reference caches and tight temporary layers
+are implemented. Interaction snapshots remain a proposal.
 
 ## Current architecture (as of this writing)
 
@@ -10,8 +10,8 @@ Tight layers and interaction snapshots remain proposals.
 - `renderScene` (`src/canvas/render.ts`) repaints background, grid, every
   visible node (frames included, as ordinary container nodes), preview and
   overlay chrome from scratch each frame.
-- Compositing still borrows full-canvas offscreen layers (opacity groups,
-  effects, masks, outside strokes) from a pool.
+- Compositing borrows tight, device-space offscreen layers for opacity groups,
+  effects, masks and isolated strokes from a size-bucketed pool.
 - Geometry caches: `cachedBrushEnvelope`, plus the reference-keyed Path2D,
   culling-bounds, text-layout and pattern caches described below.
 - Viewport culling skips off-screen subtrees, except inside symbol definitions
@@ -26,8 +26,8 @@ before optimizing — the fixes are completely different.
 
 - Build a stress document (thousands of shapes, effect-heavy groups, many
   outside strokes) and profile with the Chrome DevTools Performance panel.
-- Two cheap counters go a long way: total `paintNode` time per frame, and the
-  number of `acquireLayer` calls per frame.
+- Three cheap counters go a long way: total `paintNode` time per frame, the
+  number of `acquireLayer` calls, and total acquired layer pixels per frame.
 - In development, append `?renderPerformance` to the editor URL. Frames appear
   as `Vinegar paintNode` User Timing entries, and the latest sample (including
   painted/culled node and layer counts) is available as
@@ -49,7 +49,10 @@ saved documents:
   warm-up and stores raw samples plus mean/p50/p95 in
   `globalThis.__vinegarRenderBenchmark`.
 - `&renderCaches=off` and `&renderCulling=off` independently disable the two
-  optimization families for A/B runs.
+  optimization families for A/B runs. Since tight layers landed,
+  `renderCulling=off` only disables the explicit bounds test — a subtree that
+  is composited through a layer is still skipped when its layer falls entirely
+  off-target.
 
 All of these are parsed once in [`src/debug/renderFlags.ts`](../src/debug/renderFlags.ts),
 the single build-mode gate; the stress loader and benchmark loop live beside it
@@ -70,7 +73,7 @@ The benchmark records the synchronous `paintNode` section, not React, overlay,
 hit-testing, save/load/export or total interaction latency. Those need separate
 budgets and workloads.
 
-### Chromium measurement (2026-07-26)
+### Chromium measurement (2026-07-26, before tight layers)
 
 Environment: headless Chromium (Playwright shell 1228), 1280×720 viewport, one
 fresh browser process per run. The 1k runs used 20 warm-up + 60 measured
@@ -99,19 +102,63 @@ Canvas2D rasterization in the browser rather than by our JavaScript. Absolute
 budgets should still be set on a production build; A/B ratios can be taken
 from either.
 
-Conclusions:
+Conclusions at that point:
 
-- viewport culling is the dominant win: about 1.5× at 1k, 10.5× at 10k, and
+- viewport culling was the dominant win: about 1.5× at 1k, 10.5× at 10k, and
   11.1× at 10k / DPR 2;
-- after culling, caches save 0–5% at DPR 1 and about 4% at DPR 2, while
-  full-canvas layer compositing dominates the remaining time. The next render
-  optimization to profile and prototype is tight layer bounds, not more
-  JS-only caching.
+- after culling, caches saved 0–5% at DPR 1 and about 4% at DPR 2, while
+  full-canvas layer compositing dominated the remaining time — which is what
+  motivated tight layer bounds next, rather than more JS-only caching.
 
 “Culled decisions” counts nodes where traversal stopped; one culled group can
 skip all of its descendants, so it is intentionally not `total - painted`.
 Absolute timings are machine/build specific; the A/B ratios and recorded node/
 layer counts are the portable part of this result.
+
+### Chromium measurement (2026-07-28, tight layers)
+
+Same machine, same session, same methodology; the "before" column is a rebuild
+of the pre-tight-layer commit measured back-to-back with the new one, so the
+two columns are directly comparable (the 1k baseline reproduced the 2026-07-26
+number to 0.1 ms). Production build, mean of the measured frames:
+
+| Leaves | DPR | Configuration | Before | After | Speed-up |
+| ---: | ---: | --- | ---: | ---: | ---: |
+| 1k | 1 | optimized | 51.5 ms | 6.7 ms | 7.7× |
+| 1k | 1 | caches off | 50.8 ms | 7.3 ms | 7.0× |
+| 1k | 1 | culling off | 76.8 ms | 6.5 ms | 11.8× |
+| 10k | 1 | optimized | 70.1 ms | 17.3 ms | 4.1× |
+| 10k | 1 | caches off | 75.7 ms | 23.8 ms | 3.2× |
+| 10k | 1 | culling off | 744.6 ms | 28.6 ms | 26.0× |
+| 10k | 2 | optimized | 280.2 ms | 46.6 ms | 6.0× |
+| 10k | 2 | caches off | 276.3 ms | 48.0 ms | 5.8× |
+| 10k | 2 | culling off | 2,923.9 ms | 54.0 ms | 54.1× |
+
+Layer fill area per frame, the counter this change added
+(`meanAcquiredLayerPixels`). The "before" figures are derived, not measured —
+the old code always allocated target-sized layers, so they are exactly
+`acquireLayerCalls × canvas pixels`:
+
+| Case | Layers/frame | Before (derived) | After (measured) | Reduction |
+| --- | ---: | ---: | ---: | ---: |
+| 1k, DPR 1 | 20 | 18,432,000 px | 671,232 px | 27.5× |
+| 10k, DPR 1 | 25 | 23,040,000 px | 1,489,792 px | 15.5× |
+| 10k, DPR 2 | 25 | 92,160,000 px | 5,856,768 px | 15.7× |
+
+Conclusions:
+
+- tight layers are a larger win than culling was: 4–8× on the optimized
+  configurations, and the DPR 2 case is no longer catastrophic (280 ms → 47 ms).
+  The scene was indeed fill-rate bound, and the fill was almost all compositing
+  overdraw rather than shape pixels;
+- the balance has flipped. With fill cost down, the reference caches now matter
+  measurably at DPR 1 (17.3 ms vs 23.8 ms at 10k, ~27%) where they were within
+  noise before, while at DPR 2 they stay at ~3%;
+- **`renderCulling=off` is no longer a clean isolation of culling.** A layer
+  request whose device bounds fall entirely outside the target returns no
+  layer, and the composited subtree is then skipped — visible in the counters
+  as 10,100 → 8,500 painted decisions and 318 → 25 layers at 10k. Tight layers
+  imply a second, coarser culling path that the switch cannot turn off.
 
 ## High-impact, structure-friendly
 
@@ -139,13 +186,42 @@ The cache contract is the existing immutable persisted-document model: any
 future document edit must replace a changed shape/component object. Transient
 tool state may mutate in place only while it continues to bypass these caches.
 
-### 3. Tight layer bounds instead of full-canvas layers
+### 3. Tight layer bounds instead of full-canvas layers (implemented)
 
-Already flagged by PERF comments in `render.ts`: outside strokes, effects and
-opacity groups each clear/draw/composite a **full-canvas-sized** layer. That
-is pure fill-rate cost. Size layers to the shape's device-space bounds plus
-padding (miter, blur radius × scale, shadow offset). Keep the pool but bucket
-sizes (e.g. round up to powers of two) to preserve reuse.
+Outside strokes, aligned text strokes, effects and opacity/blend groups now
+borrow layers clipped to their conservative device-space visual bounds.
+Bounds include miter, blur and shadow reach plus an antialiasing pixel. Canvas
+dimensions are rounded up to power-of-two buckets (capped by the current
+target), while an origin offset keeps drawing and compositing in the original
+device coordinate system. Nested layers therefore stay tight as well.
+
+`acquiredLayerPixels` is recorded beside `acquireLayerCalls`, including in the
+benchmark samples and summary, so fill-area reductions can be compared even
+when the number of compositing passes is unchanged.
+
+**Behaviour change:** effect radii on a *shape* are now interpreted in the
+shape's own local space (`compositeEffects` gets `deviceScale(ctx)` multiplied
+by the shape transform's scale). Group effects always worked that way, because
+their `deviceScale` is read after `ctx.transform(node.transform)`, and the
+culling bounds always assumed it too. A blur on a scaled shape therefore
+renders differently — consistently with groups — than it did before.
+
+Known limitations, in rough priority order:
+
+- **Non-uniform scale can clip an effect halo.** Layer bounds are widened by
+  `effectsMargin` isotropically in local space and then transformed, while the
+  blur radius is scaled by `sqrt(|det|)`. Under e.g. `scale(9, 1)` the vertical
+  margin is scaled by 1 but the blur by 3, so the halo is cut off. Uniform
+  scale is exact. The fix is to pad the *device* bounds by
+  `effectsMargin(effects) * scale` instead of relying on the local expansion.
+- **The layer pool has no eviction.** `freeLayers` is keyed by
+  `"<w>x<h>"`; the old pool held one size and was dropped on resize/DPR change,
+  this one can retain up to (bucket combinations × nesting depth) canvases for
+  the life of the page. It wants a per-bucket cap or a clear on target resize.
+- **`shapePaintBounds` bypasses the shape-bounds cache.** It calls
+  `shapeBounds` directly, so sizing a group's layer recomputes every
+  descendant's bounds each frame instead of going through
+  `cachedCullingShapeBounds`. Only the mutable preview shape has to bypass it.
 
 ### 4. Static-scene snapshot during interactions
 
@@ -181,9 +257,10 @@ drag frame rate. Needs a below/above split by z-order — the one design cost.
    representative profiles per feature.)
 2. Culling + WeakMap caches (Path2D, culling bounds, text layout, patterns) —
    implemented.
-3. Tight layer bounds.
-4. Static snapshot during interactions.
+3. Tight layer bounds — implemented.
+4. Static snapshot during interactions — next.
 
-Step 2 stays low-coupling thanks to the immutable document model. Steps 3–4
-should follow profiling because they change compositing coordinates and
-interaction/render ownership, respectively.
+Step 2 stays low-coupling thanks to the immutable document model. Step 3
+changes compositing coordinates and is covered by focused layer-size tests.
+Step 4 changes interaction/render ownership and should follow interaction
+profiling.

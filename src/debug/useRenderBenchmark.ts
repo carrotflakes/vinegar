@@ -21,6 +21,7 @@ interface RenderBenchmarkResult {
     p95Ms: number;
     maxMs: number;
     meanAcquireLayerCalls: number;
+    meanAcquiredLayerPixels: number;
     meanPaintedNodes: number;
     meanCulledNodes: number;
   };
@@ -89,6 +90,9 @@ export function useRenderBenchmark(draw: () => void): void {
             maxMs: sorted[sorted.length - 1],
             meanAcquireLayerCalls: mean(
               samples.map((sample) => sample.acquireLayerCalls)
+            ),
+            meanAcquiredLayerPixels: mean(
+              samples.map((sample) => sample.acquiredLayerPixels)
             ),
             meanPaintedNodes: mean(samples.map((sample) => sample.paintedNodes)),
             meanCulledNodes: mean(samples.map((sample) => sample.culledNodes)),

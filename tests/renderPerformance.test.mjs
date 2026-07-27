@@ -35,13 +35,22 @@ const rect = (id, x, y, width, height, extra = {}) => ({
   ...extra,
 });
 
-function mockContext() {
-  const calls = [];
+function mockContext(
+  canvas = { width: 100, height: 100 },
+  calls = []
+) {
   return {
-    canvas: { width: 100, height: 100 },
+    canvas,
     calls,
     setTransform() {},
+    getTransform() {
+      return { a: 1, b: 0, c: 0, d: 1, e: 0, f: 0 };
+    },
     fillRect() {},
+    clearRect() {},
+    drawImage(image, ...args) {
+      calls.push(["drawImage", image.width, image.height, ...args]);
+    },
     save() {},
     restore() {},
     translate() {},
@@ -70,6 +79,11 @@ function mockContext() {
     lineJoin: "round",
     miterLimit: 4,
     lineDashOffset: 0,
+    filter: "none",
+    shadowColor: "rgba(0, 0, 0, 0)",
+    shadowBlur: 0,
+    shadowOffsetX: 0,
+    shadowOffsetY: 0,
   };
 }
 
@@ -215,5 +229,48 @@ test("Path2D geometry is reused until the shape reference changes", () => {
     else globalThis.Path2D = previousPath2D;
     if (previousDOMMatrix === undefined) delete globalThis.DOMMatrix;
     else globalThis.DOMMatrix = previousDOMMatrix;
+  }
+});
+
+test("effect compositing borrows tight bucketed layers", () => {
+  const previousDocument = globalThis.document;
+  const createdCanvases = [];
+  globalThis.document = {
+    createElement(tag) {
+      assert.equal(tag, "canvas");
+      const canvas = {
+        width: 300,
+        height: 150,
+        getContext() {
+          this.context ??= mockContext(this);
+          return this.context;
+        },
+      };
+      createdCanvases.push(canvas);
+      return canvas;
+    },
+  };
+  try {
+    const doc = createEmptyDocument();
+    doc.nodes.effect = rect("effect", 40, 40, 20, 20, {
+      effects: [{ type: "blur", radius: 4 }],
+    });
+    doc.rootIds = ["effect"];
+
+    const { ctx, sample } = render(doc);
+    assert.equal(sample.acquireLayerCalls, 2);
+    assert.equal(sample.acquiredLayerPixels, 64 * 64 * 2);
+    assert.deepEqual(
+      createdCanvases.map((canvas) => [canvas.width, canvas.height]),
+      [
+        [64, 64],
+        [64, 64],
+      ]
+    );
+    assert.deepEqual(ctx.calls, [["drawImage", 64, 64, 27, 27]]);
+    assert.ok(sample.acquiredLayerPixels < 100 * 100 * 2);
+  } finally {
+    if (previousDocument === undefined) delete globalThis.document;
+    else globalThis.document = previousDocument;
   }
 });

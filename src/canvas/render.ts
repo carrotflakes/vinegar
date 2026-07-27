@@ -100,6 +100,7 @@ function checkerPattern(ctx: CanvasRenderingContext2D): CanvasPattern | null {
 interface PaintTraversal {
   visibleWorldBounds: Bounds;
   visualBounds: Map<string, Bounds | null>;
+  layerBounds: Map<string, Bounds | null>;
   cullExemptIds: Set<string>;
   stats: { paintedNodes: number; culledNodes: number };
   /** Definition children are painted under an instance transform, while their
@@ -115,6 +116,118 @@ function unionBounds(bounds: Array<Bounds | null>): Bounds | null {
   const right = Math.max(...list.map((value) => value.x + value.width));
   const bottom = Math.max(...list.map((value) => value.y + value.height));
   return { x, y, width: right - x, height: bottom - y };
+}
+
+function shapeStrokeMargin(shape: Shape): number {
+  if (shape.type === "brush" || !shape.stroke || shape.strokeWidth <= 0) {
+    return 0;
+  }
+  const alignment = effectiveStrokeAlignment(shape);
+  return alignment === "outside"
+    ? shape.strokeWidth * STROKE_MITER_LIMIT
+    : alignment === "center"
+      ? (shape.strokeWidth * STROKE_MITER_LIMIT) / 2
+      : 0;
+}
+
+function shapePaintBounds(shape: Shape, doc: Document): Bounds {
+  return expandBounds(shapeBounds(shape, doc), shapeStrokeMargin(shape));
+}
+
+/**
+ * Conservative visual bounds in a node's own coordinate system. Unlike the
+ * world-space culling index, these bounds also work while rendering a symbol
+ * definition under an instance transform. They are used only to size temporary
+ * device-space layers, so a safe over-estimate is preferable to clipped pixels.
+ */
+function nodeLocalVisualBounds(
+  doc: Document,
+  nodeId: string,
+  preview?: Shape | null,
+  cache?: Map<string, Bounds | null>,
+  visiting: Set<string> = new Set()
+): Bounds | null {
+  if (cache?.has(nodeId)) return cache.get(nodeId) ?? null;
+  if (visiting.has(nodeId)) return null;
+  const stored = doc.nodes[nodeId];
+  if (!stored || stored.hidden) {
+    cache?.set(nodeId, null);
+    return null;
+  }
+  visiting.add(nodeId);
+
+  let bounds: Bounds | null = null;
+  if (isShape(stored)) {
+    const shape = preview?.id === stored.id ? preview : stored;
+    bounds = shapePaintBounds(shape, doc);
+  } else if (isFrame(stored)) {
+    const frameBounds = frameLocalBounds(stored);
+    bounds = stored.clipsContent
+      ? frameBounds
+      : unionBounds([
+          frameBounds,
+          ...stored.childIds.map((id) => {
+            const child = doc.nodes[id];
+            const childBounds = nodeLocalVisualBounds(
+              doc,
+              id,
+              preview,
+              cache,
+              visiting
+            );
+            return child && childBounds
+              ? transformBounds(childBounds, child.transform)
+              : null;
+          }),
+        ]);
+  } else if (isGroup(stored)) {
+    bounds = unionBounds(
+      clippingContentIds(doc, stored).map((id) => {
+        const child = doc.nodes[id];
+        const childBounds = nodeLocalVisualBounds(
+          doc,
+          id,
+          preview,
+          cache,
+          visiting
+        );
+        return child && childBounds
+          ? transformBounds(childBounds, child.transform)
+          : null;
+      })
+    );
+    const mask = clippingMask(doc, stored);
+    if (bounds && mask) {
+      const geometry = preview?.id === mask.id ? preview : mask;
+      bounds = intersectBounds(
+        bounds,
+        transformBounds(shapeBounds(geometry, doc), geometry.transform)
+      );
+    }
+  } else if (isInstance(stored)) {
+    const definition = doc.symbols[stored.symbolId];
+    if (definition) {
+      const root = doc.nodes[definition.rootNodeId];
+      const rootBounds = nodeLocalVisualBounds(
+        doc,
+        definition.rootNodeId,
+        preview,
+        cache,
+        visiting
+      );
+      bounds =
+        root && rootBounds
+          ? transformBounds(rootBounds, root.transform)
+          : null;
+    }
+  }
+
+  visiting.delete(nodeId);
+  const visual = bounds
+    ? expandBounds(bounds, effectsMargin(stored.effects))
+    : null;
+  cache?.set(nodeId, visual);
+  return visual;
 }
 
 const cullingShapeBoundsCache = new WeakMap<
@@ -166,17 +279,10 @@ function visualNodeWorldBounds(
 
   let bounds: Bounds | null;
   if (isShape(node)) {
-    let local = cachedCullingShapeBounds(node, doc);
-    if (node.type !== "brush" && node.stroke && node.strokeWidth > 0) {
-      const alignment = effectiveStrokeAlignment(node);
-      const strokeReach =
-        alignment === "outside"
-          ? node.strokeWidth * STROKE_MITER_LIMIT
-          : alignment === "center"
-            ? (node.strokeWidth * STROKE_MITER_LIMIT) / 2
-            : 0;
-      local = expandBounds(local, strokeReach);
-    }
+    let local = expandBounds(
+      cachedCullingShapeBounds(node, doc),
+      shapeStrokeMargin(node)
+    );
     local = expandBounds(local, effectsMargin(node.effects));
     bounds = transformBounds(local, nodeWorldMatrix(doc, node.id));
   } else if (isInstance(node)) {
@@ -275,10 +381,22 @@ function paintNodeInternal(
     }
     // Effects need the shape composited as a layer, so its own opacity/blend is
     // deferred to the final draw (content -> effects -> opacity/blend).
-    const acq = acquireLayer(ctx);
+    const localBounds = nodeLocalVisualBounds(
+      doc,
+      nodeId,
+      preview,
+      traversal?.layerBounds
+    );
+    const acq = acquireLayer(
+      ctx,
+      localBounds
+        ? deviceBounds(ctx, transformBounds(localBounds, shape.transform))
+        : undefined
+    );
     if (!acq) return;
-    const { canvas: layer, lctx } = acq;
-    lctx.setTransform(ctx.getTransform());
+    const layer = acq;
+    const { lctx } = layer;
+    setLayerTransform(layer, ctx);
     paintShape(
       lctx,
       { ...shape, opacity: 1, blendMode: "normal" },
@@ -287,7 +405,21 @@ function paintNodeInternal(
       preview,
       shape
     );
-    compositeEffects(ctx, layer, deviceScale(ctx), shape.effects, shape.opacity, shape.blendMode);
+    const shapeScale =
+      Math.sqrt(
+        Math.abs(
+          shape.transform[0] * shape.transform[3] -
+            shape.transform[1] * shape.transform[2]
+        )
+      ) || 1;
+    compositeEffects(
+      ctx,
+      layer,
+      deviceScale(ctx) * shapeScale,
+      shape.effects,
+      shape.opacity,
+      shape.blendMode
+    );
     return;
   }
   let childIds: string[];
@@ -379,15 +511,26 @@ function paintNodeInternal(
     if (symbolId) activeSymbols.delete(symbolId);
     return;
   }
-  const acq = acquireLayer(ctx);
+  const localBounds = nodeLocalVisualBounds(
+    doc,
+    nodeId,
+    preview,
+    traversal?.layerBounds
+  );
+  const acq = acquireLayer(
+    ctx,
+    localBounds ? deviceBounds(ctx, localBounds) : undefined
+  );
   if (!acq) {
     ctx.restore();
     if (symbolId) activeSymbols.delete(symbolId);
     return;
   }
-  const { canvas: layer, lctx } = acq;
-  lctx.setTransform(ctx.getTransform());
+  const layer = acq;
+  const { lctx } = layer;
+  setLayerTransform(layer, ctx);
   const scale = deviceScale(ctx);
+  lctx.save();
   applyMask(lctx);
   const childTraversal =
     symbolId && traversal
@@ -405,6 +548,7 @@ function paintNodeInternal(
       childTraversal
     );
   }
+  lctx.restore();
   ctx.restore();
   compositeEffects(ctx, layer, scale, effects, alpha, node.blendMode);
   if (symbolId) activeSymbols.delete(symbolId);
@@ -431,36 +575,92 @@ export function paintNode(
   );
 }
 
-/**
- * Pool of full-size offscreen canvases reused across frames. Compositing an
- * opacity group, effect, mask or isolated stroke needs a target-sized layer;
- * allocating one per node per frame churns the GC during drags. Layers are
- * acquired and released in a balanced (stack-like) fashion within a frame, so a
- * simple free-list bounded by the deepest nesting suffices.
- */
-const freeLayers: HTMLCanvasElement[] = [];
-let poolWidth = 0;
-let poolHeight = 0;
-let activeLayerCounter: { calls: number } | null = null;
+interface RenderLayer {
+  canvas: HTMLCanvasElement;
+  lctx: CanvasRenderingContext2D;
+  /** Device-space origin relative to the target context. */
+  x: number;
+  y: number;
+}
 
-/** A cleared, default-state offscreen canvas matching the target's pixels. */
+/**
+ * Temporary layers are bucketed by pixel dimensions. Their origins remain
+ * exact device coordinates, while power-of-two sizes let nearby node sizes
+ * reuse canvases without returning to full-viewport allocations.
+ */
+const freeLayers = new Map<string, HTMLCanvasElement[]>();
+let activeLayerCounter: { calls: number; pixels: number } | null = null;
+
+function bucketSize(size: number, limit: number): number {
+  if (size >= limit) return limit;
+  let bucket = 1;
+  while (bucket < size) bucket *= 2;
+  return Math.min(bucket, limit);
+}
+
+function deviceBounds(
+  ctx: CanvasRenderingContext2D,
+  localBounds: Bounds,
+  antialiasPadding = 1
+): Bounds {
+  const matrix = ctx.getTransform();
+  return expandBounds(
+    transformBounds(localBounds, [
+      matrix.a,
+      matrix.b,
+      matrix.c,
+      matrix.d,
+      matrix.e,
+      matrix.f,
+    ]),
+    antialiasPadding
+  );
+}
+
+/**
+ * Acquire a cleared offscreen canvas covering `requestedBounds` in the target
+ * context's device coordinates. Omit bounds only for the defensive full-target
+ * fallback.
+ */
 function acquireLayer(
-  ctx: CanvasRenderingContext2D
-): { canvas: HTMLCanvasElement; lctx: CanvasRenderingContext2D } | null {
-  if (activeLayerCounter) activeLayerCounter.calls += 1;
-  const width = ctx.canvas.width;
-  const height = ctx.canvas.height;
-  if (width !== poolWidth || height !== poolHeight) {
-    // A resize/DPR change invalidates every pooled layer's dimensions.
-    freeLayers.length = 0;
-    poolWidth = width;
-    poolHeight = height;
-  }
-  let canvas = freeLayers.pop();
+  ctx: CanvasRenderingContext2D,
+  requestedBounds?: Bounds
+): RenderLayer | null {
+  const targetWidth = ctx.canvas.width;
+  const targetHeight = ctx.canvas.height;
+  const clipped = requestedBounds
+    ? intersectBounds(requestedBounds, {
+        x: 0,
+        y: 0,
+        width: targetWidth,
+        height: targetHeight,
+      })
+    : { x: 0, y: 0, width: targetWidth, height: targetHeight };
+  if (!clipped || clipped.width <= 0 || clipped.height <= 0) return null;
+
+  const requiredWidth = Math.max(
+    1,
+    Math.ceil(clipped.x + clipped.width) - Math.floor(clipped.x)
+  );
+  const requiredHeight = Math.max(
+    1,
+    Math.ceil(clipped.y + clipped.height) - Math.floor(clipped.y)
+  );
+  const width = bucketSize(requiredWidth, targetWidth);
+  const height = bucketSize(requiredHeight, targetHeight);
+  const x = Math.max(0, Math.min(Math.floor(clipped.x), targetWidth - width));
+  const y = Math.max(0, Math.min(Math.floor(clipped.y), targetHeight - height));
+  const key = `${width}x${height}`;
+  const bucket = freeLayers.get(key);
+  let canvas = bucket?.pop();
   if (!canvas) {
     canvas = document.createElement("canvas");
     canvas.width = width;
     canvas.height = height;
+  }
+  if (activeLayerCounter) {
+    activeLayerCounter.calls += 1;
+    activeLayerCounter.pixels += width * height;
   }
   const lctx = canvas.getContext("2d");
   if (!lctx) return null;
@@ -475,14 +675,30 @@ function acquireLayer(
   lctx.shadowOffsetX = 0;
   lctx.shadowOffsetY = 0;
   lctx.clearRect(0, 0, width, height);
-  return { canvas, lctx };
+  return { canvas, lctx, x, y };
 }
 
 /** Return a layer to the pool once its pixels have been composited out. */
-function releaseLayer(canvas: HTMLCanvasElement): void {
-  if (canvas.width === poolWidth && canvas.height === poolHeight) {
-    freeLayers.push(canvas);
-  }
+function releaseLayer(layer: RenderLayer): void {
+  const key = `${layer.canvas.width}x${layer.canvas.height}`;
+  const bucket = freeLayers.get(key);
+  if (bucket) bucket.push(layer.canvas);
+  else freeLayers.set(key, [layer.canvas]);
+}
+
+function setLayerTransform(
+  layer: RenderLayer,
+  source: CanvasRenderingContext2D
+): void {
+  const matrix = source.getTransform();
+  layer.lctx.setTransform(
+    matrix.a,
+    matrix.b,
+    matrix.c,
+    matrix.d,
+    matrix.e - layer.x,
+    matrix.f - layer.y
+  );
 }
 
 /** World->device length scale of the current transform (for local-space effects). */
@@ -508,31 +724,39 @@ function rgba(color: string, alpha: number): string {
  */
 function compositeEffects(
   ctx: CanvasRenderingContext2D,
-  layer: HTMLCanvasElement,
+  layer: RenderLayer,
   scale: number,
   effects: Effect[] | null,
   alpha: number,
   blendMode: string | undefined
 ): void {
   let src = layer;
-  const intermediates: HTMLCanvasElement[] = [];
+  const intermediates: RenderLayer[] = [];
+  const bounds = {
+    x: layer.x,
+    y: layer.y,
+    width: layer.canvas.width,
+    height: layer.canvas.height,
+  };
   for (const effect of effects ?? []) {
-    const next = acquireLayer(ctx);
+    const next = acquireLayer(ctx, bounds);
     if (!next) break;
     const nctx = next.lctx;
+    const sourceX = src.x - next.x;
+    const sourceY = src.y - next.y;
     if (effect.type === "blur") {
       nctx.filter = `blur(${effect.radius * scale}px)`;
-      nctx.drawImage(src, 0, 0);
+      nctx.drawImage(src.canvas, sourceX, sourceY);
     } else if (effect.type === "color-adjust") {
       // Unitless, so no `scale`. Order matches the SVG feColorMatrix chain.
       nctx.filter =
         `brightness(${effect.brightness}) contrast(${effect.contrast}) ` +
         `saturate(${effect.saturation}) hue-rotate(${effect.hue}deg)`;
-      nctx.drawImage(src, 0, 0);
+      nctx.drawImage(src.canvas, sourceX, sourceY);
     } else if (effect.type === "color-overlay") {
       // Tint masked by the content's own alpha: source-atop keeps the layer's
       // silhouette while mixing in `alpha` worth of the flood colour.
-      nctx.drawImage(src, 0, 0);
+      nctx.drawImage(src.canvas, sourceX, sourceY);
       nctx.globalCompositeOperation = "source-atop";
       nctx.globalAlpha = Math.max(0, Math.min(1, effect.alpha));
       nctx.fillStyle = effect.color;
@@ -542,10 +766,10 @@ function compositeEffects(
       nctx.shadowBlur = effect.blur * scale;
       nctx.shadowOffsetX = effect.offsetX * scale;
       nctx.shadowOffsetY = effect.offsetY * scale;
-      nctx.drawImage(src, 0, 0);
+      nctx.drawImage(src.canvas, sourceX, sourceY);
     }
-    intermediates.push(next.canvas);
-    src = next.canvas;
+    intermediates.push(next);
+    src = next;
   }
   ctx.save();
   ctx.setTransform(1, 0, 0, 1, 0, 0);
@@ -553,12 +777,12 @@ function compositeEffects(
   if (blendMode && blendMode !== "normal") {
     ctx.globalCompositeOperation = blendMode as GlobalCompositeOperation;
   }
-  ctx.drawImage(src, 0, 0);
+  ctx.drawImage(src.canvas, src.x, src.y);
   ctx.restore();
   // The pixels now live on `ctx`; the caller's content layer and every effect
   // stage can go back to the pool.
   releaseLayer(layer);
-  for (const canvas of intermediates) releaseLayer(canvas);
+  for (const intermediate of intermediates) releaseLayer(intermediate);
 }
 
 type PathTarget = Pick<
@@ -908,11 +1132,11 @@ function applyStrokeStyle(
 
 function drawLayerInDeviceSpace(
   ctx: CanvasRenderingContext2D,
-  layer: HTMLCanvasElement
+  layer: RenderLayer
 ): void {
   ctx.save();
   ctx.setTransform(1, 0, 0, 1, 0, 0);
-  ctx.drawImage(layer, 0, 0);
+  ctx.drawImage(layer.canvas, layer.x, layer.y);
   ctx.restore();
 }
 
@@ -928,14 +1152,15 @@ function paintVectorStroke(
   if (!shape.stroke) return;
   const alignment = effectiveStrokeAlignment(shape);
   if (alignment === "outside") {
-    // PERF: this borrows a target-sized layer per outside-stroked shape on
-    // every frame. The layer pool avoids the allocation churn; a tighter
-    // device-space layer (including miter/effect padding) or caching the
-    // isolated stroke until the shape/viewport changes would cut fill cost too.
-    const acq = acquireLayer(ctx);
+    const strokeBounds = expandBounds(
+      bounds,
+      shape.strokeWidth * STROKE_MITER_LIMIT
+    );
+    const acq = acquireLayer(ctx, deviceBounds(ctx, strokeBounds));
     if (!acq) return;
-    const { canvas: layer, lctx } = acq;
-    lctx.setTransform(ctx.getTransform());
+    const layer = acq;
+    const { lctx } = layer;
+    setLayerTransform(layer, ctx);
     const style = resolveStyle(lctx, shape.stroke, bounds, assets);
     if (!style) {
       releaseLayer(layer);
@@ -1007,13 +1232,17 @@ function paintTextStroke(
     return;
   }
 
-  // PERF: live text has no Canvas path we can clip directly, so both inside
-  // and outside alignment currently borrow a full target-sized alpha layer from
-  // the pool. A tight glyph-bounds layer is the likely optimization if hot.
-  const acq = acquireLayer(ctx);
+  // Live text has no Canvas path we can clip directly, so inside/outside
+  // alignment uses a tight glyph-bounds alpha layer.
+  const strokeBounds = expandBounds(
+    bounds,
+    shape.strokeWidth * STROKE_MITER_LIMIT
+  );
+  const acq = acquireLayer(ctx, deviceBounds(ctx, strokeBounds));
   if (!acq) return;
-  const { canvas: layer, lctx } = acq;
-  lctx.setTransform(ctx.getTransform());
+  const layer = acq;
+  const { lctx } = layer;
+  setLayerTransform(layer, ctx);
   lctx.font = ctx.font;
   lctx.textBaseline = "alphabetic";
   const style = resolveStyle(lctx, shape.stroke, bounds, assets);
@@ -1164,6 +1393,8 @@ function paintImage(
 export interface RenderPerformanceSample {
   paintNodeMs: number;
   acquireLayerCalls: number;
+  /** Sum of allocated/borrowed layer areas for this frame, in device pixels. */
+  acquiredLayerPixels: number;
   paintedNodes: number;
   culledNodes: number;
 }
@@ -1244,13 +1475,14 @@ export function renderScene(
   const traversal: PaintTraversal = {
     visibleWorldBounds: visibleWorldBounds(viewport, width, height),
     visualBounds: new Map(),
+    layerBounds: new Map(),
     cullExemptIds,
     stats: { paintedNodes: 0, culledNodes: 0 },
     cullingDisabled: renderCullingDisabled,
   };
   const debugProfile = renderProfilingEnabled;
   const collectPerformance = debugProfile || !!opts.onPerformanceSample;
-  const layerCounter = { calls: 0 };
+  const layerCounter = { calls: 0, pixels: 0 };
   const previousLayerCounter = activeLayerCounter;
   if (collectPerformance) activeLayerCounter = layerCounter;
   const startedAt =
@@ -1286,6 +1518,7 @@ export function renderScene(
     const sample: RenderPerformanceSample = {
       paintNodeMs: endedAt - startedAt,
       acquireLayerCalls: layerCounter.calls,
+      acquiredLayerPixels: layerCounter.pixels,
       ...traversal.stats,
     };
     opts.onPerformanceSample?.(sample);
