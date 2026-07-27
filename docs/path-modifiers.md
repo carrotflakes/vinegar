@@ -90,7 +90,7 @@ Every current reader of `.subpaths` must be classified as **base** or
 **resolved**. This is the blast radius (files found via `grep -rl '\.subpaths'`):
 
 **Must switch to `resolvedSubpaths(node)`:**
-- `canvas/render.ts` — fill/stroke the resolved outline
+- `canvas/render/scene.ts` — fill/stroke the resolved outline
 - `canvas/overlay.ts` — selection bounds/handles (follow resolved geometry)
 - `io/exportSvg.ts` — emit resolved path data
 - `model/hitTest.ts` — pick against resolved outline

@@ -7,7 +7,7 @@ are implemented. Interaction snapshots remain a proposal.
 
 - Single canvas; every store change schedules one rAF-coalesced full redraw
   (`scheduleDraw` in `src/canvas/CanvasView.tsx`).
-- `renderScene` (`src/canvas/render.ts`) repaints background, grid, every
+- `renderScene` (`src/canvas/render/scene.ts`) repaints background, grid, every
   visible node (frames included, as ordinary container nodes), preview and
   overlay chrome from scratch each frame.
 - Compositing borrows tight, device-space offscreen layers for opacity groups,

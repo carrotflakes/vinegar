@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import type { RenderPerformanceSample } from "@/canvas/render";
+import type { RenderPerformanceSample } from "@/canvas/render/types";
 import { renderBenchmarkRequest } from "./renderFlags";
 
 /**

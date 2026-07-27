@@ -1,5 +1,5 @@
 import { ensureDocImagesLoaded } from "../imageCache";
-import { paintNode } from "../canvas/render";
+import { paintNode } from "../canvas/render/scene";
 import type { Bounds, Document } from "../model/types";
 import { contentBounds } from "./exportBounds";
 

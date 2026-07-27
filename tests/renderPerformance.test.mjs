@@ -14,7 +14,7 @@ before(async () => {
   ({ createRenderStressDocument } = await server.ssrLoadModule(
     "/src/demo/createRenderStressDocument.ts"
   ));
-  ({ renderScene } = await server.ssrLoadModule("/src/canvas/render.ts"));
+  ({ renderScene } = await server.ssrLoadModule("/src/canvas/render/scene.ts"));
 });
 
 after(async () => server.close());

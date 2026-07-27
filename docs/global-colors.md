@@ -113,11 +113,11 @@ swatchOrder: string[];
 
 Only three sites paint, and all already import from `paint.ts`
 (grep: `resolvePaint|paintToCss|paintToSvgAttrs` →
-[`render.ts`](../src/canvas/render.ts),
+[`render/scene.ts`](../src/canvas/render/scene.ts),
 [`exportSvg.ts`](../src/io/exportSvg.ts),
 [`ColorField.tsx`](../src/ui/ColorField.tsx)):
 
-- **Canvas render** ([`render.ts`](../src/canvas/render.ts)): before switching on
+- **Canvas render** ([`render/scene.ts`](../src/canvas/render/scene.ts)): before switching on
   paint type for a node's fill/stroke, call `resolvePaintRef(paint, doc.swatches)`.
   `null` → skip that paint (same as no fill). Pattern resolution (asset cache)
   runs on the resolved paint as today.

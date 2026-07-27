@@ -27,7 +27,7 @@ before(async () => {
   ({ serializeDocument, parseDocument } = await server.ssrLoadModule("/src/io/serialize.ts"));
   ({ hitTestShape } = await server.ssrLoadModule("/src/model/geometry/hitTest.ts"));
   ({ exportSvg } = await server.ssrLoadModule("/src/io/exportSvg.ts"));
-  ({ paintShape } = await server.ssrLoadModule("/src/canvas/render.ts"));
+  ({ paintShape } = await server.ssrLoadModule("/src/canvas/render/scene.ts"));
   ({ COMMANDS: commands } = await server.ssrLoadModule("/src/commands/registry.ts"));
   ({ useEditor } = await server.ssrLoadModule("/src/store/editorStore.ts"));
 });

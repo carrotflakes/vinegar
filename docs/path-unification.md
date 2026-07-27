@@ -20,7 +20,7 @@ multi-subpath `bezier` with straight segments and the even-odd rule; `bezier`
 already expresses compound (hole-cutting) outlines. Every consumer that
 switches on shape type (13 files: bounds, hit-test, transforms, stroke,
 boolean, render, SVG export, …) pays for the duplication, and fill rules are
-hardcoded per type (`render.ts`/`clippingMask.ts`: polygon & compoundPath ⇒
+hardcoded per type (`render/`/`clippingMask.ts`: polygon & compoundPath ⇒
 evenodd, everything else ⇒ nonzero).
 
 ## Decision
@@ -99,7 +99,7 @@ curve re-fitting (TODO) shrinks these, and rendering can keep a fast
    `runScript.ts`/`scriptWorker.ts` — the experimental scripting API accepts
    canonical `path(subpaths, fillRule?)` data directly (legacy
    `path(points, closed)` compatibility was intentionally dropped), SVG import.
-4. **Consumers**: `canvas/render.ts` (fill rule from the field; null-handle
+4. **Consumers**: `canvas/render/` (fill rule from the field; null-handle
    fast path), `canvas/nodes.ts` + `nodeTool.ts`, `picking.ts`, `overlay.ts`,
    `exportSvg.ts` (`fill-rule` attribute from the field), properties panels
    (`AppearanceSection`, `SelectionActionsSection`, `PropertiesPanel`),

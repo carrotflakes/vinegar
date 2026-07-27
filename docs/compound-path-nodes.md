@@ -84,7 +84,7 @@ interface CompoundPathNode extends BaseShape {
 3. **Geometry**: `bounds.ts`, `hitTest.ts`, `boolean.ts`, `clippingMask.ts`,
    `outlineStroke.ts`, `bucketFill.ts` build the combined outline from
    children instead of `components` (shared "compound outline" helper).
-4. **Render / export**: `canvas/render.ts` gathers children into one Path2D
+4. **Render / export**: `canvas/render/path.ts` gathers children into one Path2D
    (evenodd + container appearance); `exportSvg.ts` emits one `<path>` from
    the children's subpaths with `fill-rule="evenodd"`.
 5. **Structure ops**: `compoundPath.ts` Make = create container + reparent

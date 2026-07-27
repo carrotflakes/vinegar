@@ -31,7 +31,7 @@ import { drawDocumentGuides } from "./guides";
 import { drawRulers } from "./rulers";
 import { selectedNodeShapes, selectedShapes } from "./picking";
 import { frameDropTarget } from "./tools/selectTool";
-import { renderScene } from "./render";
+import { renderScene } from "./render/scene";
 
 /** Everything the canvas painter reads: a store snapshot plus transient refs. */
 export interface PaintInput {

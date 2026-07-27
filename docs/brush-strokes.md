@@ -105,7 +105,7 @@ on shape identity is correct and self-invalidating. Cache the envelope ring
 (`Vec2[]`) in the model layer for bounds/hit-testing, and a `Path2D` in the
 canvas layer for painting (same split as `imageCache.ts`).
 
-## Rendering (`canvas/render.ts`)
+## Rendering (`canvas/render/`)
 
 - `tracePath` case `"brush"`: append the cached envelope ring;
   `paintShape` fills it with the resolved `stroke` paint (solid / gradient /
