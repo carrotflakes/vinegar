@@ -268,7 +268,7 @@ additional effects, or other feature expansion.
   - [ ] パラメータ型の拡張（bool=チェックボックス、enum=セレクト。今は number のみ）
   - [ ] プロパティの GeneratorSection に「Edit source」ボタン（インスタンス→ソースへ
     ジャンプ、`openGenerators(scriptId)`）
-  - [ ] パネルからキャンバスへドラッグ配置（Symbols の `DRAG_SYMBOL` 相当。今は
+  - [x] パネルからキャンバスへドラッグ配置（Symbols の `DRAG_SYMBOL` 相当。今は
     Insert ボタン＝中央のみ）
   - [ ] クリップボードが生成器スクリプトを持ち運ばない → 別ドキュメントへ貼ると
     `generator.scriptId` が宙に浮く（形状は出るがパラメータ編集不可）。payload に
