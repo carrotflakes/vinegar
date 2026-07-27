@@ -13,7 +13,9 @@ are implemented. Interaction snapshots remain a proposal.
 - Compositing borrows tight, device-space offscreen layers for opacity groups,
   effects, masks and isolated strokes from a size-bucketed pool.
 - Geometry caches: `cachedBrushEnvelope`, plus the reference-keyed Path2D,
-  culling-bounds, text-layout and pattern caches described below.
+  culling-bounds, text-layout and pattern caches described below. Layer sizing
+  goes through the same shape-bounds cache; only the mutable preview shape
+  bypasses it.
 - Viewport culling skips off-screen subtrees, except inside symbol definitions
   (an instance is culled as a whole, its contents are not).
 - No static/dynamic layer split; no dirty-rect tracking.
@@ -206,22 +208,21 @@ their `deviceScale` is read after `ctx.transform(node.transform)`, and the
 culling bounds always assumed it too. A blur on a scaled shape therefore
 renders differently — consistently with groups — than it did before.
 
-Known limitations, in rough priority order:
+Effect halos are sized in **device space**, where the radius is exact:
+`nodeLocalContentBounds` returns a node's content without its own halo, and
+each acquire site adds `effectsMargin(effects) * scale` device pixels using the
+very scale it then hands to `compositeEffects`. This matters under non-uniform
+scale — the canvas filter blurs isotropically in device pixels, so a margin
+expanded in local space and then squashed by e.g. `scale(1, 0.1)` would clip
+the halo vertically. Nested nodes are still folded into their parent's bounds
+in local space; there the margin is widened by `localEffectScale` (the
+transform's max-scale over `sqrt(|det|)`, i.e. 1 for uniform scale and
+rotation) so the compressed axis still covers the halo.
 
-- **Non-uniform scale can clip an effect halo.** Layer bounds are widened by
-  `effectsMargin` isotropically in local space and then transformed, while the
-  blur radius is scaled by `sqrt(|det|)`. Under e.g. `scale(9, 1)` the vertical
-  margin is scaled by 1 but the blur by 3, so the halo is cut off. Uniform
-  scale is exact. The fix is to pad the *device* bounds by
-  `effectsMargin(effects) * scale` instead of relying on the local expansion.
-- **The layer pool has no eviction.** `freeLayers` is keyed by
-  `"<w>x<h>"`; the old pool held one size and was dropped on resize/DPR change,
-  this one can retain up to (bucket combinations × nesting depth) canvases for
-  the life of the page. It wants a per-bucket cap or a clear on target resize.
-- **`shapePaintBounds` bypasses the shape-bounds cache.** It calls
-  `shapeBounds` directly, so sizing a group's layer recomputes every
-  descendant's bounds each frame instead of going through
-  `cachedCullingShapeBounds`. Only the mutable preview shape has to bypass it.
+The pool is capped at `MAX_POOLED_LAYERS` canvases and evicts from the least
+recently used size bucket. Without that, a session that visits many bucket
+sizes — or resizes the target, which changes the size clamp — would retain a
+canvas per size for the life of the page.
 
 ### 4. Static-scene snapshot during interactions
 

@@ -232,7 +232,9 @@ test("Path2D geometry is reused until the shape reference changes", () => {
   }
 });
 
-test("effect compositing borrows tight bucketed layers", () => {
+/** Run `body` with `document.createElement("canvas")` producing mock canvases,
+ *  collecting each one so layer sizes can be asserted. */
+function withCanvasFactory(body) {
   const previousDocument = globalThis.document;
   const createdCanvases = [];
   globalThis.document = {
@@ -251,6 +253,15 @@ test("effect compositing borrows tight bucketed layers", () => {
     },
   };
   try {
+    body(createdCanvases);
+  } finally {
+    if (previousDocument === undefined) delete globalThis.document;
+    else globalThis.document = previousDocument;
+  }
+}
+
+test("effect compositing borrows tight bucketed layers", () => {
+  withCanvasFactory((createdCanvases) => {
     const doc = createEmptyDocument();
     doc.nodes.effect = rect("effect", 40, 40, 20, 20, {
       effects: [{ type: "blur", radius: 4 }],
@@ -269,8 +280,32 @@ test("effect compositing borrows tight bucketed layers", () => {
     );
     assert.deepEqual(ctx.calls, [["drawImage", 64, 64, 27, 27]]);
     assert.ok(sample.acquiredLayerPixels < 100 * 100 * 2);
-  } finally {
-    if (previousDocument === undefined) delete globalThis.document;
-    else globalThis.document = previousDocument;
-  }
+  });
+});
+
+test("an effect layer covers the halo under a non-uniform shape transform", () => {
+  withCanvasFactory((createdCanvases) => {
+    const doc = createEmptyDocument();
+    // Squashed to a tenth vertically: the blur radius scales by sqrt(|det|)
+    // ≈ 0.32, so the halo reaches ~28px in *device* space on every side. A
+    // margin added in the shape's local space would only survive as ~2.8px
+    // vertically and clip the halo.
+    doc.nodes.effect = rect("effect", 20, 200, 40, 100, {
+      transform: [1, 0, 0, 0.1, 0, 0],
+      effects: [{ type: "blur", radius: 30 }],
+    });
+    doc.rootIds = ["effect"];
+
+    const { ctx, sample } = render(doc);
+    // Painted content spans y 20..30; the layer has to reach y ≈ 59.
+    assert.deepEqual(
+      createdCanvases.map((canvas) => [canvas.width, canvas.height]),
+      [
+        [100, 64],
+        [100, 64],
+      ]
+    );
+    assert.deepEqual(ctx.calls, [["drawImage", 100, 64, 0, 0]]);
+    assert.equal(sample.acquiredLayerPixels, 100 * 64 * 2);
+  });
 });

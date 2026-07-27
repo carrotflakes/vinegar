@@ -44,7 +44,7 @@ import {
   normalizeStrokeDash,
   STROKE_MITER_LIMIT,
 } from "../model/stroke";
-import type { Bounds, Document, DocumentAsset, Effect, FrameNode, ImageShape, Shape } from "../model/types";
+import type { Bounds, Document, DocumentAsset, Effect, FrameNode, ImageShape, Matrix, Shape } from "../model/types";
 import { screenToWorld, worldToScreen, type Viewport } from "@/model/geometry/viewport";
 import { getAssetImage } from "../imageCache";
 import { layoutTextWithCanvas } from "./textLayout";
@@ -130,17 +130,62 @@ function shapeStrokeMargin(shape: Shape): number {
       : 0;
 }
 
-function shapePaintBounds(shape: Shape, doc: Document): Bounds {
-  return expandBounds(shapeBounds(shape, doc), shapeStrokeMargin(shape));
+function shapePaintBounds(
+  shape: Shape,
+  doc: Document,
+  cacheable: boolean
+): Bounds {
+  return expandBounds(
+    cacheable ? cachedCullingShapeBounds(shape, doc) : shapeBounds(shape, doc),
+    shapeStrokeMargin(shape)
+  );
 }
 
 /**
- * Conservative visual bounds in a node's own coordinate system. Unlike the
- * world-space culling index, these bounds also work while rendering a symbol
- * definition under an instance transform. They are used only to size temporary
- * device-space layers, so a safe over-estimate is preferable to clipped pixels.
+ * Effects are applied isotropically in *device* space, so an effect margin
+ * measured in a node's local space has to survive the most compressed
+ * direction of that node's transform. The factor is 1 for uniform scale and
+ * rotation; under `scale(9, 1)` the blur radius grows by `sqrt(|det|)` = 3
+ * while the local margin's y extent is only scaled by 1, so the margin has to
+ * be tripled for the halo to still fit.
  */
-function nodeLocalVisualBounds(
+function localEffectScale(transform: Matrix): number {
+  const det = Math.abs(
+    transform[0] * transform[3] - transform[1] * transform[2]
+  );
+  return det > 1e-12 ? matrixScale(transform) / Math.sqrt(det) : 1;
+}
+
+/** A child's contribution to its parent's local bounds: the child's content,
+ *  widened by the child's own effect halo, then placed by its transform. */
+function childLocalVisualBounds(
+  doc: Document,
+  childId: string,
+  preview: Shape | null | undefined,
+  cache: Map<string, Bounds | null> | undefined,
+  visiting: Set<string>
+): Bounds | null {
+  const child = doc.nodes[childId];
+  const content = nodeLocalContentBounds(doc, childId, preview, cache, visiting);
+  if (!child || !content) return null;
+  return transformBounds(
+    expandBounds(
+      content,
+      effectsMargin(child.effects) * localEffectScale(child.transform)
+    ),
+    child.transform
+  );
+}
+
+/**
+ * Conservative bounds of a node's *content* in its own coordinate system,
+ * excluding the node's own effect halo — callers add that in device space,
+ * where the effect radius is exact. Unlike the world-space culling index these
+ * bounds also work while rendering a symbol definition under an instance
+ * transform. They only size temporary layers, so a safe over-estimate is
+ * preferable to clipped pixels.
+ */
+function nodeLocalContentBounds(
   doc: Document,
   nodeId: string,
   preview?: Shape | null,
@@ -159,75 +204,52 @@ function nodeLocalVisualBounds(
   let bounds: Bounds | null = null;
   if (isShape(stored)) {
     const shape = preview?.id === stored.id ? preview : stored;
-    bounds = shapePaintBounds(shape, doc);
+    bounds = shapePaintBounds(shape, doc, shape === stored);
   } else if (isFrame(stored)) {
     const frameBounds = frameLocalBounds(stored);
     bounds = stored.clipsContent
       ? frameBounds
       : unionBounds([
           frameBounds,
-          ...stored.childIds.map((id) => {
-            const child = doc.nodes[id];
-            const childBounds = nodeLocalVisualBounds(
-              doc,
-              id,
-              preview,
-              cache,
-              visiting
-            );
-            return child && childBounds
-              ? transformBounds(childBounds, child.transform)
-              : null;
-          }),
+          ...stored.childIds.map((id) =>
+            childLocalVisualBounds(doc, id, preview, cache, visiting)
+          ),
         ]);
   } else if (isGroup(stored)) {
     bounds = unionBounds(
-      clippingContentIds(doc, stored).map((id) => {
-        const child = doc.nodes[id];
-        const childBounds = nodeLocalVisualBounds(
-          doc,
-          id,
-          preview,
-          cache,
-          visiting
-        );
-        return child && childBounds
-          ? transformBounds(childBounds, child.transform)
-          : null;
-      })
+      clippingContentIds(doc, stored).map((id) =>
+        childLocalVisualBounds(doc, id, preview, cache, visiting)
+      )
     );
     const mask = clippingMask(doc, stored);
     if (bounds && mask) {
       const geometry = preview?.id === mask.id ? preview : mask;
       bounds = intersectBounds(
         bounds,
-        transformBounds(shapeBounds(geometry, doc), geometry.transform)
+        transformBounds(
+          geometry === mask
+            ? cachedCullingShapeBounds(geometry, doc)
+            : shapeBounds(geometry, doc),
+          geometry.transform
+        )
       );
     }
   } else if (isInstance(stored)) {
     const definition = doc.symbols[stored.symbolId];
     if (definition) {
-      const root = doc.nodes[definition.rootNodeId];
-      const rootBounds = nodeLocalVisualBounds(
+      bounds = childLocalVisualBounds(
         doc,
         definition.rootNodeId,
         preview,
         cache,
         visiting
       );
-      bounds =
-        root && rootBounds
-          ? transformBounds(rootBounds, root.transform)
-          : null;
     }
   }
 
   visiting.delete(nodeId);
-  const visual = bounds
-    ? expandBounds(bounds, effectsMargin(stored.effects))
-    : null;
-  cache?.set(nodeId, visual);
-  return visual;
+  cache?.set(nodeId, bounds);
+  return bounds;
 }
 
 const cullingShapeBoundsCache = new WeakMap<
@@ -381,7 +403,18 @@ function paintNodeInternal(
     }
     // Effects need the shape composited as a layer, so its own opacity/blend is
     // deferred to the final draw (content -> effects -> opacity/blend).
-    const localBounds = nodeLocalVisualBounds(
+    // The effect radius is a local-space length, so it scales with the shape's
+    // own transform too — matching group effects, where `deviceScale` is read
+    // after the node transform is applied.
+    const shapeScale =
+      Math.sqrt(
+        Math.abs(
+          shape.transform[0] * shape.transform[3] -
+            shape.transform[1] * shape.transform[2]
+        )
+      ) || 1;
+    const effectScale = deviceScale(ctx) * shapeScale;
+    const contentBounds = nodeLocalContentBounds(
       doc,
       nodeId,
       preview,
@@ -389,8 +422,11 @@ function paintNodeInternal(
     );
     const acq = acquireLayer(
       ctx,
-      localBounds
-        ? deviceBounds(ctx, transformBounds(localBounds, shape.transform))
+      contentBounds
+        ? expandBounds(
+            deviceBounds(ctx, transformBounds(contentBounds, shape.transform)),
+            effectsMargin(shape.effects) * effectScale
+          )
         : undefined
     );
     if (!acq) return;
@@ -405,17 +441,10 @@ function paintNodeInternal(
       preview,
       shape
     );
-    const shapeScale =
-      Math.sqrt(
-        Math.abs(
-          shape.transform[0] * shape.transform[3] -
-            shape.transform[1] * shape.transform[2]
-        )
-      ) || 1;
     compositeEffects(
       ctx,
       layer,
-      deviceScale(ctx) * shapeScale,
+      effectScale,
       shape.effects,
       shape.opacity,
       shape.blendMode
@@ -511,7 +540,8 @@ function paintNodeInternal(
     if (symbolId) activeSymbols.delete(symbolId);
     return;
   }
-  const localBounds = nodeLocalVisualBounds(
+  const scale = deviceScale(ctx);
+  const contentBounds = nodeLocalContentBounds(
     doc,
     nodeId,
     preview,
@@ -519,7 +549,12 @@ function paintNodeInternal(
   );
   const acq = acquireLayer(
     ctx,
-    localBounds ? deviceBounds(ctx, localBounds) : undefined
+    contentBounds
+      ? expandBounds(
+          deviceBounds(ctx, contentBounds),
+          effectsMargin(effects ?? []) * scale
+        )
+      : undefined
   );
   if (!acq) {
     ctx.restore();
@@ -529,7 +564,6 @@ function paintNodeInternal(
   const layer = acq;
   const { lctx } = layer;
   setLayerTransform(layer, ctx);
-  const scale = deviceScale(ctx);
   lctx.save();
   applyMask(lctx);
   const childTraversal =
@@ -587,8 +621,16 @@ interface RenderLayer {
  * Temporary layers are bucketed by pixel dimensions. Their origins remain
  * exact device coordinates, while power-of-two sizes let nearby node sizes
  * reuse canvases without returning to full-viewport allocations.
+ *
+ * Layers are acquired and released in a stack-like fashion within a frame, so
+ * the live count is the deepest nesting. The pool is capped well above that,
+ * evicting from the least recently used bucket, so that a session that visits
+ * many bucket sizes (or resizes the target, which changes the size clamp) can't
+ * retain a canvas per size forever.
  */
 const freeLayers = new Map<string, HTMLCanvasElement[]>();
+const MAX_POOLED_LAYERS = 32;
+let pooledLayerCount = 0;
 let activeLayerCounter: { calls: number; pixels: number } | null = null;
 
 function bucketSize(size: number, limit: number): number {
@@ -653,6 +695,7 @@ function acquireLayer(
   const key = `${width}x${height}`;
   const bucket = freeLayers.get(key);
   let canvas = bucket?.pop();
+  if (canvas) pooledLayerCount -= 1;
   if (!canvas) {
     canvas = document.createElement("canvas");
     canvas.width = width;
@@ -681,9 +724,25 @@ function acquireLayer(
 /** Return a layer to the pool once its pixels have been composited out. */
 function releaseLayer(layer: RenderLayer): void {
   const key = `${layer.canvas.width}x${layer.canvas.height}`;
-  const bucket = freeLayers.get(key);
-  if (bucket) bucket.push(layer.canvas);
-  else freeLayers.set(key, [layer.canvas]);
+  const bucket = freeLayers.get(key) ?? [];
+  bucket.push(layer.canvas);
+  // Re-inserting moves the key last, so `freeLayers` iterates least recently
+  // used first and the eviction below drops the size we stopped needing.
+  freeLayers.delete(key);
+  freeLayers.set(key, bucket);
+  pooledLayerCount += 1;
+  while (pooledLayerCount > MAX_POOLED_LAYERS) {
+    const oldest = freeLayers.keys().next();
+    if (oldest.done) break;
+    const stale = freeLayers.get(oldest.value);
+    if (!stale?.length) {
+      freeLayers.delete(oldest.value);
+      continue;
+    }
+    stale.shift();
+    if (!stale.length) freeLayers.delete(oldest.value);
+    pooledLayerCount -= 1;
+  }
 }
 
 function setLayerTransform(
