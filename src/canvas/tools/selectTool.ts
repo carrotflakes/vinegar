@@ -692,18 +692,23 @@ export function selectCursor(
   screen: Vec2,
   world: Vec2
 ): string {
+  const state = useEditor.getState();
+  const frameCursor = (id: Parameters<typeof handleCursorRotated>[0]) => {
+    const frame = selectionFrame();
+    const mirrored = !!state.viewport.flipX;
+    const screenRotation =
+      state.viewport.rotation + (mirrored ? -1 : 1) * (frame?.rotation ?? 0);
+    return handleCursorRotated(id, screenRotation, mirrored);
+  };
   const hit = hitFrameHandle(ctx, screen);
   if (hit?.type === "pivot") return "crosshair";
   if (hit?.type === "corner-radius") {
-    const frame = selectionFrame();
-    return handleCursorRotated("se", frame?.rotation ?? 0);
+    return frameCursor("se");
   }
   if (hit?.type === "rotate") return "grab";
   if (hit?.type === "resize") {
-    const frame = selectionFrame();
-    return handleCursorRotated(hit.id, frame?.rotation ?? 0);
+    return frameCursor(hit.id);
   }
-  const state = useEditor.getState();
   const lockedHit = pickLockedShape(ctx, world);
   if (lockedHit) {
     const scopeRoot = scopeRootGroupId(state.doc, currentSymbolScope(state));

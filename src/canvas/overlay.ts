@@ -55,12 +55,22 @@ export function drawOverlay(
 
   if (opts.activeGroupBounds) {
     const b = opts.activeGroupBounds;
-    const nw = worldToScreen(viewport, { x: b.x, y: b.y });
-    const se = worldToScreen(viewport, { x: b.x + b.width, y: b.y + b.height });
+    const corners = [
+      { x: b.x, y: b.y },
+      { x: b.x + b.width, y: b.y },
+      { x: b.x + b.width, y: b.y + b.height },
+      { x: b.x, y: b.y + b.height },
+    ].map((point) => worldToScreen(viewport, point));
     ctx.strokeStyle = "rgba(150,160,175,0.85)";
     ctx.lineWidth = 1;
     ctx.setLineDash([2, 3]);
-    ctx.strokeRect(nw.x + 0.5, nw.y + 0.5, se.x - nw.x, se.y - nw.y);
+    ctx.beginPath();
+    ctx.moveTo(corners[0].x, corners[0].y);
+    for (let i = 1; i < corners.length; i++) {
+      ctx.lineTo(corners[i].x, corners[i].y);
+    }
+    ctx.closePath();
+    ctx.stroke();
     ctx.setLineDash([]);
   }
 
@@ -258,20 +268,18 @@ export function drawSpacings(
     const p2 = s.horizontal
       ? worldToScreen(viewport, { x: s.b, y: s.pos })
       : worldToScreen(viewport, { x: s.pos, y: s.b });
+    const dx = p2.x - p1.x;
+    const dy = p2.y - p1.y;
+    const length = Math.hypot(dx, dy) || 1;
+    const tx = (-dy / length) * tick;
+    const ty = (dx / length) * tick;
     ctx.beginPath();
     ctx.moveTo(p1.x, p1.y);
     ctx.lineTo(p2.x, p2.y);
-    if (s.horizontal) {
-      ctx.moveTo(p1.x, p1.y - tick);
-      ctx.lineTo(p1.x, p1.y + tick);
-      ctx.moveTo(p2.x, p2.y - tick);
-      ctx.lineTo(p2.x, p2.y + tick);
-    } else {
-      ctx.moveTo(p1.x - tick, p1.y);
-      ctx.lineTo(p1.x + tick, p1.y);
-      ctx.moveTo(p2.x - tick, p2.y);
-      ctx.lineTo(p2.x + tick, p2.y);
-    }
+    ctx.moveTo(p1.x - tx, p1.y - ty);
+    ctx.lineTo(p1.x + tx, p1.y + ty);
+    ctx.moveTo(p2.x - tx, p2.y - ty);
+    ctx.lineTo(p2.x + tx, p2.y + ty);
     ctx.stroke();
   }
 }
@@ -471,13 +479,25 @@ export function drawTextDraft(
   current: Vec2
 ): void {
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-  const a = worldToScreen(viewport, start);
-  const b = worldToScreen(viewport, current);
-  const x = Math.min(a.x, b.x);
-  const y = Math.min(a.y, b.y);
+  const x = Math.min(start.x, current.x);
+  const y = Math.min(start.y, current.y);
+  const width = Math.abs(current.x - start.x);
+  const height = Math.abs(current.y - start.y);
+  const corners = [
+    { x, y },
+    { x: x + width, y },
+    { x: x + width, y: y + height },
+    { x, y: y + height },
+  ].map((point) => worldToScreen(viewport, point));
   ctx.strokeStyle = ACCENT;
   ctx.lineWidth = 1;
   ctx.setLineDash([4, 3]);
-  ctx.strokeRect(x + 0.5, y + 0.5, Math.abs(b.x - a.x), Math.abs(b.y - a.y));
+  ctx.beginPath();
+  ctx.moveTo(corners[0].x, corners[0].y);
+  for (let i = 1; i < corners.length; i++) {
+    ctx.lineTo(corners[i].x, corners[i].y);
+  }
+  ctx.closePath();
+  ctx.stroke();
   ctx.setLineDash([]);
 }

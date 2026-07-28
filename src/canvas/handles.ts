@@ -47,11 +47,6 @@ export function handlePoint(b: Bounds, id: HandleId): Vec2 {
   }
 }
 
-/** CSS cursor matching each handle's resize direction (unrotated). */
-export function handleCursor(id: HandleId): string {
-  return handleCursorRotated(id, 0);
-}
-
 /** Outward direction of each handle in screen space (degrees, y-down). */
 const HANDLE_ANGLE: Record<HandleId, number> = {
   e: 0,
@@ -72,12 +67,18 @@ const CURSOR_BUCKETS: { angle: number; cursor: string }[] = [
 ];
 
 /**
- * CSS resize cursor for a handle, accounting for the selection's rotation so the
- * arrow points along the actual (rotated) edge. `rotation` is in radians.
+ * CSS resize cursor for a handle, accounting for the selection/view rotation so
+ * the arrow points along the actual edge on screen. `rotation` is in radians;
+ * `mirrored` reflects the handle direction across the screen's vertical axis.
  */
-export function handleCursorRotated(id: HandleId, rotation: number): string {
+export function handleCursorRotated(
+  id: HandleId,
+  rotation: number,
+  mirrored: boolean,
+): string {
   // Resize cursors are bidirectional, so collapse the direction to 0..180.
-  const a = (((HANDLE_ANGLE[id] + (rotation * 180) / Math.PI) % 180) + 180) % 180;
+  const handleAngle = mirrored ? -HANDLE_ANGLE[id] : HANDLE_ANGLE[id];
+  const a = (((handleAngle + (rotation * 180) / Math.PI) % 180) + 180) % 180;
   let best = CURSOR_BUCKETS[0];
   let bestDist = Infinity;
   for (const b of CURSOR_BUCKETS) {

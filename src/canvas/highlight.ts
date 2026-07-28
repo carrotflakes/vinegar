@@ -125,20 +125,32 @@ function outlineBox(
   bounds: Bounds,
   pulse: number
 ): void {
-  const b = screenBounds(viewport, bounds);
-  const rect = () => {
+  const corners = [
+    worldToScreen(viewport, { x: bounds.x, y: bounds.y }),
+    worldToScreen(viewport, { x: bounds.x + bounds.width, y: bounds.y }),
+    worldToScreen(viewport, {
+      x: bounds.x + bounds.width,
+      y: bounds.y + bounds.height,
+    }),
+    worldToScreen(viewport, { x: bounds.x, y: bounds.y + bounds.height }),
+  ];
+  const box = () => {
     ctx.beginPath();
-    ctx.rect(b.x, b.y, b.width, b.height);
+    ctx.moveTo(corners[0].x, corners[0].y);
+    for (let i = 1; i < corners.length; i++) {
+      ctx.lineTo(corners[i].x, corners[i].y);
+    }
+    ctx.closePath();
   };
   if (pulse > 0) {
-    rect();
+    box();
     ctx.fillStyle = HIGHLIGHT;
     ctx.globalAlpha = PULSE_WASH * 0.6 * pulse;
     ctx.fill();
     ctx.globalAlpha = 1;
   }
   const width = OUTLINE_WIDTH + PULSE_WIDTH * pulse;
-  rect();
+  box();
   ctx.strokeStyle = HALO;
   ctx.lineWidth = width + 2;
   ctx.stroke();
