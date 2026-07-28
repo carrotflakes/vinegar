@@ -28,7 +28,8 @@ import {
   drawTextDraft,
 } from "./overlay";
 import { drawDocumentGuides } from "./guides";
-import { drawRulers } from "./rulers";
+import { drawNodeHighlight } from "./highlight";
+import { drawRulers, RULER_SIZE } from "./rulers";
 import { selectedNodeShapes, selectedShapes } from "./picking";
 import { frameDropTarget } from "./tools/selectTool";
 import { renderScene } from "./render/scene";
@@ -51,6 +52,9 @@ export interface PaintInput {
   spacings: Spacing[];
   /** Shape hidden from the scene while its text is being edited in the DOM. */
   hiddenTextId: string | null;
+  /** Node hovered in the Layers panel, outlined so the row maps to the art.
+   *  `pulse` (1 → 0) is the strength of its brief entry animation. */
+  highlight: { nodeId: string; pulse: number } | null;
 }
 
 /** Paint the scene and all tool chrome for one frame. Pure w.r.t. its inputs. */
@@ -70,6 +74,7 @@ export function paintCanvas(input: PaintInput): void {
     guides,
     spacings,
     hiddenTextId,
+    highlight,
   } = input;
   const { width, height, dpr } = size;
   const { doc, viewport, selection, tool } = state;
@@ -206,6 +211,20 @@ export function paintCanvas(input: PaintInput): void {
   if (interaction.kind === "text-create") {
     drawTextDraft(ctx2d, dpr, viewport, interaction.start, interaction.current);
   }
+  // Layers-panel hover outline: above the art and the selection frame, below
+  // the snapping chrome and the rulers.
+  if (highlight && doc.nodes[highlight.nodeId]) {
+    drawNodeHighlight(ctx2d, {
+      dpr,
+      size: { width, height },
+      viewport,
+      doc,
+      nodeId: highlight.nodeId,
+      pulse: highlight.pulse,
+      rulerInset: state.rulersVisible ? RULER_SIZE : 0,
+    });
+  }
+
   drawGuides(ctx2d, dpr, viewport, guides);
   drawSpacings(ctx2d, dpr, viewport, spacings);
 

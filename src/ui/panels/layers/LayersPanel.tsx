@@ -1,4 +1,4 @@
-import { Fragment, useState, type ComponentType } from "react";
+import { Fragment, useEffect, useState, type ComponentType } from "react";
 import {
   LuSquare,
   LuCircle,
@@ -31,6 +31,7 @@ import {
   scopeRootIds,
 } from "../../../model/scene";
 import { currentSymbolScope, useEditor } from "../../../store/editorStore";
+import { useHighlight } from "../../../store/highlightStore";
 import { openContextMenu } from "../../../store/menuStore";
 import { selectionMenu } from "../../menus";
 import { useTouchDrag } from "../../useTouchDrag";
@@ -130,6 +131,13 @@ export default function LayersPanel() {
   const enterSymbolEdit = useEditor((s) => s.enterSymbolEdit);
   const detachSelectedInstances = useEditor((s) => s.detachSelectedInstances);
 
+  const setHighlight = useHighlight((s) => s.setHighlight);
+  const clearHighlight = useHighlight((s) => s.clearHighlight);
+
+  // A row can disappear without a pointerleave (collapse, delete, panel close),
+  // so the highlight is dropped when the panel goes away too.
+  useEffect(() => () => useHighlight.getState().setHighlight(null), []);
+
   const [editing, setEditing] = useState<string | null>(null);
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
   const [drag, setDrag] = useState<Drag | null>(null);
@@ -166,6 +174,16 @@ export default function LayersPanel() {
     setDrag(null);
     setDrop(null);
   };
+
+  // Hovering a row outlines that node on the canvas (see canvas/highlight.ts).
+  // Touch has no hover, and a finger resting on a row before its long-press
+  // drag must not paint chrome, so only hovering devices report.
+  const hoverProps = (id: string) => ({
+    onPointerEnter: (e: React.PointerEvent) => {
+      if (e.pointerType !== "touch") setHighlight(id);
+    },
+    onPointerLeave: () => clearHighlight(id),
+  });
 
   const commitDrop = () => {
     const d = drag;
@@ -275,6 +293,7 @@ export default function LayersPanel() {
         }
         title={isMask ? "Clipping mask" : undefined}
         style={{ paddingLeft: 6 + depth * 16 }}
+        {...hoverProps(id)}
         {...rowDnd(id, path, isCompound ? id : undefined)}
         onClick={(e) => selectIds([id], e.shiftKey)}
         onContextMenu={(e) => {
@@ -363,6 +382,7 @@ export default function LayersPanel() {
           (instance.hidden || dim ? " hidden" : "")
         }
         style={{ paddingLeft: 6 + depth * 16 }}
+        {...hoverProps(id)}
         {...rowDnd(id, path)}
         onClick={(e) => selectIds([id], e.shiftKey)}
         onDoubleClick={() => enterSymbolEdit(instance.symbolId)}
@@ -445,6 +465,7 @@ export default function LayersPanel() {
           (drop?.inside === gid && isCollapsed ? " drop-inside" : "")
         }
         style={{ paddingLeft: 6 + depth * 16 }}
+        {...hoverProps(gid)}
         {...rowDnd(gid, path, gid)}
         onClick={(e) => selectIds([gid], e.shiftKey)}
         onContextMenu={(e) => {
@@ -589,7 +610,10 @@ export default function LayersPanel() {
           <span>{scopeName}</span>
         </button>
       )}
-      <div className="layers-list">
+      <div
+        className="layers-list"
+        onPointerLeave={() => setHighlight(null)}
+      >
         {roots.length === 0 && <div className="layers-empty">No shapes yet</div>}
         {renderList(roots, null, 0, [], false)}
       </div>

@@ -3,10 +3,12 @@ import { subscribeImageCache } from "../imageCache";
 import { type Guide, type Spacing } from "@/model/geometry/snap";
 import type { PathShape, Bounds, Shape, Vec2 } from "../model/types";
 import { currentSymbolScope, useEditor } from "../store/editorStore";
+import { useHighlight } from "../store/highlightStore";
 import { setPointer } from "../store/pointerStore";
 import { usePreferences } from "../store/preferencesStore";
 import "./CanvasView.css";
 import { readCanvasTheme, type CanvasTheme } from "./canvasTheme";
+import { highlightPulse } from "./highlight";
 import { paintCanvas } from "./paint";
 import { useCanvasGestures } from "./hooks/useCanvasGestures";
 import { useCanvasKeyboard } from "./hooks/useCanvasKeyboard";
@@ -56,11 +58,18 @@ export default function CanvasView() {
   );
 
   // ---- drawing -----------------------------------------------------------
+  // `scheduleDraw` is defined below in terms of `draw`; the ref lets the pulse
+  // animation ask for the next frame from inside `draw` itself.
+  const scheduleDrawRef = useRef<(() => void) | null>(null);
+
   const draw = useCallback(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
     const ctx2d = canvas.getContext("2d");
     if (!ctx2d) return;
+    const { nodeId, at } = useHighlight.getState();
+    const highlight = nodeId ? { nodeId } : null;
+    const pulse = highlight ? highlightPulse(at, performance.now()) : 0;
     paintCanvas({
       ctx2d,
       size: sizeRef.current,
@@ -76,7 +85,11 @@ export default function CanvasView() {
       guides: guidesRef.current,
       spacings: spacingsRef.current,
       hiddenTextId: textEditRef.current?.original?.id ?? null,
+      highlight: highlight ? { nodeId: highlight.nodeId, pulse } : null,
     });
+    // The hover pulse animates by re-scheduling itself until it settles; it is
+    // deliberately short, because each frame repaints the whole scene.
+    if (pulse > 0) scheduleDrawRef.current?.();
   }, []);
 
   const scheduleDraw = useCallback(() => {
@@ -86,6 +99,9 @@ export default function CanvasView() {
       draw();
     });
   }, [draw]);
+  useEffect(() => {
+    scheduleDrawRef.current = scheduleDraw;
+  }, [scheduleDraw]);
 
   const {
     textEdit,
@@ -132,6 +148,9 @@ export default function CanvasView() {
 
   // Preferences the canvas reads at paint time (e.g. the ruler origin mode).
   useEffect(() => usePreferences.subscribe(scheduleDraw), [scheduleDraw]);
+
+  // Repaint while a panel row is hovered, to draw/erase its outline.
+  useEffect(() => useHighlight.subscribe(scheduleDraw), [scheduleDraw]);
 
   useCanvasTheme(themeRef, scheduleDraw);
   useCanvasSizing(wrapRef, canvasRef, sizeRef, draw);

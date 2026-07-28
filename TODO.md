@@ -323,6 +323,16 @@ additional effects, or other feature expansion.
   経路も UI もない（新規パスは nonzero、outlineStroke / compound 変換は evenodd）
 - [ ] brush <-> path 相互変換
 - [ ] ツールバーからgeneratorの図形挿入
-- [ ] Layersパネル、項目ホバーでキャンバスにハイライト
+- [x] Layersパネル、項目ホバーでキャンバスにハイライト — 葉は実形状の輪郭、
+  コンテナは外形ボックス。暗いハロー＋アクセント色の2重線で背景に負けないようにし、
+  ホバー開始時だけ 260ms のパルス（太さ＋内部の薄い塗り）で目を引く。常時
+  アニメーションはシーン全体の再描画が毎フレーム走るので避けた。ビューポート外の
+  ノードは画面端に方向を示す矢印。`canvas/highlight.ts`
 - [x] 二本指タップでUNDO — 三本指で REDO。docs/pen-and-touch.md
 - [ ] symbol編集モードUI
+- [ ] Propertiesパネルのリファイン
+  - [ ] Panel -> Section
+  - [ ] 並び順、構成の見直し
+  - [ ] タイトルの重複
+  - [ ] UIの統一感
+- [ ] キャンバス回転した時、Frame名も回転

@@ -32,7 +32,7 @@ The detailed, developer-facing catalogue of what Vinegar does.
 - **Group / ungroup**, including **nested groups**; grouped shapes select together
 - **Clipping masks**: use the frontmost closed vector shape to clip a group; nested masks work in Canvas, PNG and SVG output and can be released for editing
 - **Compound paths**: own real, nested layer nodes for their closed source shapes, paint them through one shared even-odd appearance, allow path-anchor and hide/reorder editing, and release back to the original shape types. See [compound-path-nodes.md](compound-path-nodes.md)
-- **Layers panel**: tree view of groups (collapse, show/hide, lock/unlock), z-order list, click to select, drag to reorder (across parents), double-click to rename
+- **Layers panel**: tree view of groups (collapse, show/hide, lock/unlock), z-order list, click to select, drag to reorder (across parents), double-click to rename, and **hovering a row outlines that node on the canvas** — a shape along its real geometry, a group/frame by its box, with a short entry pulse and an edge arrow pointing at it when it is off-screen
 
 ## Path operations
 
