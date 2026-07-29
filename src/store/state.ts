@@ -426,6 +426,8 @@ export interface SymbolActions {
   detachSelectedInstances: () => void;
   enterSymbolEdit: (symbolId: string) => void;
   exitSymbolEdit: () => void;
+  /** Pop the edit stack down to `depth` symbols (0 = back to the scene). */
+  exitSymbolEditTo: (depth: number) => void;
   renameSymbol: (symbolId: string, name: string) => void;
   deleteSymbol: (symbolId: string) => void;
 }

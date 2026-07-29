@@ -2,7 +2,6 @@ import { vars } from "../styles/theme.css";
 
 export interface CanvasTheme {
   bg: string;
-  scopeBg: string;
   grid: { minor: string; major: string; axis: string };
   /** Ruler chrome (drawn into the canvas, so it needs concrete colors too). */
   ruler: {
@@ -27,7 +26,6 @@ export function readCanvasTheme(): CanvasTheme {
   const read = (ref: string) => style.getPropertyValue(cssVarName(ref)).trim();
   return {
     bg: read(vars.canvasBg),
-    scopeBg: read(vars.canvasScopeBg),
     grid: {
       minor: read(vars.gridMinor),
       major: read(vars.gridMajor),

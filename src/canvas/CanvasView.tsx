@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef } from "react";
 import { subscribeImageCache } from "../imageCache";
 import { type Guide, type Spacing } from "@/model/geometry/snap";
 import type { PathShape, Bounds, Shape, Vec2 } from "../model/types";
-import { currentSymbolScope, useEditor } from "../store/editorStore";
+import { useEditor } from "../store/editorStore";
 import { useHighlight } from "../store/highlightStore";
 import { setPointer } from "../store/pointerStore";
 import { usePreferences } from "../store/preferencesStore";
@@ -26,6 +26,7 @@ import {
   type ToolContext,
 } from "./interaction";
 import ModifierBar from "./ModifierBar";
+import SymbolBreadcrumb from "./SymbolBreadcrumb";
 import TextEditor from "./TextEditor";
 import { commitPenDraft } from "./tools/penTool";
 import { useRenderBenchmark } from "@/debug/useRenderBenchmark";
@@ -33,12 +34,6 @@ import { useRenderBenchmark } from "@/debug/useRenderBenchmark";
 export default function CanvasView() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const wrapRef = useRef<HTMLDivElement>(null);
-  const editingSymbolName = useEditor((s) => {
-    const id = currentSymbolScope(s);
-    return id ? s.doc.symbols[id]?.name ?? "Symbol" : null;
-  });
-  const exitSymbolEdit = useEditor((s) => s.exitSymbolEdit);
-
   const sizeRef = useRef({ width: 0, height: 0, dpr: 1 });
   const interactionRef = useRef<Interaction>({ kind: "none" });
   const previewRef = useRef<Shape | null>(null);
@@ -211,16 +206,7 @@ export default function CanvasView() {
         />
       )}
       <ModifierBar />
-      {editingSymbolName !== null && (
-        <div className="symbol-edit-bar">
-          <span className="symbol-edit-label">
-            Editing symbol · {editingSymbolName}
-          </span>
-          <button className="symbol-edit-done" onClick={exitSymbolEdit}>
-            Done
-          </button>
-        </div>
-      )}
+      <SymbolBreadcrumb />
     </div>
   );
 }

@@ -115,6 +115,7 @@ export function createSymbolActions({ set, get, transact }: StoreCtx): SymbolAct
     },
     enterSymbolEdit: (symbolId) => { const s = get(); if (!s.doc.symbols[symbolId] || s.editingSymbols.includes(symbolId)) return; set({ editingSymbols: [...s.editingSymbols, symbolId], activeGroupId: null, selection: [], ...clearTransient }); },
     exitSymbolEdit: () => { const s = get(); if (!s.editingSymbols.length) return; set({ editingSymbols: s.editingSymbols.slice(0, -1), activeGroupId: null, selection: [], ...clearTransient }); },
+    exitSymbolEditTo: (depth) => { const s = get(); if (depth < 0 || depth >= s.editingSymbols.length) return; set({ editingSymbols: s.editingSymbols.slice(0, depth), activeGroupId: null, selection: [], ...clearTransient }); },
     renameSymbol: (symbolId, name) => { const doc = get().doc; const def = doc.symbols[symbolId]; if (!def) return; transact({ ...doc, symbols: { ...doc.symbols, [symbolId]: { ...def, name } } }, { label: "Rename symbol" }); },
     deleteSymbol: (symbolId) => {
       const s = get(); const doc = s.doc; const def = doc.symbols[symbolId]; if (!def) return;

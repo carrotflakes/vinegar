@@ -79,7 +79,8 @@ export function paintCanvas(input: PaintInput): void {
   const { width, height, dpr } = size;
   const { doc, viewport, selection, tool } = state;
 
-  // Symbol local view: paint only the edited definition on a tinted page.
+  // Symbol local view: paint only the edited definition; the breadcrumb is
+  // the mode indicator (see SymbolBreadcrumb.tsx).
   const scope = currentSymbolScope(state);
   const scopeRoot = scopeRootGroupId(doc, scope);
   renderScene(ctx2d, {
@@ -89,7 +90,7 @@ export function paintCanvas(input: PaintInput): void {
     viewport,
     doc,
     preview,
-    background: scope ? theme.scopeBg : theme.bg,
+    background: theme.bg,
     showGrid: state.gridVisible,
     gridSize: state.gridSize,
     gridColors: theme.grid,
