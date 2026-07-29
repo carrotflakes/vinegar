@@ -517,7 +517,9 @@ export function createStructureActions({ set, get, transact }: StoreCtx): Struct
     },
     toggleHidden: (id) => { const doc = get().doc, node = doc.nodes[id]; if (!node) return; transact({ ...doc, nodes: { ...doc.nodes, [id]: { ...node, hidden: !node.hidden } } }, { label: node.hidden ? "Show layer" : "Hide layer" }); if (!node.hidden) { const affected = new Set([id, ...descendantNodeIds(doc, id)]); set({ selection: get().selection.filter((x) => !affected.has(x)), ...clearTransient }); } },
     toggleLocked: (id) => { const doc = get().doc, node = doc.nodes[id]; if (!node) return; transact({ ...doc, nodes: { ...doc.nodes, [id]: { ...node, locked: !node.locked } } }, { label: node.locked ? "Unlock layer" : "Lock layer" }); if (!node.locked) { const affected = new Set([id, ...descendantNodeIds(doc, id)]); set({ selection: get().selection.filter((x) => !affected.has(x)), ...clearTransient }); } },
-    renameNode: (id, name) => { const doc = get().doc, node = doc.nodes[id]; if (!node) return; transact({ ...doc, nodes: { ...doc.nodes, [id]: { ...node, name } } }, { label: "Rename layer" }); },
+    // Coalesced: the properties header renames on every keystroke, and one undo
+    // step per character is unusable. A typing pause ends the step.
+    renameNode: (id, name) => { const doc = get().doc, node = doc.nodes[id]; if (!node) return; transact({ ...doc, nodes: { ...doc.nodes, [id]: { ...node, name } } }, { label: "Rename layer", coalesceKey: "rename:" + id }); },
     updateNodeStyle: (id, patch) => { const doc = get().doc, node = doc.nodes[id]; if (!isGroup(node) && !isInstance(node)) return; transact({ ...doc, nodes: { ...doc.nodes, [id]: { ...node, ...patch } } }, { label: "Edit layer style", coalesceKey: "nstyle:" + id + ":" + Object.keys(patch).sort().join(",") }); },
     setNodeEffects: (id, effects) => {
       const doc = get().doc;

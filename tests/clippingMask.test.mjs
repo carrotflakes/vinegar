@@ -162,6 +162,27 @@ test("selection validation uses sibling paint order and protects an existing mas
   assert.equal(canReleaseClippingMaskSelection(clipped, ["clip"]), true);
 });
 
+test("a frame can never be wrapped in a clipping group", () => {
+  const doc = createEmptyDocument();
+  doc.nodes.board = {
+    id: "board",
+    name: "board",
+    type: "frame",
+    ...NODE_BASE,
+    transform: [...IDENTITY],
+    clipsContent: true,
+    width: 100,
+    height: 100,
+    background: null,
+    childIds: [],
+  };
+  doc.nodes.front = rect("front", 0, 0, 10, 10);
+  doc.rootIds = ["board", "front"];
+
+  // "front" is a valid mask, so only the frame's presence rules this out.
+  assert.equal(canMakeClippingMaskSelection(doc, ["board", "front"]), false);
+});
+
 test("clip bounds and point/marquee hits use the mask silhouette and holes", () => {
   const doc = clippedDocument();
   const content = doc.nodes.content;

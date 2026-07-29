@@ -15,7 +15,7 @@ globalStyle(".num", {
 
 /* Identity row at the top of the properties panel: what is selected, and its
  * name. Tighter than a normal section — it is a caption, not a control group. */
-globalStyle(".selection-header", {
+globalStyle(".section.selection-header", {
   gap: "8px",
   paddingBlock: "10px",
 });

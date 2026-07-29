@@ -1,6 +1,7 @@
 import {
   ancestorIds,
   childIdsOf,
+  isFrame,
   isGroup,
   isNodeHidden,
   parentIdOf,
@@ -151,6 +152,9 @@ export function canMakeClippingMaskSelection(
 ): boolean {
   const roots = selectionRoots(doc, selection);
   if (roots.length < 2) return false;
+  // A clipping group is still a group, and frames are legal only at the top
+  // level: wrapping one would produce a document `transact` refuses.
+  if (roots.some((id) => isFrame(doc.nodes[id]))) return false;
   const parentId = parentIdOf(doc, roots[0]);
   if (!roots.every((id) => parentIdOf(doc, id) === parentId)) return false;
 
