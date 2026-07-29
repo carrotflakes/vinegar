@@ -40,6 +40,7 @@ import {
 import { isMac } from "../../../commands/registry";
 import { currentSymbolScope, useEditor } from "../../../store/editorStore";
 import { useHighlight } from "../../../store/highlightStore";
+import { readModifiers } from "../../../store/inputStore";
 import { openContextMenu } from "../../../store/menuStore";
 import { selectionMenu } from "../../menus";
 import { useTouchDrag } from "../../useTouchDrag";
@@ -232,10 +233,16 @@ export default function LayersPanel() {
    * from the last clicked row, Ctrl/Cmd toggles one row. A range can straddle
    * nesting levels, so `selectionRoots` drops any row whose container is also in
    * the range — selecting a group *and* its children means nothing downstream.
+   *
+   * Shift comes from `readModifiers`, so the on-screen Shift toggle counts as
+   * well: that is the only way to reach a range on touch, where every gesture a
+   * row could use is already spoken for (tap selects, long-press drags, swipe
+   * scrolls, double-tap renames). See canvas/ModifierBar.tsx.
    */
   const rowClick = (id: string, e: React.MouseEvent) => {
+    const { shift } = readModifiers(e);
     const from = rangeStart();
-    if (e.shiftKey && from && from !== id) {
+    if (shift && from && from !== id) {
       const range = rangeIds(doc, visibleIds(roots, collapsed), from, id);
       if (range) {
         setSelection(range);
@@ -244,7 +251,7 @@ export default function LayersPanel() {
       }
     }
     // Ctrl+click is the macOS secondary click, so there Cmd alone toggles.
-    selectIds([id], e.shiftKey || e.metaKey || (!isMac && e.ctrlKey));
+    selectIds([id], shift || e.metaKey || (!isMac && e.ctrlKey));
   };
 
   /**

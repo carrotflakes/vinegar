@@ -121,6 +121,18 @@ mapped to full pressure (`1`) at the call site. Fast strokes drain
 `getCoalescedEvents()` so sample density survives; see
 [brush-strokes.md](brush-strokes.md).
 
+## Modifiers reach beyond the canvas
+
+Touch has no modifier keys, so `inputStore` carries sticky on-screen Shift/Alt
+toggles (`ModifierBar`, shown only on coarse pointers) and every reader goes
+through `readModifiers(event)` — the physical key OR the toggle.
+
+The Layers panel reads it too: with the on-screen Shift on, tapping a row takes
+a contiguous range from the last one, the same as Shift+click. That is the only
+gesture budget left in the list — tap selects, long-press drags, swipe scrolls
+and double-tap renames are all spoken for — so any new touch-only selection
+affordance should start here rather than inventing a gesture.
+
 ## Not implemented
 
 - **Apple Pencil double-tap / squeeze**: no web API exposes it. The multi-finger
