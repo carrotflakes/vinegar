@@ -15,6 +15,7 @@ import type {
   Document,
   Effect,
   Matrix,
+  PathShape,
   SceneNode,
   ScriptDef,
   Shape,
@@ -315,6 +316,7 @@ export interface ShapeActions {
   ensureScriptCompiled: (scriptId: string) => void | Promise<void>;
   setImageLockAspect: (id: string, lock: boolean) => void;
   setClosedSelected: (closed: boolean) => void;
+  setSelectedFillRule: (rule: PathShape["fillRule"]) => void;
   pathOpSelected: (op: PathOp) => void;
 }
 

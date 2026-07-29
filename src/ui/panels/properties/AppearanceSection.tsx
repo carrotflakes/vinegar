@@ -4,10 +4,13 @@ import {
   normalizeStrokeDash,
   supportsStrokeAlignment,
 } from "../../../model/stroke";
-import { type Shape } from "../../../model/types";
+import { type PathShape, type Shape } from "../../../model/types";
 import { useEditor } from "../../../store/editorStore";
 import ColorField from "@/ui/controls/ColorField";
 import ScrubbableNumber from "@/ui/controls/ScrubbableNumber";
+import SegmentedControl, {
+  type SegmentedControlOption,
+} from "@/ui/controls/SegmentedControl";
 import StrokeDetailControls, {
   type StrokeDetailsValue,
 } from "./StrokeDetailControls";
@@ -16,6 +19,11 @@ import {
   OpacityField,
 } from "./StyleFields";
 import Section from "../Section";
+
+const FILL_RULES: SegmentedControlOption<PathShape["fillRule"]>[] = [
+  { value: "nonzero", label: "Nonzero", title: "Overlaps of same-direction contours stay filled" },
+  { value: "evenodd", label: "Even-odd", title: "Every overlap alternates between filled and hollow" },
+];
 
 export default function AppearanceSection({
   selected,
@@ -27,6 +35,9 @@ export default function AppearanceSection({
     (state) => state.updateSelectedStyle
   );
   const setStyle = useEditor((state) => state.setStyle);
+  const setSelectedFillRule = useEditor(
+    (state) => state.setSelectedFillRule
+  );
   const hasSelection = selected.length > 0;
   const first = selected[0];
   const paintless =
@@ -56,6 +67,17 @@ export default function AppearanceSection({
       .filter((shape) => shape.type !== "image")
       .every(supportsStrokeAlignment);
   const opacity = hasSelection ? first.opacity : 1;
+  // The rule only changes anything once a path has several subpaths, so it stays
+  // hidden until one does rather than sitting unused above the stroke controls.
+  const paths = selected.filter(
+    (shape): shape is PathShape => shape.type === "path"
+  );
+  const showFillRule =
+    paths.length === selected.length &&
+    paths.some((path) => path.subpaths.length > 1);
+  const fillRule = paths.every((path) => path.fillRule === paths[0]?.fillRule)
+    ? paths[0]?.fillRule ?? null
+    : null;
 
   const setFill = (value: Paint | null) =>
     hasSelection
@@ -124,6 +146,18 @@ export default function AppearanceSection({
             alignmentEnabled={alignmentEnabled}
             onChange={setStrokeDetails}
           />
+
+          {showFillRule && (
+            <div className="field">
+              <label>Fill rule</label>
+              <SegmentedControl
+                value={fillRule}
+                options={FILL_RULES}
+                onChange={setSelectedFillRule}
+                ariaLabel="Fill rule"
+              />
+            </div>
+          )}
         </>
       )}
 

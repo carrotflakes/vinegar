@@ -319,8 +319,9 @@ additional effects, or other feature expansion.
   指で描くかは設定 (`canvas.fingerDrawing`)、初回のペン接触で自動 off。
   docs/pen-and-touch.md
 - [ ] Layersパネル仮想化
-- [ ] fillruleを変える手段 — 現状 `fillRule` は生成時に決まるだけで、ストアのパッチ
-  経路も UI もない（新規パスは nonzero、outlineStroke / compound 変換は evenodd）
+- [x] fillruleを変える手段 — Appearance セクションの線設定の後ろに Nonzero / Even-odd の
+  セグメントを追加。効くのは複数サブパスを持つパスだけなので、選択がその条件を満たす
+  ときだけ表示。ストア側は `setSelectedFillRule`（path ノードのみ、混在は無選択表示）
 - [ ] brush <-> path 相互変換
 - [ ] ツールバーからgeneratorの図形挿入
 - [x] Layersパネル、項目ホバーでキャンバスにハイライト — 葉は実形状の輪郭、
@@ -338,3 +339,7 @@ additional effects, or other feature expansion.
   - [x] タイトルの重複 — 選択物の種類と名前は `SelectionHeader` が1回だけ表示、
     各セクションは自分の話題だけを名乗る
   - [ ] UIの統一感
+  - [ ] ツールオプションが Properties の先頭にあるのは変
+  - [ ] frame + 何かの選択で他の操作
+- [ ] コンテナ内の要素を全選択
+- [ ] Layersパネル、要素の連続選択（？）
