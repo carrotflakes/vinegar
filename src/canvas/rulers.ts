@@ -102,6 +102,18 @@ export function overRulers(screen: Vec2, size: CanvasSize): boolean {
   );
 }
 
+/**
+ * Whether a guide dropped here should be removed. The ruler bands extend
+ * outwards past the canvas edge so a pointer that overshoots the thin band
+ * still completes the "return to ruler" gesture.
+ */
+export function overGuideDeleteZone(screen: Vec2, size: CanvasSize): boolean {
+  return (
+    (screen.y < RULER_SIZE && screen.x < size.width) ||
+    (screen.x < RULER_SIZE && screen.y < size.height)
+  );
+}
+
 export interface RulerInput {
   dpr: number;
   size: CanvasSize;

@@ -100,14 +100,15 @@ All of it lives in the existing pointer pipeline
 
 - **Press inside a ruler band** (rulers shown, guides unlocked) creates a guide
   of the perpendicular axis and immediately starts dragging it. Releasing back
-  over a ruler band cancels the creation, matching Illustrator.
+  over a ruler band or past the canvas edge behind it cancels the creation.
 - **Press within 4 px of an existing guide** (select/node tool, guides shown and
   unlocked) selects and drags it. Guides take priority over shapes under the
   cursor — they are thin targets, and Lock Guides is the escape hatch.
 - **Dragging** snaps the guide through the same `snapPoint` used by shape
   creation, so a guide lands on object edges/centres and the grid.
 - **Delete/Backspace** removes the selected guide (`edit.delete` checks the
-  guide selection first). Dragging a guide onto a ruler also deletes it.
+  guide selection first). Dragging a guide onto a ruler or past the canvas edge
+  behind it also deletes it.
 - Escape cancels a guide drag through the normal interaction rollback.
 
 ## Snapping

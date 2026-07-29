@@ -6,7 +6,7 @@
 import type { EditorState } from "../../store/state";
 import type { Vec2 } from "../../model/types";
 import { pickGuide } from "../guides";
-import { rulerBandAt, overRulers } from "../rulers";
+import { overGuideDeleteZone, rulerBandAt, overRulers } from "../rulers";
 import type { Interaction, ToolContext } from "../interaction";
 import { pointSnap } from "../picking";
 
@@ -80,7 +80,7 @@ export function onGuideMove(
   ctx.scheduleDraw();
 }
 
-/** Drop the guide; releasing over a ruler discards it (Illustrator's gesture). */
+/** Drop the guide; releasing over a ruler or beyond it discards the guide. */
 export function finishGuideDrag(
   ctx: ToolContext,
   state: EditorState,
@@ -89,7 +89,7 @@ export function finishGuideDrag(
   size: CanvasSize
 ): void {
   if (inter.kind !== "guide-drag") return;
-  if (state.rulersVisible && overRulers(screen, size)) {
+  if (state.rulersVisible && overGuideDeleteZone(screen, size)) {
     state.removeGuide(inter.id);
   }
   state.endInteraction();

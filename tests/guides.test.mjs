@@ -17,7 +17,9 @@ let rulerAxis;
 let rulerOrigin;
 let rulerBandAt;
 let overRulers;
+let overGuideDeleteZone;
 let RULER_SIZE;
+let finishGuideDrag;
 let useEditor;
 let commands;
 let worldPerUnit;
@@ -48,8 +50,18 @@ before(async () => {
   ({ pickGuide, guideSegment, activeGuideLines } = await server.ssrLoadModule(
     "/src/canvas/guides.ts"
   ));
-  ({ niceStep, rulerAxis, rulerOrigin, rulerBandAt, overRulers, RULER_SIZE } =
-    await server.ssrLoadModule("/src/canvas/rulers.ts"));
+  ({
+    niceStep,
+    rulerAxis,
+    rulerOrigin,
+    rulerBandAt,
+    overRulers,
+    overGuideDeleteZone,
+    RULER_SIZE,
+  } = await server.ssrLoadModule("/src/canvas/rulers.ts"));
+  ({ finishGuideDrag } = await server.ssrLoadModule(
+    "/src/canvas/tools/guideTool.ts"
+  ));
   ({ useEditor } = await server.ssrLoadModule("/src/store/editorStore.ts"));
   ({ COMMANDS: commands } = await server.ssrLoadModule(
     "/src/commands/registry.ts"
@@ -314,6 +326,42 @@ test("ruler bands claim their edges but not the corner box", () => {
   assert.equal(rulerBandAt({ x: 100, y: RULER_SIZE + 1 }, size), null);
   assert.equal(overRulers({ x: 5, y: 5 }, size), true);
   assert.equal(overRulers({ x: 100, y: 100 }, size), false);
+});
+
+test("guide deletion extends outwards beyond the ruler bands", () => {
+  const size = { width: 500, height: 400 };
+  assert.equal(overGuideDeleteZone({ x: 100, y: 5 }, size), true);
+  assert.equal(overGuideDeleteZone({ x: 5, y: 100 }, size), true);
+  assert.equal(overGuideDeleteZone({ x: 100, y: -50 }, size), true);
+  assert.equal(overGuideDeleteZone({ x: -50, y: 100 }, size), true);
+  assert.equal(overGuideDeleteZone({ x: 100, y: 100 }, size), false);
+  assert.equal(overGuideDeleteZone({ x: 550, y: -50 }, size), false);
+  assert.equal(overGuideDeleteZone({ x: -50, y: 450 }, size), false);
+});
+
+test("dropping a guide beyond a ruler deletes it", () => {
+  const calls = [];
+  const ctx = { scheduleDraw: () => calls.push("draw") };
+  const state = {
+    rulersVisible: true,
+    removeGuide: (id) => calls.push(`remove:${id}`),
+    endInteraction: () => calls.push("end"),
+  };
+  const interaction = {
+    kind: "guide-drag",
+    id: "guide",
+    axis: "y",
+    created: false,
+  };
+
+  finishGuideDrag(
+    ctx,
+    state,
+    interaction,
+    { x: 100, y: -50 },
+    { width: 500, height: 400 }
+  );
+  assert.deepEqual(calls, ["remove:guide", "end", "draw"]);
 });
 
 test("document units convert as physical lengths", () => {

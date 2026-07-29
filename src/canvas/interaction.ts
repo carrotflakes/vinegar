@@ -128,7 +128,7 @@ export type Interaction =
   | { kind: "frame-create"; id: string; start: Vec2; snap: FrameSnap }
   | {
       /** Dragging a document guide, either an existing one or one just pulled
-       *  out of a ruler. Dropping it back on a ruler removes it. */
+       *  out of a ruler. Dropping it back on or beyond a ruler removes it. */
       kind: "guide-drag";
       id: string;
       axis: "x" | "y";
