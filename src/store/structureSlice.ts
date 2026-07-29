@@ -530,57 +530,63 @@ export function createStructureActions({ set, get, transact }: StoreCtx): Struct
         { label: "Edit effects", coalesceKey: "effects:" + id }
       );
     },
-    moveNode: (id, parent, index) => {
+    moveNode: (id, parent, index) => get().moveNodes([id], parent, index),
+
+    moveNodes: (ids, parent, index) => {
       const doc = get().doc;
-      const node = doc.nodes[id];
+      const moving = ids.filter((id) => !!doc.nodes[id]);
+      if (moving.length === 0) return;
       const target = parent === null ? undefined : doc.nodes[parent];
-      if (!node) return;
-      // Frames are a top-level invariant: never reparent one under a container.
-      if (isFrame(node) && parent !== null) {
-        notify.error("Frames must stay at the top level.");
-        return;
-      }
       if (parent !== null && !isContainer(target)) {
         notify.error("That layer cannot contain child layers.");
         return;
       }
-      if (isCompoundPath(target) && (!isShape(node) || !canCompoundShape(node) ||
-          node.type === "compoundPath")) {
-        notify.error(
-          "Compound paths only accept rectangles, ellipses, and closed paths."
-        );
-        return;
-      }
-      if (parent === id || descendantNodeIds(doc, id).includes(parent ?? "")) {
-        notify.error("A layer cannot be moved into itself or its descendants.");
-        return;
-      }
-
-      const oldParent = parentIdOf(doc, id);
-      const oldContainer = oldParent === null ? undefined : doc.nodes[oldParent];
-      if (oldParent !== parent && isCompoundPath(oldContainer) &&
-          oldContainer.childIds.length <= 1) {
-        notify.error("A compound path must contain at least one child.");
-        return;
-      }
-      const oldWorld = nodeWorldMatrix(doc, id);
       const targetWorld = nodeWorldMatrix(doc, parent);
       const inverseTarget = invertMatrix(targetWorld);
       if (!inverseTarget) {
         notify.error("The target layer has a non-invertible transform.");
         return;
       }
+      for (const id of moving) {
+        const node = doc.nodes[id];
+        // Frames are a top-level invariant: never reparent one under a container.
+        if (isFrame(node) && parent !== null) {
+          notify.error("Frames must stay at the top level.");
+          return;
+        }
+        if (isCompoundPath(target) && (!isShape(node) || !canCompoundShape(node) ||
+            node.type === "compoundPath")) {
+          notify.error(
+            "Compound paths only accept rectangles, ellipses, and closed paths."
+          );
+          return;
+        }
+        if (parent === id || descendantNodeIds(doc, id).includes(parent ?? "")) {
+          notify.error("A layer cannot be moved into itself or its descendants.");
+          return;
+        }
+      }
 
-      let next = replaceChildren(
-        doc,
-        oldParent,
-        childIdsOf(doc, oldParent).filter((child) => child !== id)
-      );
-      const targetChildren = childIdsOf(next, parent).filter((child) => child !== id);
+      // World matrices have to be read before anything leaves its container.
+      const oldWorld = new Map(moving.map((id) => [id, nodeWorldMatrix(doc, id)]));
+      const oldParents = new Set(moving.map((id) => parentIdOf(doc, id)));
+      let next = doc;
+      for (const oldParent of oldParents) {
+        const kept = childIdsOf(doc, oldParent).filter((c) => !moving.includes(c));
+        const container = oldParent === null ? undefined : doc.nodes[oldParent];
+        if (oldParent !== parent && isCompoundPath(container) && kept.length === 0) {
+          notify.error("A compound path must contain at least one child.");
+          return;
+        }
+        next = replaceChildren(next, oldParent, kept);
+      }
+
+      const targetChildren = childIdsOf(next, parent).filter((c) => !moving.includes(c));
       const at = Math.max(0, Math.min(Math.trunc(index), targetChildren.length));
-      targetChildren.splice(at, 0, id);
+      targetChildren.splice(at, 0, ...moving);
       if (
-        oldParent === parent &&
+        oldParents.size === 1 &&
+        oldParents.has(parent) &&
         targetChildren.every((child, i) => childIdsOf(doc, parent)[i] === child)
       ) return;
       next = replaceChildren(next, parent, targetChildren);
@@ -588,7 +594,12 @@ export function createStructureActions({ set, get, transact }: StoreCtx): Struct
         ...next,
         nodes: {
           ...next.nodes,
-          [id]: { ...node, transform: multiply(inverseTarget, oldWorld) },
+          ...Object.fromEntries(
+            moving.map((id) => [
+              id,
+              { ...next.nodes[id], transform: multiply(inverseTarget, oldWorld.get(id)!) },
+            ])
+          ),
         },
       };
 
@@ -596,7 +607,7 @@ export function createStructureActions({ set, get, transact }: StoreCtx): Struct
         notify.error("That move would create an invalid scene container.");
         return;
       }
-      transact(next, { label: "Move layer" });
+      transact(next, { label: moving.length > 1 ? "Move layers" : "Move layer" });
     },
   };
 }

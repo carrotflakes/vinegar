@@ -358,6 +358,13 @@ export interface StructureActions {
   /** Replace a node's effect stack; an empty list clears it. Works on any node. */
   setNodeEffects: (id: string, effects: Effect[]) => void;
   moveNode: (id: string, parentId: string | null, index: number) => void;
+  /**
+   * Reparent/reorder several nodes as one undo step. `ids` are in canonical
+   * (back-to-front) order and `index` is a slot in the target container's child
+   * list *after* every moved node has left its old container. All-or-nothing:
+   * if any node cannot make the move, none of them do.
+   */
+  moveNodes: (ids: string[], parentId: string | null, index: number) => void;
 }
 
 /**

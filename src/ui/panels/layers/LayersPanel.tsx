@@ -18,19 +18,23 @@ import {
   LuBrush,
   LuFrame,
 } from "react-icons/lu";
-import type { FrameNode, Group, Shape, SymbolInstance } from "../../../model/types";
+import type { Shape } from "../../../model/types";
 import { isClippingGroup, isClippingMaskNode } from "../../../model/clippingMask";
 import {
-  descendantNodeIds,
-  isCompoundPath,
-  isFrame,
-  isGroup,
-  isInstance,
-  isShape,
+  ancestorIds,
   scopeRootGroupId,
   scopeRootIds,
   selectionRoots,
 } from "../../../model/scene";
+import {
+  childrenOf,
+  dropChildIndex,
+  rangeIds,
+  shapeIds,
+  toDisplayTree,
+  visibleIds,
+  type DNode,
+} from "./tree";
 import { isMac } from "../../../commands/registry";
 import { currentSymbolScope, useEditor } from "../../../store/editorStore";
 import { useHighlight } from "../../../store/highlightStore";
@@ -54,72 +58,12 @@ const TYPE_ICON: Record<Shape["type"], ComponentType> = {
 const stateButtonClass = (isSet: boolean) =>
   `layer-icon-btn layer-state-btn ${isSet ? "state-set" : "state-idle"}`;
 
-/** Display node: the render tree with every level front-most first. */
-interface DNode {
-  key: string;
-  shape?: Shape;
-  group?: Group;
-  frame?: FrameNode;
-  instance?: SymbolInstance;
-  children?: DNode[] | undefined;
-}
-
-function toDisplayTree(doc: ReturnType<typeof useEditor.getState>["doc"], ids: string[]): DNode[] {
-  const result: DNode[] = [];
-  for (const id of ids) {
-    const node = doc.nodes[id];
-    if (isGroup(node)) result.push({ key: id, group: node, children: toDisplayTree(doc, node.childIds) });
-    else if (isFrame(node)) result.push({ key: id, frame: node, children: toDisplayTree(doc, node.childIds) });
-    else if (isInstance(node)) result.push({ key: id, instance: node });
-    else if (isShape(node)) {
-      result.push({
-        key: id,
-        shape: node,
-        children: isCompoundPath(node)
-          ? toDisplayTree(doc, node.childIds)
-          : undefined,
-      });
-    }
-  }
-  return result.reverse();
-}
-
-/** All descendant shape ids, in display order. */
-function shapeIds(nodes: DNode[]): string[] {
-  return nodes.flatMap((n) => (n.children ? shapeIds(n.children) : [n.key]));
-}
-
-/** Every row the list currently shows, top to bottom — the order Shift ranges over. */
-function visibleIds(nodes: DNode[], collapsed: Set<string>): string[] {
-  const out: string[] = [];
-  const walk = (ns: DNode[]) => {
-    for (const n of ns) {
-      out.push(n.key);
-      if (n.children && !collapsed.has(n.key)) walk(n.children);
-    }
-  };
-  walk(nodes);
-  return out;
-}
-
-/** The children array of a container (`null` = root). */
-function childrenOf(roots: DNode[], parent: string | null): DNode[] | null {
-  if (parent === null) return roots;
-  for (const n of roots) {
-    if (!n.children) continue;
-    if (n.key === parent) return n.children;
-    const found = childrenOf(n.children, parent);
-    if (found) return found;
-  }
-  return null;
-}
-
 /** Where a row sits: its container and index at every ancestor level. */
 type Path = { parent: string | null; index: number }[];
 
+/** The rows a drag carries, top-most first. */
 interface Drag {
-  id: string;
-  parent: string | null;
+  ids: string[];
 }
 
 interface Drop {
@@ -140,7 +84,7 @@ export default function LayersPanel() {
   const toggleHidden = useEditor((s) => s.toggleHidden);
   const toggleLocked = useEditor((s) => s.toggleLocked);
   const renameNode = useEditor((s) => s.renameNode);
-  const moveNode = useEditor((s) => s.moveNode);
+  const moveNodes = useEditor((s) => s.moveNodes);
   const scope = useEditor((s) => currentSymbolScope(s));
   const exitSymbolEdit = useEditor((s) => s.exitSymbolEdit);
   const enterSymbolEdit = useEditor((s) => s.enterSymbolEdit);
@@ -202,18 +146,33 @@ export default function LayersPanel() {
         ? anchor
         : selection[selection.length - 1] ?? anchor;
     if (e.shiftKey && from0 && from0 !== id) {
-      const order = visibleIds(roots, collapsed);
-      const from = order.indexOf(from0);
-      const to = order.indexOf(id);
-      if (from >= 0 && to >= 0) {
-        const range = order.slice(Math.min(from, to), Math.max(from, to) + 1);
-        setSelection(selectionRoots(doc, range));
+      const range = rangeIds(doc, visibleIds(roots, collapsed), from0, id);
+      if (range) {
+        setSelection(range);
         return; // keep the anchor so a further Shift+click re-extends from it
       }
     }
     // Ctrl+click is the macOS secondary click, so there Cmd alone toggles.
     selectIds([id], e.shiftKey || e.metaKey || (!isMac && e.ctrlKey));
   };
+
+  /**
+   * The rows a drag carries: the whole selection when the grabbed row is part
+   * of it (normalised to roots — a group brings its children along anyway),
+   * otherwise just that row. Ordered top-most first, ignoring collapse, so a
+   * selected row hidden inside a collapsed container still travels with it.
+   */
+  const draggedIds = (id: string): string[] => {
+    if (!selection.includes(id)) return [id];
+    const carried = new Set(selectionRoots(doc, selection));
+    return visibleIds(roots, new Set()).filter((key) => carried.has(key));
+  };
+
+  /** A node can never be dropped into itself or into its own subtree. */
+  const canDropInto = (ids: string[], targetId: string): boolean =>
+    !ids.some(
+      (id) => id === targetId || ancestorIds(doc, targetId).includes(id)
+    );
 
   const clearDnd = () => {
     setDrag(null);
@@ -237,16 +196,9 @@ export default function LayersPanel() {
     if (!d || !t) return;
     const siblings = childrenOf(roots, t.parent);
     if (!siblings) return;
-    const from = d.parent === t.parent
-      ? siblings.findIndex((n) => n.key === d.id)
-      : -1;
-    let idx = t.index;
-    if (from >= 0 && from < idx) idx -= 1;
-    const displayIds = siblings.map((n) => n.key).filter((id) => id !== d.id);
-    idx = Math.max(0, Math.min(idx, displayIds.length));
-    displayIds.splice(idx, 0, d.id);
-    const canonicalIndex = displayIds.length - 1 - idx;
-    moveNode(d.id, t.parent ?? scopeParent, canonicalIndex);
+    const index = dropChildIndex(siblings.map((n) => n.key), d.ids, t.index);
+    // The panel lists front-most first; child arrays run back to front.
+    moveNodes([...d.ids].reverse(), t.parent ?? scopeParent, index);
   };
 
   // Pointer-based row drag (mouse + touch). Touch begins on a long-press so a
@@ -267,10 +219,14 @@ export default function LayersPanel() {
         const expandedContainer = !!gid && !collapsed.has(gid);
         if (
           gid && ratio > 0.28 && (expandedContainer || ratio < 0.72) &&
-          gid !== d.id &&
-          !descendantNodeIds(doc, d.id).includes(gid)
+          canDropInto(d.ids, gid)
         ) {
           setDrop({ parent: gid, index: 0, inside: gid });
+          return;
+        }
+        // A drop line inside a dragged row's own subtree goes nowhere.
+        if (parent !== null && !canDropInto(d.ids, parent)) {
+          setDrop(null);
           return;
         }
         setDrop({ parent, index: ratio >= 0.5 ? index + 1 : index });
@@ -296,8 +252,7 @@ export default function LayersPanel() {
       onPointerDown:
         editing === id
           ? undefined
-          : (e: React.PointerEvent) =>
-              startRowDrag(e, { id, parent: at.parent }),
+          : (e: React.PointerEvent) => startRowDrag(e, { ids: draggedIds(id) }),
     };
   };
 

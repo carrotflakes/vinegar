@@ -74,3 +74,7 @@ to reset. This is the opposite of a reorderable **list**, whose rows keep
 - The Layers panel treats groups and compound paths as drop containers.
   Compound paths accept only rectangles, ellipses, and closed paths, reject
   nested compounds, and may never be emptied by a move.
+- Dragging a row that is part of the selection drags the whole selection
+  (normalised to `selectionRoots`); dragging any other row drags just it and
+  leaves the selection alone. The move goes through `moveNodes`, so it is one
+  undo step and is refused wholesale if any node cannot make it.
