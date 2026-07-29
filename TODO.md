@@ -315,6 +315,18 @@ additional effects, or other feature expansion.
     実行すると `hasValidSceneContainers` で落ちて**無言で何も起きない**（破壊はしない）。
     同じ `maskMultiNodeError` を出して理由を伝えるべき
 - [ ] Layersパネル、キー操作でアイテム移動
+- [ ] Layersパネルの折りたたみ状態が消える — `collapsed` は LayersPanel の useState で、
+  ドックはアクティブなタブしか render しない（Dock.tsx）ため、タブを往復すると全部
+  開き直しになる。仮想化で数千行を扱う前提になったぶん実害が大きい。collapsed（と
+  cursor / スクロール位置）を store か sessionStorage に持たせる
+- [ ] Layersパネルの配線を守るテストが無い — `tree.ts` の純粋部分と `moveNodes` は
+  カバー済みだが、仮想化・reveal・ドラッグは React を描画しないと検証できず、jsdom も
+  ブラウザテストも無い。壊れやすいのは「全行が同じ高さ」と「スクロール親の解決」で、
+  `.layer-row` の padding 変更やドックのレイアウト変更が静かに仮想化を壊せる
+  （前提は docs/render-performance.md に明記済み）。ブラウザテストの導入是非から判断
+- [ ] Layersパネルのキーボード到達性 — リストは `tabIndex={-1}` でフォーカスリングも
+  消してあるので、一度クリックするまで矢印キーが使えない。行に `role="treeitem"` /
+  `aria-selected` も無い。矢印キーを入れた分ここが中途半端
 - [x] ペン使用時のタッチ入力抑制 — ペン接地中と離してから 300ms は touch を拒否。
   指で描くかは設定 (`canvas.fingerDrawing`)、初回のペン接触で自動 off。
   docs/pen-and-touch.md
