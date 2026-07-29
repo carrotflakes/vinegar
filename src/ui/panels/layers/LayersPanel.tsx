@@ -29,7 +29,9 @@ import {
   isShape,
   scopeRootGroupId,
   scopeRootIds,
+  selectionRoots,
 } from "../../../model/scene";
+import { isMac } from "../../../commands/registry";
 import { currentSymbolScope, useEditor } from "../../../store/editorStore";
 import { useHighlight } from "../../../store/highlightStore";
 import { openContextMenu } from "../../../store/menuStore";
@@ -87,6 +89,19 @@ function shapeIds(nodes: DNode[]): string[] {
   return nodes.flatMap((n) => (n.children ? shapeIds(n.children) : [n.key]));
 }
 
+/** Every row the list currently shows, top to bottom — the order Shift ranges over. */
+function visibleIds(nodes: DNode[], collapsed: Set<string>): string[] {
+  const out: string[] = [];
+  const walk = (ns: DNode[]) => {
+    for (const n of ns) {
+      out.push(n.key);
+      if (n.children && !collapsed.has(n.key)) walk(n.children);
+    }
+  };
+  walk(nodes);
+  return out;
+}
+
 /** The children array of a container (`null` = root). */
 function childrenOf(roots: DNode[], parent: string | null): DNode[] | null {
   if (parent === null) return roots;
@@ -140,6 +155,7 @@ export default function LayersPanel() {
 
   const [editing, setEditing] = useState<string | null>(null);
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
+  const [anchor, setAnchor] = useState<string | null>(null);
   const [drag, setDrag] = useState<Drag | null>(null);
   const [drop, setDrop] = useState<Drop | null>(null);
 
@@ -157,8 +173,8 @@ export default function LayersPanel() {
     });
   };
 
-  const selectIds = (ids: string[], shift: boolean) => {
-    if (shift) {
+  const selectIds = (ids: string[], additive: boolean) => {
+    if (additive) {
       const has = ids.every((id) => selection.includes(id));
       setSelection(
         has
@@ -168,6 +184,35 @@ export default function LayersPanel() {
     } else {
       setSelection(ids);
     }
+    setAnchor(ids[ids.length - 1] ?? null);
+  };
+
+  /**
+   * List conventions (Finder/Photoshop/Figma): Shift extends a contiguous range
+   * from the last clicked row, Ctrl/Cmd toggles one row. A range can straddle
+   * nesting levels, so `selectionRoots` drops any row whose container is also in
+   * the range — selecting a group *and* its children means nothing downstream.
+   */
+  const rowClick = (id: string, e: React.MouseEvent) => {
+    // The anchor goes stale when the selection last changed elsewhere (canvas,
+    // a command) or when its row scrolled out of the tree; the newest selected
+    // row is the closest thing to "where the user last was".
+    const from0 =
+      anchor && selection.includes(anchor)
+        ? anchor
+        : selection[selection.length - 1] ?? anchor;
+    if (e.shiftKey && from0 && from0 !== id) {
+      const order = visibleIds(roots, collapsed);
+      const from = order.indexOf(from0);
+      const to = order.indexOf(id);
+      if (from >= 0 && to >= 0) {
+        const range = order.slice(Math.min(from, to), Math.max(from, to) + 1);
+        setSelection(selectionRoots(doc, range));
+        return; // keep the anchor so a further Shift+click re-extends from it
+      }
+    }
+    // Ctrl+click is the macOS secondary click, so there Cmd alone toggles.
+    selectIds([id], e.shiftKey || e.metaKey || (!isMac && e.ctrlKey));
   };
 
   const clearDnd = () => {
@@ -295,7 +340,7 @@ export default function LayersPanel() {
         style={{ paddingLeft: 6 + depth * 16 }}
         {...hoverProps(id)}
         {...rowDnd(id, path, isCompound ? id : undefined)}
-        onClick={(e) => selectIds([id], e.shiftKey)}
+        onClick={(e) => rowClick(id, e)}
         onContextMenu={(e) => {
           e.preventDefault();
           if (!selection.includes(id)) selectIds([id], false);
@@ -384,7 +429,7 @@ export default function LayersPanel() {
         style={{ paddingLeft: 6 + depth * 16 }}
         {...hoverProps(id)}
         {...rowDnd(id, path)}
-        onClick={(e) => selectIds([id], e.shiftKey)}
+        onClick={(e) => rowClick(id, e)}
         onDoubleClick={() => enterSymbolEdit(instance.symbolId)}
         onContextMenu={(e) => {
           e.preventDefault();
@@ -467,7 +512,7 @@ export default function LayersPanel() {
         style={{ paddingLeft: 6 + depth * 16 }}
         {...hoverProps(gid)}
         {...rowDnd(gid, path, gid)}
-        onClick={(e) => selectIds([gid], e.shiftKey)}
+        onClick={(e) => rowClick(gid, e)}
         onContextMenu={(e) => {
           e.preventDefault();
           if (!selection.includes(gid)) {

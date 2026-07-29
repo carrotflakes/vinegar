@@ -74,6 +74,8 @@ export function selectionMenu(): MenuEntry[] {
     item("edit.copy"),
     item("edit.duplicate"),
     "separator",
+    // Only meaningful for containers, so it stays out of the way otherwise.
+    ...(enabled("select.children") ? [item("select.children"), "separator" as const] : []),
     item("structure.group"),
     item("structure.ungroup"),
     item("structure.makeClippingMask"),

@@ -27,7 +27,17 @@ import { joinableSubpathCount } from "@/model/path/joinPath";
 import { canCombineSelection } from "@/model/path/combinePaths";
 import { canSplitSubpaths } from "@/model/path/splitSubpaths";
 import { hasCuttableNodes } from "@/model/path/cutPath";
-import { framesInPaintOrder, isFrame, isInstance, isShape, parentIdOf, selectionRoots } from "../model/scene";
+import {
+  childIdsOf,
+  framesInPaintOrder,
+  isFrame,
+  isInstance,
+  isNodeHidden,
+  isNodeLocked,
+  isShape,
+  parentIdOf,
+  selectionRoots,
+} from "../model/scene";
 import { nodeWorldBounds, unionNodeWorldBounds } from "@/model/geometry/bounds";
 import {
   type Bounds,
@@ -73,7 +83,8 @@ import { toggleFullscreen } from "../fullscreen";
 
 // --- Platform-aware modifier labels --------------------------------------
 
-const isMac = /Mac|iPhone|iPad/.test(navigator.userAgent);
+/** macOS, where Ctrl+click is a secondary click and Cmd is the toggle modifier. */
+export const isMac = /Mac|iPhone|iPad/.test(navigator.userAgent);
 /** Display label for the primary modifier (Cmd on macOS, Ctrl elsewhere). */
 export const MOD = isMac ? "⌘" : "Ctrl";
 
@@ -168,6 +179,21 @@ function sel(s: EditorState) {
         ? singleInstanceNode
         : null,
   };
+}
+
+/**
+ * The direct children of every selected container, skipping hidden and locked
+ * ones (they cannot be acted on anyway). Empty when nothing selected holds
+ * children, which is also what disables "Select contents".
+ */
+function selectableChildIds(s: EditorState): string[] {
+  const ids: string[] = [];
+  for (const id of s.selection) {
+    for (const child of childIdsOf(s.doc, id)) {
+      if (!isNodeHidden(s.doc, child) && !isNodeLocked(s.doc, child)) ids.push(child);
+    }
+  }
+  return ids;
 }
 
 /** Whether the current node selection has an anchor that would cut a contour. */
@@ -334,6 +360,14 @@ export const COMMANDS: Command[] = [
     group: "Selection",
     keys: [{ key: "a", mod: true }],
     run: (s) => s.selectAll(),
+  },
+  {
+    id: "select.children",
+    label: "Select contents",
+    group: "Selection",
+    keys: [{ key: "Enter" }],
+    enabled: (s) => selectableChildIds(s).length > 0,
+    run: (s) => s.setSelection(selectableChildIds(s)),
   },
   {
     id: "edit.delete",

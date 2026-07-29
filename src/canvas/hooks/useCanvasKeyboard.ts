@@ -24,7 +24,10 @@ export function useCanvasKeyboard(
       if (ctx.penDraft.current) {
         const mod = e.ctrlKey || e.metaKey;
         if (e.key === "Enter") {
+          // The draft owns Enter; don't also run the Enter command (select
+          // contents) against whatever was selected before the draft started.
           e.preventDefault();
+          e.stopImmediatePropagation();
           commitPenDraft(ctx);
         } else if (e.key === "Escape") {
           e.preventDefault();
