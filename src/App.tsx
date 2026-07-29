@@ -5,13 +5,14 @@ import CanvasView from "./canvas/CanvasView";
 import {
   commandEnabled,
   matchKeydown,
+  pasteForeignPayload,
   placeImagesFitted,
   placeSvgFitted,
   runCommand,
 } from "./commands/registry";
 import { imageFilesFromData } from "./io/importImage";
 import { importSvg } from "./io/importSvg";
-import { isOwnCopy, svgTextFromClipboard } from "./io/systemClipboard";
+import { isOwnCopy, payloadFromSvg, svgTextFromClipboard } from "./io/systemClipboard";
 import {
   clearDocumentRecovery,
   startDocumentAutosave,
@@ -283,10 +284,17 @@ export default function App() {
       const svg = svgTextFromClipboard(e.clipboardData);
       if (svg) {
         e.preventDefault();
-        // Our own copy in this tab pastes from memory for full fidelity;
-        // foreign SVG (other tab/app) comes in as vector geometry.
+        // Our own copy in this tab pastes from memory for full fidelity; a
+        // copy from another tab restores the payload embedded in the SVG;
+        // anything else (or a payload this document can't take) comes in as
+        // plain vector geometry.
         if (s.clipboard && isOwnCopy(svg)) s.paste();
-        else placeSvgFitted(importSvg(svg, "Pasted SVG"));
+        else {
+          const payload = payloadFromSvg(svg);
+          if (!payload || !pasteForeignPayload(payload)) {
+            placeSvgFitted(importSvg(svg, "Pasted SVG"));
+          }
+        }
         return;
       }
       if (s.clipboard) {

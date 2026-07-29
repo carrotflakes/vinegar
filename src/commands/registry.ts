@@ -61,6 +61,7 @@ import {
   pickTextFileWithName,
 } from "../io/download";
 import { contentBounds } from "../io/exportBounds";
+import type { ClipboardPayload } from "../store/docOps";
 import { fileSlug, uniqueFileSlugs } from "../io/exportFilenames";
 import { pickImageFiles } from "../io/importImage";
 import { importSvg, type ImportedSvg } from "../io/importSvg";
@@ -282,6 +283,19 @@ export function placeSvgFitted(imported: ImportedSvg, at?: Vec2): void {
   });
 }
 
+/**
+ * Paste a payload recovered from the system clipboard (another tab, or this
+ * one after a reload). Unlike the in-memory clipboard — which deliberately
+ * pastes where the copy was made — a foreign document's coordinates mean
+ * nothing here and could land the art far outside the view, so it goes to the
+ * viewport center. Returns false when the payload cannot land in this
+ * document, leaving the caller to fall back to the SVG geometry.
+ */
+export function pasteForeignPayload(payload: ClipboardPayload, at?: Vec2): boolean {
+  const s = useEditor.getState();
+  return s.pastePayload(payload, at ?? screenToWorld(s.viewport, canvasCenter()));
+}
+
 /** Size of the drawable canvas area in CSS pixels. */
 function canvasViewportSize(): ViewportSize {
   const el = document.querySelector(".canvas-wrap");
@@ -358,7 +372,7 @@ export const COMMANDS: Command[] = [
     group: "Edit",
     keys: [{ key: "v", mod: true }],
     enabled: (s) => s.clipboard != null,
-    run: (s, ctx) => s.paste(ctx?.at),
+    run: (s, ctx) => void s.paste(ctx?.at),
   },
   {
     id: "edit.duplicate",

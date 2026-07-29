@@ -49,9 +49,13 @@ additional effects, or other feature expansion.
   of `<pattern>`; interactive on-canvas placement (drag to pan the crop / tile
   origin); Script API for pattern paints; new patterns default to `tile` —
   consider `fill` to match Figma-style image fills
-- [ ] System clipboard — embed the native vinegar payload in the SVG metadata so
-  cross-tab paste keeps symbol/generator links and effects (same root as the
-  generator/symbol clipboard gaps)
+- [ ] System clipboard — the native payload now rides in the copied SVG's
+  `<metadata>` (generator links + scripts, effects, images/assets, global
+  colours survive a cross-tab paste). Still open: **symbol definitions** are
+  serialized into the payload but not merged on paste, so pasting an instance
+  into a document that lacks the symbol falls back to flattened SVG geometry
+  (needs symbol-id remapping + cycle checks); payloads above the 8 MB cap in
+  `systemClipboard.ts` degrade to plain SVG
 
 ### New ideas
 - [ ] Swatches saved in the document (currently localStorage, color-only)
@@ -78,7 +82,7 @@ additional effects, or other feature expansion.
 
 ### Layers パネル
 - [ ] キー操作でアイテム移動
-- [ ] 折りたたみ状態が消える — `collapsed` は LayersPanel の useState で、ドックは
+- [x] 折りたたみ状態が消える — `collapsed` は LayersPanel の useState で、ドックは
   アクティブなタブしか render しない（Dock.tsx）ため、タブを往復すると全部開き直しに
   なる。仮想化で数千行を扱う前提になったぶん実害が大きい。collapsed（と cursor /
   スクロール位置）を store か sessionStorage に持たせる
@@ -137,9 +141,10 @@ additional effects, or other feature expansion.
   - [ ] パラメータ型の拡張（bool=チェックボックス、enum=セレクト。今は number のみ）
   - [ ] プロパティの GeneratorSection に「Edit source」ボタン（インスタンス→ソースへ
     ジャンプ、`openGenerators(scriptId)`）
-  - [ ] クリップボードが生成器スクリプトを持ち運ばない → 別ドキュメントへ貼ると
+  - [x] クリップボードが生成器スクリプトを持ち運ばない → 別ドキュメントへ貼ると
     `generator.scriptId` が宙に浮く（形状は出るがパラメータ編集不可）。payload に
     参照 `ScriptDef` を同梱してマージするか、貼り先に無ければ generator リンクを外す
+    （アプリ内クリップボードのみ。SVG 経由のタブ間ペーストは下の「System clipboard」）
   - [ ] コードを変更したときに、それを使っているインスタンスのパラメータを保持した
     まま再生成する方法
   - [ ] ツールバーから generator の図形挿入
@@ -185,3 +190,4 @@ additional effects, or other feature expansion.
 - [ ] ColorField のリファクタリング（特にコンポーネントわけ）
 - [ ] ドックのフローティング、マルチカラム化
 - [ ] Assetという名前は問題ないか。raster imageではないか。
+- [ ] Toast メッセージをコピー可能に

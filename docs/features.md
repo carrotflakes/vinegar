@@ -67,7 +67,7 @@ Related design notes: [path-unification.md](path-unification.md), [path-modifier
 ## Scripting
 
 - **Scripting**: a one-shot drawing DSL that runs in a sandboxed Web Worker and applies its changes in a single undo step; can create shapes and read/edit existing ones (open via the "Script" button in the app bar)
-- **Parametric generators (experimental)**: insert the built-in Star, Gear, Spiral, Flower and Moon generators, or author document-local generator scripts whose numeric parameters rebuild editable Bézier geometry.
+- **Parametric generators (experimental)**: insert the built-in Star, Gear, Spiral, Flower and Moon generators, or author document-local generator scripts whose numeric parameters rebuild editable Bézier geometry. Copying a generated shape carries its script along, so pasting into another document keeps the shape re-tunable (a script arriving from a document whose generators were never approved re-arms the consent gate); a link that resolves to no script at all pastes as a plain path.
   Imported document scripts stay disabled until the user explicitly enables them and run in a watchdog-protected Web Worker.
 
 ## Canvas and workspace
@@ -95,7 +95,7 @@ Rendering cost notes: [render-performance.md](render-performance.md).
 ## Files and export
 
 - File: New, Open, Save / Save As (`.vinegar.json`), import SVG, place raster images, export PNG/JPEG/WebP with range, size, background and quality controls, and export SVG; the built-in Demo can be opened from the command palette
-- **System clipboard integration**: copy/cut mirrors selected vectors as SVG for pasting into other tabs or applications; pasted external SVG is imported as editable vectors, pasted bitmap data becomes an image, and same-tab Vinegar paste uses its higher-fidelity in-memory node payload
+- **System clipboard integration**: copy/cut mirrors selected vectors as SVG for pasting into other tabs or applications; pasted external SVG is imported as editable vectors, pasted bitmap data becomes an image, and same-tab Vinegar paste uses its higher-fidelity in-memory node payload. The copied SVG also embeds that payload in its `<metadata>`, so pasting into another Vinegar tab (or another document) keeps effects, generator links and their scripts, image assets and global colours instead of flattened geometry; such a paste lands centered in the view (the copy's own coordinates mean nothing in another document), and a payload the destination cannot take — an instance whose symbol it lacks — falls back to the SVG
 - **Document identity**: the document name is edited in the middle of the app bar and drives the browser tab title, the suggested save filename and every export filename. Where the browser supports the File System Access API (Chromium today), Open and Save As remember the chosen file so ⌘/Ctrl+S overwrites it in place; elsewhere both fall back to a download named after the document.
   There is no recent-files list; see [recent-files.md](recent-files.md) for the shelved design.
 - **Browser recovery autosave**: dirty documents are saved locally in IndexedDB and, after a reload/crash, offered for restore on next launch (Cancel discards); progress is reported in the status bar

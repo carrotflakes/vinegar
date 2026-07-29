@@ -20,6 +20,7 @@ import type { Document } from "../model/types";
 import {
   appendToScope,
   copyPayload,
+  reattachPayloadResources,
   remapPayload,
   replaceChildren,
 } from "./docOps";
@@ -35,21 +36,32 @@ const PASTE_OFFSET = 12;
 export function createClipboardActions({ set, get, transact }: StoreCtx): ClipboardActions {
   return {
     copySelected: () => {
-      const { doc, selection } = get();
-      const payload = copyPayload(doc, selection);
+      const { doc, selection, scriptsTrusted } = get();
+      const payload = copyPayload(doc, selection, scriptsTrusted);
       set({ clipboard: payload });
       // Mirror to the system clipboard as SVG so it survives across tabs/apps.
-      if (payload) void copySelectionToSystemClipboard(doc, payload.rootIds);
+      if (payload) void copySelectionToSystemClipboard(doc, payload);
     },
     cutSelected: () => { get().copySelected(); get().deleteSelected(); },
     paste: (at) => {
-      const state = get(); const { clipboard, doc } = state; if (!clipboard) return;
+      const clipboard = get().clipboard;
+      return clipboard ? get().pastePayload(clipboard, at) : false;
+    },
+    pastePayload: (clipboard, at) => {
+      const state = get(); const { doc } = state;
       // Instances only paste while their symbol exists and no cycle results.
       const symbolIds = referencedSymbolIds(Object.values(clipboard.nodes));
-      for (const symbolId of symbolIds) if (!doc.symbols[symbolId]) return;
+      for (const symbolId of symbolIds) if (!doc.symbols[symbolId]) return false;
       const scope = currentSymbolScope(state);
-      if (wouldCreateSymbolCycle(doc, scope, symbolIds)) return;
-      const pasted = remapPayload(clipboard, at ? 0 : PASTE_OFFSET);
+      if (wouldCreateSymbolCycle(doc, scope, symbolIds)) return false;
+      const remapped = remapPayload(clipboard, at ? 0 : PASTE_OFFSET);
+      // Scripts, assets and swatches the destination lacks come from the
+      // payload; unresolvable generator links are dropped, and a missing image
+      // asset refuses the paste (the caller can fall back to plain SVG).
+      const resolved = reattachPayloadResources(doc, remapped, clipboard);
+      if (resolved.missingAsset) return false;
+      const { nodes: reattached, scripts, assets, swatches, swatchOrder } = resolved;
+      const pasted = { ...remapped, nodes: reattached };
       if (at) {
         const temp: Document = { ...doc, nodes: { ...doc.nodes, ...pasted.nodes }, rootIds: pasted.rootIds };
         const bounds = unionNodeWorldBounds(temp, pasted.rootIds);
@@ -57,13 +69,19 @@ export function createClipboardActions({ set, get, transact }: StoreCtx): Clipbo
       }
       transact(
         appendToScope(
-          { ...doc, nodes: { ...doc.nodes, ...pasted.nodes } },
+          { ...doc, nodes: { ...doc.nodes, ...pasted.nodes }, scripts, assets, swatches, swatchOrder },
           scope,
           pasted.rootIds
         ),
         { label: "Paste" }
       );
       set({ selection: pasted.rootIds, ...clearTransient });
+      // Code arriving from a document the user never approved re-arms the
+      // consent gate rather than inheriting this document's trust.
+      if (resolved.addedScripts.length && !clipboard.scriptsTrusted) {
+        set({ scriptsTrusted: false });
+      }
+      return true;
     },
     duplicateSelected: () => {
       const { doc, selection } = get(); const roots = selectionRoots(doc, selection); if (!roots.length) return;

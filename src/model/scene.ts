@@ -194,6 +194,16 @@ export function referencedSymbolIds(nodes: Iterable<SceneNode>): Set<string> {
   return out;
 }
 
+/**
+ * Generator script ids referenced by the given nodes. Built-in generator ids
+ * come through too — callers that need document scripts filter them out.
+ */
+export function referencedScriptIds(nodes: Iterable<SceneNode>): Set<string> {
+  const out = new Set<string>();
+  for (const node of nodes) if (node.generator) out.add(node.generator.scriptId);
+  return out;
+}
+
 /** Ids of instances of `symbolId` anywhere (scene and other definitions). */
 export function instanceIdsOf(doc: Document, symbolId: string): string[] {
   return Object.values(doc.nodes)
@@ -345,6 +355,31 @@ const paintAssetId = (paint: Paint | null): string | null =>
  */
 export function referencedAssetIds(doc: Document): Set<string> {
   return new Set(assetReferenceCounts(doc).keys());
+}
+
+/** The same, for a loose set of nodes (a clipboard payload) rather than a document. */
+export function referencedAssetIdsOf(nodes: Iterable<SceneNode>): Set<string> {
+  const out = new Set<string>();
+  for (const node of nodes) {
+    if (!isShape(node)) continue;
+    if (node.type === "image") out.add(node.assetId);
+    for (const id of [paintAssetId(node.fill), paintAssetId(node.stroke)]) {
+      if (id) out.add(id);
+    }
+  }
+  return out;
+}
+
+/** Global-colour ids referenced by the given nodes' fills/strokes. */
+export function referencedSwatchIds(nodes: Iterable<SceneNode>): Set<string> {
+  const out = new Set<string>();
+  for (const node of nodes) {
+    if (!isShape(node)) continue;
+    for (const paint of [node.fill, node.stroke]) {
+      if (paint?.type === "swatch") out.add(paint.swatchId);
+    }
+  }
+  return out;
 }
 
 /**

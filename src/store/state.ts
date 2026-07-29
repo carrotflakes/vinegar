@@ -397,7 +397,15 @@ export interface GuideActions {
 export interface ClipboardActions {
   copySelected: () => void;
   cutSelected: () => void;
-  paste: (at?: Vec2) => void;
+  /** Paste the in-memory clipboard; false when there is nothing pastable. */
+  paste: (at?: Vec2) => boolean;
+  /**
+   * Paste an arbitrary payload — the in-memory clipboard, or one recovered
+   * from the system clipboard's embedded copy. Returns false when the payload
+   * cannot land here (missing symbol, symbol cycle, missing image asset), so
+   * the caller can fall back to importing the SVG geometry instead.
+   */
+  pastePayload: (payload: ClipboardPayload, at?: Vec2) => boolean;
   duplicateSelected: () => void;
 }
 

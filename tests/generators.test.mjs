@@ -2,6 +2,8 @@ import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
 import { createServer } from "vite";
 
+import { NODE_BASE, SHAPE_BASE } from "./nodeBase.mjs";
+
 let server;
 let createEmptyDocument;
 let parseDocument;
@@ -278,4 +280,101 @@ test("malformed scripts are rejected", () => {
   const malformed = JSON.parse(serializeDocument(doc));
   malformed.document.scripts = { s1: { id: "s1", name: "x", source: 123 } };
   assert.throws(() => parseDocument(JSON.stringify(malformed)), /missing or malformed/);
+});
+
+// A path node linked to `scriptId`, positioned at the origin.
+const generatorPath = (id, scriptId) => ({
+  ...NODE_BASE,
+  ...SHAPE_BASE,
+  id,
+  name: "Gen",
+  type: "path",
+  transform: [1, 0, 0, 1, 0, 0],
+  fillRule: "nonzero",
+  subpaths: [
+    {
+      closed: true,
+      anchors: [
+        { p: { x: 0, y: 0 }, hIn: null, hOut: null },
+        { p: { x: 10, y: 0 }, hIn: null, hOut: null },
+        { p: { x: 10, y: 10 }, hIn: null, hOut: null },
+      ],
+    },
+  ],
+  generator: { scriptId, args: { sides: 3 } },
+});
+
+const SCRIPT_SOURCE = "return { params: [], build: () => [] };";
+
+test("pasting into another document carries the generator script along", () => {
+  const source = createEmptyDocument();
+  source.scripts.poly = { id: "poly", name: "Poly", source: SCRIPT_SOURCE };
+  source.nodes.gen = generatorPath("gen", "poly");
+  source.rootIds = ["gen"];
+
+  const editor = useEditor.getState();
+  editor.loadDocument(source);
+  useEditor.getState().trustScripts();
+  useEditor.getState().setSelection(["gen"]);
+  useEditor.getState().copySelected();
+
+  // Paste into a document that has never seen the script.
+  editor.loadDocument(createEmptyDocument());
+  useEditor.getState().paste();
+
+  const state = useEditor.getState();
+  const pasted = state.doc.nodes[state.selection[0]];
+  assert.equal(pasted.generator.scriptId, "poly");
+  assert.deepEqual(pasted.generator.args, { sides: 3 });
+  assert.deepEqual(state.doc.scripts.poly, { id: "poly", name: "Poly", source: SCRIPT_SOURCE });
+  assert.equal(state.scriptsTrusted, true); // the source document was trusted
+
+  // The destination's own definition wins over the copy's (same id, edited).
+  const edited = createEmptyDocument();
+  edited.scripts.poly = { id: "poly", name: "Renamed", source: "return { params: [], build: () => [[]] };" };
+  editor.loadDocument(edited);
+  useEditor.getState().trustScripts();
+  useEditor.getState().paste();
+  assert.deepEqual(useEditor.getState().doc.scripts.poly, edited.scripts.poly);
+});
+
+test("a generator link with no script anywhere is dropped on paste", () => {
+  const source = createEmptyDocument();
+  source.nodes.ghost = generatorPath("ghost", "missing-script");
+  source.nodes.builtin = generatorPath("builtin", "star");
+  source.rootIds = ["ghost", "builtin"];
+
+  const editor = useEditor.getState();
+  editor.loadDocument(source);
+  useEditor.getState().setSelection(["ghost", "builtin"]);
+  useEditor.getState().copySelected();
+  editor.loadDocument(createEmptyDocument());
+  useEditor.getState().paste();
+
+  const state = useEditor.getState();
+  const [ghost, builtin] = state.selection.map((id) => state.doc.nodes[id]);
+  // The geometry still pastes; only the unresolvable link goes away.
+  assert.equal(ghost.generator, null);
+  assert.equal(ghost.subpaths[0].anchors.length, 3);
+  assert.equal(builtin.generator.scriptId, "star"); // built-ins need no script
+  assert.deepEqual(state.doc.scripts, {});
+});
+
+test("scripts pasted from an untrusted document re-arm the consent gate", () => {
+  const source = createEmptyDocument();
+  source.scripts.poly = { id: "poly", name: "Poly", source: SCRIPT_SOURCE };
+  source.nodes.gen = generatorPath("gen", "poly");
+  source.rootIds = ["gen"];
+
+  const editor = useEditor.getState();
+  editor.loadDocument(source); // scripts present => untrusted
+  assert.equal(useEditor.getState().scriptsTrusted, false);
+  useEditor.getState().setSelection(["gen"]);
+  useEditor.getState().copySelected();
+
+  editor.loadDocument(createEmptyDocument()); // empty => trusted
+  assert.equal(useEditor.getState().scriptsTrusted, true);
+  useEditor.getState().paste();
+  assert.equal(useEditor.getState().doc.scripts.poly.source, SCRIPT_SOURCE);
+  assert.equal(useEditor.getState().scriptsTrusted, false);
 });
