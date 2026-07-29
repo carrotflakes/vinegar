@@ -190,4 +190,3 @@ additional effects, or other feature expansion.
 - [ ] ColorField のリファクタリング（特にコンポーネントわけ）
 - [ ] ドックのフローティング、マルチカラム化
 - [ ] Assetという名前は問題ないか。raster imageではないか。
-- [ ] Toast メッセージをコピー可能に

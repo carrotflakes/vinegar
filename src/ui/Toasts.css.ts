@@ -64,6 +64,9 @@ export const message = style({
   flex: 1,
   wordBreak: "break-word",
   whiteSpace: "pre-wrap",
+  userSelect: "text",
+  WebkitUserSelect: "text",
+  cursor: "text",
 });
 
 export const close = style({
