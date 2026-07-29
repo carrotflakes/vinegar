@@ -341,5 +341,8 @@ additional effects, or other feature expansion.
   - [ ] UIの統一感
   - [ ] ツールオプションが Properties の先頭にあるのは変
   - [ ] frame + 何かの選択で他の操作
-- [ ] コンテナ内の要素を全選択
-- [ ] Layersパネル、要素の連続選択（？）
+- [x] コンテナ内の要素を全選択 — `Enter` = Select contents（選択コンテナの直接の子、
+  ロック/非表示は除く）、`Shift+Enter` = Select parent。commands/registry.ts
+- [x] Layersパネル、要素の連続選択 — Shift+クリックで範囲、Ctrl/Cmd+クリックで単体
+  トグル、↑↓ で行移動（Shift で範囲伸縮）、←→ で開閉。選択行の scroll-into-view と
+  選択全体のドラッグ移動（`moveNodes`、1 undo ステップ）も。ui/panels/layers/tree.ts
