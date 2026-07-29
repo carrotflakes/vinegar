@@ -50,20 +50,48 @@ export function shapeIds(nodes: DNode[]): string[] {
   return nodes.flatMap((n) => (n.children ? shapeIds(n.children) : [n.key]));
 }
 
+/** One rendered row: a display node plus everything the row needs to draw. */
+export interface Row {
+  key: string;
+  node: DNode;
+  /** Indent level. */
+  depth: number;
+  /** The row's container (`null` = panel root) and its slot within it. */
+  parent: string | null;
+  index: number;
+  /** Inside a hidden ancestor, so the row is drawn dimmed. */
+  dim: boolean;
+}
+
 /**
- * Rows top to bottom — the order Shift ranges over. `collapsed` hides a
- * container's children; pass an empty set for every row in the tree.
+ * The tree flattened into the rows the panel actually shows, top to bottom.
+ * `collapsed` hides a container's children; pass an empty set for every row in
+ * the tree. Flat rows are what makes windowed scrolling possible — the panel
+ * renders a slice of this list, and every index in it is a pixel offset.
  */
-export function visibleIds(nodes: DNode[], collapsed: Set<string>): string[] {
-  const out: string[] = [];
-  const walk = (ns: DNode[]) => {
-    for (const n of ns) {
-      out.push(n.key);
-      if (n.children && !collapsed.has(n.key)) walk(n.children);
-    }
+export function flattenRows(nodes: DNode[], collapsed: Set<string>): Row[] {
+  const out: Row[] = [];
+  const walk = (
+    ns: DNode[],
+    parent: string | null,
+    depth: number,
+    dim: boolean
+  ) => {
+    ns.forEach((node, index) => {
+      out.push({ key: node.key, node, depth, parent, index, dim });
+      if (node.children && !collapsed.has(node.key)) {
+        const self = (node.group ?? node.frame ?? node.instance ?? node.shape)!;
+        walk(node.children, node.key, depth + 1, dim || !!self.hidden);
+      }
+    });
   };
-  walk(nodes);
+  walk(nodes, null, 0, false);
   return out;
+}
+
+/** Row ids top to bottom — the order Shift ranges over. */
+export function visibleIds(nodes: DNode[], collapsed: Set<string>): string[] {
+  return flattenRows(nodes, collapsed).map((row) => row.key);
 }
 
 /** The children array of a container (`null` = root). */

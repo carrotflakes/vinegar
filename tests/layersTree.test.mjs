@@ -66,6 +66,23 @@ test("a collapsed container hides its children from the row order", () => {
   assert.deepEqual(order(nested, ["g"]), ["g", "b", "a"]);
 });
 
+test("flattenRows carries the indent, container slot and inherited dimming", () => {
+  const d = doc(
+    [rect("a"), group("g", ["c", "d"], { hidden: true }), rect("c"), rect("d")],
+    ["a", "g"]
+  );
+  const rows = tree.flattenRows(tree.toDisplayTree(d, d.rootIds), new Set());
+  assert.deepEqual(
+    rows.map((r) => [r.key, r.depth, r.parent, r.index, r.dim]),
+    [
+      ["g", 0, null, 0, false],
+      ["d", 1, "g", 0, true],
+      ["c", 1, "g", 1, true],
+      ["a", 0, null, 1, false],
+    ]
+  );
+});
+
 test("shapeIds counts the leaves under a container, not the container", () => {
   const display = tree.toDisplayTree(nested, ["g"]);
   assert.deepEqual(tree.shapeIds(display), ["d", "c"]);

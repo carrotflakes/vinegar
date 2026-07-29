@@ -318,7 +318,9 @@ additional effects, or other feature expansion.
 - [x] ペン使用時のタッチ入力抑制 — ペン接地中と離してから 300ms は touch を拒否。
   指で描くかは設定 (`canvas.fingerDrawing`)、初回のペン接触で自動 off。
   docs/pen-and-touch.md
-- [ ] Layersパネル仮想化
+- [x] Layersパネル仮想化 — 行を平坦化して可視範囲だけ描画（100行超から）。行高は実測、
+  スクロール親は dock-body まで遡って解決。ドロップ線は行インデックス配置。
+  docs/render-performance.md
 - [x] fillruleを変える手段 — Appearance セクションの線設定の後ろに Nonzero / Even-odd の
   セグメントを追加。効くのは複数サブパスを持つパスだけなので、選択がその条件を満たす
   ときだけ表示。ストア側は `setSelectedFillRule`（path ノードのみ、混在は無選択表示）

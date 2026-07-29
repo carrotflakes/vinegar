@@ -30,11 +30,12 @@ import {
 import {
   childrenOf,
   dropChildIndex,
+  flattenRows,
   rangeIds,
   shapeIds,
   toDisplayTree,
   visibleIds,
-  type DNode,
+  type Row,
 } from "./tree";
 import { isMac } from "../../../commands/registry";
 import { currentSymbolScope, useEditor } from "../../../store/editorStore";
@@ -59,8 +60,29 @@ const TYPE_ICON: Record<Shape["type"], ComponentType> = {
 const stateButtonClass = (isSet: boolean) =>
   `layer-icon-btn layer-state-btn ${isSet ? "state-set" : "state-idle"}`;
 
-/** Where a row sits: its container and index at every ancestor level. */
-type Path = { parent: string | null; index: number }[];
+// Rows are uniform in height, so the list only renders the slice around the
+// viewport once there are enough of them for it to matter (an SVG import can
+// land thousands). Below that everything renders, which keeps small documents
+// on the simple path and away from any measurement edge case.
+const VIRTUALIZE_FROM = 100;
+const OVERSCAN = 8;
+
+/**
+ * The element that actually scrolls the panel. Depending on the dock layout
+ * that is either the list itself or an ancestor (the dock body stacks several
+ * panels and scrolls them together), so the window is measured against
+ * whichever one is really clipping — never assumed.
+ */
+function scrollParentOf(el: HTMLElement | null): HTMLElement | null {
+  let fallback: HTMLElement | null = null;
+  for (let p: HTMLElement | null = el; p; p = p.parentElement) {
+    const overflow = getComputedStyle(p).overflowY;
+    if (overflow !== "auto" && overflow !== "scroll") continue;
+    if (p.scrollHeight > p.clientHeight + 1) return p;
+    fallback ??= p;
+  }
+  return fallback;
+}
 
 /** The rows a drag carries, top-most first. */
 interface Drag {
@@ -71,6 +93,8 @@ interface Drop {
   parent: string | null;
   index: number;
   inside?: string;
+  /** Flat row index the indicator line is drawn at. */
+  line: number;
 }
 
 export default function LayersPanel() {
@@ -105,7 +129,11 @@ export default function LayersPanel() {
   const [anchor, setAnchor] = useState<string | null>(null);
   const [cursor, setCursor] = useState<string | null>(null);
   const [reveal, setReveal] = useState<string | null>(null);
+  const [rowHeight, setRowHeight] = useState(0);
+  const [windowBox, setWindowBox] = useState({ top: 0, height: 0 });
   const listRef = useRef<HTMLDivElement>(null);
+  const rowsRef = useRef<HTMLDivElement>(null);
+  const scrollerRef = useRef<HTMLElement | null>(null);
   const [drag, setDrag] = useState<Drag | null>(null);
   const [drop, setDrop] = useState<Drop | null>(null);
 
@@ -113,6 +141,57 @@ export default function LayersPanel() {
   // at the panel root then targets the definition root group, not the scene.
   const scopeParent = scopeRootGroupId(doc, scope);
   const roots = toDisplayTree(doc, scopeRootIds(doc, scope));
+  const rows = flattenRows(roots, collapsed);
+
+  /** The visible slice of the rows box, in pixels from its top. */
+  const measureWindow = () => {
+    const box = rowsRef.current;
+    const scroller = scrollParentOf(listRef.current);
+    scrollerRef.current = scroller;
+    if (!box || !scroller) return;
+    const r = box.getBoundingClientRect();
+    const s = scroller.getBoundingClientRect();
+    const next = { top: s.top - r.top, height: s.height };
+    setWindowBox((prev) =>
+      prev.top === next.top && prev.height === next.height ? prev : next
+    );
+  };
+
+  // Windowing needs one number the DOM owns: how tall a row is. Measuring the
+  // first rendered row keeps it in step with the stylesheet instead of pinning
+  // a magic constant that a padding change would silently break. Both this and
+  // the window run after every render — the panel's own layout can move under
+  // a collapse, a rename or a dock resize just as much as under a scroll.
+  useEffect(() => {
+    const el = listRef.current?.querySelector(".layer-row");
+    const h = el?.getBoundingClientRect().height ?? 0;
+    if (h > 0 && h !== rowHeight) setRowHeight(h);
+    measureWindow();
+  });
+
+  // Scroll events do not bubble, and which element scrolls depends on the dock
+  // layout, so listen on the capture phase and re-measure.
+  useEffect(() => {
+    const onScroll = () => measureWindow();
+    window.addEventListener("scroll", onScroll, { capture: true, passive: true });
+    window.addEventListener("resize", onScroll);
+    return () => {
+      window.removeEventListener("scroll", onScroll, { capture: true });
+      window.removeEventListener("resize", onScroll);
+    };
+  }, []);
+
+  const windowed =
+    rowHeight > 0 && windowBox.height > 0 && rows.length > VIRTUALIZE_FROM;
+  const first = windowed
+    ? Math.max(0, Math.floor(windowBox.top / rowHeight) - OVERSCAN)
+    : 0;
+  const last = windowed
+    ? Math.min(
+        rows.length,
+        Math.ceil((windowBox.top + windowBox.height) / rowHeight) + OVERSCAN
+      )
+    : rows.length;
 
   const toggleCollapsed = (gid: string) => {
     setCollapsed((prev) => {
@@ -242,11 +321,22 @@ export default function LayersPanel() {
       });
       return;
     }
-    listRef.current
-      ?.querySelector(`[data-row-id="${reveal}"]`)
-      ?.scrollIntoView({ block: "nearest" });
+    // Index arithmetic rather than scrollIntoView: with windowing the row may
+    // not be in the DOM at all. Only scrolls when the row is out of view, so a
+    // click inside the panel never scrolls under the pointer.
+    const scroller = scrollerRef.current;
+    const box = rowsRef.current;
+    const index = rows.findIndex((row) => row.key === reveal);
+    if (scroller && box && rowHeight > 0 && index >= 0) {
+      const top = box.getBoundingClientRect().top + index * rowHeight;
+      const view = scroller.getBoundingClientRect();
+      if (top < view.top) scroller.scrollTop += top - view.top;
+      else if (top + rowHeight > view.bottom) {
+        scroller.scrollTop += top + rowHeight - view.bottom;
+      }
+    }
     setReveal(null);
-  }, [reveal, collapsed, doc]);
+  }, [reveal, collapsed, doc, rowHeight]);
 
   // A selection made anywhere else (canvas, a command, undo) points at a row
   // that may be scrolled away or folded shut; a drag is excluded so rows never
@@ -284,18 +374,56 @@ export default function LayersPanel() {
     moveNodes([...d.ids].reverse(), t.parent ?? scopeParent, index);
   };
 
+  // A windowed list can be taller than anything the pointer can reach, so a
+  // drag near either edge scrolls it. The speed is sampled on pointermove but
+  // applied on a timer, so holding still at the edge keeps scrolling.
+  const edgeSpeed = useRef(0);
+  const edgeTimer = useRef<number | null>(null);
+
+  const edgeScrollSpeed = (y: number): number => {
+    const el = scrollerRef.current;
+    if (!el) return 0;
+    const r = el.getBoundingClientRect();
+    const edge = 28;
+    if (y < r.top + edge) return -Math.max(4, (r.top + edge - y) / 2);
+    if (y > r.bottom - edge) return Math.max(4, (y - (r.bottom - edge)) / 2);
+    return 0;
+  };
+
+  const startEdgeScroll = () => {
+    if (edgeTimer.current !== null) return;
+    edgeTimer.current = window.setInterval(() => {
+      if (edgeSpeed.current !== 0 && scrollerRef.current) {
+        scrollerRef.current.scrollTop += edgeSpeed.current;
+      }
+    }, 16);
+  };
+
+  const stopEdgeScroll = () => {
+    if (edgeTimer.current !== null) window.clearInterval(edgeTimer.current);
+    edgeTimer.current = null;
+    edgeSpeed.current = 0;
+  };
+
+  useEffect(() => stopEdgeScroll, []);
+
   // Pointer-based row drag (mouse + touch). Touch begins on a long-press so a
   // quick swipe still scrolls the list. The drop target is hit-tested from the
   // row under the pointer via its data attributes, mirroring the middle-third
   // "into group" and before/after logic the old dragover used.
   const startRowDrag = useTouchDrag<Drag>({
-    onStart: (d) => setDrag(d),
+    onStart: (d) => {
+      setDrag(d);
+      startEdgeScroll();
+    },
     onMove: (d, { y, target }) => {
+      edgeSpeed.current = edgeScrollSpeed(y);
       const rowEl = target?.closest<HTMLElement>("[data-row-index]");
       if (rowEl) {
         const parentAttr = rowEl.dataset.rowParent ?? "";
         const parent = parentAttr === "" ? null : parentAttr;
         const index = Number(rowEl.dataset.rowIndex);
+        const flat = Number(rowEl.dataset.rowFlat);
         const gid = rowEl.dataset.rowGroup;
         const r = rowEl.getBoundingClientRect();
         const ratio = (y - r.top) / r.height;
@@ -304,7 +432,7 @@ export default function LayersPanel() {
           gid && ratio > 0.28 && (expandedContainer || ratio < 0.72) &&
           canDropInto(d.ids, gid)
         ) {
-          setDrop({ parent: gid, index: 0, inside: gid });
+          setDrop({ parent: gid, index: 0, inside: gid, line: flat + 1 });
           return;
         }
         // A drop line inside a dragged row's own subtree goes nowhere.
@@ -312,26 +440,37 @@ export default function LayersPanel() {
           setDrop(null);
           return;
         }
-        setDrop({ parent, index: ratio >= 0.5 ? index + 1 : index });
+        const after = ratio >= 0.5;
+        setDrop({
+          parent,
+          index: after ? index + 1 : index,
+          line: after ? flat + 1 : flat,
+        });
         return;
       }
       if (target?.closest(".layers-list")) {
-        setDrop({ parent: null, index: roots.length });
+        setDrop({ parent: null, index: roots.length, line: rows.length });
         return;
       }
       setDrop(null);
     },
-    onDrop: () => commitDrop(),
-    onCancel: clearDnd,
+    onDrop: () => {
+      stopEdgeScroll();
+      commitDrop();
+    },
+    onCancel: () => {
+      stopEdgeScroll();
+      clearDnd();
+    },
   });
 
   /** Data attributes + pointerdown that make a row draggable and droppable. */
-  const rowDnd = (id: string, path: Path, gid?: string) => {
-    const at = path[path.length - 1];
+  const rowDnd = (id: string, row: Row, flat: number, gid?: string) => {
     return {
       "data-row-id": id,
-      "data-row-parent": at.parent ?? "",
-      "data-row-index": at.index,
+      "data-row-flat": flat,
+      "data-row-parent": row.parent ?? "",
+      "data-row-index": row.index,
       ...(gid ? { "data-row-group": gid } : {}),
       onPointerDown:
         editing === id
@@ -360,7 +499,8 @@ export default function LayersPanel() {
     />
   );
 
-  const shapeRow = (node: DNode, depth: number, path: Path, dim: boolean) => {
+  const shapeRow = (row: Row, flat: number) => {
+    const { node, depth, dim } = row;
     const shape = node.shape!;
     const id = shape.id;
     const isMask = isClippingMaskNode(doc, id);
@@ -378,7 +518,7 @@ export default function LayersPanel() {
         title={isMask ? "Clipping mask" : undefined}
         style={{ paddingLeft: 6 + depth * 16 }}
         {...hoverProps(id)}
-        {...rowDnd(id, path, isCompound ? id : undefined)}
+        {...rowDnd(id, row, flat, isCompound ? id : undefined)}
         onClick={(e) => rowClick(id, e)}
         onContextMenu={(e) => {
           e.preventDefault();
@@ -454,7 +594,8 @@ export default function LayersPanel() {
     );
   };
 
-  const instanceRow = (node: DNode, depth: number, path: Path, dim: boolean) => {
+  const instanceRow = (row: Row, flat: number) => {
+    const { node, depth, dim } = row;
     const instance = node.instance!;
     const id = instance.id;
     const symbolName = doc.symbols[instance.symbolId]?.name ?? "Missing symbol";
@@ -467,7 +608,7 @@ export default function LayersPanel() {
         }
         style={{ paddingLeft: 6 + depth * 16 }}
         {...hoverProps(id)}
-        {...rowDnd(id, path)}
+        {...rowDnd(id, row, flat)}
         onClick={(e) => rowClick(id, e)}
         onDoubleClick={() => enterSymbolEdit(instance.symbolId)}
         onContextMenu={(e) => {
@@ -532,7 +673,8 @@ export default function LayersPanel() {
 
   // Renders a container row: a group or a frame (frames are group-like, minus
   // the clip marker, plus a frame icon).
-  const groupRow = (node: DNode, depth: number, path: Path, dim: boolean) => {
+  const groupRow = (row: Row, flat: number) => {
+    const { node, depth, dim } = row;
     const group = (node.group ?? node.frame)!;
     const gid = group.id;
     const kind = node.frame ? "frame" : "group";
@@ -550,7 +692,7 @@ export default function LayersPanel() {
         }
         style={{ paddingLeft: 6 + depth * 16 }}
         {...hoverProps(gid)}
-        {...rowDnd(gid, path, gid)}
+        {...rowDnd(gid, row, flat, gid)}
         onClick={(e) => rowClick(gid, e)}
         onContextMenu={(e) => {
           e.preventDefault();
@@ -626,61 +768,14 @@ export default function LayersPanel() {
     );
   };
 
-  const renderList = (
-    nodes: DNode[],
-    parent: string | null,
-    depth: number,
-    parentPath: Path,
-    dim: boolean
-  ): React.ReactNode => (
-    <>
-      {nodes.map((n, i) => {
-        const path: Path = [...parentPath, { parent, index: i }];
-        return (
-          <Fragment key={n.key}>
-            {drop && drop.parent === parent && drop.index === i && (
-              <div
-                className="drop-line-flow"
-                style={{ marginLeft: 6 + depth * 16 }}
-              />
-            )}
-            {n.group || n.frame ? (
-              <>
-                {groupRow(n, depth, path, dim)}
-                {!collapsed.has(n.key) &&
-                  renderList(
-                    n.children!,
-                    n.key,
-                    depth + 1,
-                    path,
-                    dim || !!(n.group ?? n.frame)!.hidden
-                  )}
-              </>
-            ) : n.instance ? (
-              instanceRow(n, depth, path, dim)
-            ) : (
-              <>
-                {shapeRow(n, depth, path, dim)}
-                {n.children && !collapsed.has(n.key) &&
-                  renderList(
-                    n.children,
-                    n.key,
-                    depth + 1,
-                    path,
-                    dim || !!n.shape?.hidden
-                  )}
-              </>
-            )}
-          </Fragment>
-        );
-      })}
-      {drop && drop.parent === parent && drop.index === nodes.length && (
-        <div
-          className="drop-line-flow"
-          style={{ marginLeft: 6 + depth * 16 }}
-        />
-      )}
-    </>
+  const renderRow = (row: Row, flat: number) => (
+    <Fragment key={row.key}>
+      {row.node.group || row.node.frame
+        ? groupRow(row, flat)
+        : row.node.instance
+          ? instanceRow(row, flat)
+          : shapeRow(row, flat)}
+    </Fragment>
   );
 
   const scopeName = scope ? doc.symbols[scope]?.name ?? "Symbol" : null;
@@ -706,8 +801,25 @@ export default function LayersPanel() {
         }}
         onPointerLeave={() => setHighlight(null)}
       >
-        {roots.length === 0 && <div className="layers-empty">No shapes yet</div>}
-        {renderList(roots, null, 0, [], false)}
+        {rows.length === 0 && <div className="layers-empty">No shapes yet</div>}
+        <div
+          className="layers-rows"
+          ref={rowsRef}
+          style={windowed ? { height: rows.length * rowHeight } : undefined}
+        >
+          <div style={windowed ? { transform: `translateY(${first * rowHeight}px)` } : undefined}>
+            {rows.slice(first, last).map((row, i) => renderRow(row, first + i))}
+          </div>
+          {drop && rowHeight > 0 && (
+            <div
+              className="drop-line"
+              style={{
+                top: drop.line * rowHeight,
+                marginLeft: 6 + (rows[Math.min(drop.line, rows.length - 1)]?.depth ?? 0) * 16,
+              }}
+            />
+          )}
+        </div>
       </div>
     </div>
   );

@@ -146,19 +146,28 @@ globalStyle(".layer-count", {
   paddingRight: "4px",
 });
 
-globalStyle(".drop-line-flow", {
+// Rows are uniform, so the drop indicator is placed by row index rather than
+// inserted between rows — inserting one would shift every offset the windowed
+// list computes from that index.
+globalStyle(".layers-rows", {
   position: "relative",
+});
+
+globalStyle(".drop-line", {
+  position: "absolute",
+  left: 0,
+  right: "6px",
   height: "2px",
-  margin: "-1px 6px",
+  marginTop: "-1px",
   background: vars.accent,
   borderRadius: "2px",
-  // The line is inserted directly under the pointer. Keep it transparent to
+  // The line sits directly under the pointer. Keep it transparent to
   // elementFromPoint so the Layers drag continues to hit the adjacent row
   // instead of briefly treating the pointer as being over the list itself.
   pointerEvents: "none",
 });
 
-globalStyle(".drop-line-flow::before", {
+globalStyle(".drop-line::before", {
   content: "\"\"",
   position: "absolute",
   left: "-3px",

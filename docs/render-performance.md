@@ -245,6 +245,29 @@ drag frame rate. Needs a below/above split by z-order — the one design cost.
   is draw-downscaled → blur → upscale-composite, increasingly valid at larger
   radii.
 
+## Layers panel windowing (implemented)
+
+The panel is a second cost centre: an SVG import can put thousands of rows in
+the DOM, and each row is a handful of elements. `flattenRows` (see
+`src/ui/panels/layers/tree.ts`) turns the display tree into a flat list, and the
+panel renders only the slice around the viewport once there are more than 100
+rows, with a spacer box holding the total height.
+
+Two facts it depends on:
+
+- **Rows are uniform in height**, so an index is a pixel offset. The height is
+  measured from the first rendered row rather than hard-coded, so a stylesheet
+  change cannot silently desynchronise it.
+- **The scroll container is whatever is actually clipping.** Depending on the
+  dock layout that is the list itself or an ancestor (`.dock-body` stacks
+  several panels and scrolls them together), so it is resolved by walking up
+  from the list and the window is measured against that element. Scroll events
+  are watched on the capture phase, since they do not bubble.
+
+The drop indicator is placed by row index instead of being inserted between
+rows — inserting an element would shift every offset computed from that index.
+Measured with 1500 shapes: ~20 rows in the DOM instead of 1500.
+
 ## Explicitly not planned
 
 - **Dirty-rect tracking**: high complexity; culling plus the static snapshot
