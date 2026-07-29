@@ -2,6 +2,7 @@
 
 import {
   ancestorIds,
+  isFrame,
   isGroup,
   isNodeHidden,
   isNodeLocked,
@@ -73,6 +74,9 @@ export function canGroupSelection(doc: Document, selection: string[]): boolean {
   const roots = selectionRoots(doc, selection);
   return (
     roots.length >= 2 &&
+    // Frames are legal only at the top level, so they can never be grouped.
+    // `groupSelected` refuses them too; this keeps the UI from offering it.
+    !roots.some((id) => isFrame(doc.nodes[id])) &&
     new Set(roots.map((id) => parentIdOf(doc, id))).size === 1
   );
 }
