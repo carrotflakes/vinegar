@@ -34,6 +34,12 @@ globalStyle(".layers-list", {
   padding: "0 6px 8px",
 });
 
+// The list takes focus on pointerdown so arrow keys can walk its rows; the
+// focus ring around the whole panel would only be noise.
+globalStyle(".layers-list:focus", {
+  outline: "none",
+});
+
 globalStyle(".layers-empty", {
   padding: "10px 8px",
   fontSize: "12px",

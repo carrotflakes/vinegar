@@ -30,6 +30,7 @@ import { hasCuttableNodes } from "@/model/path/cutPath";
 import {
   childIdsOf,
   framesInPaintOrder,
+  scopeRootGroupId,
   isFrame,
   isInstance,
   isNodeHidden,
@@ -179,6 +180,21 @@ function sel(s: EditorState) {
         ? singleInstanceNode
         : null,
   };
+}
+
+/**
+ * The container of every selected node, skipping the symbol-definition root
+ * (an internal container, not a layer the user can select). Empty at the top
+ * level, which is also what disables "Select parent".
+ */
+function selectionParentIds(s: EditorState): string[] {
+  const definitionRoot = scopeRootGroupId(s.doc, currentSymbolScope(s));
+  const ids = new Set<string>();
+  for (const id of selectionRoots(s.doc, s.selection)) {
+    const parent = parentIdOf(s.doc, id);
+    if (parent && parent !== definitionRoot) ids.add(parent);
+  }
+  return [...ids];
 }
 
 /**
@@ -360,6 +376,14 @@ export const COMMANDS: Command[] = [
     group: "Selection",
     keys: [{ key: "a", mod: true }],
     run: (s) => s.selectAll(),
+  },
+  {
+    id: "select.parent",
+    label: "Select parent",
+    group: "Selection",
+    keys: [{ key: "Enter", shift: true }],
+    enabled: (s) => selectionParentIds(s).length > 0,
+    run: (s) => s.setSelection(selectionParentIds(s)),
   },
   {
     id: "select.children",

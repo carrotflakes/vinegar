@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useState, type ComponentType } from "react";
+import { Fragment, useEffect, useRef, useState, type ComponentType } from "react";
 import {
   LuSquare,
   LuCircle,
@@ -22,6 +22,7 @@ import type { Shape } from "../../../model/types";
 import { isClippingGroup, isClippingMaskNode } from "../../../model/clippingMask";
 import {
   ancestorIds,
+  childIdsOfNode,
   scopeRootGroupId,
   scopeRootIds,
   selectionRoots,
@@ -99,7 +100,12 @@ export default function LayersPanel() {
 
   const [editing, setEditing] = useState<string | null>(null);
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
+  // Range selection keeps two marks, like any list: `anchor` is where a range
+  // starts and `cursor` is the row the keyboard sits on / the last one clicked.
   const [anchor, setAnchor] = useState<string | null>(null);
+  const [cursor, setCursor] = useState<string | null>(null);
+  const [reveal, setReveal] = useState<string | null>(null);
+  const listRef = useRef<HTMLDivElement>(null);
   const [drag, setDrag] = useState<Drag | null>(null);
   const [drop, setDrop] = useState<Drop | null>(null);
 
@@ -129,7 +135,18 @@ export default function LayersPanel() {
       setSelection(ids);
     }
     setAnchor(ids[ids.length - 1] ?? null);
+    setCursor(ids[ids.length - 1] ?? null);
   };
+
+  /**
+   * Where a range starts. The anchor goes stale when the selection last changed
+   * elsewhere (canvas, a command) or when its row left the tree; the newest
+   * selected row is then the closest thing to "where the user last was".
+   */
+  const rangeStart = (): string | null =>
+    anchor && selection.includes(anchor)
+      ? anchor
+      : selection[selection.length - 1] ?? anchor;
 
   /**
    * List conventions (Finder/Photoshop/Figma): Shift extends a contiguous range
@@ -138,22 +155,58 @@ export default function LayersPanel() {
    * the range — selecting a group *and* its children means nothing downstream.
    */
   const rowClick = (id: string, e: React.MouseEvent) => {
-    // The anchor goes stale when the selection last changed elsewhere (canvas,
-    // a command) or when its row scrolled out of the tree; the newest selected
-    // row is the closest thing to "where the user last was".
-    const from0 =
-      anchor && selection.includes(anchor)
-        ? anchor
-        : selection[selection.length - 1] ?? anchor;
-    if (e.shiftKey && from0 && from0 !== id) {
-      const range = rangeIds(doc, visibleIds(roots, collapsed), from0, id);
+    const from = rangeStart();
+    if (e.shiftKey && from && from !== id) {
+      const range = rangeIds(doc, visibleIds(roots, collapsed), from, id);
       if (range) {
         setSelection(range);
-        return; // keep the anchor so a further Shift+click re-extends from it
+        setCursor(id); // the anchor stays put, so Shift+click re-extends from it
+        return;
       }
     }
     // Ctrl+click is the macOS secondary click, so there Cmd alone toggles.
     selectIds([id], e.shiftKey || e.metaKey || (!isMac && e.ctrlKey));
+  };
+
+  /**
+   * Arrow-key row navigation, for the focused list only (the canvas keeps its
+   * own keys). Plain moves the cursor and selects that row; Shift extends the
+   * range from the anchor, exactly like Shift+click. Left/Right fold and unfold
+   * the container under the cursor so a collapsed subtree stays reachable.
+   */
+  const onListKeyDown = (e: React.KeyboardEvent) => {
+    if (editing !== null) return; // a rename input owns the keyboard
+    const order = visibleIds(roots, collapsed);
+    const at = cursor ?? rangeStart();
+    const index = at ? order.indexOf(at) : -1;
+    if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+      e.preventDefault();
+      const next =
+        order[
+          index < 0
+            ? e.key === "ArrowDown" ? 0 : order.length - 1
+            : Math.max(0, Math.min(order.length - 1, index + (e.key === "ArrowDown" ? 1 : -1)))
+        ];
+      if (!next) return;
+      const from = e.shiftKey ? rangeStart() : null;
+      const range = from ? rangeIds(doc, order, from, next) : null;
+      if (range) setSelection(range);
+      else selectIds([next], false);
+      setCursor(next);
+      setReveal(next);
+      return;
+    }
+    if ((e.key === "ArrowRight" || e.key === "ArrowLeft") && at) {
+      const isCollapsed = collapsed.has(at);
+      if (e.key === "ArrowRight" ? isCollapsed : !isCollapsed) {
+        // Rows without children have no fold state to toggle.
+        const node = doc.nodes[at];
+        if (node && childIdsOfNode(node).length > 0) {
+          e.preventDefault();
+          toggleCollapsed(at);
+        }
+      }
+    }
   };
 
   /**
@@ -173,6 +226,36 @@ export default function LayersPanel() {
     !ids.some(
       (id) => id === targetId || ancestorIds(doc, targetId).includes(id)
     );
+
+  // Whatever was selected last should be visible: unfold the containers hiding
+  // it, then scroll it into view. `nearest` keeps an already-visible row still,
+  // so a click inside the panel never scrolls under the pointer. Runs again
+  // after an unfold, because the row only exists once its ancestors are open.
+  useEffect(() => {
+    if (!reveal) return;
+    const hidden = ancestorIds(doc, reveal).filter((a) => collapsed.has(a));
+    if (hidden.length > 0) {
+      setCollapsed((prev) => {
+        const next = new Set(prev);
+        for (const id of hidden) next.delete(id);
+        return next;
+      });
+      return;
+    }
+    listRef.current
+      ?.querySelector(`[data-row-id="${reveal}"]`)
+      ?.scrollIntoView({ block: "nearest" });
+    setReveal(null);
+  }, [reveal, collapsed, doc]);
+
+  // A selection made anywhere else (canvas, a command, undo) points at a row
+  // that may be scrolled away or folded shut; a drag is excluded so rows never
+  // move under the pointer mid-drop.
+  useEffect(() => {
+    if (drag) return;
+    const last = selection[selection.length - 1];
+    if (last) setReveal(last);
+  }, [selection]);
 
   const clearDnd = () => {
     setDrag(null);
@@ -246,6 +329,7 @@ export default function LayersPanel() {
   const rowDnd = (id: string, path: Path, gid?: string) => {
     const at = path[path.length - 1];
     return {
+      "data-row-id": id,
       "data-row-parent": at.parent ?? "",
       "data-row-index": at.index,
       ...(gid ? { "data-row-group": gid } : {}),
@@ -612,6 +696,14 @@ export default function LayersPanel() {
       )}
       <div
         className="layers-list"
+        ref={listRef}
+        tabIndex={-1}
+        onKeyDown={onListKeyDown}
+        // Taking focus is what makes the arrow keys work, but stealing it from
+        // a rename input would blur (and so commit) it on the first click.
+        onPointerDown={(e) => {
+          if (!(e.target as HTMLElement).closest("input")) e.currentTarget.focus();
+        }}
         onPointerLeave={() => setHighlight(null)}
       >
         {roots.length === 0 && <div className="layers-empty">No shapes yet</div>}
