@@ -41,7 +41,7 @@ export default function GeneratorsPanel() {
 
   return (
     <div className="layers">
-      <div className="panel-title layers-title">
+      <div className="section-title layers-title">
         Generators
         <button
           className="layer-icon-btn title-add"

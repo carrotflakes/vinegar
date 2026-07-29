@@ -11,6 +11,7 @@ import type { Shape, SymbolInstance } from "../../../model/types";
 import { useEditor } from "../../../store/editorStore";
 import Geometry from "./Geometry";
 import { RotationField } from "./StyleFields";
+import Section from "../Section";
 
 /**
  * Position, size and rotation for a single leaf node (shape or symbol
@@ -58,8 +59,7 @@ export default function TransformSection({
   };
 
   return (
-    <div className="panel-section">
-      <div className="panel-title">Transform</div>
+    <Section title="Transform">
       <Geometry node={node} />
       <RotationField
         label="Rotation"
@@ -68,6 +68,26 @@ export default function TransformSection({
         resetDisabled={node.transformOrigin === null}
         onReset={resetPivot}
       />
-    </div>
+    </Section>
+  );
+}
+
+/**
+ * Transform section for a multi-node selection: there is no single position or
+ * size to show, only the shared rotation centre the canvas is using.
+ */
+export function SelectionPivotSection() {
+  const setSelectionPivot = useEditor(
+    (state) => state.setSelectionPivot
+  );
+  return (
+    <Section title="Transform">
+      <button
+        className="ghost-btn"
+        onClick={() => setSelectionPivot(null)}
+      >
+        Reset rotation center
+      </button>
+    </Section>
   );
 }

@@ -1,16 +1,15 @@
 import { useBrush } from "../../../store/brushStore";
 import ScrubbableNumber from "@/ui/controls/ScrubbableNumber";
 import "../../Panel.css";
+import Section from "../Section";
 
 /** Tool options for the Brush tool. Shown while the brush tool is active. */
-export default function BrushPanel() {
+export default function BrushSection() {
   const { size, pressureGamma, minWidth, stabilizer, taper, setBrush } =
     useBrush();
 
   return (
-    <div className="panel-section">
-      <div className="panel-title">Brush</div>
-
+    <Section title="Brush">
       <div className="brush-options-grid">
         <label>
           <span>Size</span>
@@ -75,16 +74,15 @@ export default function BrushPanel() {
           />
         </label>
       </div>
-    </div>
+    </Section>
   );
 }
 
 /** Tool options for the Eraser tool. Shown while the eraser tool is active. */
-export function EraserPanel() {
+export function EraserSection() {
   const { eraserSize, setBrush } = useBrush();
   return (
-    <div className="panel-section">
-      <div className="panel-title">Eraser</div>
+    <Section title="Eraser">
       <div className="brush-options-grid">
         <label>
           <span>Size</span>
@@ -98,6 +96,6 @@ export function EraserPanel() {
           />
         </label>
       </div>
-    </div>
+    </Section>
   );
 }

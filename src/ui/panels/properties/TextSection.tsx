@@ -2,6 +2,7 @@ import type { TextShape } from "../../../model/types";
 import { useEditor } from "../../../store/editorStore";
 import { FONT_OPTIONS } from "../../../fonts";
 import ScrubbableNumber from "@/ui/controls/ScrubbableNumber";
+import Section from "../Section";
 
 const FONT_WEIGHTS = [100, 200, 300, 400, 500, 600, 700, 800, 900];
 
@@ -9,8 +10,7 @@ export default function TextSection({ shape }: { shape: TextShape }) {
   const update = useEditor((state) => state.updateTextShape);
 
   return (
-    <div className="panel-section">
-      <div className="panel-title">Text</div>
+    <Section title="Typography">
       <div className="field">
         <label>Font</label>
         <select
@@ -111,6 +111,6 @@ export default function TextSection({ shape }: { shape: TextShape }) {
           />
         </div>
       )}
-    </div>
+    </Section>
   );
 }

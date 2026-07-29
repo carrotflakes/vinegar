@@ -2,6 +2,7 @@ import type { FrameNode } from "../../../model/types";
 import { useEditor } from "../../../store/editorStore";
 import ColorInput from "@/ui/controls/ColorInput";
 import ScrubbableNumber from "@/ui/controls/ScrubbableNumber";
+import Section from "../Section";
 
 const FRAME_PRESETS: { label: string; w: number; h: number }[] = [
   { label: "Square", w: 1080, h: 1080 },
@@ -9,13 +10,12 @@ const FRAME_PRESETS: { label: string; w: number; h: number }[] = [
   { label: "A4", w: 794, h: 1123 },
 ];
 
-/** Properties for the selected frame node. `x`/`y` are its world top-left (the
- *  frame transform's translation; frames are top-level and axis-aligned). */
-export default function FramePanel({ frame }: { frame: FrameNode }) {
+/** Frame geometry and background. `x`/`y` are its world top-left (the frame
+ *  transform's translation; frames are top-level and axis-aligned). The name
+ *  lives in the selection header and deletion in the Arrange section, like
+ *  every other node. */
+export default function FrameSection({ frame }: { frame: FrameNode }) {
   const update = useEditor((state) => state.updateFrame);
-  const rename = useEditor((state) => state.renameNode);
-  const setSelection = useEditor((state) => state.setSelection);
-  const remove = useEditor((state) => state.deleteSelected);
   const transparent = frame.background === null;
   const pos = { x: frame.transform[4], y: frame.transform[5] };
 
@@ -36,20 +36,8 @@ export default function FramePanel({ frame }: { frame: FrameNode }) {
   };
 
   return (
-    <div className="panel">
-      <div className="panel-section">
-        <div className="panel-title">Frame</div>
-        <div className="field">
-          <label>Name</label>
-          <div className="field-row">
-            <input
-              type="text"
-              className="frame-name"
-              value={frame.name}
-              onChange={(event) => rename(frame.id, event.target.value)}
-            />
-          </div>
-        </div>
+    <>
+      <Section title="Size">
         <div className="geometry-grid">
           {field("x", "X")}
           {field("y", "Y")}
@@ -69,10 +57,9 @@ export default function FramePanel({ frame }: { frame: FrameNode }) {
             </button>
           ))}
         </div>
-      </div>
+      </Section>
 
-      <div className="panel-section">
-        <div className="panel-title">Background</div>
+      <Section title="Background">
         <div className="field">
           <div className="field-row">
             <ColorInput
@@ -104,21 +91,7 @@ export default function FramePanel({ frame }: { frame: FrameNode }) {
             Clip content
           </label>
         </div>
-      </div>
-
-      <div className="panel-section">
-        <div className="btn-row">
-          <button
-            className="ghost-btn danger"
-            onClick={() => {
-              setSelection([frame.id]);
-              remove();
-            }}
-          >
-            Delete frame
-          </button>
-        </div>
-      </div>
-    </div>
+      </Section>
+    </>
   );
 }

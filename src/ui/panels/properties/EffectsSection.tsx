@@ -8,6 +8,7 @@ import type {
 import { useEditor } from "../../../store/editorStore";
 import ColorInput from "@/ui/controls/ColorInput";
 import ScrubbableNumber from "@/ui/controls/ScrubbableNumber";
+import Section from "../Section";
 
 function effectLabel(type: Effect["type"]): string {
   if (type === "blur") return "Blur";
@@ -65,8 +66,7 @@ export default function EffectsSection({ node }: { node: SceneNode }) {
   );
 
   return (
-    <div className="panel-section">
-      <div className="panel-title">Effects</div>
+    <Section title="Effects">
       {effects.map((effect, index) => (
         <div className="effect-card" key={index}>
           <div className="field-row effect-head">
@@ -226,6 +226,6 @@ export default function EffectsSection({ node }: { node: SceneNode }) {
           <option value="color-overlay">Color Overlay</option>
         </select>
       </div>
-    </div>
+    </Section>
   );
 }

@@ -5,6 +5,7 @@ import { useEditor } from "@/store/editorStore";
 import { groupEditNodesByShape } from "@/store/state";
 import ScrubbableNumber from "@/ui/controls/ScrubbableNumber";
 import "../../Panel.css";
+import Section from "../Section";
 
 /**
  * Width of the brush anchors selected with the node tool, in document units.
@@ -32,9 +33,7 @@ export default function NodeWidthSection() {
   const shown = Number((average * base).toFixed(2));
 
   return (
-    <div className="panel-section">
-      <div className="panel-title">Node width</div>
-
+    <Section title="Node width">
       <div className="field">
         <label>Width</label>
         <div className="field-row">
@@ -69,7 +68,7 @@ export default function NodeWidthSection() {
           Thicker
         </button>
       </div>
-    </div>
+    </Section>
   );
 }
 

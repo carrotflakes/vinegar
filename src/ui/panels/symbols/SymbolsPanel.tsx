@@ -32,7 +32,7 @@ export default function SymbolsPanel() {
 
   return (
     <div className="symbols-panel">
-      <div className="panel-title layers-title">Symbols</div>
+      <div className="section-title layers-title">Symbols</div>
       <div className="symbols-list">
         {symbols.length === 0 ? (
           <div className="layers-empty">No symbols yet</div>

@@ -8,6 +8,7 @@ import type {
   ImageShape,
 } from "../../../model/types";
 import { useEditor } from "../../../store/editorStore";
+import Section from "../Section";
 
 export default function ImageSection({
   shape,
@@ -33,8 +34,7 @@ export default function ImageSection({
       : null;
 
   return (
-    <div className="panel-section">
-      <div className="panel-title">Image</div>
+    <Section title="Image size">
       <div className="field">
         <label className="checkbox-row">
           <input
@@ -80,6 +80,6 @@ export default function ImageSection({
           Reset aspect ratio
         </button>
       </div>
-    </div>
+    </Section>
   );
 }

@@ -331,8 +331,10 @@ additional effects, or other feature expansion.
 - [x] 二本指タップでUNDO — 三本指で REDO。docs/pen-and-touch.md
 - [ ] symbol編集モードUI
 - [ ] Propertiesパネルのリファイン
-  - [ ] Panel -> Section
-  - [ ] 並び順、構成の見直し
-  - [ ] タイトルの重複
+  - [x] Panel -> Section (Dockのパネルと混同してしまう) — `.section`/`.section-title`、
+    共通の `ui/panels/Section.tsx`、properties 配下は `*Section` 命名に統一
+  - [x] 並び順、構成の見直し — 選択ヘッダ → Transform → Appearance → 型固有 →
+    Effects → Arrange/Align/Path。Frame も同じ並びに乗せ、専用パネル分岐を廃止
+  - [x] タイトルの重複 — 選択物の種類と名前は `SelectionHeader` が1回だけ表示、
+    各セクションは自分の話題だけを名乗る
   - [ ] UIの統一感
-- [ ] キャンバス回転した時、Frame名も回転

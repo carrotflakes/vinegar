@@ -15,27 +15,7 @@ import {
   BlendModeField,
   OpacityField,
 } from "./StyleFields";
-
-function typeName(shape: Shape): string {
-  switch (shape.type) {
-    case "rect":
-      return "Rectangle";
-    case "ellipse":
-      return "Ellipse";
-    case "line":
-      return "Line";
-    case "path":
-      return "Path";
-    case "compoundPath":
-      return "Compound Path";
-    case "image":
-      return "Image";
-    case "text":
-      return "Text";
-    case "brush":
-      return "Brush";
-  }
-}
+import Section from "../Section";
 
 export default function AppearanceSection({
   selected,
@@ -119,15 +99,9 @@ export default function AppearanceSection({
   };
 
   return (
-    <div className="panel-section">
-      <div className="panel-title">
-        {hasSelection
-          ? selected.length === 1
-            ? typeName(first)
-            : `${selected.length} selected`
-          : "New shape defaults"}
-      </div>
-
+    <Section
+      title={hasSelection ? "Appearance" : "New shape defaults"}
+    >
       {!paintless && (
         <>
           <ColorField label="Fill" value={fill} onChange={setFill} />
@@ -170,6 +144,6 @@ export default function AppearanceSection({
           }
         />
       )}
-    </div>
+    </Section>
   );
 }

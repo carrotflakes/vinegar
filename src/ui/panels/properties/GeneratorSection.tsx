@@ -7,6 +7,7 @@ import {
 import type { PathShape } from "../../../model/types";
 import { useEditor } from "../../../store/editorStore";
 import ScrubbableNumber from "@/ui/controls/ScrubbableNumber";
+import Section from "../Section";
 
 /**
  * Parameter controls for a parametric node. Editing a value regenerates the
@@ -38,9 +39,7 @@ export default function GeneratorSection({ shape }: { shape: PathShape }) {
   if (!gen || !def) return null;
 
   return (
-    <div className="panel-section">
-      <div className="panel-title">{def.name}</div>
-
+    <Section title={def.name}>
       {def.status === "untrusted" ? (
         <>
           <div className="script-status err">{UNTRUSTED_ERROR}</div>
@@ -80,6 +79,6 @@ export default function GeneratorSection({ shape }: { shape: PathShape }) {
       <button className="ghost-btn" onClick={() => detachGenerator(shape.id)}>
         Detach (make editable)
       </button>
-    </div>
+    </Section>
   );
 }

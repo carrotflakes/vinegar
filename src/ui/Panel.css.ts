@@ -11,7 +11,7 @@ globalStyle(".panel", {
   flexDirection: "column",
 });
 
-globalStyle(".panel-section", {
+globalStyle(".section", {
   padding: "14px",
   borderBottom: `1px solid ${vars.border}`,
   display: "flex",
@@ -19,7 +19,14 @@ globalStyle(".panel-section", {
   gap: "12px",
 });
 
-globalStyle(".panel-title", {
+globalStyle(".section-head", {
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "space-between",
+  gap: "8px",
+});
+
+globalStyle(".section-title", {
   fontSize: "12px",
   fontWeight: "600",
   color: vars.muted,

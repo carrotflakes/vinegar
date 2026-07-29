@@ -181,7 +181,7 @@ tool switches.
 
 Tool options (persisted in `store/brushStore`, localStorage): base size (the
 stroke's own `strokeWidth`, not the shared style), pressure γ, min width %,
-stabilizer strength, taper length. UI: `BrushPanel` shown in the properties
+stabilizer strength, taper length. UI: `BrushSection` shown in the properties
 panel while the brush tool is active; a proper brush preset system is out of
 scope for v1.
 

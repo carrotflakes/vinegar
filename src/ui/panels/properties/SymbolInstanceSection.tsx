@@ -1,6 +1,7 @@
 import type { SymbolInstance } from "../../../model/types";
 import { useEditor } from "../../../store/editorStore";
 import { BlendModeField, OpacityField } from "./StyleFields";
+import Section from "../Section";
 
 export default function SymbolInstanceSection({
   instance,
@@ -16,8 +17,7 @@ export default function SymbolInstanceSection({
   const updateNodeStyle = useEditor((state) => state.updateNodeStyle);
 
   return (
-    <div className="panel-section">
-      <div className="panel-title">Symbol instance</div>
+    <Section title="Symbol">
       <div className="field">
         <label>Symbol</label>
         <div className="field-row">
@@ -54,6 +54,6 @@ export default function SymbolInstanceSection({
           Detach
         </button>
       </div>
-    </div>
+    </Section>
   );
 }

@@ -1,13 +1,13 @@
 import { useBucket } from "../../../store/bucketStore";
 import ScrubbableNumber from "@/ui/controls/ScrubbableNumber";
 import "../../Panel.css";
+import Section from "../Section";
 
 /** Tool options for the Bucket Fill tool. Shown while the tool is active. */
-export default function BucketPanel() {
+export default function BucketSection() {
   const { gapTolerance, strokeCenterline, setBucket } = useBucket();
   return (
-    <div className="panel-section">
-      <div className="panel-title">Bucket Fill</div>
+    <Section title="Bucket Fill">
       <div className="field">
         <label>Gap closing</label>
         <div className="field-row">
@@ -39,6 +39,6 @@ export default function BucketPanel() {
           Fill to stroke centers
         </label>
       </div>
-    </div>
+    </Section>
   );
 }

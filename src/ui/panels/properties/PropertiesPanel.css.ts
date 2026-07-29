@@ -13,8 +13,16 @@ globalStyle(".num", {
   fontSize: "12px",
 });
 
-globalStyle(".frame-name", {
-  flex: "1",
+/* Identity row at the top of the properties panel: what is selected, and its
+ * name. Tighter than a normal section — it is a caption, not a control group. */
+globalStyle(".selection-header", {
+  gap: "8px",
+  paddingBlock: "10px",
+});
+
+globalStyle(".selection-name", {
+  width: "100%",
+  boxSizing: "border-box",
   padding: "4px 6px",
   fontSize: "12px",
 });
@@ -95,7 +103,7 @@ globalStyle(".readout", {
 
 globalStyle(".effect-card", {
   // Filled recessed card instead of an outlined box: reads as a group without
-  // the heavy border, and the panel-section gap handles spacing between cards.
+  // the heavy border, and the section gap handles spacing between cards.
   background: vars.bg,
   borderRadius: "8px",
   padding: "8px 10px",

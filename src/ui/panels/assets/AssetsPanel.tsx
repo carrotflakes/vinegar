@@ -69,7 +69,7 @@ export default function AssetsPanel() {
       onDragLeave={onDragLeave}
       onDrop={onDrop}
     >
-      <div className="panel-title layers-title">
+      <div className="section-title layers-title">
         <span>Assets</span>
         <button
           className="assets-purge"

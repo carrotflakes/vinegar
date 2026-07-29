@@ -45,7 +45,7 @@ export default function SwatchesPanel() {
 
   return (
     <div className="symbols-panel">
-      <div className="panel-title layers-title">
+      <div className="section-title layers-title">
         <span>Global colors</span>
         <button
           className="layer-icon-btn title-add"

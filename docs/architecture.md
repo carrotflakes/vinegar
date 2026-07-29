@@ -57,6 +57,12 @@ tests/       node --test model/store/persistence tests via Vite SSR
 
 Imports into `src/` use the `@/` path alias (e.g. `@/model/path/boolean`); same-folder siblings stay relative.
 
+**Panel vs section.** A *panel* is a dock tab (`ui/dock/panels.tsx` registry, `.panel` body); a *section* is one
+titled block inside a panel body, rendered with `ui/panels/Section.tsx` (`.section` / `.section-title`) rather
+than hand-written divs. Components under `ui/panels/<panel>/` are named `*Section` unless they are the panel
+itself. In the properties panel every section titles only its own topic — the selection's kind and name are
+stated once by `SelectionHeader`, never repeated in section titles.
+
 ## Design notes
 
 Per-area notes live alongside this file in `docs/`:

@@ -603,7 +603,7 @@ export default function LayersPanel() {
 
   return (
     <div className={"layers" + (drag ? " dragging" : "")}>
-      <div className="panel-title layers-title">Layers</div>
+      <div className="section-title layers-title">Layers</div>
       {scopeName !== null && (
         <button className="layers-scope" onClick={exitSymbolEdit}>
           <LuChevronLeft aria-hidden />

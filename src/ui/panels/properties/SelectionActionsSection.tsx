@@ -32,6 +32,7 @@ import {
   runCommand,
 } from "../../../commands/registry";
 import { useEditor } from "../../../store/editorStore";
+import Section from "../Section";
 
 export default function SelectionActionsSection({
   doc,
@@ -104,12 +105,20 @@ export default function SelectionActionsSection({
     canMakeClippingMaskSelection(doc, selection);
   const canReleaseClippingMask =
     canReleaseClippingMaskSelection(doc, selection);
+  const hasPathOps =
+    canBoolean ||
+    canOutline ||
+    canConvertToPath ||
+    closable.length > 0 ||
+    can("path.simplify") ||
+    can("path.join") ||
+    can("path.combine") ||
+    can("path.splitSubpaths");
 
   return (
     <>
       {hasSelection && (
-        <div className="panel-section">
-          <div className="panel-title">Arrange</div>
+        <Section title="Arrange">
           <div className="btn-row">
             <button className="ghost-btn" onClick={bringToFront}>
               Bring to front
@@ -175,6 +184,134 @@ export default function SelectionActionsSection({
                 </button>
               )}
             </div>
+          )}
+          <div className="btn-row">
+            <button className="ghost-btn" onClick={duplicateSelected}>
+              Duplicate
+            </button>
+            <button
+              className="ghost-btn danger"
+              onClick={deleteSelected}
+            >
+              Delete
+            </button>
+          </div>
+        </Section>
+      )}
+
+      {alignableCount >= 2 && (
+        <Section title="Align">
+          <div className="btn-row">
+            <button
+              className="ghost-btn align-btn"
+              title="Align left"
+              onClick={() => alignSelected("left")}
+            >
+              <LuAlignStartVertical aria-hidden />
+            </button>
+            <button
+              className="ghost-btn align-btn"
+              title="Align horizontal centers"
+              onClick={() => alignSelected("hcenter")}
+            >
+              <LuAlignCenterVertical aria-hidden />
+            </button>
+            <button
+              className="ghost-btn align-btn"
+              title="Align right"
+              onClick={() => alignSelected("right")}
+            >
+              <LuAlignEndVertical aria-hidden />
+            </button>
+          </div>
+          <div className="btn-row">
+            <button
+              className="ghost-btn align-btn"
+              title="Align top"
+              onClick={() => alignSelected("top")}
+            >
+              <LuAlignStartHorizontal aria-hidden />
+            </button>
+            <button
+              className="ghost-btn align-btn"
+              title="Align vertical centers"
+              onClick={() => alignSelected("vmiddle")}
+            >
+              <LuAlignCenterHorizontal aria-hidden />
+            </button>
+            <button
+              className="ghost-btn align-btn"
+              title="Align bottom"
+              onClick={() => alignSelected("bottom")}
+            >
+              <LuAlignEndHorizontal aria-hidden />
+            </button>
+          </div>
+          <div className="btn-row">
+            <button
+              className="ghost-btn"
+              disabled={alignableCount < 3}
+              title="Distribute horizontally"
+              onClick={() => distributeSelected("h")}
+            >
+              <LuAlignHorizontalDistributeCenter aria-hidden />
+              <span>Dist H</span>
+            </button>
+            <button
+              className="ghost-btn"
+              disabled={alignableCount < 3}
+              title="Distribute vertically"
+              onClick={() => distributeSelected("v")}
+            >
+              <LuAlignVerticalDistributeCenter aria-hidden />
+              <span>Dist V</span>
+            </button>
+          </div>
+        </Section>
+      )}
+
+      {hasPathOps && (
+        <Section title="Path">
+          {canBoolean && (
+            <>
+              <div className="btn-row">
+                <button
+                  className="ghost-btn"
+                  onClick={() => runCommand("path.union")}
+                >
+                  Union
+                </button>
+                <button
+                  className="ghost-btn"
+                  onClick={() => runCommand("path.subtract")}
+                >
+                  Subtract
+                </button>
+              </div>
+              <div className="btn-row">
+                <button
+                  className="ghost-btn"
+                  onClick={() => runCommand("path.intersect")}
+                >
+                  Intersect
+                </button>
+                <button
+                  className="ghost-btn"
+                  onClick={() => runCommand("path.exclude")}
+                >
+                  Exclude
+                </button>
+              </div>
+              <div className="btn-row">
+                <button
+                  className="ghost-btn"
+                  title="Split overlapping shapes into separate faces"
+                  onClick={() => runCommand("path.divide")}
+                >
+                  Divide
+                </button>
+              </div>
+            </>
           )}
           {closable.length > 0 && (
             <div className="btn-row">
@@ -274,133 +411,7 @@ export default function SelectionActionsSection({
               </button>
             </div>
           )}
-          <div className="btn-row">
-            <button className="ghost-btn" onClick={duplicateSelected}>
-              Duplicate
-            </button>
-            <button
-              className="ghost-btn danger"
-              onClick={deleteSelected}
-            >
-              Delete
-            </button>
-          </div>
-        </div>
-      )}
-
-      {alignableCount >= 2 && (
-        <div className="panel-section">
-          <div className="panel-title">Align</div>
-          <div className="btn-row">
-            <button
-              className="ghost-btn align-btn"
-              title="Align left"
-              onClick={() => alignSelected("left")}
-            >
-              <LuAlignStartVertical aria-hidden />
-            </button>
-            <button
-              className="ghost-btn align-btn"
-              title="Align horizontal centers"
-              onClick={() => alignSelected("hcenter")}
-            >
-              <LuAlignCenterVertical aria-hidden />
-            </button>
-            <button
-              className="ghost-btn align-btn"
-              title="Align right"
-              onClick={() => alignSelected("right")}
-            >
-              <LuAlignEndVertical aria-hidden />
-            </button>
-          </div>
-          <div className="btn-row">
-            <button
-              className="ghost-btn align-btn"
-              title="Align top"
-              onClick={() => alignSelected("top")}
-            >
-              <LuAlignStartHorizontal aria-hidden />
-            </button>
-            <button
-              className="ghost-btn align-btn"
-              title="Align vertical centers"
-              onClick={() => alignSelected("vmiddle")}
-            >
-              <LuAlignCenterHorizontal aria-hidden />
-            </button>
-            <button
-              className="ghost-btn align-btn"
-              title="Align bottom"
-              onClick={() => alignSelected("bottom")}
-            >
-              <LuAlignEndHorizontal aria-hidden />
-            </button>
-          </div>
-          <div className="btn-row">
-            <button
-              className="ghost-btn"
-              disabled={alignableCount < 3}
-              title="Distribute horizontally"
-              onClick={() => distributeSelected("h")}
-            >
-              <LuAlignHorizontalDistributeCenter aria-hidden />
-              <span>Dist H</span>
-            </button>
-            <button
-              className="ghost-btn"
-              disabled={alignableCount < 3}
-              title="Distribute vertically"
-              onClick={() => distributeSelected("v")}
-            >
-              <LuAlignVerticalDistributeCenter aria-hidden />
-              <span>Dist V</span>
-            </button>
-          </div>
-        </div>
-      )}
-
-      {canBoolean && (
-        <div className="panel-section">
-          <div className="panel-title">Boolean</div>
-          <div className="btn-row">
-            <button
-              className="ghost-btn"
-              onClick={() => runCommand("path.union")}
-            >
-              Union
-            </button>
-            <button
-              className="ghost-btn"
-              onClick={() => runCommand("path.subtract")}
-            >
-              Subtract
-            </button>
-          </div>
-          <div className="btn-row">
-            <button
-              className="ghost-btn"
-              onClick={() => runCommand("path.intersect")}
-            >
-              Intersect
-            </button>
-            <button
-              className="ghost-btn"
-              onClick={() => runCommand("path.exclude")}
-            >
-              Exclude
-            </button>
-          </div>
-          <div className="btn-row">
-            <button
-              className="ghost-btn"
-              title="Split overlapping shapes into separate faces"
-              onClick={() => runCommand("path.divide")}
-            >
-              Divide
-            </button>
-          </div>
-        </div>
+        </Section>
       )}
     </>
   );

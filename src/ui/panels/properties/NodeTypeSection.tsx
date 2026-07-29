@@ -7,6 +7,7 @@ import SegmentedControl, {
   type SegmentedControlOption,
 } from "@/ui/controls/SegmentedControl";
 import "../../Panel.css";
+import Section from "../Section";
 
 // Linkage only: "Cusp" unlinks the handles but keeps them, unlike the node
 // tool's double-click, which strips them back to a handle-less corner.
@@ -40,8 +41,7 @@ export default function NodeTypeSection() {
   const active = types.every((type) => type === types[0]) ? types[0] : null;
 
   return (
-    <div className="panel-section">
-      <div className="panel-title">Node type</div>
+    <Section title="Node type">
       <SegmentedControl
         value={active}
         options={TYPES}
@@ -51,6 +51,6 @@ export default function NodeTypeSection() {
       <span className="readout">
         {active ?? "Mixed"} · {types.length === 1 ? "1 node" : `${types.length} nodes`}
       </span>
-    </div>
+    </Section>
   );
 }

@@ -9,43 +9,46 @@ import {
 } from "../../../model/scene";
 import type { SelectionLeaf } from "../../../canvas/frame";
 import { useEditor } from "../../../store/editorStore";
-import BrushPanel, { EraserPanel } from "./BrushPanel";
-import BucketPanel from "./BucketPanel";
-import FramePanel from "./FramePanel";
+import BrushSection, { EraserSection } from "./BrushSection";
+import BucketSection from "./BucketSection";
+import FrameSection from "./FrameSection";
 import AppearanceSection from "./AppearanceSection";
 import EffectsSection from "./EffectsSection";
 import GeneratorSection from "./GeneratorSection";
-import GroupSection from "./GroupSection";
+import GroupSection, { GroupTransformSection } from "./GroupSection";
 import SelectionActionsSection from "./SelectionActionsSection";
+import SelectionHeader from "./SelectionHeader";
 import ImageSection from "./ImageSection";
 import NodeTypeSection from "./NodeTypeSection";
 import NodeWidthSection from "./NodeWidthSection";
 import TextSection from "./TextSection";
 import SymbolInstanceSection from "./SymbolInstanceSection";
-import TransformSection from "./TransformSection";
+import TransformSection, {
+  SelectionPivotSection,
+} from "./TransformSection";
 import "../../Panel.css";
 import "./PropertiesPanel.css";
 
+/**
+ * Sections run identity → transform → appearance → node-specific → effects →
+ * actions, so a given property sits at the same depth whatever is selected.
+ * Each section titles its own topic only; *what* is selected is stated once,
+ * by the header.
+ */
 export default function PropertiesPanel() {
   const doc = useEditor((state) => state.doc);
   const tool = useEditor((state) => state.tool);
   const selection = useEditor((state) => state.selection);
   const selectionPivot = useEditor((state) => state.selectionPivot);
-  const setSelectionPivot = useEditor(
-    (state) => state.setSelectionPivot
-  );
-  // A lone selected frame gets the dedicated frame panel.
-  const soleNode =
-    selection.length === 1 ? doc.nodes[selection[0]] : undefined;
-  if (soleNode?.type === "frame") return <FramePanel frame={soleNode} />;
 
   const rootIds = selectionRoots(doc, selection);
   const selectedNode =
     rootIds.length === 1 ? doc.nodes[rootIds[0]] : undefined;
-  const selectedInstance =
-    isInstance(selectedNode)
-      ? selectedNode
-      : null;
+  const selectedFrame =
+    selectedNode?.type === "frame" ? selectedNode : null;
+  const selectedInstance = isInstance(selectedNode)
+    ? selectedNode
+    : null;
   const selected = rootIds
     .map((id) => doc.nodes[id])
     .filter(isShape);
@@ -67,11 +70,31 @@ export default function PropertiesPanel() {
     (rootIds.length === 1 && selected.length === 1 ? selected[0] : null);
   return (
     <div className="panel">
-      {tool === "brush" && <BrushPanel />}
-      {tool === "eraser" && <EraserPanel />}
-      {tool === "bucket" && <BucketPanel />}
+      {tool === "brush" && <BrushSection />}
+      {tool === "eraser" && <EraserSection />}
+      {tool === "bucket" && <BucketSection />}
       {tool === "node" && <NodeTypeSection />}
       {tool === "node" && <NodeWidthSection />}
+
+      <SelectionHeader doc={doc} rootIds={rootIds} />
+
+      {selectedFrame && <FrameSection frame={selectedFrame} />}
+
+      {transformLeaf && <TransformSection node={transformLeaf} />}
+
+      {selectedGroup && (
+        <GroupTransformSection
+          doc={doc}
+          group={selectedGroup}
+          selected={selectedGroupLeaves}
+        />
+      )}
+
+      {rootIds.length > 1 && selectionPivot && <SelectionPivotSection />}
+
+      {showAppearance && <AppearanceSection selected={selected} />}
+
+      {selectedGroup && <GroupSection group={selectedGroup} />}
 
       {selectedInstance && (
         <SymbolInstanceSection
@@ -81,10 +104,6 @@ export default function PropertiesPanel() {
             "Missing symbol"
           }
         />
-      )}
-
-      {showAppearance && (
-        <AppearanceSection selected={selected} />
       )}
 
       {selected.length === 1 && selected[0].type === "image" && (
@@ -104,29 +123,11 @@ export default function PropertiesPanel() {
           <GeneratorSection shape={selected[0]} />
         )}
 
-      {selectedGroup && (
-        <GroupSection
-          doc={doc}
-          group={selectedGroup}
-          selected={selectedGroupLeaves}
-        />
+      {/* Effects on a frame would have to composite the whole board; frames
+          stay out until that is designed. */}
+      {selectedNode && !selectedFrame && (
+        <EffectsSection node={selectedNode} />
       )}
-
-      {transformLeaf && <TransformSection node={transformLeaf} />}
-
-      {rootIds.length > 1 && selectionPivot && (
-        <div className="panel-section">
-          <div className="panel-title">Transform</div>
-          <button
-            className="ghost-btn"
-            onClick={() => setSelectionPivot(null)}
-          >
-            Reset rotation center
-          </button>
-        </div>
-      )}
-
-      {selectedNode && <EffectsSection node={selectedNode} />}
 
       <SelectionActionsSection
         doc={doc}

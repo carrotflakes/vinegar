@@ -195,7 +195,7 @@ globalStyle(".symbols", {
   borderTop: `1px solid ${vars.border}`,
 });
 
-globalStyle(".symbols .panel-title", {
+globalStyle(".symbols .section-title", {
   padding: "10px 14px 6px",
 });
 

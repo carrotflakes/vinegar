@@ -20,16 +20,23 @@ import {
   OpacityField,
   RotationField,
 } from "./StyleFields";
+import Section from "../Section";
 
-export default function GroupSection({
-  doc,
-  group,
-  selected,
-}: {
+interface GroupSectionProps {
   doc: Document;
   group: Group;
   selected: SelectionLeaf[];
-}) {
+}
+
+/**
+ * Rotation of a whole group, about the group's own pivot. Groups have no
+ * position/size fields of their own, so this is the group's Transform section.
+ */
+export function GroupTransformSection({
+  doc,
+  group,
+  selected,
+}: GroupSectionProps) {
   const updateNodeStyle = useEditor((state) => state.updateNodeStyle);
   const rotationDeg = Math.round(
     (matrixAngle(nodeWorldMatrix(doc, group.id)) * 180) / Math.PI
@@ -60,17 +67,9 @@ export default function GroupSection({
   };
 
   return (
-    <div className="panel-section">
-      <div className="panel-title">Group “{group.name}”</div>
-      <OpacityField
-        label="Group opacity"
-        value={group.opacity}
-        onChange={(value) =>
-          updateNodeStyle(group.id, { opacity: value })
-        }
-      />
+    <Section title="Transform">
       <RotationField
-        label="Group rotation"
+        label="Rotation"
         degrees={rotationDeg}
         onChange={setRotation}
         resetDisabled={group.transformOrigin === null}
@@ -78,13 +77,29 @@ export default function GroupSection({
           updateNodeStyle(group.id, { transformOrigin: null })
         }
       />
+    </Section>
+  );
+}
+
+/** Opacity and blending applied to the group as a composited whole. */
+export default function GroupSection({ group }: { group: Group }) {
+  const updateNodeStyle = useEditor((state) => state.updateNodeStyle);
+  return (
+    <Section title="Appearance">
+      <OpacityField
+        label="Opacity"
+        value={group.opacity}
+        onChange={(value) =>
+          updateNodeStyle(group.id, { opacity: value })
+        }
+      />
       <BlendModeField
-        label="Group blend mode"
+        label="Blend mode"
         value={group.blendMode}
         onChange={(value) =>
           updateNodeStyle(group.id, { blendMode: value })
         }
       />
-    </div>
+    </Section>
   );
 }
