@@ -1,208 +1,101 @@
 # Vinegar — TODO
 
-A running list of what's next. Check items off as they land; prune once done.
+A running list of what's next. Check items off as they land; prune once done —
+shipped work lives in git history and `docs/`, not here.
 
-## Priority: Illustrator / Figma parity
-
-Ordered by agreed priority. These are the biggest gaps toward a "real" vector editor.
-
-1. [x] **Artboards / frames**
-2. [x] **Raster image placement** — shipped (`image` node + `DocumentAsset` store,
-   file v12; decode cache in `canvas/imageCache.ts`). Follow-ups:
-   - [x] Paste an image from the system clipboard (⌘V routes through the native
-     `paste` event; images become image nodes, else in-memory vector paste)
-   - [x] Image-specific properties — Image panel section with "Reset to natural
-     size" + "Reset aspect ratio" buttons (read natural size from the decoded
-     asset) and a persistent "Lock aspect ratio" toggle (`ImageShape.lockAspect`,
-     optional so no file-version bump). The lock constrains both the numeric
-     W/H fields and interactive handle dragging (`constrainAspectRatio` in
-     `canvas/handles.ts`); holding Shift constrains any resize the same way.
-   - [x] Design fix (root cause of the above): **single-shape resize folds the
-     scale into geometry (w/h / points), not `transform`** (`selectTool` resize
-     `soloLeaf` branch). Provably identical visuals (`S' = S · localDelta`), but
-     `transform` stays rotation-only so the numeric size fields, aspect lock,
-     and reset buttons all read the true size — no special-case needed. Applies
-     to every leaf shape (rect / ellipse / image / paths), not just images.
-     - [ ] Known gap: resizing a shape *inside a multi-selection* still writes
-       scale to its `transform` (the shared frame isn't axis-aligned to a
-       rotated child; genuine shear can't fold into intrinsic w/h). Fold the
-       axis-aligned case on commit; leave sheared cases in the transform.
-   - [ ] Mirroring: dragging a resize handle across the opposite side
-     normalizes instead of flipping (same as rect)
-   - [ ] Script API: expose image nodes
-3. [x] **Masking / clipping mask** — clip a group's content by one shape. Decided
-   scope: **clip group** = a normal `Group` with `clip?: true` (no new node type,
-   so ungroup / layers / childIds machinery keep working; file version bump,
-   absent `clip` ⇒ normal group so migration is a no-op). The **frontmost child**
-   (last in `childIds`) is the mask; the rest are the clipped content. The mask
-   defines a **vector clip** — its filled silhouette only (fill/stroke/opacity
-   ignored), via `ctx.clip()` in `canvas/render.ts` and SVG `<clipPath>`
-   (`clip-rule` = the mask's fill rule; aliased edges are the accepted Canvas
-   limitation). Mask geometry must be areal (same test as fillable — lines /
-   open paths rejected). Hit-test & bounds use the **mask-clipped** region: a
-   point hits only inside the mask silhouette, and the clip group's world bounds
-   are the mask's bounds (matches Illustrator; drives handles + export bounds).
-   Create/Release act on a multi-selection (topmost = mask), reusing the
-   compound-path style structure ops; double-click descends to edit mask/content
-   like any group. Nested clip groups fall out for free (recursive group render).
-   - [ ] Deferred: alpha / luminance masks (soft, gradient & image masks),
-     multi-object masks, mask a raw shape without a wrapping group,
-     anti-aliased clip via offscreen `destination-in`
-4. [x] **Effects (drop shadow / blur)** — shipped. Illustrator-style non-destructive
-   appearance effects as an **ordered stack** (`BaseNode.effects?: Effect[]`, file
-   v16; absent ⇒ no effects, additive migration) on any node (shape / group /
-   instance). v1 set: **Drop Shadow** (color / opacity / blur / offset) and
-   **Gaussian Blur** (radius). Lengths are in node-local units (like stroke
-   width), so they scale with the transform chain and zoom. Composite order =
-   content → effects → opacity/blend: an effected node renders to an offscreen
-   layer (reusing the opacity/blend layer path in `canvas/render.ts`), each
-   effect is a filtered `drawImage` step (`ctx.filter` blur / `ctx.shadow*`),
-   then the result draws with the node's opacity+blend. SVG export emits a
-   `<filter>` (`feGaussianBlur` / `feDropShadow`, `shadowBlur ≈ 2×stdDeviation`
-   conversion) per effected node; PNG reuses the canvas. Export bounds inflate
-   by an effect margin (leaf + ancestor effects) so shadows/blur aren't cropped;
-   selection handles stay on geometry (Illustrator default). UI: an Effects
-   section in the properties panel (add / reorder / remove, per-effect fields).
-   - [ ] Deferred: inner/outer glow, feather (needs offscreen `destination-in`),
-     per-fill/stroke effects (finer appearance granularity), effects on
-     artboards/layers, rotating drop-shadow offset with the object,
-     group-effect export bounds beyond the per-leaf approximation.
-5. [x] **Text tool** — a `text` leaf shape (file v14). Shipped scope:
-   point text (click; auto-size) + area text (drag; fixed `width`, auto height,
-   greedy wrap incl. per-character CJK breaks in `canvas/textLayout.ts`); one
-   style per node (family / size / weight / italic / lineHeight / align);
-   measured bbox stored on the node so bounds/hit-test stay pure and files open
-   without the font; overlay `textarea` editing in place (world×viewport matrix
-   as a CSS transform — rotated editing expected to work, horizontal fallback
-   if not); fonts from a web-safe list in `ui/fonts.ts` (name → CSS stack;
-   re-measure on `document.fonts` load so Google Fonts can slot in later);
-   SVG `<text>`/`<tspan>` per laid-out line, PNG awaits `document.fonts.ready`.
-   - [ ] Deferred: rich text (style runs), text on path, vertical text,
-     letter-spacing, outline-on-export, fixed-height clipping boxes,
-     Google Fonts loading
-6. [x] **Stroke detail options**
-7. [x] **Bucket fill** — shipped (`G`; see docs/bucket-fill.md). Click an
-   enclosed empty region to fill it with the current fill color. Vector
-   region detection (`model/bucketFill.ts`): all visible ink is unioned with
-   Clipper after inflating by half the gap tolerance, the click picks the
-   union *hole* containing it, and the hole is re-expanded so the fill tucks
-   0.5 units under the ink. The result is a plain `path` node inserted at
-   the *back* of the active drawing container (`addFillShape`), so line art
-   keeps painting over it. Options (persisted `bucketStore` + Bucket panel):
-   gap-closing tolerance and "Fill to stroke centers" (bound the fill at
-   stroke/brush centerlines so adjacent fills meet under the line). No new
-   file version.
-   Clicking a fill-painted shape (or image) treats it as a **cover**: its
-   outline bounds the region instead of blocking it (`cover − inflated ink`,
-   clipped back to the cover), and the fill is inserted directly above it —
-   the paint-a-background, draw-lines, fill-between workflow. Only ink
-   painted *above* the cover bounds the fill (ink hidden beneath it is
-   ignored). Strokes / brushes / text stay hard ink; covers are disabled
-   inside clip groups and instances.
-   - [ ] Follow-ups: hover preview of the region (needs an obstacle-union
-     cache keyed on the document revision), curve re-fitting of the polygon
-     boundary, artboard edges as region bounds, recolor of strokes/brushes on
-     click, glyph outlines instead of text line boxes as ink.
-
-## Next (candidates)
+## Next (release gates)
 The 1.0 productization order is: interoperability (SVG import + system
 clipboard) → document save workflow → faithful/configurable export → quality
 and performance work. Treat these as release gates ahead of animation, MCP,
 additional effects, or other feature expansion.
 
-- [ ] Alignment guides during resize and rotate (currently move only)
-- [x] **Rulers and draggable guides** — shipped (file v28; see
-  docs/rulers-and-guides.md). Canvas-drawn rulers (top/left, document units,
-  origin = the active frame — new `activeFrameId` state, Illustrator's
-  active-artboard rule: selection/creation move it, panning never does, and a
-  `canvas.rulerOrigin` preference switches between artboard and document origin
-  with `view.resetRulerOrigin` to unpark it), `doc.guides` world-space
-  horizontal/vertical guides dragged out of a ruler, moved with the select
-  tools, deleted by Delete or a drop back on a ruler, undoable, and snapped to
-  through the existing `computeSnap`/`snapPoint`. Show rulers / show guides /
-  lock guides / snap to guides / clear live in the Snap status-bar menu and the
-  command registry (`view.toggleRulers`, `guides.*`).
-  - [ ] Follow-ups: numeric entry (double-click a guide), per-artboard guides,
-    a user-draggable ruler origin, activating a frame by clicking its empty
-    background, diagonal guides, "make guides from selection", guides inside
-    symbol definitions, ticks under an arbitrary canvas rotation (currently
-    only multiples of 90°)
-- [x] **Document identity and save workflow** — shipped (file v29). The document
-  name lives on `doc.metadata.name` (required, so the version bump), is edited in
-  the middle of the app bar (`ui/DocumentTitle.tsx`), and drives the tab title,
-  the suggested save filename and every export filename. Renaming goes through
-  `setDocumentName`, a maintenance-level change like the grid size — it travels
-  with the file but is not undoable. `io/fileSystem.ts` wraps the File System
-  Access API and `io/saveDocument.ts` picks the path: where it exists (Chromium),
-  Open / Save As / a document drop attach a handle (`store/documentFileStore.ts`,
-  session state, never serialized) and ⌘S overwrites that file; everywhere else
-  Save and Save As both fall back to a download named after the document. Save As
-  adopts the name typed into the picker so the two never drift.
-  - [ ] Follow-ups: recent files (persist handles in IndexedDB), reattach the
-    handle across a reload, and a "Save a copy" that does not re-point the
-    attached file
 - [ ] **Document settings UI** — edit unit and DPI as well as grid size; show the
   selected unit consistently in coordinates, dimensions and export settings
 - [ ] **Layer search / filtering** — find nodes by name/type and quickly reveal the
   selected result in deeply nested documents
+- [ ] Alignment guides during resize and rotate (currently move only)
+- [ ] Save workflow follow-ups — recent files (persist handles in IndexedDB),
+  reattach the handle across a reload, and a "Save a copy" that does not
+  re-point the attached file
+- [ ] Rulers/guides follow-ups (docs/rulers-and-guides.md) — numeric entry
+  (double-click a guide), per-artboard guides, a user-draggable ruler origin,
+  activating a frame by clicking its empty background, diagonal guides, "make
+  guides from selection", guides inside symbol definitions, ticks under an
+  arbitrary canvas rotation (currently only multiples of 90°)
 
 ## Mobile / touch
 - [ ] On-screen alternatives for the remaining keyboard-only actions (delete, copy/paste, group, pen finish/cancel)
+- [ ] タッチ操作、ちょっと選択するだけで移動となってしまう問題
 
 ## Backlog / ideas
-- [x] Pattern/texture paint (raster fill) — shipped (`PatternPaint` in the fill/
-  stroke `Paint` union, file v13). A pattern maps a `doc.assets` image into the
-  shape's **local** space via `ctx.createPattern` + `pattern.setTransform`; a
-  `mode` (tile/fill/fit/stretch) picks tiling vs single-image cover/contain/
-  stretch. A decoding/missing asset paints nothing that frame (the cache
-  repaints on load). Both fill and stroke.
-  Asset lifetime uses `referencedAssetIds` (image nodes + pattern paints) so
-  save-time orphan pruning and export pre-decode both retain texture assets.
-  - [x] **SVG export** — `<pattern>` + embedded `<image>`; tile uses a shared
-    natural-size image with `patternTransform`, the fit modes emit a
-    bounds-sized pattern that clips overflow.
-  - [x] **Fill modes** (`PatternPaint.mode`, optional so no file-version bump):
-    `fill` (cover, crop), `fit` (contain), `stretch` (non-uniform), plus the
-    original `tile`. Shared `patternPlacement()` keeps canvas + SVG in sync;
-    non-tile modes render one `no-repeat` image mapped to the shape bounds.
-    ColorField gained a mode selector, per-mode Scale/Zoom + tile-only Rotate,
-    and ScrubbableNumber X/Y offset (tile origin / fill pan).
-  - [ ] Remaining follow-ups:
-    - [ ] Rotation for `fill`/`fit` (currently tile-only; cover recompute under
-      rotation is skipped)
-    - [ ] `scale` means "×natural" for tile but "×cover/contain baseline" for
-      fill/fit — switching modes keeps the number, changing the visual basis.
-      Consider resetting scale to 1 on mode change.
-    - [ ] Verify canvas ↔ SVG-export parity for the fit modes in a browser
-      (pattern-tile clipping is implementation-sensitive)
-    - [ ] **SVG import** of `<pattern>` (export is one-way today)
-    - [ ] Interactive on-canvas placement (drag to pan the crop / tile origin)
-    - [ ] Script API for pattern paints
-    - [ ] New patterns default to `tile`; consider defaulting to `fill` to match
-      Figma-style image fills
+
+### Feature follow-ups on shipped work
+- [ ] Clipping masks — alpha / luminance masks (soft, gradient & image masks),
+  multi-object masks, mask a raw shape without a wrapping group, anti-aliased
+  clip via offscreen `destination-in`
+- [ ] Effects — inner/outer glow, feather (needs offscreen `destination-in`),
+  per-fill/stroke effects, effects on artboards/layers, rotating drop-shadow
+  offset with the object, group-effect export bounds beyond the per-leaf
+  approximation
+- [ ] Text — rich text (style runs), text on path, vertical text, letter-spacing,
+  outline-on-export, fixed-height clipping boxes, Google Fonts loading
+- [ ] Bucket fill (docs/bucket-fill.md) — hover preview of the region (needs an
+  obstacle-union cache keyed on the document revision), curve re-fitting of the
+  polygon boundary, artboard edges as region bounds, recolor of strokes/brushes
+  on click, glyph outlines instead of text line boxes as ink
+- [ ] Pattern paint — rotation for `fill`/`fit` (tile-only today); `scale` means
+  "×natural" for tile but "×cover/contain baseline" for fill/fit, so switching
+  modes changes the visual basis (consider resetting scale to 1 on mode change);
+  verify canvas ↔ SVG-export parity for the fit modes in a browser; SVG **import**
+  of `<pattern>`; interactive on-canvas placement (drag to pan the crop / tile
+  origin); Script API for pattern paints; new patterns default to `tile` —
+  consider `fill` to match Figma-style image fills
+- [ ] System clipboard — embed the native vinegar payload in the SVG metadata so
+  cross-tab paste keeps symbol/generator links and effects (same root as the
+  generator/symbol clipboard gaps)
+
+### New ideas
 - [ ] Swatches saved in the document (currently localStorage, color-only)
-- [x] System clipboard integration (paste across tabs/apps) — copy/cut mirror
-  the selection to the system clipboard as SVG (`io/systemClipboard.ts`,
-  `image/svg+xml` + `text/plain`); the native `paste` event imports foreign SVG
-  as vector geometry, while a per-copy nonce routes a same-tab paste back
-  through the in-memory clipboard for full fidelity. Best-effort write (degrades
-  to in-memory only where the Clipboard API is unavailable/denied).
-  - [ ] Follow-up: embed the native vinegar payload in the SVG metadata so
-    cross-tab paste keeps symbol/generator links and effects (same root as the
-    generator/symbol clipboard gaps)
 - [ ] Distribution: match an existing gap (not just centering)
 - [ ] Configurable pencil smoothing strength
 - [ ] Status bar: color swatch under the cursor (eyedropper-style; watch getImageData cost)
 
 ## Known issues / polish
+- [ ] Resizing a shape *inside a multi-selection* still writes scale to its
+  `transform` (single-shape resize folds it into geometry instead). The shared
+  frame isn't axis-aligned to a rotated child and genuine shear can't fold into
+  intrinsic w/h — fold the axis-aligned case on commit, leave sheared cases in
+  the transform
+- [ ] Decide whether dragging a resize handle across its opposite side should
+  flip (negative scale) instead of normalizing — currently normalizes for every
+  shape type, images included
 - [ ] Transform manual smoke test: nested rotated group → move → resize → rotate → undo/redo → SVG/PNG export
 - [ ] Verify nested group transforms combined with group opacity/blend-mode compositing across browsers
 - [ ] Skew-aware resize cursors (selection geometry is correct; CSS cursor currently follows rotation only)
-- [ ] Decide whether dragging a resize handle across its opposite side should create a flipped/negative-scale transform
 - [ ] Make Outline Stroke exactly match Canvas strokes under non-uniform scale/skew
 - [ ] Boolean operations across different parent groups (currently limited to shapes sharing one immediate parent)
-- [ ] Script API: create and restructure groups (currently exposes a flat leaf-shape snapshot)
+- [ ] Script API: create and restructure groups (currently exposes a flat leaf-shape snapshot); expose image nodes and symbol instances
 - [ ] Update scripting examples/docs for matrix-based `shape.transform`; direct `shape.rotation` no longer exists
+
+### Layers パネル
+- [ ] キー操作でアイテム移動
+- [ ] 折りたたみ状態が消える — `collapsed` は LayersPanel の useState で、ドックは
+  アクティブなタブしか render しない（Dock.tsx）ため、タブを往復すると全部開き直しに
+  なる。仮想化で数千行を扱う前提になったぶん実害が大きい。collapsed（と cursor /
+  スクロール位置）を store か sessionStorage に持たせる
+- [ ] 配線を守るテストが無い — `tree.ts` の純粋部分と `moveNodes` はカバー済みだが、
+  仮想化・reveal・ドラッグは React を描画しないと検証できず、jsdom もブラウザテストも
+  無い。壊れやすいのは「全行が同じ高さ」と「スクロール親の解決」で、`.layer-row` の
+  padding 変更やドックのレイアウト変更が静かに仮想化を壊せる（前提は
+  docs/render-performance.md に明記済み）。ブラウザテストの導入是非から判断
+- [ ] キーボード到達性 — リストは `tabIndex={-1}` でフォーカスリングも消してあるので、
+  一度クリックするまで矢印キーが使えない。行に `role="treeitem"` / `aria-selected` も
+  無い。矢印キーを入れた分ここが中途半端
+
+### Properties パネルのリファイン
+- [ ] UIの統一感
+- [ ] ツールオプションが Properties の先頭にあるのは変
+- [ ] frame + 何かの選択で他の操作
 
 ## Quality / scale / accessibility
 - [ ] **Browser E2E coverage** — automate the critical editing journeys with a
@@ -213,21 +106,16 @@ additional effects, or other feature expansion.
   golden outputs and compare them for rendering parity. Run the suite in at
   least Chromium, Firefox and WebKit for blend modes, filters, fonts and nested
   group compositing.
-- [ ] **Define performance budgets and representative stress documents** —
-  measure interaction FPS, redraw time, hit-testing, save/load, export time and
-  memory at 1k / 10k nodes plus image/effect-heavy scenes.
-  - [x] Add deterministic 1k / 10k Canvas render scenes and reproducible
-    culling/cache A/B measurement (`createRenderStressDocument`, documented in
-    `docs/render-performance.md`).
+- [ ] **Performance budgets** — the harness today covers redraw only
+  (`createRenderStressDocument`, docs/render-performance.md).
   - [ ] Set budgets and add workloads for interaction, picking/snapping,
-    save/load, export and memory; the current harness covers redraw only.
+    save/load, export and memory
   - [ ] Replace full-document undo/interaction clones with patches or structural
-    sharing once profiling confirms the memory/latency cost.
-  - [ ] Add spatial indexing and viewport culling for picking, snapping and
-    rendering instead of scanning every paintable leaf. (Hierarchical render
-    culling is implemented; picking/snapping and a true spatial index remain.)
+    sharing once profiling confirms the memory/latency cost
+  - [ ] Add spatial indexing and viewport culling for picking and snapping
+    (hierarchical render culling is implemented; a true spatial index remains)
   - [ ] Reuse or bound offscreen effect/compositing layers instead of allocating
-    full-canvas buffers for every affected node/group.
+    full-canvas buffers for every affected node/group
 - [ ] **Accessibility pass** — provide accessible names for icon-only controls,
   focus management for every modal/menu/popover, arrow-key menu navigation,
   keyboard alternatives for layer reordering, and a usable non-canvas scene
@@ -246,61 +134,26 @@ additional effects, or other feature expansion.
   - [ ] エディタの行番号・簡易ハイライト・エラー行表示
   - [ ] サンプル/スニペット集
   - [ ] パラメトリック生成（パラメータ変更で再生成）
-- [ ] ペン入力 傾き対応（線幅・不透明度）
-- [ ] アニメーション機能　パラメトリックに動かす
-- [ ] コンテキストメニューの拡充
-  - [ ] 項目の拡充（Align / Boolean / パス操作などコンテキスト依存の項目）
-  - [ ] タッチ長押しで表示（モバイル）
-  - [ ] キーボードナビゲーション（↑↓Enter）
-- [ ] シンボル（再利用可能部品）の拡充
-  - [ ] In-place symbol editing (dimmed scene context via an instance's world transform)
-  - [ ] Snapping targets inside/against instances; exact marquee for rotated instances
-  - [ ] Script API: expose instances (currently scene shapes only)
-  - [ ] Export bounds: include stroke extents of instance content
-- [ ] MCPサーバー化
-- [ ] テキストのパス化
-- [ ] 保存形式の検討 zip化?
-- [ ] タッチ操作、ちょっと選択するだけで移動となってしまう問題
-- [ ] パフォーマンス改善
-- [x] 単純図形生成　多角形、星など — パラメトリック生成器として実装（組み込み
-  `star` ＋ ユーザスクリプト `doc.scripts`、file v20、Workerサンドボックス＋同意
-  ゲート、Generators ダイアログ＆ドックパネル）。フォローアップ:
+- [ ] 生成器（generator）の拡充
   - [ ] パラメータ型の拡張（bool=チェックボックス、enum=セレクト。今は number のみ）
   - [ ] プロパティの GeneratorSection に「Edit source」ボタン（インスタンス→ソースへ
     ジャンプ、`openGenerators(scriptId)`）
-  - [x] パネルからキャンバスへドラッグ配置（Symbols の `DRAG_SYMBOL` 相当。今は
-    Insert ボタン＝中央のみ）
   - [ ] クリップボードが生成器スクリプトを持ち運ばない → 別ドキュメントへ貼ると
     `generator.scriptId` が宙に浮く（形状は出るがパラメータ編集不可）。payload に
     参照 `ScriptDef` を同梱してマージするか、貼り先に無ければ generator リンクを外す
-- [ ] 左右反転のUIリファイン
-- [ ] generator、コードを変更したときに、それを使っているインスタンスのパラメータを保持したまま再生成する方法
-- [ ] ソロ編集
-- [x] パスの単純化 — one-shot Simplify / Smooth / Flatten / Reverse
-  (`model/pathOps.ts`, paper.js per-subpath, preserves open/closed + transform +
-  style, drops the generator link). Path ops + boolean + outline stroke are now
-  registry commands (`path.*`, `structure.outlineStroke`) so they appear in the
-  context menu + command palette, not just panel buttons.
+  - [ ] コードを変更したときに、それを使っているインスタンスのパラメータを保持した
+    まま再生成する方法
+  - [ ] ツールバーから generator の図形挿入
+  - [ ] generator の編集ロック pref へ
+- [ ] パス操作
   - [ ] **Path modifier stack (Blender-like, non-destructive)** — the agreed
-    direction for tolerance: path ops become re-editable modifiers extending the
-    generator concept. Plan in `docs/path-modifiers.md` (model like `effects`,
-    `subpaths` = base, cached `resolvedSubpaths()` feeds render/hit-test/bounds/
-    export). Phase 1 = vertical slice (Simplify + live tolerance). The one-shot
-    ops above become "Apply/bake".
+    direction: path ops become re-editable modifiers extending the generator
+    concept. Plan in `docs/path-modifiers.md` (model like `effects`, `subpaths`
+    = base, cached `resolvedSubpaths()` feeds render/hit-test/bounds/export).
+    Phase 1 = vertical slice (Simplify + live tolerance); the shipped one-shot
+    ops become "Apply/bake".
+  - [ ] パスのオフセット (candidate first modifier once the stack lands)
   - [ ] Join (connect open paths), Average — see the path-ops proposal
-- [ ] パスのオフセット (candidate first modifier once the stack lands)
-- [ ] ColorField のリファクタリング（特にコンポーネントわけ）
-- [ ] generatorの編集ロック prefへ
-- [ ] ドックのフローティング、マルチカラム化
-- [ ] Assetという名前は問題ないか。raster imageではないか。
-- [x] subpath分割コマンド / 統合コマンド — `path.splitSubpaths` +
-  `path.combine`（`model/path/splitSubpaths.ts`, `model/path/combinePaths.ts`）。
-  **設計と共通規約は `docs/path-commands.md` に文書化**（スタイルは最背面メンバー、
-  effects は落とす、ベイクするか座標空間を保つかの判断、clip mask ルール、
-  compound の子の制約）。統合の存在理由は「開いた輪郭に器がないこと」で、穴を
-  作るための機能ではない。分割はピースを group に包んで合成状態を保つ。両者は
-  互いの正確な逆操作。キー割り当てはどちらもなし（Ctrl+Shift+K は Firefox の
-  Web Console）
   - [ ] `path.join` に線幅バグがある（ベイクして identity + 基準の `strokeWidth` を
     そのままコピーするので、スケールを持つパスを join すると線幅が変わる）。既存の
     出荷済みコマンドの挙動変更になるので未着手。`docs/path-commands.md` 参照
@@ -314,49 +167,22 @@ additional effects, or other feature expansion.
   - [ ] `path.outlineStroke` / `path.divide` は結果を group に包むため、マスクに対して
     実行すると `hasValidSceneContainers` で落ちて**無言で何も起きない**（破壊はしない）。
     同じ `maskMultiNodeError` を出して理由を伝えるべき
-- [ ] Layersパネル、キー操作でアイテム移動
-- [ ] Layersパネルの折りたたみ状態が消える — `collapsed` は LayersPanel の useState で、
-  ドックはアクティブなタブしか render しない（Dock.tsx）ため、タブを往復すると全部
-  開き直しになる。仮想化で数千行を扱う前提になったぶん実害が大きい。collapsed（と
-  cursor / スクロール位置）を store か sessionStorage に持たせる
-- [ ] Layersパネルの配線を守るテストが無い — `tree.ts` の純粋部分と `moveNodes` は
-  カバー済みだが、仮想化・reveal・ドラッグは React を描画しないと検証できず、jsdom も
-  ブラウザテストも無い。壊れやすいのは「全行が同じ高さ」と「スクロール親の解決」で、
-  `.layer-row` の padding 変更やドックのレイアウト変更が静かに仮想化を壊せる
-  （前提は docs/render-performance.md に明記済み）。ブラウザテストの導入是非から判断
-- [ ] Layersパネルのキーボード到達性 — リストは `tabIndex={-1}` でフォーカスリングも
-  消してあるので、一度クリックするまで矢印キーが使えない。行に `role="treeitem"` /
-  `aria-selected` も無い。矢印キーを入れた分ここが中途半端
-- [x] ペン使用時のタッチ入力抑制 — ペン接地中と離してから 300ms は touch を拒否。
-  指で描くかは設定 (`canvas.fingerDrawing`)、初回のペン接触で自動 off。
-  docs/pen-and-touch.md
-- [x] Layersパネル仮想化 — 行を平坦化して可視範囲だけ描画（100行超から）。行高は実測、
-  スクロール親は dock-body まで遡って解決。ドロップ線は行インデックス配置。
-  docs/render-performance.md
-- [x] fillruleを変える手段 — Appearance セクションの線設定の後ろに Nonzero / Even-odd の
-  セグメントを追加。効くのは複数サブパスを持つパスだけなので、選択がその条件を満たす
-  ときだけ表示。ストア側は `setSelectedFillRule`（path ノードのみ、混在は無選択表示）
-- [ ] brush <-> path 相互変換
-- [ ] ツールバーからgeneratorの図形挿入
-- [x] Layersパネル、項目ホバーでキャンバスにハイライト — 葉は実形状の輪郭、
-  コンテナは外形ボックス。暗いハロー＋アクセント色の2重線で背景に負けないようにし、
-  ホバー開始時だけ 260ms のパルス（太さ＋内部の薄い塗り）で目を引く。常時
-  アニメーションはシーン全体の再描画が毎フレーム走るので避けた。ビューポート外の
-  ノードは画面端に方向を示す矢印。`canvas/highlight.ts`
-- [x] 二本指タップでUNDO — 三本指で REDO。docs/pen-and-touch.md
-- [ ] symbol編集モードUI
-- [ ] Propertiesパネルのリファイン
-  - [x] Panel -> Section (Dockのパネルと混同してしまう) — `.section`/`.section-title`、
-    共通の `ui/panels/Section.tsx`、properties 配下は `*Section` 命名に統一
-  - [x] 並び順、構成の見直し — 選択ヘッダ → Transform → Appearance → 型固有 →
-    Effects → Arrange/Align/Path。Frame も同じ並びに乗せ、専用パネル分岐を廃止
-  - [x] タイトルの重複 — 選択物の種類と名前は `SelectionHeader` が1回だけ表示、
-    各セクションは自分の話題だけを名乗る
-  - [ ] UIの統一感
-  - [ ] ツールオプションが Properties の先頭にあるのは変
-  - [ ] frame + 何かの選択で他の操作
-- [x] コンテナ内の要素を全選択 — `Enter` = Select contents（選択コンテナの直接の子、
-  ロック/非表示は除く）、`Shift+Enter` = Select parent。commands/registry.ts
-- [x] Layersパネル、要素の連続選択 — Shift+クリックで範囲、Ctrl/Cmd+クリックで単体
-  トグル、↑↓ で行移動（Shift で範囲伸縮）、←→ で開閉。選択行の scroll-into-view と
-  選択全体のドラッグ移動（`moveNodes`、1 undo ステップ）も。ui/panels/layers/tree.ts
+  - [ ] brush <-> path 相互変換
+  - [ ] テキストのパス化
+- [ ] シンボル（再利用可能部品）の拡充
+  - [ ] In-place symbol editing (dimmed scene context via an instance's world transform)
+  - [ ] Snapping targets inside/against instances; exact marquee for rotated instances
+  - [ ] Export bounds: include stroke extents of instance content
+- [ ] コンテキストメニューの拡充
+  - [ ] 項目の拡充（Align / Boolean / パス操作などコンテキスト依存の項目）
+  - [ ] タッチ長押しで表示（モバイル）
+  - [ ] キーボードナビゲーション（↑↓Enter）
+- [ ] ペン入力 傾き対応（線幅・不透明度）
+- [ ] アニメーション機能　パラメトリックに動かす
+- [ ] MCPサーバー化
+- [ ] 保存形式の検討 zip化?
+- [ ] 左右反転のUIリファイン
+- [ ] ソロ編集
+- [ ] ColorField のリファクタリング（特にコンポーネントわけ）
+- [ ] ドックのフローティング、マルチカラム化
+- [ ] Assetという名前は問題ないか。raster imageではないか。
