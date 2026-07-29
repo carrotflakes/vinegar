@@ -151,6 +151,12 @@ globalStyle(".layer-count", {
 // list computes from that index.
 globalStyle(".layers-rows", {
   position: "relative",
+  // The list windows itself: rows enter and leave the DOM as it scrolls, and a
+  // collapse or a hide rewrites the rows above the viewport. Browser scroll
+  // anchoring would answer each of those by nudging scrollTop, which both
+  // fights the windowing (its own re-measure then picks another slice) and
+  // makes a fold jump the view. The panel decides its own scrolling.
+  overflowAnchor: "none",
 });
 
 globalStyle(".drop-line", {

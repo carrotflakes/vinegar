@@ -117,6 +117,22 @@ function releaseGroups(
   return { doc, selected, effectsRemoved };
 }
 
+/**
+ * Drop a node and its descendants from the selection, leaving the selection
+ * untouched — same array, no transient reset — when none of them were selected.
+ */
+function deselectSubtree(
+  get: StoreCtx["get"],
+  set: StoreCtx["set"],
+  doc: Document,
+  id: string
+): void {
+  const affected = new Set([id, ...descendantNodeIds(doc, id)]);
+  const selection = get().selection;
+  if (!selection.some((x) => affected.has(x))) return;
+  set({ selection: selection.filter((x) => !affected.has(x)), ...clearTransient });
+}
+
 export function createStructureActions({ set, get, transact }: StoreCtx): StructureActions {
   return {
     deleteSelected: () => {
@@ -515,8 +531,13 @@ export function createStructureActions({ set, get, transact }: StoreCtx): Struct
         if (effectsRemoved) notifyEffectsRemoved();
       }
     },
-    toggleHidden: (id) => { const doc = get().doc, node = doc.nodes[id]; if (!node) return; transact({ ...doc, nodes: { ...doc.nodes, [id]: { ...node, hidden: !node.hidden } } }, { label: node.hidden ? "Show layer" : "Hide layer" }); if (!node.hidden) { const affected = new Set([id, ...descendantNodeIds(doc, id)]); set({ selection: get().selection.filter((x) => !affected.has(x)), ...clearTransient }); } },
-    toggleLocked: (id) => { const doc = get().doc, node = doc.nodes[id]; if (!node) return; transact({ ...doc, nodes: { ...doc.nodes, [id]: { ...node, locked: !node.locked } } }, { label: node.locked ? "Unlock layer" : "Lock layer" }); if (!node.locked) { const affected = new Set([id, ...descendantNodeIds(doc, id)]); set({ selection: get().selection.filter((x) => !affected.has(x)), ...clearTransient }); } },
+    // Hiding or locking a node drops it (and its subtree) from the selection —
+    // but only when something is actually dropped. Setting an equal-but-new
+    // selection array would still count as a selection change downstream, and
+    // subscribers act on that: the Layers panel scrolls the last selected row
+    // into view, so an untouched selection must keep its identity.
+    toggleHidden: (id) => { const doc = get().doc, node = doc.nodes[id]; if (!node) return; transact({ ...doc, nodes: { ...doc.nodes, [id]: { ...node, hidden: !node.hidden } } }, { label: node.hidden ? "Show layer" : "Hide layer" }); if (!node.hidden) deselectSubtree(get, set, doc, id); },
+    toggleLocked: (id) => { const doc = get().doc, node = doc.nodes[id]; if (!node) return; transact({ ...doc, nodes: { ...doc.nodes, [id]: { ...node, locked: !node.locked } } }, { label: node.locked ? "Unlock layer" : "Lock layer" }); if (!node.locked) deselectSubtree(get, set, doc, id); },
     // Coalesced: the properties header renames on every keystroke, and one undo
     // step per character is unusable. A typing pause ends the step.
     renameNode: (id, name) => { const doc = get().doc, node = doc.nodes[id]; if (!node) return; transact({ ...doc, nodes: { ...doc.nodes, [id]: { ...node, name } } }, { label: "Rename layer", coalesceKey: "rename:" + id }); },

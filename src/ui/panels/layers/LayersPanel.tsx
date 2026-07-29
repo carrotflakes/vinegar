@@ -40,6 +40,7 @@ import {
 import { isMac } from "../../../commands/registry";
 import { currentSymbolScope, useEditor } from "../../../store/editorStore";
 import { useHighlight } from "../../../store/highlightStore";
+import { useLayersView } from "../../../store/layersViewStore";
 import { readModifiers } from "../../../store/inputStore";
 import { openContextMenu } from "../../../store/menuStore";
 import { selectionMenu } from "../../menus";
@@ -124,7 +125,11 @@ export default function LayersPanel() {
   useEffect(() => () => useHighlight.getState().setHighlight(null), []);
 
   const [editing, setEditing] = useState<string | null>(null);
-  const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
+  // Folds outlive the component: the dock unmounts the panel whenever another
+  // tab in its group is shown, so this state lives in a store.
+  const collapsed = useLayersView((s) => s.collapsed);
+  const toggleCollapsed = useLayersView((s) => s.toggleCollapsed);
+  const expandContainers = useLayersView((s) => s.expand);
   // Range selection keeps two marks, like any list: `anchor` is where a range
   // starts and `cursor` is the row the keyboard sits on / the last one clicked.
   const [anchor, setAnchor] = useState<string | null>(null);
@@ -193,15 +198,6 @@ export default function LayersPanel() {
         Math.ceil((windowBox.top + windowBox.height) / rowHeight) + OVERSCAN
       )
     : rows.length;
-
-  const toggleCollapsed = (gid: string) => {
-    setCollapsed((prev) => {
-      const next = new Set(prev);
-      if (next.has(gid)) next.delete(gid);
-      else next.add(gid);
-      return next;
-    });
-  };
 
   const selectIds = (ids: string[], additive: boolean) => {
     if (additive) {
@@ -321,11 +317,7 @@ export default function LayersPanel() {
     if (!reveal) return;
     const hidden = ancestorIds(doc, reveal).filter((a) => collapsed.has(a));
     if (hidden.length > 0) {
-      setCollapsed((prev) => {
-        const next = new Set(prev);
-        for (const id of hidden) next.delete(id);
-        return next;
-      });
+      expandContainers(hidden);
       return;
     }
     // Index arithmetic rather than scrollIntoView: with windowing the row may
@@ -803,8 +795,14 @@ export default function LayersPanel() {
         onKeyDown={onListKeyDown}
         // Taking focus is what makes the arrow keys work, but stealing it from
         // a rename input would blur (and so commit) it on the first click.
+        // `preventScroll` matters: the list is usually taller than the dock
+        // body that scrolls it, so a plain focus() scrolls the list's top edge
+        // into view — pushing the panel title off-screen on every click, chevron
+        // and eye toggle included.
         onPointerDown={(e) => {
-          if (!(e.target as HTMLElement).closest("input")) e.currentTarget.focus();
+          if (!(e.target as HTMLElement).closest("input")) {
+            e.currentTarget.focus({ preventScroll: true });
+          }
         }}
         onPointerLeave={() => setHighlight(null)}
       >

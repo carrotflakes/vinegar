@@ -25,7 +25,6 @@ additional effects, or other feature expansion.
 
 ## Mobile / touch
 - [ ] On-screen alternatives for the remaining keyboard-only actions (delete, copy/paste, group, pen finish/cancel)
-- [ ] タッチ操作、ちょっと選択するだけで移動となってしまう問題
 
 ## Backlog / ideas
 
