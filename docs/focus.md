@@ -133,10 +133,11 @@ appended root. Without it, anything drawn inside a moved container would jump by
 that container's transform the instant it was committed. Scene roots and symbol
 definition roots are identity, so this is a no-op for them.
 
-One path bypasses `appendToScope` and does the same conversion itself, because
-it appends somewhere other than the scope root: `addFillShape`, which parents
-under the clicked cover shape. Any future code that parents world-space geometry
-under an arbitrary container has to do this too.
+Two paths bypass `appendToScope` and do the same conversion themselves, because
+they append somewhere other than the scope root: `addFillShape` (parents under
+the clicked cover shape) and `addBrushStroke` (parents under the drilled-into
+`activeGroupId`). Any future code that parents world-space geometry under an
+arbitrary container has to do this too.
 
 ## Rendering (`canvas/paint.ts`, `canvas/render/scene.ts`)
 

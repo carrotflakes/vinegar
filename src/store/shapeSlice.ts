@@ -15,7 +15,7 @@ import {
 import { expandBounds, instanceWorldBounds, intersectBounds, shapeBounds, unionNodeWorldBounds, worldShapeBounds } from "@/model/geometry/bounds";
 import { hasValidSceneContainers } from "../model/sceneValidation";
 import { eraseBrush } from "@/model/brush/eraser";
-import { applyWorldTransformToNode, boundsTransform, IDENTITY, invertMatrix, multiply, nodeWorldMatrix, shapeWorldMatrix, translation } from "@/model/geometry/matrix";
+import { applyWorldTransformToNode, boundsTransform, IDENTITY, invertMatrix, isIdentity, multiply, nodeWorldMatrix, shapeWorldMatrix, translation } from "@/model/geometry/matrix";
 import { childIdsOf, descendantShapeIds, isGroup, isInstance, isNodeHidden, isNodeLocked, isShape, parentIdOf, referencedAssetIds, scopeLeafIds, selectionRoots, withChildIds } from "../model/scene";
 import { clampRectCornerRadius } from "../model/roundedRect";
 import { resizeShapeToBounds, translateShape } from "@/model/geometry/transforms";
@@ -143,7 +143,15 @@ export function createShapeActions({ set, get, transact, replaceDocumentWithoutH
       const active =
         s.activeGroupId && isGroup(doc.nodes[s.activeGroupId]) ? s.activeGroupId : null;
       if (active) {
-        transact(withChildIds(doc, active, [...childIdsOf(doc, active), shape.id]), { label: "Draw brush stroke" });
+        // The stroke is world-space geometry, so parenting it under a group
+        // that has been moved needs that group's inverse world matrix baked in
+        // (same conversion as addFillShape and appendToScope).
+        const inverse = invertMatrix(nodeWorldMatrix(doc, active));
+        const placed = inverse && !isIdentity(inverse)
+          ? { ...shape, transform: multiply(inverse, shape.transform) }
+          : shape;
+        const withPlaced = { ...doc, nodes: { ...doc.nodes, [placed.id]: placed } };
+        transact(withChildIds(withPlaced, active, [...childIdsOf(withPlaced, active), placed.id]), { label: "Draw brush stroke" });
         set({ selection: [shape.id], ...clearTransient });
         return;
       }
