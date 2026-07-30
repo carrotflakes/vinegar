@@ -186,7 +186,8 @@ export function pickShape(ctx: ToolContext, world: Vec2): string | null {
   const state = useEditor.getState();
   const { doc } = state;
   const tol = pickTolerance(ctx);
-  let ids = scopeLeafIds(doc, currentFocusRoot(state));
+  const scope = currentFocusRoot(state);
+  let ids = scopeLeafIds(doc, scope);
   // Once the user has drilled into a clipping group, prefer its visible
   // content over the otherwise-frontmost mask. The mask remains the fallback
   // hit for empty parts of its silhouette and stays frontmost outside edit mode.
@@ -201,7 +202,7 @@ export function pickShape(ctx: ToolContext, world: Vec2): string | null {
       isLeaf(node) &&
       isVisibleForPicking(doc, node.id) &&
       !isNodeLocked(doc, node.id) &&
-      hitTestNode(doc, node, world, tol)
+      hitTestNode(doc, node, world, tol, scope ?? undefined)
     )
       return ids[i];
   }
@@ -219,13 +220,14 @@ export function pickLockedShape(ctx: ToolContext, world: Vec2): string | null {
   const state = useEditor.getState();
   const { doc } = state;
   const tol = pickTolerance(ctx);
-  const ids = scopeLeafIds(doc, currentFocusRoot(state));
+  const scope = currentFocusRoot(state);
+  const ids = scopeLeafIds(doc, scope);
   for (let i = ids.length - 1; i >= 0; i--) {
     const node = doc.nodes[ids[i]];
     if (
       isLeaf(node) &&
       isVisibleForPicking(doc, node.id) &&
-      hitTestNode(doc, node, world, tol)
+      hitTestNode(doc, node, world, tol, scope ?? undefined)
     ) {
       return isNodeLocked(doc, node.id) ? ids[i] : null;
     }

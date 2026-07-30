@@ -652,7 +652,7 @@ export function onMarqueeUp(
       (isShape(s) || isInstance(s)) &&
       isVisibleForPicking(state.doc, id) &&
       !isNodeLocked(state.doc, id) &&
-      marqueeHitNode(state.doc, s, region)
+      marqueeHitNode(state.doc, s, region, scope ?? undefined)
     );
   });
   const base = inter.additive ? state.selection : [];

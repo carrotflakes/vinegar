@@ -130,17 +130,25 @@ export function isNodeVisibleForHitTesting(
   return !ancestorIds(doc, nodeId).some((id) => !!doc.nodes[id]?.hidden);
 }
 
-/** Active clipping masks enclosing a node, nearest ancestor first. */
+/**
+ * Active clipping masks enclosing a node, nearest ancestor first.
+ * When `boundaryId` is supplied, that ancestor is included and traversal stops
+ * there. Focus-mode hit testing uses this to retain clipping inside the focused
+ * subtree while ignoring masks outside it.
+ */
 export function clippingMaskAncestors(
   doc: Document,
-  nodeId: string
+  nodeId: string,
+  boundaryId?: string
 ): ClippingMaskShape[] {
   const result: ClippingMaskShape[] = [];
   for (const ancestorId of ancestorIds(doc, nodeId)) {
     const ancestor = doc.nodes[ancestorId];
-    if (!isGroup(ancestor)) continue;
-    const mask = clippingMask(doc, ancestor);
-    if (mask) result.push(mask);
+    if (isGroup(ancestor)) {
+      const mask = clippingMask(doc, ancestor);
+      if (mask) result.push(mask);
+    }
+    if (ancestorId === boundaryId) break;
   }
   return result;
 }

@@ -206,6 +206,41 @@ test("clip bounds and point/marquee hits use the mask silhouette and holes", () 
   assert.equal(marqueeHitNode(doc, content, { x: 60, y: 60, width: 5, height: 5 }), false);
 });
 
+test("a focus boundary ignores outer masks but retains clipping at the focus root", () => {
+  const doc = createEmptyDocument();
+  doc.nodes.content = rect("content", 0, 0, 100, 100);
+  doc.nodes.innerMask = rect("innerMask", 10, 10, 80, 80, { fill: null });
+  doc.nodes.focus = group("focus", ["content", "innerMask"], {
+    clipsToMask: true,
+  });
+  doc.nodes.outerMask = rect("outerMask", 20, 20, 60, 60, { fill: null });
+  doc.nodes.outer = group("outer", ["focus", "outerMask"], {
+    clipsToMask: true,
+  });
+  doc.rootIds = ["outer"];
+
+  const content = doc.nodes.content;
+  // This point is inside the focus root's mask but outside its ancestor's mask.
+  assert.equal(hitTestNode(doc, content, { x: 15, y: 15 }, 0), false);
+  assert.equal(hitTestNode(doc, content, { x: 15, y: 15 }, 0, "focus"), true);
+  assert.equal(
+    marqueeHitNode(doc, content, { x: 14, y: 14, width: 2, height: 2 }),
+    false
+  );
+  assert.equal(
+    marqueeHitNode(
+      doc,
+      content,
+      { x: 14, y: 14, width: 2, height: 2 },
+      "focus"
+    ),
+    true
+  );
+
+  // Clipping owned by the focus root itself is still part of the subtree.
+  assert.equal(hitTestNode(doc, content, { x: 5, y: 5 }, 0, "focus"), false);
+});
+
 test("a curved-path mask clips by its filled area (regression: flatten index leak)", () => {
   // A path rectangle mask exercises containsGeometry's path branch. A
   // `.map(flattenSubpath)` there leaked the array index into `perSegment`,

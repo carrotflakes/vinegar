@@ -198,9 +198,10 @@ export function hitTestClippingMask(
 function pointPassesAncestorMasks(
   doc: Document,
   nodeId: string,
-  p: Vec2
+  p: Vec2,
+  clipBoundaryId?: string
 ): boolean {
-  return clippingMaskAncestors(doc, nodeId).every((mask) =>
+  return clippingMaskAncestors(doc, nodeId, clipBoundaryId).every((mask) =>
     hitTestClippingMask(doc, mask, p)
   );
 }
@@ -208,9 +209,17 @@ function pointPassesAncestorMasks(
 /**
  * Whether world-point `p` hits the given shape.
  * `tol` is an extra tolerance in world units (scaled for stroke pickability).
+ * `clipBoundaryId` retains clipping at and below that ancestor while ignoring
+ * clipping outside it, matching focused-subtree rendering.
  */
-export function hitTestShape(doc: Document, shape: Shape, p: Vec2, tol: number): boolean {
-  if (!pointPassesAncestorMasks(doc, shape.id, p)) return false;
+export function hitTestShape(
+  doc: Document,
+  shape: Shape,
+  p: Vec2,
+  tol: number,
+  clipBoundaryId?: string
+): boolean {
+  if (!pointPassesAncestorMasks(doc, shape.id, p, clipBoundaryId)) return false;
   if (isClippingMaskNode(doc, shape.id)) {
     return hitTestClippingMask(doc, shape as ClippingMaskShape, p);
   }
@@ -335,10 +344,11 @@ export function hitTestNode(
   node: Shape | SymbolInstance,
   p: Vec2,
   tol: number,
+  clipBoundaryId?: string,
   seen: Set<string> = new Set()
 ): boolean {
-  if (isShape(node)) return hitTestShape(doc, node, p, tol);
-  if (!pointPassesAncestorMasks(doc, node.id, p)) return false;
+  if (isShape(node)) return hitTestShape(doc, node, p, tol, clipBoundaryId);
+  if (!pointPassesAncestorMasks(doc, node.id, p, clipBoundaryId)) return false;
   if (seen.has(node.symbolId)) return false;
   const world = nodeWorldMatrix(doc, node.id);
   const inverse = invertMatrix(world);
@@ -354,7 +364,7 @@ export function hitTestNode(
     if (!isNodeVisibleForHitTesting(doc, leaf.id)) continue;
     // Leaf world matrices inside a definition are symbol-local, matching
     // the transformed point.
-    if (hitTestNode(doc, leaf, local, localTol, seen)) {
+    if (hitTestNode(doc, leaf, local, localTol, undefined, seen)) {
       hit = true;
       break;
     }
@@ -372,10 +382,16 @@ export function marqueeHitNode(
   doc: Document,
   node: Shape | SymbolInstance,
   region: Bounds,
+  clipBoundaryId?: string,
   seen: Set<string> = new Set()
 ): boolean {
-  if (isShape(node)) return marqueeHitShape(doc, node, region);
-  const clippedRegion = marqueeRegionInsideAncestorMasks(doc, node.id, region);
+  if (isShape(node)) return marqueeHitShape(doc, node, region, clipBoundaryId);
+  const clippedRegion = marqueeRegionInsideAncestorMasks(
+    doc,
+    node.id,
+    region,
+    clipBoundaryId
+  );
   if (!clippedRegion) return false;
   if (seen.has(node.symbolId)) return false;
   const bounds = instanceWorldBounds(doc, node);
@@ -389,7 +405,7 @@ export function marqueeHitNode(
     const leaf = doc.nodes[id];
     if (!isShape(leaf) && !isInstance(leaf)) return false;
     if (!isNodeVisibleForHitTesting(doc, leaf.id)) return false;
-    return marqueeHitNode(doc, leaf, localRegion, seen);
+    return marqueeHitNode(doc, leaf, localRegion, undefined, seen);
   });
   seen.delete(node.symbolId);
   return hit;
@@ -445,10 +461,11 @@ export function marqueeHitClippingMask(
 function marqueeRegionInsideAncestorMasks(
   doc: Document,
   nodeId: string,
-  region: Bounds
+  region: Bounds,
+  clipBoundaryId?: string
 ): Bounds | null {
   let clipped = region;
-  for (const mask of clippingMaskAncestors(doc, nodeId)) {
+  for (const mask of clippingMaskAncestors(doc, nodeId, clipBoundaryId)) {
     const next = intersectBounds(clipped, worldShapeBounds(doc, mask));
     if (!next || !marqueeHitClippingMask(doc, mask, next)) return null;
     clipped = next;
@@ -460,9 +477,15 @@ function marqueeRegionInsideAncestorMasks(
 export function marqueeHitShape(
   doc: Document,
   shape: Shape,
-  region: Bounds
+  region: Bounds,
+  clipBoundaryId?: string
 ): boolean {
-  const clippedRegion = marqueeRegionInsideAncestorMasks(doc, shape.id, region);
+  const clippedRegion = marqueeRegionInsideAncestorMasks(
+    doc,
+    shape.id,
+    region,
+    clipBoundaryId
+  );
   if (!clippedRegion) return false;
   region = clippedRegion;
   if (isClippingMaskNode(doc, shape.id)) {
@@ -523,7 +546,9 @@ export function marqueeHitShape(
     { x: region.x + region.width, y: region.y + region.height },
     { x: region.x, y: region.y + region.height },
   ];
-  return corners.some((corner) => hitTestShape(doc, shape, corner, 0));
+  return corners.some((corner) =>
+    hitTestShape(doc, shape, corner, 0, clipBoundaryId)
+  );
 }
 
 function rectsIntersect(a: Bounds, b: Bounds): boolean {

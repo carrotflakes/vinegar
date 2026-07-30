@@ -159,8 +159,10 @@ This stays **in place** — the focused subtree paints at its true world positio
 - Culling and layer sizing (`render/bounds.ts`) already work in real world
   space via `sceneIndex`, so they agree with what is drawn.
 - Picking, hit-testing and snapping likewise read world matrices from
-  `sceneIndex`, so their coordinates agree with rendering. Ancestor clipping
-  semantics are a separate unresolved issue noted under "Known risks".
+  `sceneIndex`, so their coordinates agree with rendering. Point and marquee
+  hit-testing stop ancestor-mask traversal at the focus root: clipping owned by
+  the focused subtree remains active, while clipping outside it is ignored just
+  as it is by focused rendering.
 - Guides, rulers, the grid and `activeFrameId` keep meaning what they meant,
   because the world origin never moves.
 - Export is unaffected: it renders the whole scene and never sets the option.
@@ -336,10 +338,10 @@ actually happened.
    would misplace content. *Real; handled once in `appendToScope`, plus the two
    paths that parent elsewhere.*
 3. **Rendering pipeline** — `baseMatrix` touching culling/layers/patterns/export
-   invariants. *The coordinate portion was cheap and agrees, but starting
-   traversal at the focus root drops ancestor clipping/compositing while hit
-   testing still sees ancestor clipping masks. The intended isolation semantics
-   must be decided before that mismatch can be fixed.*
+   invariants. *The coordinate portion was cheap and agrees. Focus is defined as
+   true subtree isolation: rendering starts at the focus root, and point/marquee
+   hit-testing now ignores clipping masks above that boundary while retaining
+   masks at or below it.*
 4. **LayersPanel interference** — subtree scoping meets the fold/scroll
    preservation logic and panel drag-and-drop boundaries. *Did not materialise;
    the panel was already scope-driven.*
