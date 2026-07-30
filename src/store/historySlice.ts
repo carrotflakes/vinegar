@@ -4,7 +4,13 @@
 
 import { createEmptyDocument, type Document } from "../model/types";
 import { hasValidSceneContainers } from "../model/sceneValidation";
-import { validFocusPrefix } from "../model/scene";
+import {
+  isGroup,
+  isNodeHidden,
+  isNodeInScope,
+  isNodeLocked,
+  validFocusPrefix,
+} from "../model/scene";
 import { applyDocumentPatches, diffDocument, documentsEqual, type DocumentPatch } from "./documentPatches";
 import { usePreferences } from "./preferencesStore";
 import {
@@ -116,7 +122,24 @@ function documentReset(doc: Document, saved: boolean) {
 
 function restoredEditorState(doc: Document, get: StoreGet) {
   const state = get();
-  return { selection: state.selection.filter((id) => !!doc.nodes[id]), focusStack: validFocusPrefix(doc, state.focusStack), ...clearTransient };
+  const focusStack = validFocusPrefix(doc, state.focusStack);
+  const scope = focusStack[focusStack.length - 1] ?? null;
+  const editable = (id: string) =>
+    isNodeInScope(doc, id, scope) &&
+    !isNodeHidden(doc, id) &&
+    !isNodeLocked(doc, id);
+  const activeGroupId =
+    state.activeGroupId &&
+    isGroup(doc.nodes[state.activeGroupId]) &&
+    editable(state.activeGroupId)
+      ? state.activeGroupId
+      : null;
+  return {
+    selection: state.selection.filter(editable),
+    focusStack,
+    activeGroupId,
+    ...clearTransient,
+  };
 }
 
 export interface HistorySlice {

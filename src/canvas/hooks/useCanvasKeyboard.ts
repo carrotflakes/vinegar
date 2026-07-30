@@ -31,6 +31,7 @@ export function useCanvasKeyboard(
           commitPenDraft(ctx);
         } else if (e.key === "Escape") {
           e.preventDefault();
+          e.stopImmediatePropagation();
           cancelPenDraft(ctx);
         } else if (
           (mod && !e.shiftKey && e.key.toLowerCase() === "z") ||
@@ -48,6 +49,7 @@ export function useCanvasKeyboard(
       // rolling the document back to before the interaction started.
       if (e.key === "Escape" && ctx.interaction.current.kind !== "none") {
         e.preventDefault();
+        e.stopImmediatePropagation();
         cancelActiveInteraction(ctx);
       }
     };

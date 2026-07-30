@@ -231,11 +231,16 @@ export function instanceNode(id: string, symbolId: string, transform: Matrix): S
  * committed. Scene roots and symbol definition roots are identity, so this is a
  * no-op for them. See docs/focus.md.
  */
-export function appendToScope(doc: Document, scope: string | null, ids: string[]): Document {
+export function appendToScope(
+  doc: Document,
+  scope: string | null,
+  ids: string[]
+): Document | null {
   let next = doc;
   if (scope !== null) {
+    if (!isContainer(doc.nodes[scope])) return null;
     const inverse = invertMatrix(nodeWorldMatrix(doc, scope));
-    if (!inverse) return doc;
+    if (!inverse) return null;
     if (!isIdentity(inverse)) {
       const nodes = { ...next.nodes };
       for (const id of ids) {

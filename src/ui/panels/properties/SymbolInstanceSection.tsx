@@ -10,7 +10,7 @@ export default function SymbolInstanceSection({
   instance: SymbolInstance;
   symbolName: string;
 }) {
-  const enterSymbolEdit = useEditor((state) => state.enterSymbolEdit);
+  const enterSymbolInstance = useEditor((state) => state.enterSymbolInstance);
   const detachSelectedInstances = useEditor(
     (state) => state.detachSelectedInstances
   );
@@ -43,7 +43,7 @@ export default function SymbolInstanceSection({
       <div className="btn-row">
         <button
           className="ghost-btn"
-          onClick={() => enterSymbolEdit(instance.symbolId)}
+          onClick={() => enterSymbolInstance(instance.id)}
         >
           Edit symbol
         </button>

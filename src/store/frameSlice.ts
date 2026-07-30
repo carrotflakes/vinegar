@@ -28,6 +28,7 @@ export function createFrameActions({ set, get, transact }: StoreCtx): FrameActio
         null,
         [frame.id]
       );
+      if (!next) return;
       transact(next, { label: "Add frame" });
       // A new frame is what the user is now working in, so the rulers count
       // from it (see docs/rulers-and-guides.md).

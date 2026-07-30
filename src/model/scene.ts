@@ -160,6 +160,22 @@ export function scopeRootIds(doc: Document, scope: string | null): string[] {
 }
 
 /**
+ * Whether `nodeId` is editable inside `scope`. Scene scope contains only scene
+ * nodes (never symbol-definition content); a focused scope contains only its
+ * descendants, not the focus root itself.
+ */
+export function isNodeInScope(
+  doc: Document,
+  nodeId: string,
+  scope: string | null
+): boolean {
+  const index = sceneIndex(doc);
+  if (!index.parent.has(nodeId)) return false;
+  if (scope === null) return index.owner.get(nodeId) === null;
+  return index.ancestors.get(nodeId)?.includes(scope) ?? false;
+}
+
+/**
  * The symbol whose definition contains `nodeId` (the definition root itself
  * included), or null for scene nodes. Lets scope-aware code that still needs a
  * symbol id — cycle checks, panel highlighting — recover it from a scope.
@@ -169,21 +185,50 @@ export function enclosingSymbolId(doc: Document, nodeId: string | null): string 
   return sceneIndex(doc).owner.get(nodeId) ?? null;
 }
 
+function isInvertibleWorldMatrix(doc: Document, nodeId: string): boolean {
+  const world = sceneIndex(doc).world.get(nodeId);
+  return !!world && Math.abs(world[0] * world[3] - world[1] * world[2]) >= 1e-12;
+}
+
+function isDefinitionRootReachedFrom(
+  doc: Document,
+  outerScope: string,
+  nodeId: string
+): boolean {
+  const symbolId = enclosingSymbolId(doc, nodeId);
+  const definition = symbolId ? doc.symbols[symbolId] : undefined;
+  if (definition?.rootNodeId !== nodeId) return false;
+  return scopeLeafIds(doc, outerScope).some((id) => {
+    const node = doc.nodes[id];
+    return (
+      isInstance(node) &&
+      node.symbolId === symbolId &&
+      !isNodeHidden(doc, id) &&
+      !isNodeLocked(doc, id)
+    );
+  });
+}
+
 /**
  * The longest prefix of a focus stack that is still valid for `doc`: every
- * entry must exist, still be a container, still be visible and unlocked, and
- * sit inside the entry before it. Undo, redo and file loads can delete, hide,
- * lock or reparent a focused container, so the stack is re-validated against
- * every document the store adopts — being inside a hidden container would show
- * an empty canvas, and inside a locked one nothing could be selected.
+ * entry must still be a usable focus root. Ordinary entries sit inside the
+ * previous one; a symbol-definition root may instead be reached through an
+ * instance inside the previous scope. Undo, redo and file loads can invalidate
+ * either kind of edge, so the stack is re-validated against every document the
+ * store adopts.
  */
 export function validFocusPrefix(doc: Document, stack: string[]): string[] {
   const valid: string[] = [];
   for (const id of stack) {
-    if (!isContainer(doc.nodes[id])) break;
+    if (!isGroup(doc.nodes[id]) && !isFrame(doc.nodes[id])) break;
     if (isNodeHidden(doc, id) || isNodeLocked(doc, id)) break;
+    if (!isInvertibleWorldMatrix(doc, id)) break;
     const outer = valid[valid.length - 1];
-    if (outer !== undefined && !ancestorIds(doc, id).includes(outer)) break;
+    if (
+      outer !== undefined &&
+      !ancestorIds(doc, id).includes(outer) &&
+      !isDefinitionRootReachedFrom(doc, outer, id)
+    ) break;
     valid.push(id);
   }
   return valid;

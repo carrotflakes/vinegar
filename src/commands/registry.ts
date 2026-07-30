@@ -631,7 +631,7 @@ export const COMMANDS: Command[] = [
     enabled: (s) => sel(s).singleInstance != null,
     run: (s) => {
       const inst = sel(s).singleInstance;
-      if (inst) s.enterSymbolEdit(inst.symbolId);
+      if (inst) s.enterSymbolInstance(inst.id);
     },
   },
   // Focus -------------------------------------------------------------------
@@ -646,7 +646,7 @@ export const COMMANDS: Command[] = [
       // the definition it stands for.
       const inst = sel(s).singleInstance;
       if (inst) {
-        s.enterSymbolEdit(inst.symbolId);
+        s.enterSymbolInstance(inst.id);
         return;
       }
       const target = sel(s).focusTarget;

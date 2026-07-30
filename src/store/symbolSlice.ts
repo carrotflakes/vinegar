@@ -16,9 +16,11 @@ import {
   isGroup,
   isInstance,
   isNodeHidden,
+  isNodeInScope,
   isNodeLocked,
   parentIdOf,
   selectionRoots,
+  validFocusPrefix,
   wouldCreateSymbolCycle,
 } from "../model/scene";
 import {
@@ -91,6 +93,7 @@ export function createSymbolActions({ set, get, transact }: StoreCtx): SymbolAct
       }
       const id = makeId("instance");
       const next = appendToScope({ ...doc, nodes: { ...doc.nodes, [id]: instanceNode(id, symbolId, transform) } }, scope, [id]);
+      if (!next) return;
       transact(next, { label: "Place symbol instance" }); set({ selection: [id], ...clearTransient });
     },
     detachSelectedInstances: () => {
@@ -135,9 +138,26 @@ export function createSymbolActions({ set, get, transact }: StoreCtx): SymbolAct
       const scope = currentFocusRoot(s);
       if (enclosingSymbolId(doc, nodeId) !== enclosingSymbolId(doc, scope)) return;
       if (scope !== null && !ancestorIds(doc, nodeId).includes(scope)) return;
+      if (validFocusPrefix(doc, [...s.focusStack, nodeId]).length !== s.focusStack.length + 1) return;
       set({ focusStack: [...s.focusStack, nodeId], activeGroupId: null, selection: [], ...clearTransient });
     },
-    enterSymbolEdit: (symbolId) => { const s = get(); const def = s.doc.symbols[symbolId]; if (!def || s.focusStack.includes(def.rootNodeId)) return; set({ focusStack: [...s.focusStack, def.rootNodeId], activeGroupId: null, selection: [], ...clearTransient }); },
+    enterSymbolInstance: (instanceId) => {
+      const s = get(); const doc = s.doc; const instance = doc.nodes[instanceId];
+      if (!isInstance(instance)) return;
+      if (isNodeHidden(doc, instanceId) || isNodeLocked(doc, instanceId)) return;
+      if (!isNodeInScope(doc, instanceId, currentFocusRoot(s))) return;
+      const def = doc.symbols[instance.symbolId];
+      if (!def || s.focusStack.includes(def.rootNodeId)) return;
+      const next = [...s.focusStack, def.rootNodeId];
+      if (validFocusPrefix(doc, next).length !== next.length) return;
+      set({ focusStack: next, activeGroupId: null, selection: [], ...clearTransient });
+    },
+    enterSymbolEdit: (symbolId) => {
+      const s = get(); const def = s.doc.symbols[symbolId];
+      if (!def || (s.focusStack.length === 1 && s.focusStack[0] === def.rootNodeId)) return;
+      if (validFocusPrefix(s.doc, [def.rootNodeId]).length !== 1) return;
+      set({ focusStack: [def.rootNodeId], activeGroupId: null, selection: [], ...clearTransient });
+    },
     exitFocus: () => { const s = get(); if (!s.focusStack.length) return; set({ focusStack: s.focusStack.slice(0, -1), activeGroupId: null, selection: [], ...clearTransient }); },
     exitFocusTo: (depth) => { const s = get(); if (depth < 0 || depth >= s.focusStack.length) return; set({ focusStack: s.focusStack.slice(0, depth), activeGroupId: null, selection: [], ...clearTransient }); },
     renameSymbol: (symbolId, name) => { const doc = get().doc; const def = doc.symbols[symbolId]; if (!def) return; transact({ ...doc, symbols: { ...doc.symbols, [symbolId]: { ...def, name } } }, { label: "Rename symbol" }); },

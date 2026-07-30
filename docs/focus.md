@@ -21,10 +21,10 @@ untouched.
 
 - **Enter**: `Cmd/Ctrl+Enter` with a single frame or group selected focuses it.
   With a symbol instance selected, it enters the instance's symbol definition
-  (today's `enterSymbolEdit`). Also available from the context menu and the
-  command palette ("Focus on selection"). Double-clicking an instance keeps
-  entering its definition, as it does today; double-clicking a group keeps
-  meaning drill (`activeGroupId`), *not* focus.
+  through that instance (`enterSymbolInstance`). Also available from the
+  context menu and the command palette ("Focus on selection"). Double-clicking
+  an instance keeps entering its definition, as it does today; double-clicking
+  a group keeps meaning drill (`activeGroupId`), *not* focus.
 - **Exit**: `Esc` pops one focus level when the canvas is idle (no drag in
   progress, no pen draft — both already consume Esc first, see
   `useCanvasKeyboard.ts`). The breadcrumb pops to any level directly.
@@ -99,13 +99,16 @@ aliases.
 ## Store (`src/store/`)
 
 - `symbolSlice.ts` → the enter/exit actions move to focus semantics:
-  - `enterFocus(nodeId)` — validates: node exists, is a frame/group (or a
-    symbol definition root), is not hidden/locked, is not already on the
-    stack, and — for in-scene nodes — is a descendant of the current focus
-    root (you can only focus deeper, not sideways).
+  - `enterFocus(nodeId)` — validates: node exists, is a frame/group, is not
+    hidden/locked, is not already on the stack, and is a descendant of the
+    current focus root (you can only focus deeper, not sideways).
   - `exitFocus()` / `exitFocusTo(depth)` — today's `exitSymbolEdit(To)`.
-  - `enterSymbolEdit(symbolId)` stays as a thin wrapper that pushes
-    `def.rootNodeId` (SymbolsPanel and instance double-click call it).
+  - `enterSymbolInstance(instanceId)` follows a visible, unlocked instance in
+    the current scope and pushes its definition root. This is the only way a
+    symbol definition extends an existing focus path.
+  - `enterSymbolEdit(symbolId)` opens a definition directly from SymbolsPanel.
+    It replaces the stack with that definition root; an unrelated definition is
+    navigation, not imaginary nesting.
   All clear `activeGroupId`, `selection` and transient state, as today.
 - `appendToScope` (`docOps.ts`) — parent is now the scope value itself.
   **Coordinate conversion required**: today's append targets (scene root,
@@ -116,11 +119,13 @@ aliases.
   nodes by `inverse(parentWorldMatrix(focusRoot))` or the content lands in the
   wrong place the moment it is created. Do this once inside `appendToScope`
   (take the world-space payload, reparent into scope coordinates) rather than
-  at each call site.
+  at each call site. It returns `null` when the scope cannot be inverted, and
+  callers must not transact or select the unattached payload in that case.
 - `historySlice.ts` `restoredEditorState` — validate the stack against the
-  restored doc: keep the longest prefix whose entries still exist, are still
-  containers, and are still each a descendant of the previous entry (or a
-  definition root). Truncate at the first invalid entry.
+  restored doc: keep the longest valid prefix. Ordinary entries must descend
+  from the previous root; a definition-root entry must still be referenced by
+  a visible, unlocked instance in the previous scope. Selection and
+  `activeGroupId` are then restricted to the restored innermost scope.
 - `clipboardSlice`, `shapeSlice`, `selectionSlice`, `structureSlice` consume the
   scope through the helpers above.
 
@@ -154,7 +159,8 @@ This stays **in place** — the focused subtree paints at its true world positio
 - Culling and layer sizing (`render/bounds.ts`) already work in real world
   space via `sceneIndex`, so they agree with what is drawn.
 - Picking, hit-testing and snapping likewise read world matrices from
-  `sceneIndex`, so render and pick agree (the invariant in CLAUDE.md).
+  `sceneIndex`, so their coordinates agree with rendering. Ancestor clipping
+  semantics are a separate unresolved issue noted under "Known risks".
 - Guides, rulers, the grid and `activeFrameId` keep meaning what they meant,
   because the world origin never moves.
 - Export is unaffected: it renders the whole scene and never sets the option.
@@ -186,12 +192,12 @@ paints as usual.
 
 - `focus.enter` — "Focus on selection", `Cmd/Ctrl+Enter`. Enabled when the
   selection is exactly one frame/group (→ `enterFocus`) or one instance
-  (→ `enterSymbolEdit`).
+  (→ `enterSymbolInstance`).
 - `focus.exit` — "Exit focus", palette/menu only (no key of its own). Esc is
   handled in `App.tsx`'s keydown, which already orders the escapes: clear
   selection → exit drill (`activeGroupId`) → exit focus, and returns before the
-  command layer. Pen draft and interaction cancels sit ahead of all of it in
-  `useCanvasKeyboard.ts`.
+  command layer. Pen draft and interaction cancels stop the same keyboard event
+  before it reaches that handler, so one Esc performs exactly one action.
 - Frame creation refuses inside a focus scope, in both `addFrame` (the command)
   and `onFrameDown` (the tool drag).
 - The context menu offers `focus.enter`, except for a symbol instance where
@@ -208,7 +214,8 @@ with a frame/group icon. Clicking a crumb calls `exitFocusTo`.
 - **LayersPanel** shows the subtree under the focus root (`scopeRootIds`), and
   a drop at the panel root targets the focused container. Its scope bar names
   the container the same way the breadcrumb does.
-- **SymbolsPanel** enters edit via `enterSymbolEdit`; its "editing" highlight
+- **SymbolsPanel** opens a definition directly via `enterSymbolEdit`, replacing
+  any unrelated focus path; its "editing" highlight
   compares `enclosingSymbolId(doc, currentFocusRoot(s))` against the row.
 
 ## Edge cases / invariants
@@ -224,9 +231,10 @@ with a frame/group icon. Clicking a crumb calls `exitFocusTo`.
   current scope (`enclosingSymbolId` equality), which is what the ancestor
   check cannot express from the scene scope: a definition's content is only
   ever reachable through its symbol.
-- `enterFocus` only ever goes **deeper**: the target must be a descendant of the
-  current focus root, so the stack is always a real path and the breadcrumb
-  never lies. The way back out is `exitFocus` / a crumb.
+- `enterFocus` only ever goes **deeper** through the scene tree.
+  `enterSymbolInstance` crosses into a definition only through an actual
+  instance in the current scope. The stack is therefore a real editing path;
+  opening an arbitrary definition from SymbolsPanel starts a new path instead.
 - Compound paths are **not** focusable (node-level editing already covers
   them); `enterFocus` accepts groups and frames only. Revisit if needed.
 - Cycle guard: placing instances while focused inside a definition checks
@@ -253,7 +261,7 @@ migration in isolation.
    tests (`tests/` node fixtures: spread `NODE_BASE`/`SHAPE_BASE`).
 2. `state.ts` / slices: `editingSymbols` → `focusStack` (node ids),
    `currentSymbolScope` **deleted**, `currentFocusRoot` added;
-   `enterSymbolEdit` pushes `def.rootNodeId`; history truncation updated.
+   direct `enterSymbolEdit` opens `def.rootNodeId`; history truncation updated.
 3. Chase every compile error from the deleted names; audit each site for
    symbol-id assumptions (`doc.symbols[scope]` and friends).
 4. Verify: typecheck, full test run, and a manual pass over symbol editing
@@ -277,7 +285,8 @@ migration in isolation.
   `enclosingSymbolId(doc, scope)`. Any future scope-meaning change needs the
   same manual sweep.
 - Renames: `exitSymbolEdit`/`exitSymbolEditTo` → `exitFocus`/`exitFocusTo`
-  (`enterSymbolEdit` kept, now pushing `def.rootNodeId`);
+  (`enterSymbolEdit` kept for direct definition navigation;
+  `enterSymbolInstance` follows instance edges);
   `SymbolBreadcrumb` → `FocusBreadcrumb` (+ `.css.ts`, `symbol-crumb*` classes →
   `focus-crumb*`). The breadcrumb already renders non-symbol containers by name
   with a frame/group icon, so Stage 2 needs nothing there.
@@ -327,14 +336,17 @@ actually happened.
    would misplace content. *Real; handled once in `appendToScope`, plus the two
    paths that parent elsewhere.*
 3. **Rendering pipeline** — `baseMatrix` touching culling/layers/patterns/export
-   invariants. *Overstated: in-place rendering means every one of those already
-   agrees. Measuring before choosing turned this from the scariest item into
-   the cheapest.*
+   invariants. *The coordinate portion was cheap and agrees, but starting
+   traversal at the focus root drops ancestor clipping/compositing while hit
+   testing still sees ancestor clipping masks. The intended isolation semantics
+   must be decided before that mismatch can be fixed.*
 4. **LayersPanel interference** — subtree scoping meets the fold/scroll
    preservation logic and panel drag-and-drop boundaries. *Did not materialise;
    the panel was already scope-driven.*
-5. **Esc contention** — *Did not materialise; `App.tsx` already ordered the
-   escapes, so `focus.exit` took no key of its own.*
+5. **Esc contention** — *Real: `preventDefault()` did not stop the second
+   window listener. Pen/interaction cancellation now uses
+   `stopImmediatePropagation()`, so App's focus handler cannot consume the same
+   Esc.*
 
 ## Out of scope (v1)
 

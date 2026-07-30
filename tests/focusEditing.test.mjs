@@ -12,6 +12,7 @@ let useEditor;
 let currentFocusRoot;
 let nodeWorldBounds;
 let parentIdOf;
+let appendToScope;
 
 before(async () => {
   server = await createServer({ server: { middlewareMode: true } });
@@ -22,6 +23,7 @@ before(async () => {
     "/src/model/geometry/bounds.ts"
   ));
   ({ parentIdOf } = await server.ssrLoadModule("/src/model/scene.ts"));
+  ({ appendToScope } = await server.ssrLoadModule("/src/store/docOps.ts"));
 });
 
 after(async () => {
@@ -42,6 +44,25 @@ const rect = (id, x, y, width = 10, height = 10) => ({
   width,
   height,
   fill: { type: "solid", color: "#ff0000", alpha: 1 },
+  transform: [...IDENTITY],
+});
+
+const group = (id, childIds, transform = IDENTITY) => ({
+  id,
+  name: id,
+  type: "group",
+  childIds,
+  clipsToMask: false,
+  ...NODE_BASE,
+  transform: [...transform],
+});
+
+const instance = (id, symbolId) => ({
+  id,
+  name: id,
+  type: "instance",
+  symbolId,
+  ...NODE_BASE,
   transform: [...IDENTITY],
 });
 
@@ -152,4 +173,109 @@ test("frames cannot be created from inside a focus scope", () => {
   useEditor.getState().exitFocus();
   useEditor.getState().addFrame({ x: 0, y: 0 });
   assert.ok(Object.keys(useEditor.getState().doc.nodes).length > before);
+});
+
+test("undo drops a selection that moved outside the surviving focus scope", () => {
+  const s = useEditor.getState();
+  s.newDocument();
+  const base = useEditor.getState().doc;
+  s.loadDocument({
+    ...base,
+    nodes: {
+      outer: group("outer", []),
+      inner: group("inner", ["leaf"]),
+      leaf: rect("leaf", 0, 0),
+    },
+    rootIds: ["outer", "inner"],
+  });
+
+  useEditor.getState().moveNodes(["inner"], "outer", 0);
+  useEditor.getState().enterFocus("outer");
+  useEditor.getState().setActiveGroup("inner");
+  useEditor.getState().setSelection(["leaf"]);
+  useEditor.getState().undo();
+
+  const restored = useEditor.getState();
+  assert.deepEqual(restored.focusStack, ["outer"]);
+  assert.deepEqual(restored.selection, []);
+  assert.equal(restored.activeGroupId, null);
+  assert.equal(parentIdOf(restored.doc, "inner"), null);
+});
+
+test("symbol definitions only extend a focus path through an instance", () => {
+  const s = useEditor.getState();
+  s.newDocument();
+  const base = useEditor.getState().doc;
+  s.loadDocument({
+    ...base,
+    nodes: {
+      outer: group("outer", ["instA"]),
+      instA: instance("instA", "A"),
+      aRoot: group("aRoot", ["instB"]),
+      instB: instance("instB", "B"),
+      bRoot: group("bRoot", []),
+    },
+    rootIds: ["outer"],
+    symbols: {
+      A: { id: "A", name: "A", rootNodeId: "aRoot" },
+      B: { id: "B", name: "B", rootNodeId: "bRoot" },
+    },
+  });
+
+  useEditor.getState().enterFocus("outer");
+  // instB exists, but it is not in the current scope yet.
+  useEditor.getState().enterSymbolInstance("instB");
+  assert.deepEqual(useEditor.getState().focusStack, ["outer"]);
+
+  useEditor.getState().enterSymbolInstance("instA");
+  useEditor.getState().enterSymbolInstance("instB");
+  assert.deepEqual(useEditor.getState().focusStack, [
+    "outer",
+    "aRoot",
+    "bRoot",
+  ]);
+
+  // Undoing an edit inside B keeps both valid instance edges.
+  useEditor.getState().addShape(rect("insideB", 0, 0));
+  useEditor.getState().undo();
+  assert.deepEqual(useEditor.getState().focusStack, [
+    "outer",
+    "aRoot",
+    "bRoot",
+  ]);
+
+  // Opening from the Symbols panel is navigation, not imaginary nesting.
+  useEditor.getState().enterSymbolEdit("A");
+  assert.deepEqual(useEditor.getState().focusStack, ["aRoot"]);
+});
+
+test("a non-invertible container cannot become a focus root", () => {
+  const s = useEditor.getState();
+  s.newDocument();
+  const base = useEditor.getState().doc;
+  s.loadDocument({
+    ...base,
+    nodes: {
+      singular: group("singular", [], [0, 0, 0, 1, 20, 20]),
+    },
+    rootIds: ["singular"],
+  });
+
+  useEditor.getState().enterFocus("singular");
+  assert.deepEqual(useEditor.getState().focusStack, []);
+});
+
+test("appending to a non-invertible scope fails without returning an orphaned document", () => {
+  const base = useEditor.getState().doc;
+  const shape = rect("new", 0, 0);
+  const doc = {
+    ...base,
+    nodes: {
+      singular: group("singular", [], [0, 0, 0, 1, 20, 20]),
+      [shape.id]: shape,
+    },
+    rootIds: ["singular"],
+  };
+
+  assert.equal(appendToScope(doc, "singular", [shape.id]), null);
 });

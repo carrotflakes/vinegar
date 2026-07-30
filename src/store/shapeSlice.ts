@@ -80,7 +80,9 @@ export function createShapeActions({ set, get, transact, replaceDocumentWithoutH
       generator: { scriptId: generatorId, args },
     };
     const doc = { ...s.doc, nodes: { ...s.doc.nodes, [shape.id]: shape } };
-    transact(appendToScope(doc, currentFocusRoot(s), [shape.id]), { label: "Add generator" });
+    const next = appendToScope(doc, currentFocusRoot(s), [shape.id]);
+    if (!next) return;
+    transact(next, { label: "Add generator" });
     set({ selection: [shape.id], ...clearTransient });
   };
   // In-flight target args per node while its script build is running. Kept out
@@ -135,8 +137,33 @@ export function createShapeActions({ set, get, transact, replaceDocumentWithoutH
   };
 
   return {
-    addShape: (shape, select = true) => { const s = get(); const doc = { ...s.doc, nodes: { ...s.doc.nodes, [shape.id]: shape } }; transact(appendToScope(doc, currentFocusRoot(s), [shape.id]), { label: "Add shape" }); if (select) set({ selection: [shape.id], ...clearTransient }); },
-    addShapes: (shapes, select = true) => { if (!shapes.length) return; const s = get(); const doc = { ...s.doc, nodes: { ...s.doc.nodes, ...Object.fromEntries(shapes.map((sh) => [sh.id, sh])) } }; transact(appendToScope(doc, currentFocusRoot(s), shapes.map((sh) => sh.id)), { label: `Add ${shapes.length} shapes` }); if (select) set({ selection: shapes.map((sh) => sh.id), ...clearTransient }); },
+    addShape: (shape, select = true) => {
+      const s = get();
+      const doc = { ...s.doc, nodes: { ...s.doc.nodes, [shape.id]: shape } };
+      const next = appendToScope(doc, currentFocusRoot(s), [shape.id]);
+      if (!next) return;
+      transact(next, { label: "Add shape" });
+      if (select) set({ selection: [shape.id], ...clearTransient });
+    },
+    addShapes: (shapes, select = true) => {
+      if (!shapes.length) return;
+      const s = get();
+      const doc = {
+        ...s.doc,
+        nodes: {
+          ...s.doc.nodes,
+          ...Object.fromEntries(shapes.map((shape) => [shape.id, shape])),
+        },
+      };
+      const next = appendToScope(
+        doc,
+        currentFocusRoot(s),
+        shapes.map((shape) => shape.id)
+      );
+      if (!next) return;
+      transact(next, { label: `Add ${shapes.length} shapes` });
+      if (select) set({ selection: shapes.map((shape) => shape.id), ...clearTransient });
+    },
     addBrushStroke: (shape) => {
       const s = get();
       const doc = { ...s.doc, nodes: { ...s.doc.nodes, [shape.id]: shape } };
@@ -147,7 +174,8 @@ export function createShapeActions({ set, get, transact, replaceDocumentWithoutH
         // that has been moved needs that group's inverse world matrix baked in
         // (same conversion as addFillShape and appendToScope).
         const inverse = invertMatrix(nodeWorldMatrix(doc, active));
-        const placed = inverse && !isIdentity(inverse)
+        if (!inverse) return;
+        const placed = !isIdentity(inverse)
           ? { ...shape, transform: multiply(inverse, shape.transform) }
           : shape;
         const withPlaced = { ...doc, nodes: { ...doc.nodes, [placed.id]: placed } };
@@ -160,7 +188,9 @@ export function createShapeActions({ set, get, transact, replaceDocumentWithoutH
       const groupId = makeId("group");
       const group = { ...groupNode(groupId, [shape.id]), name: "Drawing" };
       const withGroup = { ...doc, nodes: { ...doc.nodes, [groupId]: group } };
-      transact(appendToScope(withGroup, currentFocusRoot(s), [groupId]), { label: "Draw brush stroke" });
+      const next = appendToScope(withGroup, currentFocusRoot(s), [groupId]);
+      if (!next) return;
+      transact(next, { label: "Draw brush stroke" });
       set({ selection: [shape.id], activeGroupId: groupId, ...clearTransient });
     },
     addFillShape: (shape, aboveId) => {
@@ -183,7 +213,12 @@ export function createShapeActions({ set, get, transact, replaceDocumentWithoutH
       // container needs the inverse of the container's world matrix baked into
       // its transform so it lands exactly where it was computed.
       const world = parentId ? nodeWorldMatrix(s.doc, parentId) : IDENTITY;
-      const placed = { ...shape, transform: invertMatrix(world) ?? [...IDENTITY] };
+      const inverse = invertMatrix(world);
+      if (!inverse) return;
+      const placed = {
+        ...shape,
+        transform: multiply(inverse, shape.transform),
+      };
       const doc = { ...s.doc, nodes: { ...s.doc.nodes, [placed.id]: placed } };
       const siblings = childIdsOf(doc, parentId);
       transact(
@@ -443,7 +478,9 @@ export function createShapeActions({ set, get, transact, replaceDocumentWithoutH
         ids.push(shape.id);
       });
       const doc = { ...s.doc, nodes, assets };
-      transact(appendToScope(doc, currentFocusRoot(s), ids), { label: ids.length === 1 ? "Place image" : `Place ${ids.length} images` });
+      const next = appendToScope(doc, currentFocusRoot(s), ids);
+      if (!next) return;
+      transact(next, { label: ids.length === 1 ? "Place image" : `Place ${ids.length} images` });
       set({ selection: ids, ...clearTransient });
     },
     placeImportedSvg: (imported, at, fitWithin) => {
@@ -486,6 +523,7 @@ export function createShapeActions({ set, get, transact, replaceDocumentWithoutH
         currentFocusRoot(s),
         [root.id]
       );
+      if (!doc) return;
       transact(doc, { label: "Place SVG" });
       set({ selection: [root.id], ...clearTransient });
     },
@@ -545,7 +583,9 @@ export function createShapeActions({ set, get, transact, replaceDocumentWithoutH
         transform: [1, 0, 0, 1, 0, 0],
       };
       const doc = { ...s.doc, nodes: { ...s.doc.nodes, [shape.id]: shape } };
-      transact(appendToScope(doc, currentFocusRoot(s), [shape.id]), { label: "Place image" });
+      const next = appendToScope(doc, currentFocusRoot(s), [shape.id]);
+      if (!next) return;
+      transact(next, { label: "Place image" });
       set({ selection: [shape.id], ...clearTransient });
     },
     deleteAsset: (assetId) => {

@@ -11,6 +11,7 @@ let server;
 let scopeLeafIds;
 let symbolLeafIds;
 let scopeRootIds;
+let isNodeInScope;
 let enclosingSymbolId;
 let validFocusPrefix;
 
@@ -20,6 +21,7 @@ before(async () => {
     scopeLeafIds,
     symbolLeafIds,
     scopeRootIds,
+    isNodeInScope,
     enclosingSymbolId,
     validFocusPrefix,
   } = await server.ssrLoadModule("/src/model/scene.ts"));
@@ -51,6 +53,15 @@ const group = (id, childIds) => ({
   type: "group",
   childIds,
   clipsToMask: false,
+  ...NODE_BASE,
+  transform: [...IDENTITY],
+});
+
+const instance = (id, symbolId) => ({
+  id,
+  name: id,
+  type: "instance",
+  symbolId,
   ...NODE_BASE,
   transform: [...IDENTITY],
 });
@@ -119,6 +130,15 @@ test("scope roots are the container's children, or the scene roots", () => {
   assert.deepEqual(scopeRootIds(doc, "defRoot"), ["r4"]);
 });
 
+test("node membership follows the editing scope and excludes definition content from the scene", () => {
+  const doc = makeDoc();
+  assert.equal(isNodeInScope(doc, "outer", null), true);
+  assert.equal(isNodeInScope(doc, "r4", null), false);
+  assert.equal(isNodeInScope(doc, "r2", "outer"), true);
+  assert.equal(isNodeInScope(doc, "outer", "outer"), false);
+  assert.equal(isNodeInScope(doc, "r3", "outer"), false);
+});
+
 test("enclosingSymbolId recovers the symbol behind a scope", () => {
   const doc = makeDoc();
   assert.equal(enclosingSymbolId(doc, null), null);
@@ -151,4 +171,57 @@ test("a focus stack is truncated at the first entry the document invalidates", (
   assert.deepEqual(validFocusPrefix(hidden, ["f", "outer", "inner"]), ["f"]);
   const locked = { ...doc, nodes: { ...doc.nodes, outer: { ...doc.nodes.outer, locked: true } } };
   assert.deepEqual(validFocusPrefix(locked, ["f", "outer", "inner"]), ["f"]);
+
+  // A definition root follows an outer scope only through an actual instance
+  // in that scope. Removing the reference invalidates that stack edge.
+  const linked = {
+    ...doc,
+    nodes: {
+      ...doc.nodes,
+      outer: { ...doc.nodes.outer, childIds: [...doc.nodes.outer.childIds, "inst"] },
+      inst: instance("inst", "sym"),
+    },
+  };
+  assert.deepEqual(validFocusPrefix(linked, ["f", "outer", "defRoot"]), [
+    "f",
+    "outer",
+    "defRoot",
+  ]);
+  assert.deepEqual(validFocusPrefix(doc, ["f", "outer", "defRoot"]), [
+    "f",
+    "outer",
+  ]);
+  const hiddenInstance = {
+    ...linked,
+    nodes: {
+      ...linked.nodes,
+      inst: { ...linked.nodes.inst, hidden: true },
+    },
+  };
+  assert.deepEqual(validFocusPrefix(hiddenInstance, ["f", "outer", "defRoot"]), [
+    "f",
+    "outer",
+  ]);
+  const lockedInstance = {
+    ...linked,
+    nodes: {
+      ...linked.nodes,
+      inst: { ...linked.nodes.inst, locked: true },
+    },
+  };
+  assert.deepEqual(validFocusPrefix(lockedInstance, ["f", "outer", "defRoot"]), [
+    "f",
+    "outer",
+  ]);
+  // Opening a definition directly starts a fresh path.
+  assert.deepEqual(validFocusPrefix(doc, ["defRoot"]), ["defRoot"]);
+
+  const singular = {
+    ...doc,
+    nodes: {
+      ...doc.nodes,
+      outer: { ...doc.nodes.outer, transform: [0, 0, 0, 1, 0, 0] },
+    },
+  };
+  assert.deepEqual(validFocusPrefix(singular, ["f", "outer"]), ["f"]);
 });

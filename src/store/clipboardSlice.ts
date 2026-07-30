@@ -68,14 +68,13 @@ export function createClipboardActions({ set, get, transact }: StoreCtx): Clipbo
         const bounds = unionNodeWorldBounds(temp, pasted.rootIds);
         if (bounds) { const dx = at.x - bounds.x - bounds.width / 2; const dy = at.y - bounds.y - bounds.height / 2; for (const id of pasted.rootIds) pasted.nodes[id] = { ...pasted.nodes[id], transform: multiply(translationMatrix(dx, dy), pasted.nodes[id].transform) }; }
       }
-      transact(
-        appendToScope(
-          { ...doc, nodes: { ...doc.nodes, ...pasted.nodes }, scripts, assets, swatches, swatchOrder },
-          scope,
-          pasted.rootIds
-        ),
-        { label: "Paste" }
+      const next = appendToScope(
+        { ...doc, nodes: { ...doc.nodes, ...pasted.nodes }, scripts, assets, swatches, swatchOrder },
+        scope,
+        pasted.rootIds
       );
+      if (!next) return false;
+      transact(next, { label: "Paste" });
       set({ selection: pasted.rootIds, ...clearTransient });
       // Code arriving from a document the user never approved re-arms the
       // consent gate rather than inheriting this document's trust.

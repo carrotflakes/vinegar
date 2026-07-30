@@ -602,7 +602,7 @@ export function usePointerHandlers(deps: PointerHandlerDeps): PointerHandlers {
       }
       // Double-clicking an instance dives into its symbol's local view.
       const hit = state.doc.nodes[hitId];
-      if (hit && hit.type === "instance") state.enterSymbolEdit(hit.symbolId);
+      if (hit && hit.type === "instance") state.enterSymbolInstance(hit.id);
       return;
     }
     if (state.tool === "pen" && ctx.penDraft.current) {

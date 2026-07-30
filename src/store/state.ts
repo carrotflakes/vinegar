@@ -443,7 +443,12 @@ export interface SymbolActions {
    * non-container, a hidden/locked node, or a node outside the current scope.
    */
   enterFocus: (nodeId: string) => void;
-  /** Focus the symbol's definition root, entering its local view. */
+  /** Follow an instance in the current scope into its symbol definition. */
+  enterSymbolInstance: (instanceId: string) => void;
+  /**
+   * Open a definition directly (for example from SymbolsPanel), replacing the
+   * current focus path rather than pretending the definition is nested in it.
+   */
   enterSymbolEdit: (symbolId: string) => void;
   /** Pop one level off the focus stack. */
   exitFocus: () => void;

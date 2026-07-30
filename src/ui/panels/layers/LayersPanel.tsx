@@ -114,7 +114,7 @@ export default function LayersPanel() {
   const moveNodes = useEditor((s) => s.moveNodes);
   const scope = useEditor((s) => currentFocusRoot(s));
   const exitFocus = useEditor((s) => s.exitFocus);
-  const enterSymbolEdit = useEditor((s) => s.enterSymbolEdit);
+  const enterSymbolInstance = useEditor((s) => s.enterSymbolInstance);
   const detachSelectedInstances = useEditor((s) => s.detachSelectedInstances);
 
   const setHighlight = useHighlight((s) => s.setHighlight);
@@ -609,13 +609,13 @@ export default function LayersPanel() {
         {...hoverProps(id)}
         {...rowDnd(id, row, flat)}
         onClick={(e) => rowClick(id, e)}
-        onDoubleClick={() => enterSymbolEdit(instance.symbolId)}
+        onDoubleClick={() => enterSymbolInstance(instance.id)}
         onContextMenu={(e) => {
           e.preventDefault();
           if (!selection.includes(id)) selectIds([id], false);
           openContextMenu(e.clientX, e.clientY, [
             { label: "Rename", onSelect: () => setEditing(id) },
-            { label: "Edit symbol", onSelect: () => enterSymbolEdit(instance.symbolId) },
+            { label: "Edit symbol", onSelect: () => enterSymbolInstance(instance.id) },
             { label: "Detach instance", onSelect: detachSelectedInstances },
             {
               label: instance.hidden ? "Show" : "Hide",
