@@ -9,7 +9,7 @@ import { isShape, scopeLeafIds } from "../../model/scene";
 import { makeId, type PathShape, type Shape, type Vec2 } from "../../model/types";
 import { worldToScreen } from "@/model/geometry/viewport";
 import {
-  currentSymbolScope,
+  currentFocusRoot,
   styleFromDefaults,
   useEditor,
   type EditorState,
@@ -95,7 +95,7 @@ export function pickOpenEndpoint(
     );
     return Math.hypot(sp.x - screen.x, sp.y - screen.y) <= tol;
   };
-  const ids = scopeLeafIds(doc, currentSymbolScope(state));
+  const ids = scopeLeafIds(doc, currentFocusRoot(state));
   for (let i = ids.length - 1; i >= 0; i--) {
     const s = doc.nodes[ids[i]];
     if (

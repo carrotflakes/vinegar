@@ -18,7 +18,7 @@ import {
   startDocumentAutosave,
 } from "./io/recovery";
 import { scopeLeafIds } from "./model/scene";
-import { currentSymbolScope, hasUnsavedChanges, useEditor, type ToolId } from "./store/editorStore";
+import { currentFocusRoot, hasUnsavedChanges, useEditor, type ToolId } from "./store/editorStore";
 import { anyMenuOpen } from "./store/menuStore";
 import { usePointer } from "./store/pointerStore";
 import { usePreferences } from "./store/preferencesStore";
@@ -73,7 +73,7 @@ const TYPE_LABELS: Record<string, string> = {
 /** Selection summary: count, or type + name for a single selection. */
 function SelectionInfo() {
   const label = useEditor((s) => {
-    const total = scopeLeafIds(s.doc, currentSymbolScope(s)).length;
+    const total = scopeLeafIds(s.doc, currentFocusRoot(s)).length;
     const n = s.selection.length;
     if (n === 1) {
       const node = s.doc.nodes[s.selection[0]];
@@ -240,7 +240,7 @@ export default function App() {
         if (anyMenuOpen()) return;
         if (s.selection.length || s.editNodes.length) s.clearSelection();
         else if (s.activeGroupId) s.exitGroup();
-        else if (s.editingSymbols.length) s.exitSymbolEdit();
+        else if (s.focusStack.length) s.exitFocus();
         return;
       }
 

@@ -4,7 +4,7 @@
 // grid, other frames and scene shapes, and honours Shift (square) and Alt (from
 // centre).
 
-import type { EditorState } from "../../store/editorStore";
+import { currentFocusRoot, type EditorState } from "../../store/editorStore";
 import { makeFrame, type Bounds, type FrameNode, type Vec2 } from "../../model/types";
 import { isShapeHidden } from "../../model/groups";
 import { framesInPaintOrder, shapesInPaintOrder } from "../../model/scene";
@@ -75,6 +75,9 @@ export function onFrameDown(
   _screen: Vec2,
   world: Vec2
 ) {
+  // Frames are only legal at the top level, so one drawn inside a focus scope
+  // would land outside the view it was drawn in. Refuse instead.
+  if (currentFocusRoot(state) !== null) return;
   const frame = makeFrame(
     world.x,
     world.y,

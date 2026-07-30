@@ -10,6 +10,7 @@ import {
 } from "@/model/geometry/matrix";
 import {
   childIdsOf,
+  enclosingSymbolId,
   parentIdOf,
   referencedSymbolIds,
   selectionRoots,
@@ -26,7 +27,7 @@ import {
 } from "./docOps";
 import {
   clearTransient,
-  currentSymbolScope,
+  currentFocusRoot,
   type ClipboardActions,
   type StoreCtx,
 } from "./state";
@@ -52,8 +53,8 @@ export function createClipboardActions({ set, get, transact }: StoreCtx): Clipbo
       // Instances only paste while their symbol exists and no cycle results.
       const symbolIds = referencedSymbolIds(Object.values(clipboard.nodes));
       for (const symbolId of symbolIds) if (!doc.symbols[symbolId]) return false;
-      const scope = currentSymbolScope(state);
-      if (wouldCreateSymbolCycle(doc, scope, symbolIds)) return false;
+      const scope = currentFocusRoot(state);
+      if (wouldCreateSymbolCycle(doc, enclosingSymbolId(doc, scope), symbolIds)) return false;
       const remapped = remapPayload(clipboard, at ? 0 : PASTE_OFFSET);
       // Scripts, assets and swatches the destination lacks come from the
       // payload; unresolvable generator links are dropped, and a missing image

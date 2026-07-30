@@ -16,7 +16,7 @@ import { expandBounds, instanceWorldBounds, intersectBounds, shapeBounds, unionN
 import { hasValidSceneContainers } from "../model/sceneValidation";
 import { eraseBrush } from "@/model/brush/eraser";
 import { applyWorldTransformToNode, boundsTransform, IDENTITY, invertMatrix, multiply, nodeWorldMatrix, shapeWorldMatrix, translation } from "@/model/geometry/matrix";
-import { childIdsOf, descendantShapeIds, isGroup, isInstance, isNodeHidden, isNodeLocked, isShape, parentIdOf, referencedAssetIds, scopeLeafIds, scopeRootGroupId, selectionRoots, withChildIds } from "../model/scene";
+import { childIdsOf, descendantShapeIds, isGroup, isInstance, isNodeHidden, isNodeLocked, isShape, parentIdOf, referencedAssetIds, scopeLeafIds, selectionRoots, withChildIds } from "../model/scene";
 import { clampRectCornerRadius } from "../model/roundedRect";
 import { resizeShapeToBounds, translateShape } from "@/model/geometry/transforms";
 import { baseNodeDefaults, baseShapeDefaults, makeId, type AnchorType, type PathShape, type Bounds, type ImageShape, type SceneNode, type Shape, type Vec2 } from "../model/types";
@@ -27,7 +27,7 @@ import { loadAssetImage } from "../imageCache";
 import { appendToScope, groupNode, removeRoots } from "./docOps";
 import {
   clearTransient,
-  currentSymbolScope,
+  currentFocusRoot,
   groupEditNodesByShape,
   type ShapeActions,
   type StoreCtx,
@@ -80,7 +80,7 @@ export function createShapeActions({ set, get, transact, replaceDocumentWithoutH
       generator: { scriptId: generatorId, args },
     };
     const doc = { ...s.doc, nodes: { ...s.doc.nodes, [shape.id]: shape } };
-    transact(appendToScope(doc, currentSymbolScope(s), [shape.id]), { label: "Add generator" });
+    transact(appendToScope(doc, currentFocusRoot(s), [shape.id]), { label: "Add generator" });
     set({ selection: [shape.id], ...clearTransient });
   };
   // In-flight target args per node while its script build is running. Kept out
@@ -135,8 +135,8 @@ export function createShapeActions({ set, get, transact, replaceDocumentWithoutH
   };
 
   return {
-    addShape: (shape, select = true) => { const s = get(); const doc = { ...s.doc, nodes: { ...s.doc.nodes, [shape.id]: shape } }; transact(appendToScope(doc, currentSymbolScope(s), [shape.id]), { label: "Add shape" }); if (select) set({ selection: [shape.id], ...clearTransient }); },
-    addShapes: (shapes, select = true) => { if (!shapes.length) return; const s = get(); const doc = { ...s.doc, nodes: { ...s.doc.nodes, ...Object.fromEntries(shapes.map((sh) => [sh.id, sh])) } }; transact(appendToScope(doc, currentSymbolScope(s), shapes.map((sh) => sh.id)), { label: `Add ${shapes.length} shapes` }); if (select) set({ selection: shapes.map((sh) => sh.id), ...clearTransient }); },
+    addShape: (shape, select = true) => { const s = get(); const doc = { ...s.doc, nodes: { ...s.doc.nodes, [shape.id]: shape } }; transact(appendToScope(doc, currentFocusRoot(s), [shape.id]), { label: "Add shape" }); if (select) set({ selection: [shape.id], ...clearTransient }); },
+    addShapes: (shapes, select = true) => { if (!shapes.length) return; const s = get(); const doc = { ...s.doc, nodes: { ...s.doc.nodes, ...Object.fromEntries(shapes.map((sh) => [sh.id, sh])) } }; transact(appendToScope(doc, currentFocusRoot(s), shapes.map((sh) => sh.id)), { label: `Add ${shapes.length} shapes` }); if (select) set({ selection: shapes.map((sh) => sh.id), ...clearTransient }); },
     addBrushStroke: (shape) => {
       const s = get();
       const doc = { ...s.doc, nodes: { ...s.doc.nodes, [shape.id]: shape } };
@@ -152,7 +152,7 @@ export function createShapeActions({ set, get, transact, replaceDocumentWithoutH
       const groupId = makeId("group");
       const group = { ...groupNode(groupId, [shape.id]), name: "Drawing" };
       const withGroup = { ...doc, nodes: { ...doc.nodes, [groupId]: group } };
-      transact(appendToScope(withGroup, currentSymbolScope(s), [groupId]), { label: "Draw brush stroke" });
+      transact(appendToScope(withGroup, currentFocusRoot(s), [groupId]), { label: "Draw brush stroke" });
       set({ selection: [shape.id], activeGroupId: groupId, ...clearTransient });
     },
     addFillShape: (shape, aboveId) => {
@@ -168,7 +168,7 @@ export function createShapeActions({ set, get, transact, replaceDocumentWithoutH
       } else {
         const active =
           s.activeGroupId && isGroup(s.doc.nodes[s.activeGroupId]) ? s.activeGroupId : null;
-        parentId = active ?? scopeRootGroupId(s.doc, currentSymbolScope(s));
+        parentId = active ?? currentFocusRoot(s);
         index = 0;
       }
       // The fill's geometry is in scope-view space; parenting it under the
@@ -196,7 +196,7 @@ export function createShapeActions({ set, get, transact, replaceDocumentWithoutH
       const replacements = new Map<string, string[]>();
       const newNodes: Record<string, SceneNode> = {};
       const removeIds = new Set<string>();
-      for (const id of scopeLeafIds(doc, currentSymbolScope(state))) {
+      for (const id of scopeLeafIds(doc, currentFocusRoot(state))) {
         const node = doc.nodes[id];
         if (
           !isShape(node) ||
@@ -435,7 +435,7 @@ export function createShapeActions({ set, get, transact, replaceDocumentWithoutH
         ids.push(shape.id);
       });
       const doc = { ...s.doc, nodes, assets };
-      transact(appendToScope(doc, currentSymbolScope(s), ids), { label: ids.length === 1 ? "Place image" : `Place ${ids.length} images` });
+      transact(appendToScope(doc, currentFocusRoot(s), ids), { label: ids.length === 1 ? "Place image" : `Place ${ids.length} images` });
       set({ selection: ids, ...clearTransient });
     },
     placeImportedSvg: (imported, at, fitWithin) => {
@@ -475,7 +475,7 @@ export function createShapeActions({ set, get, transact, replaceDocumentWithoutH
       };
       const doc = appendToScope(
         { ...s.doc, nodes },
-        currentSymbolScope(s),
+        currentFocusRoot(s),
         [root.id]
       );
       transact(doc, { label: "Place SVG" });
@@ -537,7 +537,7 @@ export function createShapeActions({ set, get, transact, replaceDocumentWithoutH
         transform: [1, 0, 0, 1, 0, 0],
       };
       const doc = { ...s.doc, nodes: { ...s.doc.nodes, [shape.id]: shape } };
-      transact(appendToScope(doc, currentSymbolScope(s), [shape.id]), { label: "Place image" });
+      transact(appendToScope(doc, currentFocusRoot(s), [shape.id]), { label: "Place image" });
       set({ selection: [shape.id], ...clearTransient });
     },
     deleteAsset: (assetId) => {

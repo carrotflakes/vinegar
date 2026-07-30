@@ -4,6 +4,7 @@
 
 import { createEmptyDocument, type Document } from "../model/types";
 import { hasValidSceneContainers } from "../model/sceneValidation";
+import { validFocusPrefix } from "../model/scene";
 import { applyDocumentPatches, diffDocument, documentsEqual, type DocumentPatch } from "./documentPatches";
 import { usePreferences } from "./preferencesStore";
 import {
@@ -97,7 +98,7 @@ function documentReset(doc: Document, saved: boolean) {
     doc,
     gridSize: doc.settings.gridSize,
     selection: [],
-    editingSymbols: [],
+    focusStack: [],
     activeGroupId: null,
     activeFrameId: null,
     selectedGuideId: null,
@@ -115,7 +116,7 @@ function documentReset(doc: Document, saved: boolean) {
 
 function restoredEditorState(doc: Document, get: StoreGet) {
   const state = get();
-  return { selection: state.selection.filter((id) => !!doc.nodes[id]), editingSymbols: state.editingSymbols.filter((id) => !!doc.symbols[id]), ...clearTransient };
+  return { selection: state.selection.filter((id) => !!doc.nodes[id]), focusStack: validFocusPrefix(doc, state.focusStack), ...clearTransient };
 }
 
 export interface HistorySlice {

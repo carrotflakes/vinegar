@@ -17,7 +17,7 @@ import {
   type ClippingMaskShape,
 } from "../clippingMask";
 import { invertMatrix, matrixScale, nodeWorldMatrix, shapeWorldMatrix, transformBounds } from "./matrix";
-import { isInstance, isShape, scopeLeafIds } from "../scene";
+import { isInstance, isShape, symbolLeafIds } from "../scene";
 import { pointInRoundedRect, roundedRectPolyline } from "../roundedRect";
 import { effectiveStrokeAlignment, strokeOutset } from "../stroke";
 import type { Bounds, Document, Shape, SymbolInstance, Vec2 } from "../types";
@@ -346,7 +346,7 @@ export function hitTestNode(
   const local = applyMatrix(inverse, p);
   const localTol = tol / matrixScale(world);
   seen.add(node.symbolId);
-  const leaves = scopeLeafIds(doc, node.symbolId);
+  const leaves = symbolLeafIds(doc, node.symbolId);
   let hit = false;
   for (let i = leaves.length - 1; i >= 0; i--) {
     const leaf = doc.nodes[leaves[i]];
@@ -385,7 +385,7 @@ export function marqueeHitNode(
   if (!inverse) return false;
   const localRegion = transformBounds(clippedRegion, inverse);
   seen.add(node.symbolId);
-  const hit = scopeLeafIds(doc, node.symbolId).some((id) => {
+  const hit = symbolLeafIds(doc, node.symbolId).some((id) => {
     const leaf = doc.nodes[id];
     if (!isShape(leaf) && !isInstance(leaf)) return false;
     if (!isNodeVisibleForHitTesting(doc, leaf.id)) return false;

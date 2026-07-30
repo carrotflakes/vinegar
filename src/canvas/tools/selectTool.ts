@@ -31,7 +31,6 @@ import {
   isShape,
   parentIdOf,
   scopeLeafIds,
-  scopeRootGroupId,
   selectionRoots,
   shapesInPaintOrder,
   withChildIds,
@@ -40,7 +39,7 @@ import { collectSnapTargets, computeSnap } from "@/model/geometry/snap";
 import { activeGuideLines } from "../guides";
 import type { Document, SceneNode, Shape, Vec2 } from "../../model/types";
 import { screenToWorld, worldToScreen } from "@/model/geometry/viewport";
-import { currentSymbolScope, useEditor, type EditorState } from "../../store/editorStore";
+import { currentFocusRoot, useEditor, type EditorState } from "../../store/editorStore";
 import { setReadout } from "../../store/pointerStore";
 import {
   HANDLE_SIZE,
@@ -91,7 +90,7 @@ function beginSelectionMove(
       descendantShapeIds(state.doc, id)
     )
   );
-  const others = shapesInPaintOrder(state.doc, currentSymbolScope(state)).filter(
+  const others = shapesInPaintOrder(state.doc, currentFocusRoot(state)).filter(
     (s): s is Shape => !selectedLeafIds.has(s.id) && !isShapeHidden(state.doc, s)
   );
   state.beginInteraction("Move selection");
@@ -204,7 +203,7 @@ export function finishSelectMove(
   const moved = Object.keys(inter.originals).some(
     (id) => state.doc.nodes[id] && state.doc.nodes[id] !== inter.originals[id]
   );
-  if (reparent && moved && currentSymbolScope(state) === null) {
+  if (reparent && moved && currentFocusRoot(state) === null) {
     const next = reparentDroppedIntoFrames(state.doc, Object.keys(inter.originals));
     if (next !== state.doc) state.setDoc(next);
   }
@@ -312,7 +311,7 @@ export function onSelectDown(
   // so the click behaves normally.
   const lockedHit = pickLockedShape(ctx, world);
   if (lockedHit) {
-    const scopeRoot = scopeRootGroupId(state.doc, currentSymbolScope(state));
+    const scopeRoot = currentFocusRoot(state);
     const roots = expandToGroups(state.doc, [lockedHit], scopeRoot);
     if (roots.some((id) => state.selection.includes(id))) {
       beginSelectionMove(ctx, state, world, state.selection);
@@ -320,7 +319,7 @@ export function onSelectDown(
     }
   }
 
-  const symbolRoot = scopeRootGroupId(state.doc, currentSymbolScope(state));
+  const focusRoot = currentFocusRoot(state);
   const activeGroup =
     state.activeGroupId && isGroup(state.doc.nodes[state.activeGroupId])
       ? state.activeGroupId
@@ -332,7 +331,7 @@ export function onSelectDown(
     const insideActive =
       activeGroup != null && isWithinGroup(state.doc, hitId, activeGroup);
     if (activeGroup && !insideActive) state.setActiveGroup(null);
-    const scopeRoot = insideActive ? activeGroup : symbolRoot;
+    const scopeRoot = insideActive ? activeGroup : focusRoot;
     let selection: string[];
     if (shiftKey) {
       const group = expandToGroups(state.doc, [hitId], scopeRoot);
@@ -645,12 +644,8 @@ export function onMarqueeUp(
       { x: a.x, y: b.y },
     ].map((corner) => screenToWorld(state.viewport, corner))
   );
-  const scope = currentSymbolScope(state);
-  const drillRoot = drillScopeRoot(
-    state.doc,
-    state.activeGroupId,
-    scopeRootGroupId(state.doc, scope)
-  );
+  const scope = currentFocusRoot(state);
+  const drillRoot = drillScopeRoot(state.doc, state.activeGroupId, scope);
   const hits = scopeLeafIds(state.doc, scope).filter((id) => {
     const s = state.doc.nodes[id];
     return (
@@ -711,7 +706,7 @@ export function selectCursor(
   }
   const lockedHit = pickLockedShape(ctx, world);
   if (lockedHit) {
-    const scopeRoot = scopeRootGroupId(state.doc, currentSymbolScope(state));
+    const scopeRoot = currentFocusRoot(state);
     if (
       expandToGroups(state.doc, [lockedHit], scopeRoot).some((id) =>
         state.selection.includes(id)

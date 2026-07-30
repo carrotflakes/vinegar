@@ -26,7 +26,7 @@ import {
   type ToolContext,
 } from "./interaction";
 import ModifierBar from "./ModifierBar";
-import SymbolBreadcrumb from "./SymbolBreadcrumb";
+import FocusBreadcrumb from "./FocusBreadcrumb";
 import TextEditor from "./TextEditor";
 import { commitPenDraft } from "./tools/penTool";
 import { useRenderBenchmark } from "@/debug/useRenderBenchmark";
@@ -206,7 +206,7 @@ export default function CanvasView() {
         />
       )}
       <ModifierBar />
-      <SymbolBreadcrumb />
+      <FocusBreadcrumb />
     </div>
   );
 }

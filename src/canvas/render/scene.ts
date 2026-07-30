@@ -620,7 +620,16 @@ export function renderScene(
       ? performance.now()
       : 0;
 
+  const base = opts.rootBaseMatrix;
   const paintRoots = () => {
+    // Roots carry only a parent-relative transform, so painting a focused
+    // container starts from its parent's world matrix. Everything else in the
+    // pipeline (culling, layer bounds, effects) is already world-space and
+    // therefore needs no adjustment.
+    if (base) {
+      ctx.save();
+      ctx.transform(base[0], base[1], base[2], base[3], base[4], base[5]);
+    }
     for (const nodeId of opts.rootIds ?? doc.rootIds) {
       paintNodeInternal(
         ctx,
@@ -633,8 +642,11 @@ export function renderScene(
         traversal
       );
     }
+    if (base) ctx.restore();
     // A preview that shares a document shape's id supersedes it (the pen
-    // extending an existing path); skip the stale copy underneath.
+    // extending an existing path); skip the stale copy underneath. A preview
+    // with no document node is a shape being drawn, whose geometry the tools
+    // build in world space — so it is painted outside `base`.
     if (opts.preview && !doc.nodes[opts.preview.id]) {
       paintShape(ctx, opts.preview, doc.assets, doc, opts.preview);
     }

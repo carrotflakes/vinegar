@@ -4,9 +4,9 @@ import type {
   RefObject,
 } from "react";
 import { expandToGroups, isWithinGroup } from "../../model/groups";
-import { isGroup, scopeRootGroupId } from "../../model/scene";
+import { isGroup } from "../../model/scene";
 import { screenToWorld } from "@/model/geometry/viewport";
-import { currentSymbolScope, useEditor } from "../../store/editorStore";
+import { currentFocusRoot, useEditor } from "../../store/editorStore";
 import { openContextMenu } from "../../store/menuStore";
 import { canvasMenu, guideMenu, selectionMenu } from "../../ui/menus";
 import { pickGuide } from "../guides";
@@ -62,7 +62,7 @@ export function useCanvasContextMenu({
     if (state.tool === "select" || state.tool === "node") {
       const hitId = pickShape(ctx, world);
       if (hitId) {
-        const symbolRoot = scopeRootGroupId(state.doc, currentSymbolScope(state));
+        const focusRoot = currentFocusRoot(state);
         const activeGroup =
           state.activeGroupId && isGroup(state.doc.nodes[state.activeGroupId])
             ? state.activeGroupId
@@ -70,7 +70,7 @@ export function useCanvasContextMenu({
         const insideActive =
           activeGroup != null && isWithinGroup(state.doc, hitId, activeGroup);
         if (activeGroup && !insideActive) state.setActiveGroup(null);
-        const scopeRoot = insideActive ? activeGroup : symbolRoot;
+        const scopeRoot = insideActive ? activeGroup : focusRoot;
         const expanded = expandToGroups(state.doc, [hitId], scopeRoot);
         if (!expanded.some((id) => state.selection.includes(id))) {
           state.setSelection(expanded);

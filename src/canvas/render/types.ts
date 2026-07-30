@@ -1,4 +1,4 @@
-import type { Document, Shape } from "@/model/types";
+import type { Document, Matrix, Shape } from "@/model/types";
 import type { Viewport } from "@/model/geometry/viewport";
 
 export interface RenderPerformanceSample {
@@ -24,8 +24,16 @@ export interface RenderOptions {
   gridSize?: number;
   /** Grid line colors per tier; falls back to light-theme defaults. */
   gridColors?: { minor: string; major: string; axis: string };
-  /** Paint these roots instead of `doc.rootIds` (symbol local view). */
+  /** Paint these roots instead of `doc.rootIds` (focus / symbol local view). */
   rootIds?: string[] | undefined;
+  /**
+   * World matrix `rootIds` are painted relative to — their parent's world
+   * matrix — so a focused container still lands at its true world position and
+   * agrees with culling, bounds and hit-testing, which are all world-space.
+   * Omit (identity) for scene roots and symbol definition roots, which have no
+   * parent. See docs/focus.md.
+   */
+  rootBaseMatrix?: Matrix | undefined;
   /** Omit this shape while an HTML overlay edits it. */
   hiddenShapeId?: string | null;
   /** Draw editor-only chrome (transparent-frame checkerboard). Off for export. */

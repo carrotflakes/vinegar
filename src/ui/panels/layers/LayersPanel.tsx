@@ -22,8 +22,8 @@ import type { Shape } from "../../../model/types";
 import { isClippingGroup, isClippingMaskNode } from "../../../model/clippingMask";
 import {
   ancestorIds,
+  enclosingSymbolId,
   childIdsOfNode,
-  scopeRootGroupId,
   scopeRootIds,
   selectionRoots,
 } from "../../../model/scene";
@@ -38,7 +38,7 @@ import {
   type Row,
 } from "./tree";
 import { isMac } from "../../../commands/registry";
-import { currentSymbolScope, useEditor } from "../../../store/editorStore";
+import { currentFocusRoot, useEditor } from "../../../store/editorStore";
 import { useHighlight } from "../../../store/highlightStore";
 import { useLayersView } from "../../../store/layersViewStore";
 import { readModifiers } from "../../../store/inputStore";
@@ -112,8 +112,8 @@ export default function LayersPanel() {
   const toggleLocked = useEditor((s) => s.toggleLocked);
   const renameNode = useEditor((s) => s.renameNode);
   const moveNodes = useEditor((s) => s.moveNodes);
-  const scope = useEditor((s) => currentSymbolScope(s));
-  const exitSymbolEdit = useEditor((s) => s.exitSymbolEdit);
+  const scope = useEditor((s) => currentFocusRoot(s));
+  const exitFocus = useEditor((s) => s.exitFocus);
   const enterSymbolEdit = useEditor((s) => s.enterSymbolEdit);
   const detachSelectedInstances = useEditor((s) => s.detachSelectedInstances);
 
@@ -143,9 +143,9 @@ export default function LayersPanel() {
   const [drag, setDrag] = useState<Drag | null>(null);
   const [drop, setDrop] = useState<Drop | null>(null);
 
-  // In a symbol's local view the panel shows that definition's tree; a drop
-  // at the panel root then targets the definition root group, not the scene.
-  const scopeParent = scopeRootGroupId(doc, scope);
+  // Inside a focus scope the panel shows that container's tree; a drop at the
+  // panel root then targets the focused container, not the scene.
+  const scopeParent = scope;
   const roots = toDisplayTree(doc, scopeRootIds(doc, scope));
   const rows = flattenRows(roots, collapsed);
 
@@ -777,13 +777,18 @@ export default function LayersPanel() {
     </Fragment>
   );
 
-  const scopeName = scope ? doc.symbols[scope]?.name ?? "Symbol" : null;
+  // The scope is a container node id; a symbol's definition root reads as the
+  // symbol's name rather than as the anonymous group holding its content.
+  const scopeSymbol = scope ? doc.symbols[enclosingSymbolId(doc, scope) ?? ""] : undefined;
+  const scopeName = scope
+    ? (scopeSymbol?.rootNodeId === scope ? scopeSymbol.name : doc.nodes[scope]?.name) || "Group"
+    : null;
 
   return (
     <div className={"layers" + (drag ? " dragging" : "")}>
       <div className="section-title layers-title">Layers</div>
       {scopeName !== null && (
-        <button className="layers-scope" onClick={exitSymbolEdit}>
+        <button className="layers-scope" onClick={exitFocus}>
           <LuChevronLeft aria-hidden />
           <span>{scopeName}</span>
         </button>

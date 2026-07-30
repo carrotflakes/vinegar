@@ -6,7 +6,7 @@
 import { makeFrame } from "../model/types";
 import { framesInPaintOrder } from "../model/scene";
 import { appendToScope } from "./docOps";
-import { clearTransient, type FrameActions, type StoreCtx } from "./state";
+import { clearTransient, currentFocusRoot, type FrameActions, type StoreCtx } from "./state";
 
 /** Default size for a frame created without a drag (e.g. the Add command). */
 const DEFAULT_SIZE = { width: 1080, height: 1080 };
@@ -14,7 +14,10 @@ const DEFAULT_SIZE = { width: 1080, height: 1080 };
 export function createFrameActions({ set, get, transact }: StoreCtx): FrameActions {
   return {
     addFrame: (at) => {
-      const { doc } = get();
+      const s = get(); const doc = s.doc;
+      // Frames only exist at the top level, so one added from inside a focus
+      // scope would be invisible in the view that created it.
+      if (currentFocusRoot(s) !== null) return;
       const w = DEFAULT_SIZE.width;
       const h = DEFAULT_SIZE.height;
       const x = (at?.x ?? 0) - w / 2;

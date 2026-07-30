@@ -88,8 +88,13 @@ export interface EditorData {
   selection: string[];
   selectionPivot: Vec2 | null;
   selectionTransform: Matrix | null;
-  /** Symbol edit-mode stack (local view); last entry is the one being edited. */
-  editingSymbols: string[];
+  /**
+   * Focus (isolation) stack; entries are container node ids and the last one is
+   * the container being edited. A symbol under local-view edit is represented
+   * by its definition's root group. Session state — never persisted.
+   * See docs/focus.md.
+   */
+  focusStack: string[];
   /**
    * The group the user has drilled into (double-click). Canvas clicks resolve
    * to this group's direct children instead of the outermost group; null means
@@ -432,10 +437,18 @@ export interface SymbolActions {
   createSymbolFromSelection: () => void;
   placeSymbolInstance: (symbolId: string, at?: Vec2) => void;
   detachSelectedInstances: () => void;
+  /**
+   * Isolate a container (frame or group): only its subtree is shown and
+   * editable. Refuses anything that would break the stack's path — a
+   * non-container, a hidden/locked node, or a node outside the current scope.
+   */
+  enterFocus: (nodeId: string) => void;
+  /** Focus the symbol's definition root, entering its local view. */
   enterSymbolEdit: (symbolId: string) => void;
-  exitSymbolEdit: () => void;
-  /** Pop the edit stack down to `depth` symbols (0 = back to the scene). */
-  exitSymbolEditTo: (depth: number) => void;
+  /** Pop one level off the focus stack. */
+  exitFocus: () => void;
+  /** Pop the focus stack down to `depth` entries (0 = back to the scene). */
+  exitFocusTo: (depth: number) => void;
   renameSymbol: (symbolId: string, name: string) => void;
   deleteSymbol: (symbolId: string) => void;
 }
@@ -482,11 +495,15 @@ export const clearTransient = {
   editNodes: [] as EditNode[],
 };
 
-/** The symbol whose definition is being edited, or null for the scene. */
-export function currentSymbolScope(
-  s: Pick<EditorData, "editingSymbols">
+/**
+ * The container the user is editing inside — the innermost focus-stack entry —
+ * or null for the whole scene. This is the editing *scope* every scope-aware
+ * helper takes (see `scopeLeafIds`, `scopeRootIds`, `appendToScope`).
+ */
+export function currentFocusRoot(
+  s: Pick<EditorData, "focusStack">
 ): string | null {
-  return s.editingSymbols[s.editingSymbols.length - 1] ?? null;
+  return s.focusStack[s.focusStack.length - 1] ?? null;
 }
 
 /** Bucket the flat edit-node selection by its owning shape id. */

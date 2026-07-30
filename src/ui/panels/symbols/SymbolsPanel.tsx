@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { LuComponent, LuPlus, LuPencil, LuTrash2 } from "react-icons/lu";
-import { instanceCountsBySymbol } from "../../../model/scene";
-import { currentSymbolScope, useEditor } from "../../../store/editorStore";
+import { enclosingSymbolId, instanceCountsBySymbol } from "../../../model/scene";
+import { currentFocusRoot, useEditor } from "../../../store/editorStore";
 import { canvasCenterPlacement } from "../../../canvas/canvasDrag";
 import { usePanelCanvasDrag } from "../../usePanelCanvasDrag";
 import "../../Panel.css";
@@ -14,7 +14,9 @@ import "../PanelList.css";
  */
 export default function SymbolsPanel() {
   const doc = useEditor((s) => s.doc);
-  const scope = useEditor((s) => currentSymbolScope(s));
+  // The focus scope is a node id, so the symbol a row represents is "being
+  // edited" when the scope sits anywhere inside that symbol's definition.
+  const editedSymbolId = useEditor((s) => enclosingSymbolId(s.doc, currentFocusRoot(s)));
   const enterSymbolEdit = useEditor((s) => s.enterSymbolEdit);
   const placeSymbolInstance = useEditor((s) => s.placeSymbolInstance);
   const renameSymbol = useEditor((s) => s.renameSymbol);
@@ -42,7 +44,7 @@ export default function SymbolsPanel() {
             return (
               <div
                 key={def.id}
-                className={"symbol-row" + (scope === def.id ? " selected" : "")}
+                className={"symbol-row" + (editedSymbolId === def.id ? " selected" : "")}
                 onPointerDown={
                   editing === def.id ? undefined : (e) => startDrag(e, def.id)
                 }
@@ -94,7 +96,7 @@ export default function SymbolsPanel() {
                   title={
                     count > 0 ? "Delete (remove instances first)" : "Delete symbol"
                   }
-                  disabled={count > 0 || scope === def.id}
+                  disabled={count > 0 || editedSymbolId === def.id}
                   onClick={() => deleteSymbol(def.id)}
                 >
                   <LuTrash2 />

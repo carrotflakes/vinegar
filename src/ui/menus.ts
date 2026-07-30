@@ -77,7 +77,12 @@ export function selectionMenu(): MenuEntry[] {
     // Only meaningful for containers, so it stays out of the way otherwise.
     ...(enabled("select.children") ? [item("select.children")] : []),
     ...(enabled("select.parent") ? [item("select.parent")] : []),
-    ...(enabled("select.children") || enabled("select.parent")
+    // For an instance this would duplicate "Edit symbol" below, which is the
+    // clearer label for that case.
+    ...(enabled("focus.enter") && !enabled("symbol.editSelected")
+      ? [item("focus.enter")]
+      : []),
+    ...(enabled("select.children") || enabled("select.parent") || enabled("focus.enter")
       ? ["separator" as const]
       : []),
     item("structure.group"),

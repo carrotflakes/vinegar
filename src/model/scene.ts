@@ -129,26 +129,64 @@ export function sceneIndex(doc: Document): SceneIndex {
 }
 
 /**
- * Paintable leaf ids (shapes and instances) of one scope in paint order.
- * `scope` is null for the scene or a symbol id for that definition's content.
+ * Paintable leaf ids (shapes and instances) owned by a symbol definition, in
+ * paint order. This is the definition's *content*, independent of what the
+ * user is currently editing — see {@link scopeLeafIds} for that.
+ */
+export function symbolLeafIds(doc: Document, symbolId: string): string[] {
+  const index = sceneIndex(doc);
+  return index.shapeIds.filter((id) => index.owner.get(id) === symbolId);
+}
+
+/**
+ * Paintable leaf ids (shapes and instances) of one editing scope in paint
+ * order. A scope is a container node id — the focused container, or a symbol
+ * definition's root group while that symbol is being edited — and null for the
+ * whole scene (which excludes every definition's content).
  */
 export function scopeLeafIds(doc: Document, scope: string | null): string[] {
   const index = sceneIndex(doc);
-  return index.shapeIds.filter((id) => index.owner.get(id) === scope);
+  if (scope === null)
+    return index.shapeIds.filter((id) => index.owner.get(id) === null);
+  return index.shapeIds.filter((id) =>
+    index.ancestors.get(id)?.includes(scope)
+  );
 }
 
-/** Root group id of a symbol's definition, or null for the scene scope. */
-export function scopeRootGroupId(doc: Document, scope: string | null): string | null {
-  if (scope === null) return null;
-  return doc.symbols[scope]?.rootNodeId ?? null;
-}
-
-/** Top-level node ids of a scope (scene rootIds or def root children). */
+/** Top-level node ids of a scope (scene rootIds or the container's children). */
 export function scopeRootIds(doc: Document, scope: string | null): string[] {
-  const rootGroup = scopeRootGroupId(doc, scope);
-  if (rootGroup === null) return doc.rootIds;
-  const node = doc.nodes[rootGroup];
-  return isGroup(node) ? node.childIds : [];
+  if (scope === null) return doc.rootIds;
+  return childIdsOfNode(doc.nodes[scope]);
+}
+
+/**
+ * The symbol whose definition contains `nodeId` (the definition root itself
+ * included), or null for scene nodes. Lets scope-aware code that still needs a
+ * symbol id — cycle checks, panel highlighting — recover it from a scope.
+ */
+export function enclosingSymbolId(doc: Document, nodeId: string | null): string | null {
+  if (nodeId === null) return null;
+  return sceneIndex(doc).owner.get(nodeId) ?? null;
+}
+
+/**
+ * The longest prefix of a focus stack that is still valid for `doc`: every
+ * entry must exist, still be a container, still be visible and unlocked, and
+ * sit inside the entry before it. Undo, redo and file loads can delete, hide,
+ * lock or reparent a focused container, so the stack is re-validated against
+ * every document the store adopts — being inside a hidden container would show
+ * an empty canvas, and inside a locked one nothing could be selected.
+ */
+export function validFocusPrefix(doc: Document, stack: string[]): string[] {
+  const valid: string[] = [];
+  for (const id of stack) {
+    if (!isContainer(doc.nodes[id])) break;
+    if (isNodeHidden(doc, id) || isNodeLocked(doc, id)) break;
+    const outer = valid[valid.length - 1];
+    if (outer !== undefined && !ancestorIds(doc, id).includes(outer)) break;
+    valid.push(id);
+  }
+  return valid;
 }
 
 /** Symbol ids reachable from `symbolId`'s definition, including itself. */

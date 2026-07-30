@@ -1,7 +1,7 @@
 import { globalStyle } from "@vanilla-extract/css";
 import { vars } from "../styles/theme.css";
 
-globalStyle(".symbol-crumbs", {
+globalStyle(".focus-crumbs", {
   position: "absolute",
   top: "10px",
   left: "50%",
@@ -19,7 +19,7 @@ globalStyle(".symbol-crumbs", {
   fontSize: "12.5px",
 });
 
-globalStyle(".symbol-crumb", {
+globalStyle(".focus-crumb", {
   display: "flex",
   alignItems: "center",
   gap: "5px",
@@ -32,30 +32,30 @@ globalStyle(".symbol-crumb", {
   fontSize: "12.5px",
 });
 
-globalStyle(".symbol-crumb svg", {
+globalStyle(".focus-crumb svg", {
   flex: "0 0 auto",
   fontSize: "13px",
   opacity: "0.85",
 });
 
-globalStyle("button.symbol-crumb:hover", {
+globalStyle("button.focus-crumb:hover", {
   background: vars.hover,
   color: vars.text,
 });
 
-globalStyle(".symbol-crumb.current", {
+globalStyle(".focus-crumb.current", {
   background: vars.accentSoft,
   color: vars.accent,
   fontWeight: "600",
 });
 
-globalStyle(".symbol-crumb-name", {
+globalStyle(".focus-crumb-name", {
   overflow: "hidden",
   textOverflow: "ellipsis",
   whiteSpace: "nowrap",
 });
 
-globalStyle(".symbol-crumb-sep", {
+globalStyle(".focus-crumb-sep", {
   flex: "0 0 auto",
   color: vars.muted,
   fontSize: "13px",

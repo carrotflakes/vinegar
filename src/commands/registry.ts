@@ -30,7 +30,7 @@ import { hasCuttableNodes } from "@/model/path/cutPath";
 import {
   childIdsOf,
   framesInPaintOrder,
-  scopeRootGroupId,
+  isGroup,
   isFrame,
   isInstance,
   isNodeHidden,
@@ -74,7 +74,7 @@ import {
   type FileHandle,
 } from "../io/fileSystem";
 import { saveDocument, saveDocumentAs } from "../io/saveDocument";
-import { currentSymbolScope, hasUnsavedChanges, useEditor } from "../store/editorStore";
+import { currentFocusRoot, hasUnsavedChanges, useEditor } from "../store/editorStore";
 import { useDocumentFile } from "../store/documentFileStore";
 import { usePreferences } from "../store/preferencesStore";
 import { useUi } from "../store/uiStore";
@@ -175,6 +175,12 @@ function sel(s: EditorState) {
         sh.strokeWidth > 0
     ),
     canMakeSymbol: roots.length >= 1 && parents.size === 1,
+    /** The one selected container that focus would isolate, if any. */
+    focusTarget:
+      roots.length === 1 &&
+      (isGroup(s.doc.nodes[roots[0]]) || isFrame(s.doc.nodes[roots[0]]))
+        ? roots[0]
+        : null,
     hasInstances: instanceRoots.length > 0,
     singleInstance:
       singleInstanceNode && isInstance(singleInstanceNode)
@@ -184,16 +190,16 @@ function sel(s: EditorState) {
 }
 
 /**
- * The container of every selected node, skipping the symbol-definition root
- * (an internal container, not a layer the user can select). Empty at the top
- * level, which is also what disables "Select parent".
+ * The container of every selected node, skipping the focus root (the scope's
+ * own container, not a layer the user can select inside it). Empty at the top
+ * of the scope, which is also what disables "Select parent".
  */
 function selectionParentIds(s: EditorState): string[] {
-  const definitionRoot = scopeRootGroupId(s.doc, currentSymbolScope(s));
+  const scope = currentFocusRoot(s);
   const ids = new Set<string>();
   for (const id of selectionRoots(s.doc, s.selection)) {
     const parent = parentIdOf(s.doc, id);
-    if (parent && parent !== definitionRoot) ids.add(parent);
+    if (parent && parent !== scope) ids.add(parent);
   }
   return [...ids];
 }
@@ -315,7 +321,7 @@ function selectionBounds(s: EditorState): Bounds | null {
 }
 
 function drawingBounds(s: EditorState): Bounds | null {
-  return contentBounds(s.doc, 0, currentSymbolScope(s));
+  return contentBounds(s.doc, 0, currentFocusRoot(s));
 }
 
 /** The selected guide's id, if one is selected and actually actionable. */
@@ -627,6 +633,32 @@ export const COMMANDS: Command[] = [
       const inst = sel(s).singleInstance;
       if (inst) s.enterSymbolEdit(inst.symbolId);
     },
+  },
+  // Focus -------------------------------------------------------------------
+  {
+    id: "focus.enter",
+    label: "Focus on selection",
+    group: "Focus",
+    keys: [{ key: "Enter", mod: true }],
+    enabled: (s) => sel(s).focusTarget != null || sel(s).singleInstance != null,
+    run: (s) => {
+      // A symbol instance has no subtree of its own; focusing it means editing
+      // the definition it stands for.
+      const inst = sel(s).singleInstance;
+      if (inst) {
+        s.enterSymbolEdit(inst.symbolId);
+        return;
+      }
+      const target = sel(s).focusTarget;
+      if (target) s.enterFocus(target);
+    },
+  },
+  {
+    id: "focus.exit",
+    label: "Exit focus",
+    group: "Focus",
+    enabled: (s) => s.focusStack.length > 0,
+    run: (s) => s.exitFocus(),
   },
   {
     id: "symbol.detach",

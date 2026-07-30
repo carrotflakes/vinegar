@@ -5,12 +5,13 @@ import { NODE_BASE, SHAPE_BASE } from "./nodeBase.mjs";
 
 let server;
 let useEditor;
-let currentSymbolScope;
+let currentFocusRoot;
 let nodeWorldBounds;
 let instanceWorldBounds;
 let symbolContentBounds;
 let hitTestNode;
 let scopeLeafIds;
+let symbolLeafIds;
 let parentIdOf;
 let isInstance;
 let serializeDocument;
@@ -19,11 +20,11 @@ let exportSvg;
 
 before(async () => {
   server = await createServer({ server: { middlewareMode: true } });
-  ({ useEditor, currentSymbolScope } = await server.ssrLoadModule("/src/store/editorStore.ts"));
+  ({ useEditor, currentFocusRoot } = await server.ssrLoadModule("/src/store/editorStore.ts"));
   ({ nodeWorldBounds, instanceWorldBounds, symbolContentBounds } =
     await server.ssrLoadModule("/src/model/geometry/bounds.ts"));
   ({ hitTestNode } = await server.ssrLoadModule("/src/model/geometry/hitTest.ts"));
-  ({ scopeLeafIds, parentIdOf, isInstance } = await server.ssrLoadModule("/src/model/scene.ts"));
+  ({ scopeLeafIds, symbolLeafIds, parentIdOf, isInstance } = await server.ssrLoadModule("/src/model/scene.ts"));
   ({ serializeDocument, parseDocument } = await server.ssrLoadModule("/src/io/serialize.ts"));
   ({ exportSvg } = await server.ssrLoadModule("/src/io/exportSvg.ts"));
 });
@@ -83,7 +84,9 @@ test("create symbol replaces the selection with an equivalent instance", () => {
   const defRoot = doc.symbols[symbolId].rootNodeId;
   assert.equal(parentIdOf(doc, "r1"), defRoot);
   assert.deepEqual(scopeLeafIds(doc, null), [instanceId]);
-  assert.deepEqual(scopeLeafIds(doc, symbolId), ["r1", "r2"]);
+  assert.deepEqual(symbolLeafIds(doc, symbolId), ["r1", "r2"]);
+  // The editing scope is the definition root node, not the symbol id.
+  assert.deepEqual(scopeLeafIds(doc, defRoot), ["r1", "r2"]);
 
   // The instance hit-tests through its content, holes excluded.
   assert.ok(hitTestNode(doc, doc.nodes[instanceId], { x: 15, y: 15 }, 1));
@@ -112,7 +115,10 @@ test("editing a symbol updates every instance and scopes new shapes", () => {
 
   // Local view: new shapes land inside the definition, not the scene.
   s.enterSymbolEdit(symbolId);
-  assert.equal(currentSymbolScope(useEditor.getState()), symbolId);
+  assert.equal(
+    currentFocusRoot(useEditor.getState()),
+    useEditor.getState().doc.symbols[symbolId].rootNodeId
+  );
   useEditor.getState().addShape(rect("r3", 0, 0, 5, 5));
   s = useEditor.getState();
   const defRoot = s.doc.symbols[symbolId].rootNodeId;
@@ -128,8 +134,8 @@ test("editing a symbol updates every instance and scopes new shapes", () => {
   s.placeSymbolInstance(symbolId);
   assert.equal(Object.keys(useEditor.getState().doc.nodes).length, nodeCount);
 
-  useEditor.getState().exitSymbolEdit();
-  assert.equal(currentSymbolScope(useEditor.getState()), null);
+  useEditor.getState().exitFocus();
+  assert.equal(currentFocusRoot(useEditor.getState()), null);
 });
 
 test("detach expands an instance into an equivalent group", () => {

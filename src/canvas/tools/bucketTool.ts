@@ -5,7 +5,7 @@ import { baseNodeDefaults, baseShapeDefaults, makeId, type PathShape } from "../
 import type { Vec2 } from "../../model/types";
 import { useBucket } from "../../store/bucketStore";
 import type { EditorState } from "../../store/editorStore";
-import { currentSymbolScope } from "../../store/state";
+import { currentFocusRoot } from "../../store/state";
 import { notify } from "../../store/toastStore";
 
 /**
@@ -23,7 +23,7 @@ export function bucketFillAt(state: EditorState, world: Vec2): void {
   const { gapTolerance, strokeCenterline } = useBucket.getState();
   const result = computeBucketFill(
     state.doc,
-    currentSymbolScope(state),
+    currentFocusRoot(state),
     world,
     gapTolerance,
     strokeCenterline

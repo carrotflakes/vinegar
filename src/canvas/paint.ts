@@ -1,10 +1,10 @@
 import { unionNodeWorldBounds } from "@/model/geometry/bounds";
 import { exactlySelectedGroup } from "../model/groups";
 import { applyMatrix, nodeWorldMatrix, shapeWorldMatrix } from "@/model/geometry/matrix";
-import { framesInPaintOrder, isFrame, scopeRootGroupId, selectionRoots } from "../model/scene";
+import { framesInPaintOrder, isFrame, parentIdOf, selectionRoots } from "../model/scene";
 import type { Guide, Spacing } from "@/model/geometry/snap";
 import type { Bounds, PathShape, Shape, Vec2 } from "../model/types";
-import { currentSymbolScope, type EditorState } from "../store/editorStore";
+import { currentFocusRoot, type EditorState } from "../store/editorStore";
 import { usePreferences } from "../store/preferencesStore";
 import type { CanvasTheme } from "./canvasTheme";
 import { cornerRadiusControl } from "./cornerRadiusHandle";
@@ -79,11 +79,12 @@ export function paintCanvas(input: PaintInput): void {
   const { width, height, dpr } = size;
   const { doc, viewport, selection, tool } = state;
 
-  // Symbol local view: paint only the edited definition; the breadcrumb is
-  // the mode indicator (see SymbolBreadcrumb.tsx).
-  const scope = currentSymbolScope(state);
-  const scopeRoot = scopeRootGroupId(doc, scope);
+  // Focus (isolation) view: paint only the focused container's subtree; the
+  // breadcrumb is the mode indicator (see FocusBreadcrumb.tsx).
+  const scope = currentFocusRoot(state);
   renderScene(ctx2d, {
+    rootBaseMatrix:
+      scope !== null ? nodeWorldMatrix(doc, parentIdOf(doc, scope)) : undefined,
     width,
     height,
     dpr,
@@ -94,7 +95,7 @@ export function paintCanvas(input: PaintInput): void {
     showGrid: state.gridVisible,
     gridSize: state.gridSize,
     gridColors: theme.grid,
-    rootIds: scopeRoot !== null ? [scopeRoot] : undefined,
+    rootIds: scope !== null ? [scope] : undefined,
     hiddenShapeId: hiddenTextId,
     editorChrome: true,
   });

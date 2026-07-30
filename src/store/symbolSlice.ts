@@ -1,15 +1,22 @@
 // Reusable symbols: definitions live in doc.symbols (content in doc.nodes,
-// outside rootIds); instances are atomic leaves. Local-view editing is
-// tracked by the editingSymbols stack.
+// outside rootIds); instances are atomic leaves. Local-view editing is one
+// case of focus (isolation) editing — the focus stack holds the definition's
+// root group while a symbol is open. See docs/focus.md.
 
 import { symbolContentBounds } from "@/model/geometry/bounds";
 import { hasValidSceneContainers } from "../model/sceneValidation";
 import { IDENTITY, translation as translationMatrix } from "@/model/geometry/matrix";
 import {
+  ancestorIds,
   childIdsOf,
   descendantNodeIds,
+  enclosingSymbolId,
   instanceIdsOf,
+  isFrame,
+  isGroup,
   isInstance,
+  isNodeHidden,
+  isNodeLocked,
   parentIdOf,
   selectionRoots,
   wouldCreateSymbolCycle,
@@ -31,7 +38,7 @@ import {
 } from "./docOps";
 import {
   clearTransient,
-  currentSymbolScope,
+  currentFocusRoot,
   type StoreCtx,
   type SymbolActions,
 } from "./state";
@@ -73,8 +80,10 @@ export function createSymbolActions({ set, get, transact }: StoreCtx): SymbolAct
     placeSymbolInstance: (symbolId, at) => {
       const s = get(); const doc = s.doc;
       if (!doc.symbols[symbolId]) return;
-      const scope = currentSymbolScope(s);
-      if (wouldCreateSymbolCycle(doc, scope, [symbolId])) return;
+      const scope = currentFocusRoot(s);
+      // Nesting is only illegal relative to the symbol being edited, which the
+      // scope (a node id) has to be resolved back to.
+      if (wouldCreateSymbolCycle(doc, enclosingSymbolId(doc, scope), [symbolId])) return;
       let transform: Matrix = [...IDENTITY];
       if (at) {
         const content = symbolContentBounds(doc, symbolId);
@@ -113,13 +122,29 @@ export function createSymbolActions({ set, get, transact }: StoreCtx): SymbolAct
       }
       if (selected.length) { transact(doc, { label: "Detach symbol instance" }); set({ selection: selected, ...clearTransient }); if (effectsRemoved) notifyEffectsRemoved(); }
     },
-    enterSymbolEdit: (symbolId) => { const s = get(); if (!s.doc.symbols[symbolId] || s.editingSymbols.includes(symbolId)) return; set({ editingSymbols: [...s.editingSymbols, symbolId], activeGroupId: null, selection: [], ...clearTransient }); },
-    exitSymbolEdit: () => { const s = get(); if (!s.editingSymbols.length) return; set({ editingSymbols: s.editingSymbols.slice(0, -1), activeGroupId: null, selection: [], ...clearTransient }); },
-    exitSymbolEditTo: (depth) => { const s = get(); if (depth < 0 || depth >= s.editingSymbols.length) return; set({ editingSymbols: s.editingSymbols.slice(0, depth), activeGroupId: null, selection: [], ...clearTransient }); },
+    enterFocus: (nodeId) => {
+      const s = get(); const doc = s.doc; const node = doc.nodes[nodeId];
+      // Compound paths are edited with the node tool, not by isolation.
+      if (!isGroup(node) && !isFrame(node)) return;
+      if (isNodeHidden(doc, nodeId) || isNodeLocked(doc, nodeId)) return;
+      if (s.focusStack.includes(nodeId)) return;
+      // Focus only ever goes deeper, so the breadcrumb stays a real path. The
+      // symbol check is what the ancestor check cannot cover from the scene
+      // scope: a definition's content is never reachable except through the
+      // symbol itself.
+      const scope = currentFocusRoot(s);
+      if (enclosingSymbolId(doc, nodeId) !== enclosingSymbolId(doc, scope)) return;
+      if (scope !== null && !ancestorIds(doc, nodeId).includes(scope)) return;
+      set({ focusStack: [...s.focusStack, nodeId], activeGroupId: null, selection: [], ...clearTransient });
+    },
+    enterSymbolEdit: (symbolId) => { const s = get(); const def = s.doc.symbols[symbolId]; if (!def || s.focusStack.includes(def.rootNodeId)) return; set({ focusStack: [...s.focusStack, def.rootNodeId], activeGroupId: null, selection: [], ...clearTransient }); },
+    exitFocus: () => { const s = get(); if (!s.focusStack.length) return; set({ focusStack: s.focusStack.slice(0, -1), activeGroupId: null, selection: [], ...clearTransient }); },
+    exitFocusTo: (depth) => { const s = get(); if (depth < 0 || depth >= s.focusStack.length) return; set({ focusStack: s.focusStack.slice(0, depth), activeGroupId: null, selection: [], ...clearTransient }); },
     renameSymbol: (symbolId, name) => { const doc = get().doc; const def = doc.symbols[symbolId]; if (!def) return; transact({ ...doc, symbols: { ...doc.symbols, [symbolId]: { ...def, name } } }, { label: "Rename symbol" }); },
     deleteSymbol: (symbolId) => {
       const s = get(); const doc = s.doc; const def = doc.symbols[symbolId]; if (!def) return;
-      if (s.editingSymbols.includes(symbolId)) return;
+      // Never delete a definition the focus stack is standing inside.
+      if (s.focusStack.some((id) => enclosingSymbolId(doc, id) === symbolId)) return;
       if (instanceIdsOf(doc, symbolId).length) return;
       const remove = new Set([def.rootNodeId, ...descendantNodeIds(doc, def.rootNodeId)]);
       const nodes = { ...doc.nodes };

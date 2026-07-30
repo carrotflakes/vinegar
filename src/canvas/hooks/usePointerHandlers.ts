@@ -7,10 +7,10 @@ import type {
 import { handleFromDataTransferItem } from "../../io/fileSystem";
 import { isDocumentFile, openDocumentFile } from "../../io/openDocument";
 import { drillScopeRoot, expandToGroups } from "../../model/groups";
-import { isGroup, scopeRootGroupId } from "../../model/scene";
+import { isGroup } from "../../model/scene";
 import type { Vec2 } from "../../model/types";
 import { screenToWorld } from "@/model/geometry/viewport";
-import { currentSymbolScope, useEditor } from "../../store/editorStore";
+import { currentFocusRoot, useEditor } from "../../store/editorStore";
 import { readModifiers } from "../../store/inputStore";
 import { setPointer, setReadout } from "../../store/pointerStore";
 import { resolveCursor } from "../cursor";
@@ -583,8 +583,11 @@ export function usePointerHandlers(deps: PointerHandlerDeps): PointerHandlers {
       if (!hitId) return;
       // Drill one level into the group under the cursor, selecting the child
       // that was hit; a second double-click descends further.
-      const symbolRoot = scopeRootGroupId(state.doc, currentSymbolScope(state));
-      const scopeRoot = drillScopeRoot(state.doc, state.activeGroupId, symbolRoot);
+      const scopeRoot = drillScopeRoot(
+        state.doc,
+        state.activeGroupId,
+        currentFocusRoot(state)
+      );
       const resolved = expandToGroups(state.doc, [hitId], scopeRoot)[0];
       if (resolved && isGroup(state.doc.nodes[resolved])) {
         state.setActiveGroup(resolved);

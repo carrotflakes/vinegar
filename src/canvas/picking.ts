@@ -22,7 +22,7 @@ import { collectSnapTargets, snapPoint } from "@/model/geometry/snap";
 import { activeGuideLines } from "./guides";
 import type { Document, Shape, Vec2 } from "../model/types";
 import { worldToScreen } from "@/model/geometry/viewport";
-import { currentSymbolScope, useEditor, type EditorState } from "../store/editorStore";
+import { currentFocusRoot, useEditor, type EditorState } from "../store/editorStore";
 import {
   frameHandlePoint,
   frameNodeSelectionFrame,
@@ -186,7 +186,7 @@ export function pickShape(ctx: ToolContext, world: Vec2): string | null {
   const state = useEditor.getState();
   const { doc } = state;
   const tol = pickTolerance(ctx);
-  let ids = scopeLeafIds(doc, currentSymbolScope(state));
+  let ids = scopeLeafIds(doc, currentFocusRoot(state));
   // Once the user has drilled into a clipping group, prefer its visible
   // content over the otherwise-frontmost mask. The mask remains the fallback
   // hit for empty parts of its silhouette and stays frontmost outside edit mode.
@@ -219,7 +219,7 @@ export function pickLockedShape(ctx: ToolContext, world: Vec2): string | null {
   const state = useEditor.getState();
   const { doc } = state;
   const tol = pickTolerance(ctx);
-  const ids = scopeLeafIds(doc, currentSymbolScope(state));
+  const ids = scopeLeafIds(doc, currentFocusRoot(state));
   for (let i = ids.length - 1; i >= 0; i--) {
     const node = doc.nodes[ids[i]];
     if (
@@ -250,7 +250,7 @@ export function pointSnap(
     ctx.guides.current = [];
     return world;
   }
-  const others = shapesInPaintOrder(state.doc, currentSymbolScope(state))
+  const others = shapesInPaintOrder(state.doc, currentFocusRoot(state))
     .filter(
       (s): s is Shape =>
         !!s && !isNodeHidden(state.doc, s.id) && !exclude.has(s.id)

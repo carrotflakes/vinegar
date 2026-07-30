@@ -28,9 +28,9 @@ import type { Bounds, Document } from "../model/types";
 export function contentBounds(
   doc: Document,
   margin = 8,
-  symbolId: string | null = null
+  scope: string | null = null
 ): Bounds | null {
-  return leavesBounds(doc, scopeLeafIds(doc, symbolId), margin);
+  return leavesBounds(doc, scopeLeafIds(doc, scope), margin);
 }
 
 /**

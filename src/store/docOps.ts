@@ -5,6 +5,8 @@
 
 import {
   IDENTITY,
+  invertMatrix,
+  isIdentity,
   multiply,
   nodeWorldMatrix,
   translation as translationMatrix,
@@ -19,7 +21,6 @@ import {
   referencedAssetIdsOf,
   referencedScriptIds,
   referencedSwatchIds,
-  scopeRootGroupId,
   selectionRoots,
   withChildIds,
 } from "../model/scene";
@@ -219,8 +220,30 @@ export function instanceNode(id: string, symbolId: string, transform: Matrix): S
   };
 }
 
-/** Append nodes as new top-most children of the given editing scope. */
+/**
+ * Append nodes as new top-most children of the given editing scope.
+ *
+ * Every caller builds its nodes in world space (tools work from world pointer
+ * coordinates, and clipboard payload roots carry world transforms), so a scope
+ * whose container is not at the world origin has the container's inverse world
+ * matrix baked into each appended root — otherwise content drawn inside a
+ * focused container would jump by that container's transform the moment it is
+ * committed. Scene roots and symbol definition roots are identity, so this is a
+ * no-op for them. See docs/focus.md.
+ */
 export function appendToScope(doc: Document, scope: string | null, ids: string[]): Document {
-  const parent = scopeRootGroupId(doc, scope);
-  return withChildIds(doc, parent, [...childIdsOf(doc, parent), ...ids]);
+  let next = doc;
+  if (scope !== null) {
+    const inverse = invertMatrix(nodeWorldMatrix(doc, scope));
+    if (!inverse) return doc;
+    if (!isIdentity(inverse)) {
+      const nodes = { ...next.nodes };
+      for (const id of ids) {
+        const node = nodes[id];
+        if (node) nodes[id] = { ...node, transform: multiply(inverse, node.transform) };
+      }
+      next = { ...next, nodes };
+    }
+  }
+  return withChildIds(next, scope, [...childIdsOf(next, scope), ...ids]);
 }

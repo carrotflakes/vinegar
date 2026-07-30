@@ -17,7 +17,7 @@ import { createGuideActions } from "./guideSlice";
 import { createSelectionActions } from "./selectionSlice";
 import { createShapeActions } from "./shapeSlice";
 import {
-  currentSymbolScope,
+  currentFocusRoot,
   type EditorState,
   type StoreCtx,
   type StyleDefaults,
@@ -26,7 +26,7 @@ import { createStructureActions } from "./structureSlice";
 import { createSwatchActions } from "./swatchSlice";
 import { createSymbolActions } from "./symbolSlice";
 
-export { currentSymbolScope };
+export { currentFocusRoot };
 export type {
   AlignType,
   EditNode,
@@ -56,7 +56,7 @@ export const useEditor = create<EditorState>((set, get) => {
     selection: [],
     selectionPivot: null,
     selectionTransform: null,
-    editingSymbols: [],
+    focusStack: [],
     activeGroupId: null,
     activeFrameId: null,
     history: { past: [], future: [] },
