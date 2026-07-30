@@ -2,13 +2,10 @@
 // Command registry — the single source of truth for user-invocable actions.
 //
 // Every action a user can trigger (via keyboard, context menu, File menu or
-// the command palette) is declared once here as a Command: an id, a label, an
-// optional keyboard shortcut, an `enabled` predicate and a `run` body. The
-// surfaces (App keydown handler, ui/menus.ts, ui/FileMenu.tsx, the palette)
-// derive their behaviour from this list rather than re-wiring each action, so
-// labels, shortcut hints and enabled/disabled state stay in sync automatically
-// and new UI (command palette, on-screen action bars, custom keymaps) can be
-// built on top without touching the actions themselves.
+// the command palette) is declared once as a Command. Editing commands live
+// here; view and file commands are composed below from focused modules. The
+// surfaces (App keydown handler, menus and the palette) derive their behaviour
+// from the combined list, so labels, shortcuts and enabled state stay in sync.
 // ===========================================================================
 
 import {
@@ -20,7 +17,6 @@ import {
   canMakeClippingMaskSelection,
   canReleaseClippingMaskSelection,
 } from "../model/clippingMask";
-import { createDemoDocument } from "../demo/createDemoDocument";
 import { canGroupSelection, selectionUnits } from "../model/groups";
 import { isAreal } from "@/model/path/boolean";
 import { joinableSubpathCount } from "@/model/path/joinPath";
@@ -29,7 +25,6 @@ import { canSplitSubpaths } from "@/model/path/splitSubpaths";
 import { hasCuttableNodes } from "@/model/path/cutPath";
 import {
   childIdsOf,
-  framesInPaintOrder,
   isGroup,
   isFrame,
   isInstance,
@@ -39,49 +34,27 @@ import {
   parentIdOf,
   selectionRoots,
 } from "../model/scene";
-import { nodeWorldBounds, unionNodeWorldBounds } from "@/model/geometry/bounds";
-import {
-  type Bounds,
-  type FrameNode,
-  type Vec2,
-} from "../model/types";
-import {
-  fitBoundsInViewport,
-  flipAt,
-  initialViewport,
-  rotateAt,
-  screenToWorld,
-  zoomAt,
-  type ViewportSize,
-} from "@/model/geometry/viewport";
-import {
-  downloadBlob,
-  downloadText,
-  pickTextFile,
-  pickTextFileWithName,
-} from "../io/download";
-import { contentBounds } from "../io/exportBounds";
-import type { ClipboardPayload } from "../store/docOps";
-import { fileSlug, uniqueFileSlugs } from "../io/exportFilenames";
-import { pickImageFiles } from "../io/importImage";
-import { importSvg, type ImportedSvg } from "../io/importSvg";
-import { exportPng } from "../io/exportPng";
-import { exportSvg } from "../io/exportSvg";
-import { loadDocumentText } from "../io/openDocument";
-import {
-  pickDocumentToOpen,
-  supportsFileSystem,
-  type FileHandle,
-} from "../io/fileSystem";
-import { saveDocument, saveDocumentAs } from "../io/saveDocument";
-import { currentFocusRoot, hasUnsavedChanges, useEditor } from "../store/editorStore";
-import { useDocumentFile } from "../store/documentFileStore";
-import { usePreferences } from "../store/preferencesStore";
-import { useUi } from "../store/uiStore";
+import { screenToWorld } from "@/model/geometry/viewport";
+import { currentFocusRoot, useEditor } from "../store/editorStore";
 import { groupEditNodesByShape } from "../store/state";
 import type { EditorState } from "../store/state";
-import { notify } from "../store/toastStore";
-import { toggleFullscreen } from "../fullscreen";
+import {
+  canvasCenter,
+  pasteForeignPayload,
+  placeImagesFitted,
+  placeSvgFitted,
+} from "./canvasPlacement";
+import { FILE_COMMANDS } from "./fileCommands";
+import type { Command, CommandContext, KeyStroke } from "./types";
+import { VIEW_COMMANDS } from "./viewCommands";
+
+export {
+  canvasCenter,
+  pasteForeignPayload,
+  placeImagesFitted,
+  placeSvgFitted,
+};
+export type { Command, CommandContext, KeyStroke } from "./types";
 
 // --- Platform-aware modifier labels --------------------------------------
 
@@ -89,46 +62,6 @@ import { toggleFullscreen } from "../fullscreen";
 export const isMac = /Mac|iPhone|iPad/.test(navigator.userAgent);
 /** Display label for the primary modifier (Cmd on macOS, Ctrl elsewhere). */
 export const MOD = isMac ? "⌘" : "Ctrl";
-
-/**
- * Guard for actions that replace the current document (new / open / demo).
- * Prompts only when there are unsaved changes; returns whether to proceed.
- */
-function confirmDiscard(s: EditorState): boolean {
-  if (!hasUnsavedChanges(s)) return true;
-  return window.confirm("Discard unsaved changes to the current drawing?");
-}
-
-// --- Shortcut model ------------------------------------------------------
-
-/** A single key chord. `mod` means Ctrl (or Cmd on macOS). */
-export interface KeyStroke {
-  key: string;
-  mod?: boolean;
-  shift?: boolean;
-  alt?: boolean;
-}
-
-/** Runtime context a command may need (e.g. the point a menu opened at). */
-export interface CommandContext {
-  at?: Vec2;
-}
-
-export interface Command {
-  id: string;
-  label: string;
-  /** Palette grouping / section. */
-  group: string;
-  /** Trigger chords. The first is used for display. */
-  keys?: KeyStroke[];
-  /** Whether the command currently applies. Defaults to always-enabled. */
-  enabled?: (s: EditorState) => boolean;
-  run: (s: EditorState, ctx?: CommandContext) => void | Promise<void>;
-  /** Destructive action (styled accordingly in menus). */
-  danger?: boolean;
-  /** Hide from the command palette (still keyboard/menu invocable). */
-  hidden?: boolean;
-}
 
 // --- Selection-derived enablement ----------------------------------------
 
@@ -242,86 +175,6 @@ function hasBrushNodes(s: EditorState): boolean {
     if (isShape(shape) && shape.type === "brush") return true;
   }
   return false;
-}
-
-/** The lone selected frame node, or null. */
-function selectedFrame(s: EditorState): FrameNode | null {
-  if (s.selection.length !== 1) return null;
-  const node = s.doc.nodes[s.selection[0]];
-  return isFrame(node) ? node : null;
-}
-
-/** Frames "Export all" writes: hidden ones render nothing, so they are skipped. */
-function exportableFrames(doc: EditorState["doc"]): FrameNode[] {
-  return framesInPaintOrder(doc).filter((frame) => !frame.hidden);
-}
-
-/** Center of the canvas viewport in screen coords (for zoom-to-center). */
-export function canvasCenter(): Vec2 {
-  const size = canvasViewportSize();
-  return { x: size.width / 2, y: size.height / 2 };
-}
-
-/**
- * Place already-obtained image files, fitting oversized ones into ~80% of the
- * visible plane. `at` (world coords) overrides the default viewport center —
- * used by drop/context-menu placement.
- */
-export async function placeImagesFitted(files: File[], at?: Vec2): Promise<void> {
-  const s = useEditor.getState();
-  const center = canvasCenter();
-  const target = at ?? screenToWorld(s.viewport, center);
-  const fitWithin = {
-    width: ((center.x * 2) / s.viewport.scale) * 0.8,
-    height: ((center.y * 2) / s.viewport.scale) * 0.8,
-  };
-  await s.placeImageFiles(files, target, fitWithin);
-}
-
-/** Place converted SVG content at the viewport center unless `at` is given. */
-export function placeSvgFitted(imported: ImportedSvg, at?: Vec2): void {
-  const s = useEditor.getState();
-  const center = canvasCenter();
-  const target = at ?? screenToWorld(s.viewport, center);
-  s.placeImportedSvg(imported, target, {
-    width: ((center.x * 2) / s.viewport.scale) * 0.8,
-    height: ((center.y * 2) / s.viewport.scale) * 0.8,
-  });
-}
-
-/**
- * Paste a payload recovered from the system clipboard (another tab, or this
- * one after a reload). Unlike the in-memory clipboard — which deliberately
- * pastes where the copy was made — a foreign document's coordinates mean
- * nothing here and could land the art far outside the view, so it goes to the
- * viewport center. Returns false when the payload cannot land in this
- * document, leaving the caller to fall back to the SVG geometry.
- */
-export function pasteForeignPayload(payload: ClipboardPayload, at?: Vec2): boolean {
-  const s = useEditor.getState();
-  return s.pastePayload(payload, at ?? screenToWorld(s.viewport, canvasCenter()));
-}
-
-/** Size of the drawable canvas area in CSS pixels. */
-function canvasViewportSize(): ViewportSize {
-  const el = document.querySelector(".canvas-wrap");
-  if (!el) return { width: window.innerWidth, height: window.innerHeight };
-  const r = el.getBoundingClientRect();
-  return { width: r.width, height: r.height };
-}
-
-/** Apply the shared padded fit calculation to the live canvas. */
-function fitViewport(s: EditorState, bounds: Bounds | null): void {
-  if (!bounds) return;
-  s.setViewport(fitBoundsInViewport(bounds, canvasViewportSize()));
-}
-
-function selectionBounds(s: EditorState): Bounds | null {
-  return unionNodeWorldBounds(s.doc, selectionRoots(s.doc, s.selection));
-}
-
-function drawingBounds(s: EditorState): Bounds | null {
-  return contentBounds(s.doc, 0, currentFocusRoot(s));
 }
 
 /** The selected guide's id, if one is selected and actually actionable. */
@@ -694,357 +547,8 @@ export const COMMANDS: Command[] = [
   },
   // Duplicate/delete are deliberately absent: a frame is an ordinary node, so
   // edit.duplicate / edit.delete already cover it.
-
-  // View --------------------------------------------------------------------
-  {
-    id: "view.zoomIn",
-    label: "Zoom in",
-    group: "View",
-    run: (s) => s.setViewport(zoomAt(s.viewport, canvasCenter(), 1.2)),
-  },
-  {
-    id: "view.zoomOut",
-    label: "Zoom out",
-    group: "View",
-    run: (s) => s.setViewport(zoomAt(s.viewport, canvasCenter(), 1 / 1.2)),
-  },
-  {
-    id: "view.reset",
-    label: "Reset view",
-    group: "View",
-    run: (s) => s.setViewport(initialViewport),
-  },
-  {
-    id: "view.resetRotation",
-    label: "Reset rotation",
-    group: "View",
-    enabled: (s) => s.viewport.rotation !== 0,
-    run: (s) =>
-      s.setViewport(rotateAt(s.viewport, canvasCenter(), -s.viewport.rotation)),
-  },
-  {
-    id: "view.flipHorizontal",
-    label: "Flip view horizontally",
-    group: "View",
-    keys: [{ key: "F", shift: true }],
-    run: (s) => s.setViewport(flipAt(s.viewport, canvasCenter())),
-  },
-  {
-    id: "view.fitSelection",
-    label: "Fit selection",
-    group: "View",
-    keys: [{ key: "2", shift: true }],
-    enabled: (s) => selectionBounds(s) != null,
-    run: (s) => fitViewport(s, selectionBounds(s)),
-  },
-  {
-    id: "view.fitAll",
-    label: "Fit all content",
-    group: "View",
-    keys: [{ key: "1", shift: true }],
-    enabled: (s) => drawingBounds(s) != null,
-    run: (s) => fitViewport(s, drawingBounds(s)),
-  },
-  {
-    id: "view.fitFrame",
-    label: "Fit frame",
-    group: "View",
-    enabled: (s) => selectedFrame(s) != null,
-    run: (s) => {
-      const frame = selectedFrame(s);
-      fitViewport(s, frame ? nodeWorldBounds(s.doc, frame.id) : null);
-    },
-  },
-  {
-    id: "view.toggleSnap",
-    label: "Toggle snapping",
-    group: "View",
-    run: (s) => s.toggleSnap(),
-  },
-  {
-    id: "view.toggleGrid",
-    label: "Toggle grid snapping",
-    group: "View",
-    run: (s) => s.toggleGridSnap(),
-  },
-  {
-    id: "view.toggleGridVisible",
-    label: "Toggle grid visibility",
-    group: "View",
-    run: (s) => s.toggleGridVisible(),
-  },
-  {
-    id: "view.toggleRulers",
-    label: "Toggle rulers",
-    group: "View",
-    run: (s) => s.toggleRulers(),
-  },
-  {
-    id: "view.resetRulerOrigin",
-    label: "Reset ruler origin to the document",
-    group: "View",
-    // Only meaningful while an active frame is actually driving the rulers.
-    enabled: (s) =>
-      s.activeFrameId !== null &&
-      usePreferences.getState().canvas.rulerOrigin === "artboard",
-    run: (s) => s.setActiveFrame(null),
-  },
-  {
-    id: "view.toggleRulerOrigin",
-    label: "Toggle ruler origin (artboard / document)",
-    group: "View",
-    run: () => {
-      const prefs = usePreferences.getState();
-      prefs.setRulerOrigin(
-        prefs.canvas.rulerOrigin === "artboard" ? "world" : "artboard"
-      );
-    },
-  },
-
-  // Guides ------------------------------------------------------------------
-  {
-    id: "guides.toggleVisible",
-    label: "Toggle guide visibility",
-    group: "View",
-    keys: [{ key: ";", mod: true }],
-    run: (s) => s.toggleGuidesVisible(),
-  },
-  {
-    id: "guides.toggleLock",
-    label: "Toggle guide lock",
-    group: "View",
-    keys: [{ key: ";", mod: true, alt: true }],
-    run: (s) => s.toggleGuidesLocked(),
-  },
-  {
-    id: "guides.toggleSnap",
-    label: "Toggle snapping to guides",
-    group: "View",
-    run: (s) => s.toggleGuideSnap(),
-  },
-  {
-    id: "guides.delete",
-    label: "Delete guide",
-    group: "View",
-    danger: true,
-    enabled: (s) => selectedGuide(s) !== null,
-    run: (s) => {
-      const guide = selectedGuide(s);
-      if (guide) s.removeGuide(guide);
-    },
-  },
-  {
-    id: "guides.clear",
-    label: "Clear guides",
-    group: "View",
-    danger: true,
-    enabled: (s) => s.doc.guides.length > 0 && !s.guidesLocked,
-    run: (s) => s.clearGuides(),
-  },
-  {
-    id: "view.fullscreen",
-    label: "Toggle fullscreen",
-    group: "View",
-    run: () => toggleFullscreen(),
-  },
-
-  // File --------------------------------------------------------------------
-  {
-    id: "file.new",
-    label: "New",
-    group: "File",
-    run: (s) => {
-      if (!confirmDiscard(s)) return;
-      s.newDocument();
-      useDocumentFile.getState().clear();
-    },
-  },
-  {
-    id: "file.open",
-    label: "Open…",
-    group: "File",
-    run: async (s) => {
-      if (!confirmDiscard(s)) return;
-      // Prefer the File System Access picker so the opened file can be
-      // overwritten by a later Save; fall back to a plain <input type=file>.
-      if (supportsFileSystem()) {
-        let handle: FileHandle | null;
-        let text: string;
-        try {
-          handle = await pickDocumentToOpen();
-          if (!handle) return;
-          text = await (await handle.getFile()).text();
-        } catch (err) {
-          notify.error(
-            "Could not open file:\n" + (err instanceof Error ? err.message : String(err))
-          );
-          return;
-        }
-        loadDocumentText(text, handle);
-        return;
-      }
-      const text = await pickTextFile(".json,application/json");
-      if (text == null) return;
-      loadDocumentText(text);
-    },
-  },
-  {
-    id: "file.importSvg",
-    label: "Import SVG…",
-    group: "File",
-    run: async (_s, ctx) => {
-      const file = await pickTextFileWithName(".svg,image/svg+xml");
-      if (!file) return;
-      try {
-        const name = file.name.replace(/\.[^.]+$/, "") || "Imported SVG";
-        placeSvgFitted(importSvg(file.text, name), ctx?.at);
-      } catch (err) {
-        notify.error(
-          "Could not import SVG:\n" +
-            (err instanceof Error ? err.message : String(err))
-        );
-      }
-    },
-  },
-  {
-    id: "file.placeImage",
-    label: "Place image…",
-    group: "File",
-    run: async (_s, ctx) => {
-      const files = await pickImageFiles();
-      if (!files.length) return;
-      await placeImagesFitted(files, ctx?.at);
-    },
-  },
-  {
-    id: "file.save",
-    label: "Save",
-    group: "File",
-    keys: [{ key: "s", mod: true }],
-    run: () => void saveDocument(),
-  },
-  {
-    id: "file.saveAs",
-    label: "Save As…",
-    group: "File",
-    keys: [{ key: "s", mod: true, shift: true }],
-    run: () => void saveDocumentAs(),
-  },
-  {
-    id: "file.exportImage",
-    label: "Export image…",
-    group: "File",
-    run: () => useUi.getState().openExport(),
-  },
-  {
-    id: "file.exportPng",
-    label: "Export PNG",
-    group: "File",
-    run: async (s) => {
-      try {
-        const blob = await exportPng(s.doc, { scale: 2 });
-        downloadBlob(blob, `${fileSlug(s.doc.metadata.name)}.png`);
-      } catch (err) {
-        notify.error(err instanceof Error ? err.message : String(err));
-      }
-    },
-  },
-  {
-    id: "file.exportSvg",
-    label: "Export SVG",
-    group: "File",
-    run: (s) => {
-      try {
-        const svg = exportSvg(s.doc);
-        downloadText(svg, `${fileSlug(s.doc.metadata.name)}.svg`, "image/svg+xml");
-      } catch (err) {
-        notify.error(err instanceof Error ? err.message : String(err));
-      }
-    },
-  },
-  {
-    id: "file.exportFramePng",
-    label: "Export frame PNG",
-    group: "File",
-    // A hidden frame renders nothing, so exporting it would write an empty image.
-    enabled: (s) => !!selectedFrame(s) && !selectedFrame(s)!.hidden,
-    run: async (s) => {
-      const frame = selectedFrame(s);
-      const bounds = frame && nodeWorldBounds(s.doc, frame.id);
-      if (!frame || !bounds) return;
-      try {
-        const blob = await exportPng(s.doc, {
-          scale: 2,
-          bounds,
-          background: frame.background ?? undefined,
-        });
-        downloadBlob(blob, `${fileSlug(frame.name)}.png`);
-      } catch (err) {
-        notify.error(err instanceof Error ? err.message : String(err));
-      }
-    },
-  },
-  {
-    id: "file.exportFrameSvg",
-    label: "Export frame SVG",
-    group: "File",
-    // A hidden frame renders nothing, so exporting it would write an empty image.
-    enabled: (s) => !!selectedFrame(s) && !selectedFrame(s)!.hidden,
-    run: (s) => {
-      const frame = selectedFrame(s);
-      const bounds = frame && nodeWorldBounds(s.doc, frame.id);
-      if (!frame || !bounds) return;
-      try {
-        const svg = exportSvg(s.doc, { bounds, background: frame.background });
-        downloadText(svg, `${fileSlug(frame.name)}.svg`, "image/svg+xml");
-      } catch (err) {
-        notify.error(err instanceof Error ? err.message : String(err));
-      }
-    },
-  },
-  {
-    id: "file.exportAllFramesPng",
-    label: "Export all frames (PNG)",
-    group: "File",
-    enabled: (s) => exportableFrames(s.doc).length > 0,
-    run: async (s) => {
-      try {
-        const frames = exportableFrames(s.doc);
-        const slugs = uniqueFileSlugs(frames.map((frame) => frame.name));
-        for (const [index, frame] of frames.entries()) {
-          const bounds = nodeWorldBounds(s.doc, frame.id);
-          if (!bounds) continue;
-          const blob = await exportPng(s.doc, {
-            scale: 2,
-            bounds,
-            background: frame.background ?? undefined,
-          });
-          downloadBlob(blob, `${slugs[index]}.png`);
-        }
-      } catch (err) {
-        notify.error(err instanceof Error ? err.message : String(err));
-      }
-    },
-  },
-  {
-    id: "file.demo",
-    label: "Open demo",
-    group: "File",
-    run: (s) => {
-      if (!confirmDiscard(s)) return;
-      s.loadDocument(createDemoDocument());
-      useDocumentFile.getState().clear();
-      s.setViewport({ scale: 0.85, rotation: 0, offset: { x: 12, y: 12 } });
-    },
-  },
-
-  // App ---------------------------------------------------------------------
-  {
-    id: "app.preferences",
-    label: "Preferences…",
-    group: "App",
-    run: () => useUi.getState().openPreferences(),
-  },
+  ...VIEW_COMMANDS,
+  ...FILE_COMMANDS,
 ];
 
 // --- Lookup & invocation -------------------------------------------------

@@ -40,7 +40,8 @@ src/
   store/     zustand editor store split into slices (shapes, selection,
              structure, symbols, frames, clipboard, history, prefs),
              pointer & menu stores
-  commands/  command registry (actions + shortcuts, drives menus & palette)
+  commands/  command types and placement helpers; editing, view and file
+             command groups composed by the registry (drives menus & palette)
   canvas/    CanvasView (interaction), per-tool logic, rendering, overlay,
              handles, node chrome, image decode cache, text layout/editor
   script/    sandboxed one-shot drawing DSL (runScript + Web Worker)
