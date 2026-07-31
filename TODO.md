@@ -191,3 +191,5 @@ additional effects, or other feature expansion.
 - [ ] ドックのフローティング、マルチカラム化
 - [ ] Assetという名前は問題ないか。raster imageではないか。
 - [ ] テキストってインプレイス編集しかない？
+- [ ] Taperのバグ
+- [ ] フォームのデフォルト値
