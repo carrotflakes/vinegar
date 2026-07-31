@@ -196,6 +196,44 @@ function buildArrow(args: Record<string, number>): PathSubpath[] {
 }
 
 /**
+ * Circular sector (pie wedge). Angles are expressed in degrees because the
+ * generic generator controls expose raw numeric values. The arc is split into
+ * at most quarter-circle cubic segments so large sweeps remain accurate.
+ */
+function buildSector(args: Record<string, number>): PathSubpath[] {
+  const radius = Math.max(1, args.radius ?? 80);
+  const start = (clamp(args.startAngle, -360, 360) * Math.PI) / 180;
+  const sweep = (clamp(args.sweepAngle, 1, 359) * Math.PI) / 180;
+  const segments = Math.ceil(Math.abs(sweep) / (Math.PI / 2));
+  const step = sweep / segments;
+  const startPoint = polar(start, radius);
+  const anchors: PathAnchor[] = [sharp({ x: 0, y: 0 }), sharp(startPoint)];
+
+  for (let i = 0; i < segments; i++) {
+    const a0 = start + i * step;
+    const a1 = a0 + step;
+    const p0 = polar(a0, radius);
+    const p1 = polar(a1, radius);
+    const handle = (4 / 3) * Math.tan(step / 4) * radius;
+    const current = anchors[anchors.length - 1];
+    current.hOut = {
+      x: p0.x - Math.sin(a0) * handle,
+      y: p0.y + Math.cos(a0) * handle,
+    };
+    anchors.push({
+      p: p1,
+      hIn: {
+        x: p1.x + Math.sin(a1) * handle,
+        y: p1.y - Math.cos(a1) * handle,
+      },
+      hOut: null,
+    });
+  }
+
+  return [{ anchors, closed: true }];
+}
+
+/**
  * Moon phase: the lit region bounded by the disc's limb (a semicircle) and the
  * terminator (a semi-ellipse whose signed horizontal radius shrinks and crosses
  * over as the phase advances). `phase` runs a full cycle — 0/1 new, 0.25 waxing
@@ -307,6 +345,17 @@ export const GENERATORS: Record<string, GeneratorDef> = {
     ],
     buildArrow,
     [clamp, sharp]
+  ),
+  sector: defineGenerator(
+    "sector",
+    "Sector",
+    [
+      { key: "radius", label: "Radius", min: 1, max: 1000, step: 1, default: 80 },
+      { key: "startAngle", label: "Start angle", min: -360, max: 360, step: 1, default: -90 },
+      { key: "sweepAngle", label: "Sweep angle", min: 1, max: 359, step: 1, default: 90 },
+    ],
+    buildSector,
+    [clamp, polar, sharp]
   ),
   moon: defineGenerator(
     "moon",

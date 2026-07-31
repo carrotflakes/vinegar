@@ -69,6 +69,30 @@ test("built-in generators build valid geometry (curves, open paths, holes)", () 
   assert.deepEqual(resizedArrow[0].anchors[1].p, { x: 0, y: -20 });
   assert.deepEqual(resizedArrow[0].anchors[3].p, { x: 30, y: 0 });
 
+  // Sector: radial edges meet at the origin and the circular edge uses cubic
+  // handles. Sweeps larger than 90 degrees are split into smaller arc pieces.
+  const sector = build("sector");
+  assert.equal(sector.length, 1);
+  assert.equal(sector[0].closed, true);
+  assert.deepEqual(sector[0].anchors[0].p, { x: 0, y: 0 });
+  assert.ok(Math.abs(sector[0].anchors[1].p.x) < 1e-10);
+  assert.equal(sector[0].anchors[1].p.y, -80);
+  assert.ok(sector[0].anchors[1].hOut);
+  assert.ok(sector[0].anchors[2].hIn);
+  assert.equal(sector[0].anchors[2].hOut, null);
+  const wideSector = GENERATORS.sector.build({
+    radius: 40,
+    startAngle: 0,
+    sweepAngle: 270,
+  });
+  assert.equal(wideSector[0].anchors.length, 5); // center + start + 3 arc endpoints
+  const scriptedSector = compileScript(GENERATORS.sector.source);
+  assert.equal(scriptedSector.error, undefined);
+  assert.deepEqual(
+    scriptedSector.build(defaultArgs(GENERATORS.sector)),
+    sector
+  );
+
   // Moon: one closed 4-anchor outline; at full phase the terminator mirrors the
   // limb (a full disc), at half the terminator collapses to the vertical axis.
   const full = GENERATORS.moon.build({ phase: 0.5, radius: 80 });
