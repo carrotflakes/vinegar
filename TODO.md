@@ -60,7 +60,6 @@ additional effects, or other feature expansion.
 ### New ideas
 - [ ] Swatches saved in the document (currently localStorage, color-only)
 - [ ] Distribution: match an existing gap (not just centering)
-- [ ] Configurable pencil smoothing strength
 - [ ] Status bar: color swatch under the cursor (eyedropper-style; watch getImageData cost)
 
 ## Known issues / polish
@@ -81,7 +80,8 @@ additional effects, or other feature expansion.
 - [ ] Update scripting examples/docs for matrix-based `shape.transform`; direct `shape.rotation` no longer exists
 
 ### Layers パネル
-- [ ] キー操作でアイテム移動
+- [x] キー操作でアイテム移動 — Alt+↑/↓ で選択を親内で一段ずつ前面/背面へ
+  （`raiseSelected`/`lowerSelected`、パネルにフォーカスがあるときのみ）
 - [x] 折りたたみ状態が消える — `collapsed` は LayersPanel の useState で、ドックは
   アクティブなタブしか render しない（Dock.tsx）ため、タブを往復すると全部開き直しに
   なる。仮想化で数千行を扱う前提になったぶん実害が大きい。collapsed（と cursor /
@@ -91,9 +91,9 @@ additional effects, or other feature expansion.
   無い。壊れやすいのは「全行が同じ高さ」と「スクロール親の解決」で、`.layer-row` の
   padding 変更やドックのレイアウト変更が静かに仮想化を壊せる（前提は
   docs/render-performance.md に明記済み）。ブラウザテストの導入是非から判断
-- [ ] キーボード到達性 — リストは `tabIndex={-1}` でフォーカスリングも消してあるので、
-  一度クリックするまで矢印キーが使えない。行に `role="treeitem"` / `aria-selected` も
-  無い。矢印キーを入れた分ここが中途半端
+- [x] キーボード到達性 — `tabIndex={0}` + `:focus-visible` リング、`role="tree"` /
+  `role="treeitem"` / `aria-selected` / `aria-level` / `aria-expanded`、
+  `aria-activedescendant` でカーソル行を通知（Tab 到達時は選択末尾をカーソルに）
 
 ### Properties パネルのリファイン
 - [ ] UIの統一感
@@ -190,3 +190,4 @@ additional effects, or other feature expansion.
 - [ ] ColorField のリファクタリング（特にコンポーネントわけ）
 - [ ] ドックのフローティング、マルチカラム化
 - [ ] Assetという名前は問題ないか。raster imageではないか。
+- [ ] テキストってインプレイス編集しかない？

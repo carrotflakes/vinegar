@@ -32,6 +32,8 @@ export default function LayersPanel() {
   const toggleLocked = useEditor((s) => s.toggleLocked);
   const renameNode = useEditor((s) => s.renameNode);
   const moveNodes = useEditor((s) => s.moveNodes);
+  const raiseSelected = useEditor((s) => s.raiseSelected);
+  const lowerSelected = useEditor((s) => s.lowerSelected);
   const scope = useEditor((s) => currentFocusRoot(s));
   const exitFocus = useEditor((s) => s.exitFocus);
   const enterSymbolInstance = useEditor((s) => s.enterSymbolInstance);
@@ -139,6 +141,15 @@ export default function LayersPanel() {
     const order = visibleIds(roots, collapsed);
     const at = cursor ?? rangeStart();
     const index = at ? order.indexOf(at) : -1;
+    // Alt+Arrow reorders the selection one slot instead of moving the cursor.
+    // Up is toward the front (raise), matching the panel's front-most-first order.
+    if (e.altKey && (e.key === "ArrowUp" || e.key === "ArrowDown")) {
+      e.preventDefault();
+      if (e.key === "ArrowUp") raiseSelected();
+      else lowerSelected();
+      if (cursor) setReveal(cursor);
+      return;
+    }
     if (e.key === "ArrowDown" || e.key === "ArrowUp") {
       e.preventDefault();
       const next =
@@ -219,6 +230,7 @@ export default function LayersPanel() {
   const rowCtx: LayerRowCtx = {
     doc,
     selection,
+    cursor,
     collapsed,
     editing,
     dropInside: dnd.drop?.inside,
@@ -254,7 +266,18 @@ export default function LayersPanel() {
       <div
         className="layers-list"
         ref={listRef}
-        tabIndex={-1}
+        role="tree"
+        aria-label="Layers"
+        aria-multiselectable="true"
+        tabIndex={0}
+        aria-activedescendant={cursor ? `layer-row-${cursor}` : undefined}
+        // Landing on the list with no cursor yet (Tab, not a click) should adopt
+        // the current selection so the first arrow keypress has somewhere to go.
+        onFocus={() => {
+          if (cursor) return;
+          const start = rangeStart();
+          if (start) setCursor(start);
+        }}
         onKeyDown={onListKeyDown}
         // Taking focus is what makes the arrow keys work, but stealing it from
         // a rename input would blur (and so commit) it on the first click.

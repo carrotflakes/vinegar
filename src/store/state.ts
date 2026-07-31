@@ -342,6 +342,10 @@ export interface StructureActions {
   deleteSelected: () => void;
   bringToFront: () => void;
   sendToBack: () => void;
+  /** Move the selection one slot toward the front within each parent. */
+  raiseSelected: () => void;
+  /** Move the selection one slot toward the back within each parent. */
+  lowerSelected: () => void;
   groupSelected: () => void;
   ungroupSelected: () => void;
   makeClippingMaskSelected: () => void;

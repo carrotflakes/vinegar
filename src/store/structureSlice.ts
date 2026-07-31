@@ -104,6 +104,35 @@ function deselectSubtree(
 }
 
 export function createStructureActions({ set, get, transact }: StoreCtx): StructureActions {
+  const reorderStep = (forward: boolean) => {
+    let doc = get().doc;
+    const roots = selectionRoots(doc, get().selection);
+    if (!roots.length) return;
+    for (const parent of new Set(roots.map((id) => parentIdOf(doc, id)))) {
+      const selected = new Set(roots.filter((id) => parentIdOf(doc, id) === parent));
+      const ids = childIdsOf(doc, parent).slice();
+      if (forward) {
+        // Walk selected items toward the end (front); from the top so a block moves together.
+        for (let i = ids.length - 2; i >= 0; i--) {
+          if (selected.has(ids[i]) && !selected.has(ids[i + 1])) {
+            [ids[i], ids[i + 1]] = [ids[i + 1], ids[i]];
+          }
+        }
+      } else {
+        for (let i = 1; i < ids.length; i++) {
+          if (selected.has(ids[i]) && !selected.has(ids[i - 1])) {
+            [ids[i], ids[i - 1]] = [ids[i - 1], ids[i]];
+          }
+        }
+      }
+      doc = replaceChildren(doc, parent, ids);
+    }
+    if (!hasValidSceneContainers(doc)) return;
+    transact(doc, {
+      label: forward ? "Bring forward" : "Send backward",
+      coalesceKey: "layer-reorder",
+    });
+  };
   return {
     deleteSelected: () => {
       const doc = get().doc;
@@ -148,6 +177,12 @@ export function createStructureActions({ set, get, transact }: StoreCtx): Struct
       if (!hasValidSceneContainers(doc)) return;
       transact(doc, { label: "Send to back" });
     },
+    // One-slot reorder, per parent. `childIds` is canonical back-to-front, so
+    // "forward" (toward the front) walks a selected item toward the end of the
+    // array; iterating from that end lets a contiguous block move as one. A key
+    // repeat coalesces into a single undo step.
+    raiseSelected: () => reorderStep(true),
+    lowerSelected: () => reorderStep(false),
     groupSelected: () => {
       const { doc } = get(); const roots = selectionRoots(doc, get().selection); if (roots.length < 2) return;
       // Frames must stay top-level, so they can never be pulled into a group.

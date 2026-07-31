@@ -14,6 +14,8 @@ export interface HoverProps {
 export interface LayerRowCtx {
   doc: Document;
   selection: string[];
+  /** Row the keyboard cursor sits on; gets a focus ring while the list is focused. */
+  cursor: string | null;
   collapsed: Set<string>;
   /** The row being renamed, if any. */
   editing: string | null;

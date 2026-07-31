@@ -56,14 +56,21 @@ export function LayerRow({
   const { id, name, hidden, locked, stateSuffix } = spec;
   const Icon = spec.icon;
   const isCollapsed = ctx.collapsed.has(id);
+  const hasChildren = (row.node.children?.length ?? 0) > 0;
   const showLabel = `${hidden ? "Show" : "Hide"}${stateSuffix}`;
   const lockLabel = `${locked ? "Unlock" : "Lock"}${stateSuffix}`;
 
   return (
     <div
+      id={`layer-row-${id}`}
+      role="treeitem"
+      aria-selected={ctx.selection.includes(id)}
+      aria-level={row.depth + 1}
+      aria-expanded={hasChildren ? !isCollapsed : undefined}
       className={
         "layer-row" +
         (spec.groupHeader ? " group-header" : "") +
+        (ctx.cursor === id ? " cursor" : "") +
         (ctx.selection.includes(id) ? " selected" : "") +
         (hidden || row.dim ? " hidden" : "") +
         (ctx.dropInside === id && isCollapsed ? " drop-inside" : "")
