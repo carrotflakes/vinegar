@@ -67,7 +67,7 @@ export function startToolInteraction(
       onPenDown(ctx, state, screen, world, shift);
       return;
     case "pencil":
-      startPencil(ctx, state, world);
+      startPencil(ctx, state, world, screen);
       return;
     case "brush":
       startBrush(ctx, state, world, pressure);
