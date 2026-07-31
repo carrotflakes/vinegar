@@ -115,7 +115,7 @@ export function finishBrush(ctx: ToolContext, state: EditorState) {
     return;
   }
   applyTaper(raw, opts.taper);
-  const simplified = simplifyWidthSamples(raw, 2 / state.viewport.scale, 0.05);
+  const simplified = simplifyWidthSamples(raw, opts.simplify / state.viewport.scale, 0.05);
   const anchors = fitBrushAnchors(simplified.length >= 2 ? simplified : raw);
   state.addBrushStroke(makeBrushShape(state, anchors, opts.size));
   ctx.scheduleDraw();

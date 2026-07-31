@@ -5,7 +5,7 @@ import Section from "../Section";
 
 /** Tool options for the Brush tool. Shown while the brush tool is active. */
 export default function BrushSection() {
-  const { size, pressureGamma, minWidth, stabilizer, taper, setBrush } =
+  const { size, pressureGamma, minWidth, stabilizer, taper, simplify, setBrush } =
     useBrush();
 
   return (
@@ -71,6 +71,19 @@ export default function BrushSection() {
             value={taper}
             onChange={(v) => setBrush({ taper: v })}
             aria-label="Taper length"
+          />
+        </label>
+
+        <label>
+          <span>Simplify (px)</span>
+          <ScrubbableNumber
+            className="num"
+            min={0}
+            max={20}
+            step={0.5}
+            value={simplify}
+            onChange={(v) => setBrush({ simplify: v })}
+            aria-label="Simplify tolerance in pixels"
           />
         </label>
       </div>

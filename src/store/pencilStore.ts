@@ -10,10 +10,16 @@ export interface PencilOptions {
    * stabilizer; the commit-time simplify runs on top of the smoothed points.
    */
   smoothing: number;
+  /**
+   * Commit-time simplify tolerance in screen pixels (divided by the zoom to get
+   * world units): larger drops more anchors for a smoother, less faithful path.
+   */
+  simplify: number;
 }
 
 const DEFAULTS: PencilOptions = {
   smoothing: 0.4,
+  simplify: 2,
 };
 
 const clamp = (v: number, lo: number, hi: number) =>
@@ -24,6 +30,7 @@ function sanitize(o: Partial<PencilOptions>): PencilOptions {
     typeof v === "number" && Number.isFinite(v) ? v : fallback;
   return {
     smoothing: clamp(num(o.smoothing, DEFAULTS.smoothing), 0, 0.95),
+    simplify: clamp(num(o.simplify, DEFAULTS.simplify), 0, 20),
   };
 }
 

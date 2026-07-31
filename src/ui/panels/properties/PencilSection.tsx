@@ -5,7 +5,7 @@ import Section from "../Section";
 
 /** Tool options for the Pencil (freehand) tool. Shown while it is active. */
 export default function PencilSection() {
-  const { smoothing, setPencil } = usePencil();
+  const { smoothing, simplify, setPencil } = usePencil();
 
   return (
     <Section title="Pencil">
@@ -20,6 +20,19 @@ export default function PencilSection() {
             value={Math.round(smoothing * 100)}
             onChange={(v) => setPencil({ smoothing: v / 100 })}
             aria-label="Smoothing percent"
+          />
+        </label>
+
+        <label>
+          <span>Simplify (px)</span>
+          <ScrubbableNumber
+            className="num"
+            min={0}
+            max={20}
+            step={0.5}
+            value={simplify}
+            onChange={(v) => setPencil({ simplify: v })}
+            aria-label="Simplify tolerance in pixels"
           />
         </label>
       </div>

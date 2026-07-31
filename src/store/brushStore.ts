@@ -17,6 +17,11 @@ export interface BrushOptions {
   stabilizer: number;
   /** Taper each end to a point over this arc length in world units; 0 = off. */
   taper: number;
+  /**
+   * Commit-time simplify tolerance in screen pixels (divided by the zoom to get
+   * world units): larger drops more anchors for a smoother, less faithful curve.
+   */
+  simplify: number;
   /** Eraser tool disk diameter in world units. */
   eraserSize: number;
 }
@@ -27,6 +32,7 @@ const DEFAULTS: BrushOptions = {
   minWidth: 0.15,
   stabilizer: 0.4,
   taper: 0,
+  simplify: 2,
   eraserSize: 16,
 };
 
@@ -42,6 +48,7 @@ function sanitize(o: Partial<BrushOptions>): BrushOptions {
     minWidth: clamp(num(o.minWidth, DEFAULTS.minWidth), 0, 1),
     stabilizer: clamp(num(o.stabilizer, DEFAULTS.stabilizer), 0, 0.95),
     taper: clamp(num(o.taper, DEFAULTS.taper), 0, 500),
+    simplify: clamp(num(o.simplify, DEFAULTS.simplify), 0, 20),
     eraserSize: clamp(num(o.eraserSize, DEFAULTS.eraserSize), 1, 500),
   };
 }

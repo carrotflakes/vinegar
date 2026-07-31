@@ -192,7 +192,7 @@ function freehandToPath(rawPoints: Vec2[], state: EditorState): PathShape {
     closed = true;
     pts = pts.slice(0, -1);
   }
-  const simplified = simplifyPath(pts, 2 / state.viewport.scale);
+  const simplified = simplifyPath(pts, usePencil.getState().simplify / state.viewport.scale);
   const anchors = pointsToAnchors(simplified.length >= 2 ? simplified : pts, closed);
   return {
     id: makeId("path"),

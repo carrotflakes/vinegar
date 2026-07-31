@@ -154,7 +154,8 @@ is one `addShape` = one undo step.
    - optional **taper**: scale `w` down to 0 over a configured arc length at
      the start/end (this is what makes mouse strokes look drawn, 入り抜き);
    - **width-aware simplification**: RDP on position (existing
-     `simplifyPath`, ε ≈ 2/scale), then re-insert dropped points where the
+     `simplifyPath`, ε = the tool's Simplify tolerance in screen px ÷ scale,
+     default 2 — the Pencil tool has the same option), then re-insert dropped points where the
      linearly-interpolated width error exceeds a threshold (≈ 0.05) so
      pressure peaks survive;
    - **fit**: Catmull-Rom handles via the existing `pointsToAnchors` scheme,
