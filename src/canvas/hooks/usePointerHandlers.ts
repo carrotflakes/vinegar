@@ -19,7 +19,8 @@ import { cancelActiveInteraction } from "../interactionLifecycle";
 import { pickShape } from "../picking";
 import { onGuideDown } from "../tools/guideTool";
 import { onNodeDoubleClick } from "../tools/nodeTool";
-import { commitPenDraft, onPenHoverMove } from "../tools/penTool";
+import { commitPenDraft, onPenHoverMove, pickOpenEndpoint } from "../tools/penTool";
+import { applyMatrix, shapeWorldMatrix } from "@/model/geometry/matrix";
 import { onSelectDoubleClick } from "../tools/selectTool";
 import {
   dispatchToolMove,
@@ -139,6 +140,33 @@ export function usePointerHandlers(deps: PointerHandlerDeps): PointerHandlers {
     ctx.scheduleDraw();
   };
 
+  /**
+   * Highlight the endpoint of a selected open path that the pencil would
+   * continue if a stroke started here, so extending is discoverable rather than
+   * hidden. Unlike the brush tip this works for mouse too — the pencil extends
+   * with any pointer. Only the deliberate case (a *selected* path) lights up.
+   */
+  const updatePencilHint = (tool: string, screen: Vec2) => {
+    let next: Vec2 | null = null;
+    if (tool === "pencil") {
+      const state = useEditor.getState();
+      const pick = pickOpenEndpoint(ctx, state, screen);
+      if (pick && state.selection.includes(pick.shape.id)) {
+        const anchors = pick.shape.subpaths[0].anchors;
+        const end = pick.end === "start" ? anchors[0] : anchors[anchors.length - 1];
+        next = applyMatrix(shapeWorldMatrix(state.doc, pick.shape), end.p);
+      }
+    }
+    const prev = ctx.pencilHint.current;
+    const same =
+      prev === next ||
+      (prev !== null && next !== null && prev.x === next.x && prev.y === next.y);
+    if (!same) {
+      ctx.pencilHint.current = next;
+      ctx.scheduleDraw();
+    }
+  };
+
   const onPointerDown = (e: ReactPointerEvent<HTMLCanvasElement>) => {
     // Right button is reserved for the context menu (see onContextMenu).
     if (e.button === 2) return;
@@ -190,6 +218,7 @@ export function usePointerHandlers(deps: PointerHandlerDeps): PointerHandlers {
     ownerRef.current = { pointerId: e.pointerId, pointerType: e.pointerType };
     // The tip outline is a hover affordance; the stroke itself replaces it.
     ctx.brushHover.current = null;
+    ctx.pencilHint.current = null;
 
     // Pinch/pan gestures are touch-only. Tracking pen/mouse pointers here would
     // let a lingering pen contact — e.g. two rapid Apple Pencil strokes whose
@@ -214,6 +243,18 @@ export function usePointerHandlers(deps: PointerHandlerDeps): PointerHandlers {
     }
     const world = screenToWorld(state.viewport, screen);
     const mod = readModifiers(e);
+
+    // The cursor is only re-resolved on hover, so re-resolve it now that the
+    // hover hints are cleared — otherwise a pencil that started a stroke over a
+    // continuable endpoint keeps the "pointer" cursor for the whole drag.
+    canvas.style.cursor = resolveCursor(
+      ctx,
+      state,
+      screen,
+      world,
+      spaceRef.current,
+      sizeRef.current
+    );
 
     if (e.button === 1 || spaceRef.current) {
       ctx.interaction.current = {
@@ -290,6 +331,7 @@ export function usePointerHandlers(deps: PointerHandlerDeps): PointerHandlers {
         onPenHoverMove(ctx, state, world, mod.shift);
       }
       updateBrushHover(isPen, state.tool, world);
+      updatePencilHint(state.tool, screen);
       updateHoverCursor(screen, world);
       return;
     }

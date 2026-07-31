@@ -247,7 +247,11 @@ export function penPencilCursor(
   state: EditorState,
   screen: Vec2
 ): string {
-  // Highlight continuable endpoints of open paths.
+  // Continuable endpoints of open paths: the pen continues any of them; the
+  // pencil only continues a selected one (see its hover hint).
+  if (state.tool === "pencil") {
+    return ctx.pencilHint.current ? "pointer" : "crosshair";
+  }
   return state.tool === "pen" &&
     !ctx.penDraft.current &&
     pickOpenEndpoint(ctx, state, screen)

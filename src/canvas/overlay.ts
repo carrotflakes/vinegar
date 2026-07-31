@@ -413,6 +413,28 @@ export function drawBrushCursor(
   ctx.stroke();
 }
 
+/**
+ * Ring over the endpoint of a selected open path that the pencil would continue
+ * if a stroke started now. A hollow accent disc, sized like a node handle, so it
+ * reads as "connect here" without hiding the anchor beneath it.
+ */
+export function drawEndpointHint(
+  ctx: CanvasRenderingContext2D,
+  dpr: number,
+  viewport: Viewport,
+  world: Vec2
+): void {
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  const p = worldToScreen(viewport, world);
+  ctx.beginPath();
+  ctx.arc(p.x, p.y, 5, 0, Math.PI * 2);
+  ctx.fillStyle = "rgba(59, 130, 246, 0.25)";
+  ctx.fill();
+  ctx.lineWidth = 2;
+  ctx.strokeStyle = ACCENT;
+  ctx.stroke();
+}
+
 /** Draw the in-progress pen path: placed anchors plus a rubber-band segment. */
 export function drawPenDraft(
   ctx: CanvasRenderingContext2D,

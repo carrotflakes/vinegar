@@ -175,6 +175,12 @@ export interface ToolContext {
   hover: { current: Vec2 | null };
   /** Brush/eraser tip preview under a hovering pen (world units), if any. */
   brushHover: { current: { p: Vec2; radius: number } | null };
+  /**
+   * World position of a selected open path's endpoint the pencil would continue
+   * if a stroke started now, highlighted as an affordance. Null when the pencil
+   * is not hovering such an endpoint.
+   */
+  pencilHint: { current: Vec2 | null };
   guides: { current: Guide[] };
   spacings: { current: Spacing[] };
   /** Multiplier that enlarges hit targets when the primary pointer is touch. */

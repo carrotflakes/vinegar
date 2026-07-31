@@ -43,6 +43,7 @@ export default function CanvasView() {
   const lastInsertRef = useRef<LastInsert | null>(null);
   const hoverRef = useRef<Vec2 | null>(null);
   const brushHoverRef = useRef<{ p: Vec2; radius: number } | null>(null);
+  const pencilHintRef = useRef<Vec2 | null>(null);
   const guidesRef = useRef<Guide[]>([]);
   const spacingsRef = useRef<Spacing[]>([]);
   const rafRef = useRef<number | null>(null);
@@ -77,6 +78,7 @@ export default function CanvasView() {
       penDraft: penDraftRef.current,
       hover: hoverRef.current,
       brushHover: brushHoverRef.current,
+      pencilHint: pencilHintRef.current,
       guides: guidesRef.current,
       spacings: spacingsRef.current,
       hiddenTextId: textEditRef.current?.original?.id ?? null,
@@ -118,6 +120,7 @@ export default function CanvasView() {
       lastInsert: lastInsertRef,
       hover: hoverRef,
       brushHover: brushHoverRef,
+      pencilHint: pencilHintRef,
       guides: guidesRef,
       spacings: spacingsRef,
       hitScale: () => (coarseRef.current ? TOUCH_HIT_SCALE : 1),
@@ -186,6 +189,7 @@ export default function CanvasView() {
         onPointerLeave={() => {
           setPointer(null);
           brushHoverRef.current = null;
+          pencilHintRef.current = null;
           scheduleDraw();
         }}
         onDoubleClick={onDoubleClick}
