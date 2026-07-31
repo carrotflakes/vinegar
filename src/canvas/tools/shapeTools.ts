@@ -10,6 +10,7 @@ import {
   type EditorState,
   type StyleDefaults,
 } from "../../store/editorStore";
+import { usePencil } from "../../store/pencilStore";
 import { setReadout } from "../../store/pointerStore";
 import { CLICK_SLOP, type ToolContext } from "../interaction";
 import { EMPTY_EXCLUDE, pointSnap } from "../picking";
@@ -60,7 +61,15 @@ export function finishCreate(ctx: ToolContext, state: EditorState) {
 
 // ---- pencil (freehand) ------------------------------------------------------
 
+// Live smoothing state for the active freehand stroke. `smoothed` is the EMA of
+// the raw pointer, advanced every move sample (like the brush's stabilizer);
+// `smoothing` is captured at stroke start so mid-stroke option changes don't
+// jump the line. Reset on each `startPencil`, so a leftover after a cancel is
+// harmless.
+let pencilStroke: { smoothed: Vec2; smoothing: number } | null = null;
+
 export function startPencil(ctx: ToolContext, state: EditorState, world: Vec2) {
+  pencilStroke = { smoothed: world, smoothing: usePencil.getState().smoothing };
   const shape: Shape = {
     id: makeId("path"),
     name: "Path",
@@ -80,17 +89,28 @@ export function startPencil(ctx: ToolContext, state: EditorState, world: Vec2) {
 
 export function onPencilMove(ctx: ToolContext, world: Vec2) {
   const shape = ctx.preview.current;
-  if (shape && shape.type === "path") {
-    const anchors = shape.subpaths[0].anchors;
-    const last = anchors[anchors.length - 1]?.p;
-    if (!last || Math.hypot(world.x - last.x, world.y - last.y) > 1.5) {
-      anchors.push({ p: world, hIn: null, hOut: null });
-      ctx.scheduleDraw();
-    }
+  if (!shape || shape.type !== "path") return;
+  // Exponential moving average: strength 0 tracks the pointer exactly, →1 lags
+  // heavily. Advanced every sample even when no anchor is added below.
+  let p = world;
+  if (pencilStroke) {
+    const s = pencilStroke.smoothing;
+    pencilStroke.smoothed = {
+      x: pencilStroke.smoothed.x + (world.x - pencilStroke.smoothed.x) * (1 - s),
+      y: pencilStroke.smoothed.y + (world.y - pencilStroke.smoothed.y) * (1 - s),
+    };
+    p = pencilStroke.smoothed;
+  }
+  const anchors = shape.subpaths[0].anchors;
+  const last = anchors[anchors.length - 1]?.p;
+  if (!last || Math.hypot(p.x - last.x, p.y - last.y) > 1.5) {
+    anchors.push({ p, hIn: null, hOut: null });
+    ctx.scheduleDraw();
   }
 }
 
 export function finishPencil(ctx: ToolContext, state: EditorState) {
+  pencilStroke = null;
   const shape = ctx.preview.current;
   ctx.preview.current = null;
   if (shape && shape.type === "path" && shape.subpaths[0].anchors.length >= 2) {

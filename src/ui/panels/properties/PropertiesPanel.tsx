@@ -10,6 +10,7 @@ import {
 import type { SelectionLeaf } from "../../../canvas/frame";
 import { useEditor } from "../../../store/editorStore";
 import BrushSection, { EraserSection } from "./BrushSection";
+import PencilSection from "./PencilSection";
 import BucketSection from "./BucketSection";
 import FrameSection from "./FrameSection";
 import AppearanceSection from "./AppearanceSection";
@@ -71,6 +72,7 @@ export default function PropertiesPanel() {
   return (
     <div className="panel">
       {tool === "brush" && <BrushSection />}
+      {tool === "pencil" && <PencilSection />}
       {tool === "eraser" && <EraserSection />}
       {tool === "bucket" && <BucketSection />}
       {tool === "node" && <NodeTypeSection />}
