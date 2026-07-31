@@ -26,7 +26,7 @@ export interface BrushOptions {
   eraserSize: number;
 }
 
-const DEFAULTS: BrushOptions = {
+export const BRUSH_DEFAULTS: BrushOptions = {
   size: 8,
   pressureGamma: 1,
   minWidth: 0.15,
@@ -35,6 +35,7 @@ const DEFAULTS: BrushOptions = {
   simplify: 2,
   eraserSize: 16,
 };
+const DEFAULTS = BRUSH_DEFAULTS;
 
 const clamp = (v: number, lo: number, hi: number) =>
   Math.min(hi, Math.max(lo, v));

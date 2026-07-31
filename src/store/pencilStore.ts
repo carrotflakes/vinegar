@@ -17,10 +17,11 @@ export interface PencilOptions {
   simplify: number;
 }
 
-const DEFAULTS: PencilOptions = {
+export const PENCIL_DEFAULTS: PencilOptions = {
   smoothing: 0.4,
   simplify: 2,
 };
+const DEFAULTS = PENCIL_DEFAULTS;
 
 const clamp = (v: number, lo: number, hi: number) =>
   Math.min(hi, Math.max(lo, v));

@@ -75,6 +75,7 @@ export default function Geometry({
           max={maxRectCornerRadius(node)}
           step={1}
           value={radius}
+          defaultValue={0}
           aria-label="Corner radius"
           onChange={(value) =>
             setRectCornerRadius(node.id, value)

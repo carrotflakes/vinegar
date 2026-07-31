@@ -110,6 +110,7 @@ export default function StrokeDetailControls({
             className="num stroke-offset"
             step={0.5}
             value={value.dashOffset}
+            defaultValue={0}
             onChange={(next) => onChange({ dashOffset: next })}
             aria-label="Dash offset"
           />

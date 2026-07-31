@@ -56,6 +56,7 @@ export function OpacityField({
           max={100}
           step={1}
           value={Math.round(value * 100)}
+          defaultValue={100}
           onChange={(next) => onChange(next / 100)}
           aria-label={label}
         />
@@ -86,6 +87,7 @@ export function RotationField({
           className="num"
           step={1}
           value={degrees}
+          defaultValue={0}
           onChange={onChange}
           aria-label={label}
         />

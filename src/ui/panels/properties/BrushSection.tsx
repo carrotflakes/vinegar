@@ -1,4 +1,4 @@
-import { useBrush } from "../../../store/brushStore";
+import { useBrush, BRUSH_DEFAULTS } from "../../../store/brushStore";
 import ScrubbableNumber from "@/ui/controls/ScrubbableNumber";
 import "../../Panel.css";
 import Section from "../Section";
@@ -18,6 +18,7 @@ export default function BrushSection() {
             min={0.5}
             step={0.5}
             value={size}
+            defaultValue={BRUSH_DEFAULTS.size}
             onChange={(v) => setBrush({ size: v })}
             aria-label="Brush size"
           />
@@ -31,6 +32,7 @@ export default function BrushSection() {
             max={100}
             step={1}
             value={Math.round(minWidth * 100)}
+            defaultValue={Math.round(BRUSH_DEFAULTS.minWidth * 100)}
             onChange={(v) => setBrush({ minWidth: v / 100 })}
             aria-label="Minimum width percent"
           />
@@ -44,6 +46,7 @@ export default function BrushSection() {
             max={4}
             step={0.05}
             value={pressureGamma}
+            defaultValue={BRUSH_DEFAULTS.pressureGamma}
             onChange={(v) => setBrush({ pressureGamma: v })}
             aria-label="Pressure response"
           />
@@ -57,6 +60,7 @@ export default function BrushSection() {
             max={95}
             step={1}
             value={Math.round(stabilizer * 100)}
+            defaultValue={Math.round(BRUSH_DEFAULTS.stabilizer * 100)}
             onChange={(v) => setBrush({ stabilizer: v / 100 })}
             aria-label="Smoothing percent"
           />
@@ -69,6 +73,7 @@ export default function BrushSection() {
             min={0}
             step={1}
             value={taper}
+            defaultValue={BRUSH_DEFAULTS.taper}
             onChange={(v) => setBrush({ taper: v })}
             aria-label="Taper length"
           />
@@ -82,6 +87,7 @@ export default function BrushSection() {
             max={20}
             step={0.5}
             value={simplify}
+            defaultValue={BRUSH_DEFAULTS.simplify}
             onChange={(v) => setBrush({ simplify: v })}
             aria-label="Simplify tolerance in pixels"
           />
@@ -104,6 +110,7 @@ export function EraserSection() {
             min={1}
             step={1}
             value={eraserSize}
+            defaultValue={BRUSH_DEFAULTS.eraserSize}
             onChange={(v) => setBrush({ eraserSize: v })}
             aria-label="Eraser size"
           />

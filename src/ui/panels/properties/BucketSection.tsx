@@ -1,4 +1,4 @@
-import { useBucket } from "../../../store/bucketStore";
+import { useBucket, BUCKET_DEFAULTS } from "../../../store/bucketStore";
 import ScrubbableNumber from "@/ui/controls/ScrubbableNumber";
 import "../../Panel.css";
 import Section from "../Section";
@@ -24,6 +24,7 @@ export default function BucketSection() {
             min={0}
             step={0.5}
             value={gapTolerance}
+            defaultValue={BUCKET_DEFAULTS.gapTolerance}
             onChange={(v) => setBucket({ gapTolerance: v })}
             aria-label="Gap closing tolerance"
           />

@@ -6,19 +6,23 @@ type Props = {
   min?: number | undefined;
   max?: number;
   step?: number;
+  /** When set, double-clicking the field resets it to this value. */
+  defaultValue?: number;
   className?: string;
   "aria-label"?: string;
 };
 
 /** Number field that can be scrubbed: drag left/right to change the value, or
  * click to edit it as text. Hold Shift for coarse (×10) or Alt for fine (×0.1)
- * steps. Native ↑/↓ keys still adjust by `step` while focused. */
+ * steps. Native ↑/↓ keys still adjust by `step` while focused. Double-click
+ * resets to `defaultValue` when one is provided. */
 export default function ScrubbableNumber({
   value,
   onChange,
   min,
   max,
   step = 1,
+  defaultValue,
   className,
   "aria-label": ariaLabel,
 }: Props) {
@@ -91,6 +95,12 @@ export default function ScrubbableNumber({
     drag.current = null;
   };
 
+  const onDoubleClick = () => {
+    if (defaultValue == null) return;
+    onChange(clamp(defaultValue));
+    inputRef.current?.blur();
+  };
+
   return (
     <input
       ref={inputRef}
@@ -108,6 +118,7 @@ export default function ScrubbableNumber({
       onPointerMove={onPointerMove}
       onPointerUp={onPointerUp}
       onPointerCancel={onPointerCancel}
+      onDoubleClick={onDoubleClick}
       onChange={(e) => {
         const v = Number(e.target.value);
         if (Number.isFinite(v)) onChange(clamp(v));

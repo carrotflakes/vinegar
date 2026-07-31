@@ -16,10 +16,11 @@ export interface BucketOptions {
   strokeCenterline: boolean;
 }
 
-const DEFAULTS: BucketOptions = {
+export const BUCKET_DEFAULTS: BucketOptions = {
   gapTolerance: 4,
   strokeCenterline: false,
 };
+const DEFAULTS = BUCKET_DEFAULTS;
 
 const clamp = (v: number, lo: number, hi: number) =>
   Math.min(hi, Math.max(lo, v));

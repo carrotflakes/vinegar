@@ -1,4 +1,4 @@
-import { usePencil } from "../../../store/pencilStore";
+import { usePencil, PENCIL_DEFAULTS } from "../../../store/pencilStore";
 import ScrubbableNumber from "@/ui/controls/ScrubbableNumber";
 import "../../Panel.css";
 import Section from "../Section";
@@ -18,6 +18,7 @@ export default function PencilSection() {
             max={95}
             step={1}
             value={Math.round(smoothing * 100)}
+            defaultValue={Math.round(PENCIL_DEFAULTS.smoothing * 100)}
             onChange={(v) => setPencil({ smoothing: v / 100 })}
             aria-label="Smoothing percent"
           />
@@ -31,6 +32,7 @@ export default function PencilSection() {
             max={20}
             step={0.5}
             value={simplify}
+            defaultValue={PENCIL_DEFAULTS.simplify}
             onChange={(v) => setPencil({ simplify: v })}
             aria-label="Simplify tolerance in pixels"
           />

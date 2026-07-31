@@ -192,4 +192,4 @@ additional effects, or other feature expansion.
 - [ ] Assetという名前は問題ないか。raster imageではないか。
 - [ ] テキストってインプレイス編集しかない？
 - [ ] Taperのバグ
-- [ ] フォームのデフォルト値
+- [ ] pencil 直線モード（描画中に修飾キーで直線セグメント）
