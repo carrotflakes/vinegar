@@ -295,6 +295,7 @@ export default function GeneratorsDialog({ open, focusId, onClose }: Props) {
                       max={param.max}
                       step={param.step}
                       value={args[param.key] ?? param.default}
+                      defaultValue={param.default}
                       aria-label={param.label}
                       onChange={(value) =>
                         setArgs((a) => ({

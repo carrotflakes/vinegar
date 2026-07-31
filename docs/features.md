@@ -67,7 +67,7 @@ Related design notes: [path-unification.md](path-unification.md), [path-modifier
 ## Scripting
 
 - **Scripting**: a one-shot drawing DSL that runs in a sandboxed Web Worker and applies its changes in a single undo step; can create shapes and read/edit existing ones (open via the "Script" button in the app bar)
-- **Parametric generators (experimental)**: insert the built-in Star, Gear, Spiral, Flower and Moon generators, or author document-local generator scripts whose numeric parameters rebuild editable Bézier geometry. Copying a generated shape carries its script along, so pasting into another document keeps the shape re-tunable (a script arriving from a document whose generators were never approved re-arms the consent gate); a link that resolves to no script at all pastes as a plain path.
+- **Parametric generators (experimental)**: insert the built-in Star, Gear, Spiral, Flower, Arrow, Sector and Moon generators, or author document-local generator scripts whose numeric parameters rebuild editable Bézier geometry. Copying a generated shape carries its script along, so pasting into another document keeps the shape re-tunable (a script arriving from a document whose generators were never approved re-arms the consent gate); a link that resolves to no script at all pastes as a plain path.
   Imported document scripts stay disabled until the user explicitly enables them and run in a watchdog-protected Web Worker.
 
 ## Canvas and workspace
