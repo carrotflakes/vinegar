@@ -51,18 +51,23 @@ export async function importImageFiles(files: File[]): Promise<ImportedImage[]> 
   return results.filter((img): img is ImportedImage => img !== null);
 }
 
+/** Read a Blob (or File) into a base64 data URL. Resolves null on read error. */
+export function blobToDataUrl(blob: Blob): Promise<string | null> {
+  return new Promise((resolve) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result));
+    reader.onerror = () => resolve(null);
+    reader.readAsDataURL(blob);
+  });
+}
+
 /**
  * Read a file into a data-URL asset and decode it once to learn its natural
  * size (the decode also pre-warms the render cache). Resolves null for files
  * that fail to read or decode.
  */
 export async function importImageFile(file: File): Promise<ImportedImage | null> {
-  const data = await new Promise<string | null>((resolve) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(String(reader.result));
-    reader.onerror = () => resolve(null);
-    reader.readAsDataURL(file);
-  });
+  const data = await blobToDataUrl(file);
   if (!data) return null;
   const asset: DocumentAsset = {
     id: makeId("asset"),

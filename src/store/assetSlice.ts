@@ -4,8 +4,8 @@
 import { unionNodeWorldBounds } from "@/model/geometry/bounds";
 import { multiply, translation } from "@/model/geometry/matrix";
 import { referencedAssetIds } from "../model/scene";
-import { baseNodeDefaults, baseShapeDefaults, makeId, type ImageShape } from "../model/types";
-import { importImageFile, importImageFiles, isImageFile } from "../io/importImage";
+import { baseNodeDefaults, baseShapeDefaults, makeId, type DocumentAsset, type ImageShape } from "../model/types";
+import { blobToDataUrl, importImageFile, importImageFiles, isImageFile } from "../io/importImage";
 import { loadAssetImage } from "../imageCache";
 import { notify } from "./toastStore";
 import { appendToScope } from "./docOps";
@@ -19,6 +19,13 @@ import {
 /** Shown when picked/dropped image files can't be read or decoded. */
 const IMAGE_LOAD_ERROR =
   "Could not load the image. It may be corrupt or an unsupported format.";
+
+/** Human-readable byte size (e.g. "1.2 MB") for toast/asset weight reporting. */
+function formatBytes(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
 
 export function createAssetActions({ set, get, transact }: StoreCtx): AssetActions {
   return {
@@ -133,6 +140,37 @@ export function createAssetActions({ set, get, transact }: StoreCtx): AssetActio
       });
       transact({ ...s.doc, assets }, { label: images.length === 1 ? "Import image asset" : `Import ${images.length} image assets` });
       return ids;
+    },
+    addImageAsset: async (blob, name, mimeType) => {
+      const data = await blobToDataUrl(blob);
+      if (!data) {
+        notify.error(IMAGE_LOAD_ERROR);
+        return null;
+      }
+      const s = get();
+      // Re-use an identical asset rather than piling up duplicate copies of the
+      // same pixels — repeated exports of an unchanged region are common.
+      const existing = Object.values(s.doc.assets).find(
+        (a) => a.source.type === "data" && a.source.data === data
+      );
+      if (existing) {
+        notify.success("Already in assets");
+        return existing.id;
+      }
+      const asset: DocumentAsset = {
+        id: makeId("asset"),
+        kind: "image",
+        mimeType,
+        name,
+        source: { type: "data", data },
+      };
+      transact(
+        { ...s.doc, assets: { ...s.doc.assets, [asset.id]: asset } },
+        { label: "Export to asset" }
+      );
+      // Assets embed in the document, so surface the weight it adds on save.
+      notify.success(`Added to assets · ${formatBytes(blob.size)}`);
+      return asset.id;
     },
     placeAssetImage: async (assetId, at, fitWithin) => {
       const asset = get().doc.assets[assetId];

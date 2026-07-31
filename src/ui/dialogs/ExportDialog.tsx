@@ -56,6 +56,7 @@ const PREVIEW_MAX_EDGE = 460;
 export default function ExportDialog({ open, onClose }: Props) {
   const doc = useEditor((s) => s.doc);
   const selection = useEditor((s) => s.selection);
+  const addImageAsset = useEditor((s) => s.addImageAsset);
 
   const [settings, setSettings] = useState<ExportImageSettings>(loadExportSettings);
 
@@ -157,15 +158,25 @@ export default function ExportDialog({ open, onClose }: Props) {
 
   if (!open) return null;
 
-  const doExport = async () => {
+  const doExport = async (destination: "file" | "asset") => {
     if (!bounds || !canExport) return;
     try {
       const blob = await exportPng(doc, toPngOptions(settings, bounds, frame));
-      const stem =
+      // Human-readable base name per scope; drives both the asset name and the
+      // (slugified) download filename.
+      const baseName =
         settings.scope === "frame" && frame
-          ? fileSlug(frame.name)
-          : "drawing";
-      downloadBlob(blob, exportFilename(settings, stem));
+          ? frame.name
+          : settings.scope === "selection"
+          ? (selection.length === 1
+              ? doc.nodes[selection[0]]?.name ?? "Selection"
+              : "Selection")
+          : doc.metadata.name || "Drawing";
+      if (destination === "asset") {
+        await addImageAsset(blob, baseName, FORMAT_INFO[settings.format].mimeType);
+      } else {
+        downloadBlob(blob, exportFilename(settings, fileSlug(baseName)));
+      }
       onClose();
     } catch (err) {
       notify.error(err instanceof Error ? err.message : String(err));
@@ -392,9 +403,17 @@ export default function ExportDialog({ open, onClose }: Props) {
             </button>
             <button
               type="button"
+              className="preferences-button"
+              disabled={!canExport}
+              onClick={() => doExport("asset")}
+            >
+              Add to asset
+            </button>
+            <button
+              type="button"
               className="preferences-button primary"
               disabled={!canExport}
-              onClick={doExport}
+              onClick={() => doExport("file")}
             >
               Export
             </button>

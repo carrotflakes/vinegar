@@ -159,6 +159,9 @@ export function toPngOptions(
     margin: settings.margin,
     mimeType: info.mimeType,
     quality: info.lossy ? settings.quality : undefined,
+    // Frame scope paints only the frame subtree so overlapping siblings outside
+    // it don't bleed into the cropped region.
+    rootIds: settings.scope === "frame" && frame ? [frame.id] : undefined,
   };
 }
 

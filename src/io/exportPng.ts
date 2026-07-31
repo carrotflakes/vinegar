@@ -15,6 +15,12 @@ export interface PngOptions {
   mimeType?: string;
   /** Lossy quality (0–1) for `image/jpeg` and `image/webp`. */
   quality?: number | undefined;
+  /**
+   * Which top-level nodes to paint (back-to-front). Defaults to every root.
+   * Frame-scope exports pass just the frame id so nothing outside its subtree
+   * bleeds into the cropped region.
+   */
+  rootIds?: string[] | undefined;
 }
 
 /** Render a document's shapes to a raster Blob, cropped to content or explicit bounds. */
@@ -51,7 +57,7 @@ export async function exportPng(
     ctx.rect(bounds.x, bounds.y, bounds.width, bounds.height);
     ctx.clip();
   }
-  for (const nodeId of doc.rootIds) paintNode(ctx, doc, nodeId);
+  for (const nodeId of opts.rootIds ?? doc.rootIds) paintNode(ctx, doc, nodeId);
 
   return await new Promise<Blob>((resolve, reject) => {
     canvas.toBlob(

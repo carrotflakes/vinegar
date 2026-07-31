@@ -270,6 +270,10 @@ export interface AssetActions {
   /** Import image files as document assets (no scene nodes) in one undoable
    *  step. Used by the Assets panel's file drop. Resolves the new asset ids. */
   importImageAssets: (files: File[]) => Promise<string[]>;
+  /** Add an already-rendered raster Blob as a document asset (no scene node).
+   *  Used by the Export dialog's "Add to asset". Resolves the new asset id, or
+   *  null if the Blob can't be read. */
+  addImageAsset: (blob: Blob, name: string, mimeType: string) => Promise<string | null>;
   /** Place a new image node referencing an existing asset (no re-import),
    *  centered on `at`. Used by the Assets panel's place/drag. */
   placeAssetImage: (
