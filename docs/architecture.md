@@ -37,9 +37,9 @@ src/
              join/cut/combine/split, path cleanup ops, outlineStroke,
              freehand),
              brush/ (brush geometry + erasing), generators/
-  store/     zustand editor store split into slices (shapes, selection,
-             structure, symbols, frames, clipboard, history, prefs),
-             pointer & menu stores
+  store/     zustand editor store split into slices (shapes, path editing,
+             assets, generators, selection, structure, shape ops, symbols,
+             frames, clipboard, history, prefs), pointer & menu stores
   commands/  command types and placement helpers; editing, view and file
              command groups composed by the registry (drives menus & palette)
   canvas/    CanvasView (interaction), per-tool logic, rendering, overlay,

@@ -16,6 +16,9 @@ import { createFrameActions } from "./frameSlice";
 import { createGuideActions } from "./guideSlice";
 import { createSelectionActions } from "./selectionSlice";
 import { createShapeActions } from "./shapeSlice";
+import { createAssetActions } from "./assetSlice";
+import { createPathEditActions } from "./pathEditSlice";
+import { createGeneratorActions } from "./generatorSlice";
 import {
   currentFocusRoot,
   type EditorState,
@@ -23,6 +26,7 @@ import {
   type StyleDefaults,
 } from "./state";
 import { createStructureActions } from "./structureSlice";
+import { createShapeOpsActions } from "./shapeOpsSlice";
 import { createSwatchActions } from "./swatchSlice";
 import { createSymbolActions } from "./symbolSlice";
 
@@ -72,7 +76,11 @@ export const useEditor = create<EditorState>((set, get) => {
     ...createPrefsActions(ctx),
     ...createSelectionActions(ctx),
     ...createShapeActions(ctx),
+    ...createAssetActions(ctx),
+    ...createPathEditActions(ctx),
+    ...createGeneratorActions(ctx),
     ...createStructureActions(ctx),
+    ...createShapeOpsActions(ctx),
     ...createFrameActions(ctx),
     ...createGuideActions(ctx),
     ...createClipboardActions(ctx),

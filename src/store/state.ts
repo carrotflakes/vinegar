@@ -235,6 +235,23 @@ export interface ShapeActions {
    * when fully erased). One undoable step; see docs/brush-strokes.md.
    */
   eraseBrushStrokes: (pathWorld: Vec2[], radiusWorld: number) => void;
+  updateShape: (shape: Shape, select?: boolean) => void;
+  updateTextShape: (
+    id: string,
+    patch: Partial<Pick<TextShape,
+      "text" | "width" | "fontFamily" | "fontSize" | "fontWeight" |
+      "italic" | "lineHeight" | "align">>
+  ) => void;
+  /** Refresh persisted text bounds after browser fonts become available. */
+  remeasureTextShapes: () => void;
+  updateSelectedStyle: (patch: Partial<StyleStylableFields>) => void;
+  setShapeGeometry: (id: string, patch: Partial<{ x: number; y: number; width: number; height: number }>) => void;
+  setRectCornerRadius: (id: string, radius: number) => void;
+  setImageLockAspect: (id: string, lock: boolean) => void;
+}
+
+/** Document assets (images) and placing imported artwork into the scene. */
+export interface AssetActions {
   /** Import image files as assets and place them centered on `at`. */
   placeImageFiles: (
     files: File[],
@@ -264,15 +281,10 @@ export interface ShapeActions {
   deleteAsset: (assetId: string) => void;
   /** Remove every asset no shape references. Resolves the number removed. */
   deleteUnusedAssets: () => number;
-  updateShape: (shape: Shape, select?: boolean) => void;
-  updateTextShape: (
-    id: string,
-    patch: Partial<Pick<TextShape,
-      "text" | "width" | "fontFamily" | "fontSize" | "fontWeight" |
-      "italic" | "lineHeight" | "align">>
-  ) => void;
-  /** Refresh persisted text bounds after browser fonts become available. */
-  remeasureTextShapes: () => void;
+}
+
+/** Editing path/brush anchors and whole-path properties. */
+export interface PathEditActions {
   toggleNodeSmooth: (shapeId: string, sub: number, index: number) => void;
   /** Apply one handle-linkage type to every selected path/brush anchor. */
   setEditNodeType: (type: AnchorType) => void;
@@ -286,10 +298,14 @@ export interface ShapeActions {
   ) => void;
   deleteEditNode: () => void;
   cutSelectedNodes: () => void;
+  setClosedSelected: (closed: boolean) => void;
+  setSelectedFillRule: (rule: PathShape["fillRule"]) => void;
+  pathOpSelected: (op: PathOp) => void;
+}
+
+/** Parametric generators and the document's generator scripts. */
+export interface GeneratorActions {
   applyScriptChanges: (changes: { created: Shape[]; updated: Shape[]; deleted: string[] }) => void;
-  updateSelectedStyle: (patch: Partial<StyleStylableFields>) => void;
-  setShapeGeometry: (id: string, patch: Partial<{ x: number; y: number; width: number; height: number }>) => void;
-  setRectCornerRadius: (id: string, radius: number) => void;
   /**
    * Insert a new parametric shape from a generator, centered on `at`. Built-ins
    * resolve synchronously; document scripts build in a Worker, so this may
@@ -319,10 +335,6 @@ export interface ShapeActions {
    * script's source. Resolves once the metadata has settled.
    */
   ensureScriptCompiled: (scriptId: string) => void | Promise<void>;
-  setImageLockAspect: (id: string, lock: boolean) => void;
-  setClosedSelected: (closed: boolean) => void;
-  setSelectedFillRule: (rule: PathShape["fillRule"]) => void;
-  pathOpSelected: (op: PathOp) => void;
 }
 
 /** Scene-tree structure: hierarchy, order, per-node flags and conversions. */
@@ -336,20 +348,6 @@ export interface StructureActions {
   releaseClippingMaskSelected: () => void;
   alignSelected: (type: AlignType) => void;
   distributeSelected: (axis: "h" | "v") => void;
-  /** Replace selected primitives, brushes and compound paths with editable paths. */
-  convertSelectedToPaths: () => void;
-  outlineStrokeSelected: () => void;
-  booleanSelected: (op: BoolOp) => void;
-  /** Split overlapping selected shapes into their distinct faces (Pathfinder Divide). */
-  divideSelected: () => void;
-  /** Weld selected paths' open endpoints into continuous contours. */
-  joinSelected: () => void;
-  /** Gather selected paths into one multi-subpath path, changing no geometry. */
-  combineSelected: () => void;
-  /** Break selected multi-subpath paths into one path node per contour. */
-  splitSubpathsSelected: () => void;
-  makeCompoundPathSelected: () => void;
-  releaseCompoundPathSelected: () => void;
   toggleHidden: (id: string) => void;
   toggleLocked: (id: string) => void;
   renameNode: (id: string, name: string) => void;
@@ -370,6 +368,24 @@ export interface StructureActions {
    * if any node cannot make the move, none of them do.
    */
   moveNodes: (ids: string[], parentId: string | null, index: number) => void;
+}
+
+/** Selection-wide shape conversions that replace their input nodes. */
+export interface ShapeOpsActions {
+  /** Replace selected primitives, brushes and compound paths with editable paths. */
+  convertSelectedToPaths: () => void;
+  outlineStrokeSelected: () => void;
+  booleanSelected: (op: BoolOp) => void;
+  /** Split overlapping selected shapes into their distinct faces (Pathfinder Divide). */
+  divideSelected: () => void;
+  /** Weld selected paths' open endpoints into continuous contours. */
+  joinSelected: () => void;
+  /** Gather selected paths into one multi-subpath path, changing no geometry. */
+  combineSelected: () => void;
+  /** Break selected multi-subpath paths into one path node per contour. */
+  splitSubpathsSelected: () => void;
+  makeCompoundPathSelected: () => void;
+  releaseCompoundPathSelected: () => void;
 }
 
 /**
@@ -463,7 +479,11 @@ export type EditorState = EditorData &
   SelectionActions &
   HistoryActions &
   ShapeActions &
+  AssetActions &
+  PathEditActions &
+  GeneratorActions &
   StructureActions &
+  ShapeOpsActions &
   FrameActions &
   GuideActions &
   ClipboardActions &
