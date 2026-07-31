@@ -1,5 +1,6 @@
 import { brushSegments } from "./brushSegments";
 import { cubicPoint } from "@/model/path/path";
+import { catmullRomHandles } from "@/model/path/freehand";
 import type { BrushAnchor, BrushShape, Vec2 } from "../types";
 
 /** One sample of the flattened centerline: position and (base-scaled) width. */
@@ -242,8 +243,10 @@ export function simplifyWidthSamples(
 }
 
 /**
- * Smooth open Catmull-Rom fit (handles = ±(next − prev) / 6), carrying each
- * sample's width. Mirrors `pointsToAnchors` in `model/freehand.ts`.
+ * Smooth open Catmull-Rom fit carrying each sample's width. Mirrors
+ * `pointsToAnchors` in `model/path/freehand.ts` and shares its
+ * `catmullRomHandles` helper, which clamps handles so an unevenly spaced tail
+ * near a tapered tip can't overshoot and hook (the "messy endpoint" bug).
  */
 export function fitBrushAnchors(samples: WidthSample[]): BrushAnchor[] {
   const n = samples.length;
@@ -252,14 +255,7 @@ export function fitBrushAnchors(samples: WidthSample[]): BrushAnchor[] {
     const p = samples[i].p;
     const prev = samples[i - 1]?.p ?? p;
     const next = samples[i + 1]?.p ?? p;
-    const tx = (next.x - prev.x) / 6;
-    const ty = (next.y - prev.y) / 6;
-    anchors.push({
-      p,
-      hIn: { x: p.x - tx, y: p.y - ty },
-      hOut: { x: p.x + tx, y: p.y + ty },
-      w: samples[i].w,
-    });
+    anchors.push({ p, ...catmullRomHandles(prev, p, next), w: samples[i].w });
   }
   return anchors;
 }

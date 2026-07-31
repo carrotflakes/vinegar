@@ -40,8 +40,41 @@ export function simplifyPath(points: Vec2[], epsilon: number): Vec2[] {
 }
 
 /**
+ * Catmull-Rom tangent handles for anchor `p` sitting between neighbours `prev`
+ * and `next`. The tangent direction is the usual `(next − prev) / 6`, but each
+ * handle's length is capped at one third of the chord to *its own* neighbour.
+ *
+ * For even spacing the cap never bites — `(next − prev) / 6` already equals
+ * `chord / 3` — so this is the plain uniform Catmull-Rom. It only kicks in when
+ * spacing is lopsided (a far anchor on one side, a near one on the other),
+ * where the raw tangent would push a handle *past* the adjacent anchor and the
+ * cubic would overshoot and hook back. That hook is normally hidden under a
+ * uniform width and a round cap, but a tapered brush tip is thin and exposes
+ * it — the "messy endpoint" bug. Clamping keeps the tangent direction (still a
+ * smooth anchor) while forbidding the overshoot.
+ */
+export function catmullRomHandles(
+  prev: Vec2,
+  p: Vec2,
+  next: Vec2
+): { hIn: Vec2; hOut: Vec2 } {
+  const tx = (next.x - prev.x) / 6;
+  const ty = (next.y - prev.y) / 6;
+  const tlen = Math.hypot(tx, ty);
+  if (tlen < 1e-12) return { hIn: { ...p }, hOut: { ...p } };
+  const ux = tx / tlen;
+  const uy = ty / tlen;
+  const outLen = Math.min(tlen, Math.hypot(next.x - p.x, next.y - p.y) / 3);
+  const inLen = Math.min(tlen, Math.hypot(p.x - prev.x, p.y - prev.y) / 3);
+  return {
+    hIn: { x: p.x - ux * inLen, y: p.y - uy * inLen },
+    hOut: { x: p.x + ux * outLen, y: p.y + uy * outLen },
+  };
+}
+
+/**
  * Convert a polyline into smooth Bézier anchors using a Catmull-Rom tangent
- * (handles = ±(next − prev) / 6). The result is editable with the node tool.
+ * (see {@link catmullRomHandles}). The result is editable with the node tool.
  */
 export function pointsToAnchors(points: Vec2[], closed: boolean): PathAnchor[] {
   const n = points.length;
@@ -50,13 +83,7 @@ export function pointsToAnchors(points: Vec2[], closed: boolean): PathAnchor[] {
     const p = points[i];
     const prev = points[i - 1] ?? (closed ? points[n - 1] : p);
     const next = points[i + 1] ?? (closed ? points[0] : p);
-    const tx = (next.x - prev.x) / 6;
-    const ty = (next.y - prev.y) / 6;
-    anchors.push({
-      p,
-      hIn: { x: p.x - tx, y: p.y - ty },
-      hOut: { x: p.x + tx, y: p.y + ty },
-    });
+    anchors.push({ p, ...catmullRomHandles(prev, p, next) });
   }
   return anchors;
 }

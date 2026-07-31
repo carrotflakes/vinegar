@@ -186,10 +186,10 @@ additional effects, or other feature expansion.
 - [ ] MCPサーバー化
 - [ ] 保存形式の検討 zip化?
 - [ ] 左右反転のUIリファイン
-- [ ] ソロ編集
 - [ ] ColorField のリファクタリング（特にコンポーネントわけ）
 - [ ] ドックのフローティング、マルチカラム化
 - [ ] Assetという名前は問題ないか。raster imageではないか。
 - [ ] テキストってインプレイス編集しかない？
-- [ ] Taperのバグ
+- [x] Taperのバグ（端点でCatmull-Romハンドルが行き過ぎてフックしていた。`catmullRomHandles`で各ハンドルを隣接アンカーの弦長1/3にクランプ）
 - [ ] pencil 直線モード（描画中に修飾キーで直線セグメント）
+- [ ] ノード編集でctrl+A
