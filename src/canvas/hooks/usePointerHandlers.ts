@@ -17,53 +17,15 @@ import { resolveCursor } from "../cursor";
 import { type ToolContext } from "../interaction";
 import { cancelActiveInteraction } from "../interactionLifecycle";
 import { pickShape } from "../picking";
+import { onGuideDown } from "../tools/guideTool";
+import { onNodeDoubleClick } from "../tools/nodeTool";
+import { commitPenDraft, onPenHoverMove } from "../tools/penTool";
+import { onSelectDoubleClick } from "../tools/selectTool";
 import {
-  finishFrame,
-  onFrameDown,
-  onFrameMove,
-} from "../tools/frameTool";
-import { finishBrush, onBrushMove, startBrush } from "../tools/brushTool";
-import {
-  finishGuideDrag,
-  onGuideDown,
-  onGuideMove,
-} from "../tools/guideTool";
-import { bucketFillAt } from "../tools/bucketTool";
-import { finishEraser, onEraserMove, startEraser } from "../tools/eraserTool";
-import {
-  onNodeDoubleClick,
-  onNodeDown,
-  onNodeMarqueeMove,
-  onNodeMarqueeUp,
-  onNodeMove,
-  onNodeWidthMove,
-} from "../tools/nodeTool";
-import {
-  commitPenDraft,
-  onPenAnchorMove,
-  onPenDown,
-  onPenHoverMove,
-} from "../tools/penTool";
-import {
-  finishSelectMove,
-  onMarqueeUp,
-  onSelectDoubleClick,
-  onSelectDown,
-  onSelectMove,
-} from "../tools/selectTool";
-import {
-  finishCreate,
-  finishPencil,
-  onCreateMove,
-  onPencilMove,
-  startPencil,
-  startShape,
-} from "../tools/shapeTools";
-import {
-  finishTextCreate,
-  moveTextCreate,
-  startTextCreate,
-} from "../tools/textTool";
+  dispatchToolMove,
+  finishToolInteraction,
+  startToolInteraction,
+} from "../toolDispatch";
 import { useCanvasContextMenu } from "./useCanvasContextMenu";
 import type { CanvasGestures } from "./useCanvasGestures";
 import { useTouchTapGesture } from "./useTouchTapGesture";
@@ -268,8 +230,6 @@ export function usePointerHandlers(deps: PointerHandlerDeps): PointerHandlers {
     if (onGuideDown(ctx, state, screen, world, sizeRef.current)) return;
     if (state.selectedGuideId) state.setSelectedGuide(null);
 
-    const tool = state.tool;
-
     // With finger drawing off, a lone finger pans instead of painting: the
     // canvas belongs to the pen, the finger stays a navigation device. Guides
     // are checked first, so a finger can still pull one out of a ruler.
@@ -282,52 +242,13 @@ export function usePointerHandlers(deps: PointerHandlerDeps): PointerHandlers {
       return;
     }
 
-    if (tool === "select") {
-      onSelectDown(ctx, state, screen, world, mod.shift);
-      return;
-    }
-    if (tool === "node") {
-      onNodeDown(ctx, state, screen, world, mod.shift);
-      return;
-    }
-    if (tool === "pen") {
-      onPenDown(ctx, state, screen, world, mod.shift);
-      return;
-    }
-    if (tool === "pencil") {
-      startPencil(ctx, state, world);
-      return;
-    }
-    if (tool === "brush") {
-      startBrush(ctx, state, world, isPen ? e.pressure : 1);
-      return;
-    }
-    if (tool === "eraser") {
-      startEraser(ctx, world);
-      return;
-    }
-    if (tool === "bucket") {
-      // A plain click commits (or toasts) immediately; no drag interaction.
-      bucketFillAt(state, world);
-      return;
-    }
-    if (tool === "frame") {
-      onFrameDown(ctx, state, screen, world);
-      return;
-    }
-    if (tool === "text") {
-      const hitId = pickShape(ctx, world);
-      const hit = hitId ? state.doc.nodes[hitId] : null;
-      if (hit?.type === "text") {
-        beginTextEdit(hit, hit);
-        return;
-      }
-      startTextCreate(ctx, world);
-      return;
-    }
-
-    // rect / ellipse / line
-    startShape(ctx, state, world);
+    startToolInteraction(ctx, state, {
+      screen,
+      world,
+      shift: mod.shift,
+      pressure: isPen ? e.pressure : 1,
+      beginTextEdit,
+    });
   };
 
   const onPointerMove = (e: ReactPointerEvent<HTMLCanvasElement>) => {
@@ -373,75 +294,26 @@ export function usePointerHandlers(deps: PointerHandlerDeps): PointerHandlers {
       return;
     }
 
-    switch (inter.kind) {
-      case "pan":
-        state.setViewport({
-          ...state.viewport,
-          offset: {
-            x: inter.startOffset.x + (screen.x - inter.startScreen.x),
-            y: inter.startOffset.y + (screen.y - inter.startScreen.y),
-          },
-        });
-        break;
-      case "pivot":
-      case "move":
-      case "resize":
-      case "rotate":
-      case "corner-radius":
-      case "marquee":
-        onSelectMove(ctx, state, inter, screen, world, mod.shift, e.metaKey || e.ctrlKey);
-        break;
-      case "create":
-        onCreateMove(ctx, state, inter.start, world, mod.shift, mod.alt);
-        break;
-      case "text-create":
-        moveTextCreate(ctx, inter, world);
-        break;
-      case "pencil":
-        onPencilMove(ctx, world);
-        break;
-      case "brush": {
-        // Drain coalesced moves so fast strokes keep their full sample density.
+    dispatchToolMove(ctx, state, inter, {
+      screen,
+      world,
+      shift: mod.shift,
+      alt: mod.alt,
+      noReparent: e.metaKey || e.ctrlKey,
+      // Drain coalesced moves so fast strokes keep their full sample density.
+      brushSamples: () => {
         const native = e.nativeEvent;
-        const isPen = e.pointerType === "pen";
         const coalesced =
           typeof native.getCoalescedEvents === "function"
             ? native.getCoalescedEvents()
             : [];
         const events = coalesced.length ? coalesced : [native];
-        onBrushMove(
-          ctx,
-          state,
-          events.map((ev) => ({
-            world: screenToWorld(state.viewport, screenPoint(ev)),
-            pressure: isPen ? ev.pressure : 1,
-          }))
-        );
-        break;
-      }
-      case "eraser":
-        onEraserMove(ctx, state, world);
-        break;
-      case "pen-anchor":
-        onPenAnchorMove(ctx, state, inter.index, world, mod.shift);
-        break;
-      case "node-anchor":
-      case "node-handle":
-        onNodeMove(ctx, state, inter, world, mod.shift, mod.alt);
-        break;
-      case "node-width":
-        onNodeWidthMove(ctx, state, inter, world, mod.alt);
-        break;
-      case "node-marquee":
-        onNodeMarqueeMove(ctx, state, inter, screen);
-        break;
-      case "frame-create":
-        onFrameMove(ctx, state, inter, world, mod.shift, mod.alt);
-        break;
-      case "guide-drag":
-        onGuideMove(ctx, state, inter, world);
-        break;
-    }
+        return events.map((ev) => ({
+          world: screenToWorld(state.viewport, screenPoint(ev)),
+          pressure: isPen ? ev.pressure : 1,
+        }));
+      },
+    });
   };
 
   const onPointerUp = (e: ReactPointerEvent<HTMLCanvasElement>) => {
@@ -489,63 +361,12 @@ export function usePointerHandlers(deps: PointerHandlerDeps): PointerHandlers {
     ctx.spacings.current = [];
     setReadout(null);
 
-    switch (inter.kind) {
-      case "pivot":
-        if (inter.persistent) state.endInteraction();
-        ctx.scheduleDraw();
-        break;
-      case "move":
-        // A move drop may reparent the moved roots into/out of a frame; holding
-        // Cmd/Ctrl on release suppresses that (drop stays in the current parent).
-        finishSelectMove(ctx, state, inter, !(e.metaKey || e.ctrlKey));
-        break;
-      case "resize":
-      case "rotate":
-      case "corner-radius":
-      case "node-anchor":
-      case "node-handle":
-      case "node-width":
-        state.endInteraction();
-        ctx.scheduleDraw();
-        break;
-      case "create":
-        finishCreate(ctx, state);
-        break;
-      case "text-create":
-        beginTextEdit(finishTextCreate(state, inter), null);
-        break;
-      case "pencil":
-        finishPencil(ctx, state);
-        break;
-      case "brush":
-        finishBrush(ctx, state);
-        break;
-      case "eraser":
-        finishEraser(ctx, state);
-        break;
-      case "pen-anchor":
-        // Keep the draft alive for the next click; the curve preview persists.
-        break;
-      case "marquee":
-        onMarqueeUp(
-          ctx,
-          state,
-          inter,
-          screenToWorld(state.viewport, screenPoint(e))
-        );
-        break;
-      case "node-marquee": {
-        const screen = screenPoint(e);
-        onNodeMarqueeUp(ctx, state, inter, screen, screenToWorld(state.viewport, screen));
-        break;
-      }
-      case "frame-create":
-        finishFrame(ctx, state, inter);
-        break;
-      case "guide-drag":
-        finishGuideDrag(ctx, state, inter, screenPoint(e), sizeRef.current);
-        break;
-    }
+    finishToolInteraction(ctx, state, inter, {
+      screen: screenPoint(e),
+      noReparent: e.metaKey || e.ctrlKey,
+      canvasSize: sizeRef.current,
+      beginTextEdit,
+    });
   };
 
   const onPointerCancel = (e: ReactPointerEvent<HTMLCanvasElement>) => {
