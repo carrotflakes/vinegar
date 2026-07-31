@@ -96,6 +96,8 @@ export function selectionMenu(): MenuEntry[] {
   // submenu lists only its currently-applicable items (omitted entirely if none).
   const pathItems = [
     "structure.convertToPath",
+    "structure.convertToBrush",
+    "structure.brushToOutline",
     "path.outlineStroke",
     "path.simplify",
     "path.smooth",

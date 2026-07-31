@@ -1,5 +1,5 @@
 import { compoundChildren } from "./compoundPath";
-import { cachedBrushEnvelope } from "@/model/brush/brushOutline";
+import { convertBrushToCenterlinePath } from "@/model/brush/convertBrush";
 import { ellipseSubpath } from "../ellipse";
 import { roundedRectSubpath } from "../roundedRect";
 import { transformSubpath } from "./path";
@@ -57,39 +57,33 @@ function primitiveSubpaths(shape: PrimitiveShape): PathSubpath[] {
   }
 }
 
-function brushSubpaths(shape: BrushShape): PathSubpath[] {
-  const ring = cachedBrushEnvelope(shape);
-  if (ring.length < 3) return [];
-  return [{
-    closed: true,
-    anchors: ring.map((p) => ({ p: { ...p }, hIn: null, hOut: null })),
-  }];
-}
-
-/** Convert supported shape geometry to an editable path without changing appearance. */
+/**
+ * Convert supported shape geometry to an editable path without changing its
+ * meaning. A brush becomes its centerline as a uniform-width stroked path (the
+ * faithful geometry conversion); `convertBrushToOutlinePath` is the separate,
+ * appearance-preserving envelope direction.
+ */
 export function convertShapeToPath(
   shape: PathConvertibleShape,
   doc: Document
 ): PathShape {
+  if (shape.type === "brush") return convertBrushToCenterlinePath(shape);
   const subpaths = shape.type === "compoundPath"
     ? compoundChildren(doc, shape).flatMap((child) =>
         primitiveSubpaths(child).map((subpath) =>
           transformSubpath(child.transform, subpath)
         )
       )
-    : shape.type === "brush"
-      ? brushSubpaths(shape)
-      : primitiveSubpaths(shape);
-  const brush = shape.type === "brush";
+    : primitiveSubpaths(shape);
   return {
     id: shape.id,
     name: shape.name,
     type: "path",
     subpaths,
     fillRule: shape.type === "compoundPath" ? "evenodd" : "nonzero",
-    fill: brush ? shape.stroke : shape.fill,
-    stroke: brush ? null : shape.stroke,
-    strokeWidth: brush ? 0 : shape.strokeWidth,
+    fill: shape.fill,
+    stroke: shape.stroke,
+    strokeWidth: shape.strokeWidth,
     ...strokeDetailFields(shape),
     opacity: shape.opacity,
     blendMode: shape.blendMode,

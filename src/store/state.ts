@@ -378,6 +378,10 @@ export interface StructureActions {
 export interface ShapeOpsActions {
   /** Replace selected primitives, brushes and compound paths with editable paths. */
   convertSelectedToPaths: () => void;
+  /** Replace selected paths' contours with uniform-width brush strokes. */
+  convertSelectedToBrushes: () => void;
+  /** Replace selected brushes with the filled outline of their envelope. */
+  convertSelectedBrushesToOutline: () => void;
   outlineStrokeSelected: () => void;
   booleanSelected: (op: BoolOp) => void;
   /** Split overlapping selected shapes into their distinct faces (Pathfinder Divide). */

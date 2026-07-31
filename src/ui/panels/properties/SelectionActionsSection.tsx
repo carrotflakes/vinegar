@@ -98,6 +98,8 @@ export default function SelectionActionsSection({
   );
   const canOutline = can("path.outlineStroke");
   const canConvertToPath = can("structure.convertToPath");
+  const canConvertToBrush = can("structure.convertToBrush");
+  const canConvertBrushToOutline = can("structure.brushToOutline");
   const canMakeCompound = canMakeCompoundPathSelection(doc, selection);
   const canReleaseCompound =
     canReleaseCompoundPathSelection(doc, selection);
@@ -109,6 +111,8 @@ export default function SelectionActionsSection({
     canBoolean ||
     canOutline ||
     canConvertToPath ||
+    canConvertToBrush ||
+    canConvertBrushToOutline ||
     closable.length > 0 ||
     can("path.simplify") ||
     can("path.join") ||
@@ -397,6 +401,28 @@ export default function SelectionActionsSection({
                 onClick={() => runCommand("structure.convertToPath")}
               >
                 Convert to path
+              </button>
+            </div>
+          )}
+          {canConvertToBrush && (
+            <div className="btn-row">
+              <button
+                className="ghost-btn"
+                title="Turn each contour into a uniform-width brush stroke"
+                onClick={() => runCommand("structure.convertToBrush")}
+              >
+                Convert to brush
+              </button>
+            </div>
+          )}
+          {canConvertBrushToOutline && (
+            <div className="btn-row">
+              <button
+                className="ghost-btn"
+                title="Turn the brush envelope into a filled outline path"
+                onClick={() => runCommand("structure.brushToOutline")}
+              >
+                Convert to outline path
               </button>
             </div>
           )}

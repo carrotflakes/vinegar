@@ -6,8 +6,16 @@ sampling, pressure curve, EMA stabilizer, taper, width-aware fit, minimal palm
 rejection) all landed, plus stroke collection into an active drawing group
 (see "Stroke container" below), the vector eraser, and node-tool editing of
 brush anchors (move/insert/delete/smooth-toggle with the width preserved; a
-brush is treated as one open subpath) including per-anchor width knobs. Brush
-envelopes can also be converted to ordinary nonzero-filled paths. Phase 3
+brush is treated as one open subpath) including per-anchor width knobs. Brushes convert to paths two ways (`src/model/brush/convertBrush.ts`).
+**"Convert to path"** is the geometry-faithful direction, shared with every
+other shape: it makes an open uniform-width stroked path from the centerline
+(`stroke`/`strokeWidth` carried, per-anchor `w` dropped), so it pairs with
+**"Convert to brush"** (path→brush, `w: 1` everywhere, `strokeWidth` as the base
+width, several contours wrapped in a group like Split subpaths) as a lossy
+round-trip of the centerline. **"Convert to outline path"** is the separate,
+appearance-preserving direction: it fills the variable-width envelope ring with
+the `stroke` paint under the nonzero rule (this was the old brush behaviour of
+"Convert to path"). Phase 3
 remainder: an incremental preview envelope. Deviations from the original draft below: brush
 size lives in a dedicated persisted `brushStore` (not the shared style
 `strokeWidth`); the Brush tool binds `B` and Pencil moved to `Shift+B`.

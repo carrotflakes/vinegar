@@ -5,7 +5,6 @@ import { NODE_BASE, SHAPE_BASE } from "./nodeBase.mjs";
 
 let server;
 let canConvertShapeToPath;
-let cachedBrushEnvelope;
 let convertShapeToPath;
 let createEmptyDocument;
 let shapeBounds;
@@ -15,8 +14,6 @@ before(async () => {
   server = await createServer({ server: { middlewareMode: true } });
   ({ canConvertShapeToPath, convertShapeToPath } =
     await server.ssrLoadModule("/src/model/path/convertToPath.ts"));
-  ({ cachedBrushEnvelope } =
-    await server.ssrLoadModule("/src/model/brush/brushOutline.ts"));
   ({ createEmptyDocument } =
     await server.ssrLoadModule("/src/model/types.ts"));
   ({ shapeBounds } = await server.ssrLoadModule("/src/model/geometry/bounds.ts"));
@@ -208,29 +205,25 @@ test("compound conversion bakes visible child transforms into even-odd subpaths"
   assert.deepEqual(path.effects, doc.nodes.compound.effects);
 });
 
-test("brush conversion expands the rendered envelope into a nonzero filled path", () => {
+test("brush conversion follows the centerline into an open stroked path", () => {
   const doc = createEmptyDocument();
   const source = brush("Pressure stroke");
-  const ring = cachedBrushEnvelope(source);
 
   assert.equal(canConvertShapeToPath(source), true);
-  assert.ok(ring.length > source.anchors.length);
   const path = convertShapeToPath(source, doc);
 
-  assert.equal(path.fillRule, "nonzero");
-  assert.deepEqual(path.fill, source.stroke);
-  assert.equal(path.stroke, null);
-  assert.equal(path.strokeWidth, 0);
+  // The faithful (geometry) direction: the centerline becomes an open stroke,
+  // painted with the brush stroke at its base width; the envelope is a separate
+  // op now (see convertBrush.test.mjs).
   assert.equal(path.subpaths.length, 1);
-  assert.equal(path.subpaths[0].closed, true);
+  assert.equal(path.subpaths[0].closed, false);
+  assert.deepEqual(path.stroke, source.stroke);
+  assert.equal(path.strokeWidth, source.strokeWidth);
+  assert.equal(path.fill, null);
   assert.deepEqual(
     path.subpaths[0].anchors.map((anchor) => anchor.p),
-    ring
+    source.anchors.map((anchor) => anchor.p)
   );
-  assert.ok(path.subpaths[0].anchors.every((anchor) =>
-    anchor.hIn === null && anchor.hOut === null
-  ));
-  assert.deepEqual(shapeBounds(path), shapeBounds(source));
   assert.deepEqual(path.transform, source.transform);
   assert.deepEqual(path.effects, source.effects);
 });
@@ -291,8 +284,8 @@ test("store conversion replaces a brush in one undoable transaction", () => {
   assert.equal(state.history.past.length, historyLength + 1);
   assert.deepEqual(state.selection, ["brush"]);
   assert.equal(state.doc.nodes.brush.type, "path");
-  assert.deepEqual(state.doc.nodes.brush.fill, doc.nodes.brush.stroke);
-  assert.equal(state.doc.nodes.brush.stroke, null);
+  assert.deepEqual(state.doc.nodes.brush.stroke, doc.nodes.brush.stroke);
+  assert.equal(state.doc.nodes.brush.fill, null);
 
   state.undo();
   state = useEditor.getState();

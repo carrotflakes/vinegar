@@ -16,6 +16,12 @@ import {
   canConvertShapeToPath,
   convertShapeToPath,
 } from "@/model/path/convertToPath";
+import {
+  canConvertBrushToOutline,
+  canConvertPathToBrush,
+  convertBrushToOutlinePath,
+  convertPathToBrush,
+} from "@/model/brush/convertBrush";
 import { hasValidSceneContainers } from "../model/sceneValidation";
 import { IDENTITY, multiply } from "@/model/geometry/matrix";
 import { strokeOutline } from "@/model/path/outlineStroke";
@@ -95,6 +101,63 @@ export function createShapeOpsActions({ set, get, transact }: StoreCtx): ShapeOp
       if (!hasValidSceneContainers(next)) return;
       transact(next, {
         label: convertible.length === 1 ? "Convert to path" : "Convert to paths",
+      });
+      set(clearTransient);
+    },
+    convertSelectedToBrushes: () => {
+      let doc = get().doc;
+      const roots = selectionRoots(doc, get().selection);
+      if (!roots.some((id) => canConvertPathToBrush(doc.nodes[id]))) return;
+      const selected: string[] = [];
+      for (const id of roots) {
+        const shape = doc.nodes[id];
+        if (!canConvertPathToBrush(shape)) continue;
+        const result = convertPathToBrush(shape);
+        if (!result) continue;
+        const parent = parentIdOf(doc, id);
+        const siblings = childIdsOf(doc, parent);
+        const nodes = { ...doc.nodes };
+        delete nodes[id];
+        for (const brush of result.brushes) nodes[brush.id] = brush;
+        if (result.group) nodes[result.group.id] = result.group;
+        // A single contour replaces the source in place; several arrive wrapped
+        // in a group that takes the slot (a brush cannot hold sub-brushes).
+        const replacement = result.group
+          ? [result.group.id]
+          : result.brushes.map((brush) => brush.id);
+        const order = [...siblings];
+        order.splice(siblings.indexOf(id), 1, ...replacement);
+        doc = replaceChildren({ ...doc, nodes }, parent, order);
+        selected.push(...replacement);
+      }
+      if (!selected.length || !hasValidSceneContainers(doc)) return;
+      transact(doc, {
+        label: selected.length === 1 ? "Convert to brush" : "Convert to brushes",
+      });
+      set({ selection: selected, ...clearTransient });
+    },
+    convertSelectedBrushesToOutline: () => {
+      const doc = get().doc;
+      const roots = selectionRoots(doc, get().selection);
+      const convertible = roots.filter((id) =>
+        canConvertBrushToOutline(doc.nodes[id])
+      );
+      if (!convertible.length) return;
+      const nodes = { ...doc.nodes };
+      let converted = 0;
+      for (const id of convertible) {
+        const shape = nodes[id];
+        if (!canConvertBrushToOutline(shape)) continue;
+        const outline = convertBrushToOutlinePath(shape);
+        if (!outline) continue;
+        nodes[id] = outline;
+        converted++;
+      }
+      if (!converted) return;
+      const next = { ...doc, nodes };
+      if (!hasValidSceneContainers(next)) return;
+      transact(next, {
+        label: converted === 1 ? "Convert to outline path" : "Convert to outline paths",
       });
       set(clearTransient);
     },

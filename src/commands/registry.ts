@@ -14,6 +14,10 @@ import {
 } from "@/model/path/compoundPath";
 import { canConvertShapeToPath } from "@/model/path/convertToPath";
 import {
+  canConvertBrushToOutline,
+  canConvertPathToBrush,
+} from "@/model/brush/convertBrush";
+import {
   canMakeClippingMaskSelection,
   canReleaseClippingMaskSelection,
 } from "../model/clippingMask";
@@ -84,6 +88,10 @@ function sel(s: EditorState) {
     canMakeCompound: canMakeCompoundPathSelection(s.doc, s.selection),
     canReleaseCompound: canReleaseCompoundPathSelection(s.doc, s.selection),
     canConvertToPath: roots.some((id) => canConvertShapeToPath(s.doc.nodes[id])),
+    canConvertToBrush: roots.some((id) => canConvertPathToBrush(s.doc.nodes[id])),
+    canConvertBrushToOutline: roots.some((id) =>
+      canConvertBrushToOutline(s.doc.nodes[id])
+    ),
     canPathOp: shapeRoots.some((sh) => sh.type === "path"),
     canJoin:
       roots.length >= 1 &&
@@ -104,6 +112,9 @@ function sel(s: EditorState) {
       (sh) =>
         sh.type !== "text" &&
         sh.type !== "image" &&
+        // A brush has no stroked centerline to outline; use "Convert to outline
+        // path" for its envelope instead (strokeOutline returns nothing here).
+        sh.type !== "brush" &&
         sh.stroke !== null &&
         sh.strokeWidth > 0
     ),
@@ -337,6 +348,20 @@ export const COMMANDS: Command[] = [
     group: "Path",
     enabled: (s) => sel(s).canConvertToPath,
     run: (s) => s.convertSelectedToPaths(),
+  },
+  {
+    id: "structure.convertToBrush",
+    label: "Convert to brush",
+    group: "Path",
+    enabled: (s) => sel(s).canConvertToBrush,
+    run: (s) => s.convertSelectedToBrushes(),
+  },
+  {
+    id: "structure.brushToOutline",
+    label: "Convert to outline path",
+    group: "Path",
+    enabled: (s) => sel(s).canConvertBrushToOutline,
+    run: (s) => s.convertSelectedBrushesToOutline(),
   },
   {
     id: "path.outlineStroke",
