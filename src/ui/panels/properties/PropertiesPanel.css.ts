@@ -24,6 +24,8 @@ globalStyle(".selection-name", {
   width: "100%",
   boxSizing: "border-box",
   padding: "4px 6px",
+  border: `1px solid ${vars.border}`,
+  borderRadius: "6px",
   fontSize: "12px",
 });
 
