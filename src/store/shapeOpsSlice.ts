@@ -162,9 +162,13 @@ export function createShapeOpsActions({ set, get, transact }: StoreCtx): ShapeOp
       set(clearTransient);
     },
     outlineStrokeSelected: () => {
-      let doc = get().doc; const selected: string[] = []; let effectsRemoved = false;
+      let doc = get().doc; const selected: string[] = []; let effectsRemoved = false; let maskSkipped = false;
       for (const id of selectionRoots(doc, get().selection)) {
         const shape = doc.nodes[id]; if (!isShape(shape) || !shape.stroke || shape.strokeWidth <= 0) continue;
+        // A filled areal shape keeps its fill by wrapping the outline in a group,
+        // which would replace a clipping mask with a non-mask container and leave
+        // the clip group without a valid mask (see maskMultiNodeError).
+        if (isAreal(shape) && shape.fill && isClippingMaskNode(doc, id)) { maskSkipped = true; continue; }
         const polys = strokeOutline(shape, undefined, doc); if (!polys?.length) continue;
         const outline: Shape = { id: makeId("path"), name: "Outline", type: "path", fillRule: "evenodd", subpaths: ringsToSubpaths(polys.flat()), ...baseShapeDefaults(), fill: shape.stroke, ...baseNodeDefaults(), opacity: shape.opacity, blendMode: shape.blendMode, transform: [...IDENTITY] };
         const parent = parentIdOf(doc, id); const siblings = childIdsOf(doc, parent); const at = siblings.indexOf(id); const nodes = { ...doc.nodes };
@@ -172,6 +176,7 @@ export function createShapeOpsActions({ set, get, transact }: StoreCtx): ShapeOp
         else { effectsRemoved ||= shape.effects.length > 0; for (const removed of [id, ...descendantNodeIds(doc, id)]) delete nodes[removed]; nodes[outline.id] = outline; const order = [...siblings]; order.splice(at, 1, outline.id); doc = replaceChildren({ ...doc, nodes }, parent, order); selected.push(outline.id); }
       }
       if (selected.length && hasValidSceneContainers(doc)) { transact(doc, { label: "Outline stroke" }); set({ selection: selected, ...clearTransient }); if (effectsRemoved) notifyEffectsRemoved(); }
+      if (maskSkipped) notify.error(maskMultiNodeError("outlined"));
     },
     booleanSelected: (op) => {
       const doc = get().doc;
@@ -214,6 +219,13 @@ export function createShapeOpsActions({ set, get, transact }: StoreCtx): ShapeOp
       const siblings = childIdsOf(doc, parent);
       const selected = new Set(roots);
       const ordered = siblings.filter((id) => selected.has(id));
+      // Divide wraps its faces in a group, which would replace a clipping mask
+      // with a non-mask container and leave the clip group without a valid mask
+      // (see maskMultiNodeError).
+      if (ordered.some((id) => isClippingMaskNode(doc, id))) {
+        notify.error(maskMultiNodeError("divided"));
+        return;
+      }
       if (ordered.length > DIVIDE_MAX_INPUTS) {
         notify.error(
           `Divide is limited to ${DIVIDE_MAX_INPUTS} shapes at once.`

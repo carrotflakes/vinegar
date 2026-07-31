@@ -319,6 +319,28 @@ test("nested masks get distinct SVG definitions and invalid tree edits are refus
   assert.deepEqual(useEditor.getState().selection, ["line", "mask"]);
 });
 
+test("outline stroke and divide refuse to wrap the mask in a group", () => {
+  // Outline stroke on a filled areal mask, and divide, both wrap their result
+  // in a group; doing that to a clip's mask would leave no valid mask. Both
+  // must refuse instead of silently doing nothing.
+  const base = editableDocument();
+  base.nodes.clip = group("clip", ["content", "mask"], { clipsToMask: true });
+  base.rootIds = ["clip"];
+
+  // Outline stroke: selecting just the mask leaves the clip untouched.
+  useEditor.getState().loadDocument(structuredClone(base));
+  useEditor.getState().setSelection(["mask"]);
+  useEditor.getState().outlineStrokeSelected();
+  assert.deepEqual(useEditor.getState().doc.nodes.clip.childIds, ["content", "mask"]);
+  assert.equal(useEditor.getState().doc.nodes.mask.type, "path");
+
+  // Divide: the mask among the inputs makes the whole op refuse.
+  useEditor.getState().loadDocument(structuredClone(base));
+  useEditor.getState().setSelection(["content", "mask"]);
+  useEditor.getState().divideSelected();
+  assert.deepEqual(useEditor.getState().doc.nodes.clip.childIds, ["content", "mask"]);
+});
+
 test("standard clipping-mask shortcuts are registered", () => {
   const make = matchKeydown({
     key: "7", code: "Digit7", ctrlKey: true, metaKey: false,

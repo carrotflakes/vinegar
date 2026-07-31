@@ -168,9 +168,10 @@ additional effects, or other feature expansion.
   - [ ] マスクの分割 — 全輪郭が閉じている場合に限り group ではなく compoundPath で
     包めば有効なマスクのまま分割できる（穴の読みまで保たれる）。開いた subpath を
     含むマスクは compound の子になれないので引き続き拒否
-  - [ ] `path.outlineStroke` / `path.divide` は結果を group に包むため、マスクに対して
-    実行すると `hasValidSceneContainers` で落ちて**無言で何も起きない**（破壊はしない）。
-    同じ `maskMultiNodeError` を出して理由を伝えるべき
+  - [x] `path.outlineStroke` / `path.divide` は結果を group に包むため、マスクに対して
+    実行すると `hasValidSceneContainers` で落ちて無言で何も起きなかった。`maskMultiNodeError`
+    を出すようにした（divide は入力にマスクがあれば拒否、outline stroke は group 化する
+    塗り付き areal のマスクのみスキップ）
   - [ ] brush <-> path 相互変換
   - [ ] テキストのパス化
 - [ ] シンボル（再利用可能部品）の拡充
@@ -193,3 +194,4 @@ additional effects, or other feature expansion.
 - [x] Taperのバグ（端点でCatmull-Romハンドルが行き過ぎてフックしていた。`catmullRomHandles`で各ハンドルを隣接アンカーの弦長1/3にクランプ）
 - [ ] pencil 直線モード（描画中に修飾キーで直線セグメント）
 - [ ] ノード編集でctrl+A
+- [ ] generator図形、丸角四角（四方制御）
