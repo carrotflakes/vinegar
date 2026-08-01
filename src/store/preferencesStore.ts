@@ -18,6 +18,7 @@ export interface PreferencesActions {
   setCanvasRotationSnap: (snap: boolean) => void;
   setRulerOrigin: (origin: RulerOriginPreference) => void;
   setFingerDrawing: (enabled: boolean) => void;
+  setShowAllHandles: (enabled: boolean) => void;
   /**
    * Record that a pen contact was seen. The first one switches finger drawing
    * off, so an iPad user who picks up a stylus stops painting with their palm
@@ -72,6 +73,8 @@ export function createPreferencesStore(storage?: PreferencesStorage) {
         patch("canvas", { ...get().canvas, rulerOrigin }),
       setFingerDrawing: (fingerDrawing) =>
         patch("canvas", { ...get().canvas, fingerDrawing }),
+      setShowAllHandles: (showAllHandles) =>
+        patch("canvas", { ...get().canvas, showAllHandles }),
       notePenInput: () => {
         const canvas = get().canvas;
         if (canvas.penDetected) return false;

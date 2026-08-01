@@ -14,7 +14,7 @@ import { NODE_GRAB, type ToolContext } from "../interaction";
 import { hitNodes } from "../nodes";
 import { shapeWorldMatrix } from "@/model/geometry/matrix";
 import { cancelActiveInteraction } from "../interactionLifecycle";
-import { pickShape, selectedNodeShapes } from "../picking";
+import { grabbableHandles, pickShape, selectedNodeShapes } from "../picking";
 import { overRulers } from "../rulers";
 
 const LONG_PRESS_DELAY = 500;
@@ -72,7 +72,8 @@ export function useCanvasContextMenu({
           screen,
           state.viewport,
           NODE_GRAB * ctx.hitScale(),
-          true
+          true,
+          grabbableHandles(state, shape)
         );
         return hit && hit.part === "anchor" ? [{ shape, hit }] : [];
       })[0];

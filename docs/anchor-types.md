@@ -145,6 +145,11 @@ feels wrong in practice, tagging pen-drag points `smooth` is a one-line change.)
 - **`canvas/overlay.ts`** (`drawNodes`, line ~299) — draw the anchor marker by
   type, Inkscape-style: square = cusp, circle = smooth, diamond = symmetric.
   Optional but cheap, and it makes the state legible without the panel.
+- **Handle visibility** (added later): `drawNodes` only draws the handles
+  `visibleHandleKeys` (`model/nodeEdit.ts`) returns — the selected anchors'
+  own handles plus the neighbouring handles facing them — and `hitNodes` takes
+  the same set, so a handle that isn't drawn can't be grabbed. The
+  `canvas.showAllHandles` preference restores the draw-everything behaviour.
 - Context menu / shortcut entries can follow later; not required for v1.
 
 **Vocabulary.** Two different operations are easy to confuse, so they keep

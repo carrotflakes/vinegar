@@ -8,6 +8,7 @@ let deriveAnchorType;
 let effectiveAnchorType;
 let moveAnchors;
 let moveHandle;
+let visibleHandleKeys;
 let onNodeDown;
 let onNodeMove;
 let resizeShapeToBounds;
@@ -17,7 +18,7 @@ let useEditor;
 
 before(async () => {
   server = await createServer({ server: { middlewareMode: true } });
-  ({ moveAnchors, moveHandle } =
+  ({ moveAnchors, moveHandle, visibleHandleKeys } =
     await server.ssrLoadModule("/src/canvas/nodes.ts"));
   ({ deriveAnchorType, effectiveAnchorType, setAnchorType } =
     await server.ssrLoadModule("/src/model/path/anchorType.ts"));
@@ -572,4 +573,69 @@ test("a run of nudges coalesces into one undo step", () => {
     useEditor.getState().doc.nodes.curve.subpaths[0].anchors[0].p,
     { x: 0, y: 0 }
   );
+});
+
+test("visible handles cover the selected anchors and the neighbours facing them", () => {
+  const shape = pathShape();
+  const keys = visibleHandleKeys(shape, [{ sub: 0, index: 1 }]);
+
+  assert.deepEqual([...keys].sort(), [
+    "0:0:out", // the previous anchor's handle, facing the selection
+    "0:1:in",
+    "0:1:out",
+    "0:2:in", // the next anchor's handle, facing the selection
+  ]);
+  // An open subpath has no wrap-around neighbour at its ends.
+  assert.deepEqual([...visibleHandleKeys(shape, [{ sub: 0, index: 0 }])].sort(), [
+    "0:0:in",
+    "0:0:out",
+    "0:1:in",
+  ]);
+  // Closing it makes the last anchor the first one's neighbour.
+  const closed = { ...shape, subpaths: [{ ...shape.subpaths[0], closed: true }] };
+  assert.deepEqual([...visibleHandleKeys(closed, [{ sub: 0, index: 0 }])].sort(), [
+    "0:0:in",
+    "0:0:out",
+    "0:1:in",
+    "0:2:out",
+  ]);
+  // The show-all preference opts out of the filtering entirely.
+  assert.equal(visibleHandleKeys(shape, [{ sub: 0, index: 1 }], true), null);
+});
+
+test("a handle that is not drawn cannot be grabbed", () => {
+  const shape = pathShape();
+  shape.subpaths[0].anchors[1] = anchor(10, 0, {
+    hIn: { x: 4, y: 0 },
+    hOut: { x: 10, y: -20 },
+  });
+  useEditor.getState().addShape(shape);
+  useEditor.getState().setTool("node");
+
+  // Nothing selected: no handles are shown, so pressing on one starts a
+  // marquee instead of dragging it.
+  const ctx = context();
+  onNodeDown(ctx, useEditor.getState(), { x: 10, y: -20 }, { x: 10, y: -20 }, false);
+  assert.equal(ctx.interaction.current.kind, "node-marquee");
+
+  // Selecting the anchor next to it reveals the facing handle only: the one
+  // pointing away from the selection stays hidden and unpickable.
+  useEditor.getState().setEditNodes([{ shapeId: "curve", sub: 0, index: 0 }]);
+  const away = context();
+  onNodeDown(away, useEditor.getState(), { x: 10, y: -20 }, { x: 10, y: -20 }, false);
+  assert.equal(away.interaction.current.kind, "node-marquee");
+
+  const facing = context();
+  onNodeDown(facing, useEditor.getState(), { x: 4, y: 0 }, { x: 4, y: 0 }, false);
+  assert.equal(facing.interaction.current.kind, "node-handle");
+  assert.equal(facing.interaction.current.part, "in");
+  assert.equal(facing.interaction.current.index, 1);
+  useEditor.getState().cancelInteraction();
+
+  // Selecting the anchor the handle belongs to makes it grabbable.
+  useEditor.getState().setEditNodes([{ shapeId: "curve", sub: 0, index: 1 }]);
+  const own = context();
+  onNodeDown(own, useEditor.getState(), { x: 10, y: -20 }, { x: 10, y: -20 }, false);
+  assert.equal(own.interaction.current.kind, "node-handle");
+  assert.equal(own.interaction.current.part, "out");
 });

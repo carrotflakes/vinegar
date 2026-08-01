@@ -20,7 +20,12 @@ import {
   type Interaction,
   type PenHover,
 } from "./interaction";
-import { ANCHOR_SIZE, HANDLE_DOT, WIDTH_KNOB } from "./nodes";
+import {
+  ANCHOR_SIZE,
+  HANDLE_DOT,
+  WIDTH_KNOB,
+  visibleHandleKeys,
+} from "./nodes";
 import {
   drawFrameDropTarget,
   drawBrushCursor,
@@ -197,6 +202,7 @@ export function paintCanvas(input: PaintInput): void {
   }
 
   if (tool === "node") {
+    const showAllHandles = usePreferences.getState().canvas.showAllHandles;
     for (const sel of selectedNodeShapes(state)) {
       const active = state.editNodes
         .filter((node) => node.shapeId === sel.id)
@@ -210,7 +216,8 @@ export function paintCanvas(input: PaintInput): void {
         active,
         ANCHOR_SIZE * chrome,
         HANDLE_DOT * chrome,
-        WIDTH_KNOB * chrome
+        WIDTH_KNOB * chrome,
+        visibleHandleKeys(sel, active, showAllHandles)
       );
     }
   }

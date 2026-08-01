@@ -9,9 +9,11 @@ import {
   brushAnchorRadius,
 } from "@/model/brush/brushWidth";
 import {
+  handleKey,
   moveAnchor,
   moveAnchors,
   nodeSubpaths,
+  visibleHandleKeys,
   type NodeEditShape,
 } from "@/model/nodeEdit";
 import type { PathShape, BrushShape, Matrix, Vec2 } from "../model/types";
@@ -28,7 +30,14 @@ export interface NodeHit {
 
 // The pure, local-space half of node editing lives in `model/nodeEdit.ts` so
 // the store can nudge anchors without reaching into the canvas layer.
-export { moveAnchor, moveAnchors, nodeSubpaths, type NodeEditShape };
+export {
+  handleKey,
+  moveAnchor,
+  moveAnchors,
+  nodeSubpaths,
+  visibleHandleKeys,
+  type NodeEditShape,
+};
 
 /** Screen-space sizes (px) for the node-editing chrome. */
 export const ANCHOR_SIZE = 9;
@@ -112,6 +121,10 @@ export function hitBrushWidth(
 /**
  * Hit-test the anchors and control handles of a Bézier shape against a screen
  * point. Handles take priority over anchors so they remain grabbable.
+ *
+ * `visibleHandles` (from `visibleHandleKeys`) restricts which handles can be
+ * grabbed; null means all of them. The overlay is drawn from the same set, so
+ * a handle that isn't shown is never picked up by accident.
  */
 export function hitNodes(
   shape: NodeEditShape,
@@ -119,7 +132,8 @@ export function hitNodes(
   screen: Vec2,
   viewport: Viewport,
   grabPx = 8,
-  preferAnchors = false
+  preferAnchors = false,
+  visibleHandles: ReadonlySet<string> | null = null
 ): NodeHit | null {
   const subpaths = nodeSubpaths(shape);
   const near = (w: Vec2, tol: number) => {
@@ -141,9 +155,11 @@ export function hitNodes(
       const anchors = subpaths[sub].anchors;
       for (let i = 0; i < anchors.length; i++) {
         const a = anchors[i];
-        if (a.hOut && near(a.hOut, grabPx))
+        const shown = (part: "in" | "out") =>
+          !visibleHandles || visibleHandles.has(handleKey(sub, i, part));
+        if (a.hOut && shown("out") && near(a.hOut, grabPx))
           return { part: "out", sub, index: i };
-        if (a.hIn && near(a.hIn, grabPx))
+        if (a.hIn && shown("in") && near(a.hIn, grabPx))
           return { part: "in", sub, index: i };
       }
     }

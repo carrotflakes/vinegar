@@ -78,6 +78,7 @@ test("valid v1 preferences load while unknown fields are ignored", () => {
       rulerOrigin: "artboard",
       fingerDrawing: true,
       penDetected: false,
+      showAllHandles: false,
     },
     recovery: { enabled: false, maxWaitMs: 12345 },
     history: { limit: 75 },
@@ -112,6 +113,7 @@ test("invalid fields fall back independently", () => {
       rulerOrigin: "artboard",
       fingerDrawing: true,
       penDetected: false,
+      showAllHandles: false,
     },
     recovery: { enabled: true, maxWaitMs: 5000 },
     history: { limit: 100 },
@@ -133,6 +135,7 @@ test("canvas rotation preferences load and fall back per field", () => {
     rulerOrigin: "artboard",
     fingerDrawing: true,
     penDetected: false,
+    showAllHandles: false,
   });
 });
 
@@ -149,6 +152,7 @@ test("the preference store updates canvas rotation toggles", () => {
     rulerOrigin: "artboard",
     fingerDrawing: true,
     penDetected: false,
+    showAllHandles: false,
   };
   assert.deepEqual(store.getState().canvas, expected);
   assert.deepEqual(JSON.parse(fake.value).canvas, expected);
@@ -166,6 +170,7 @@ test("the first pen contact disables finger drawing exactly once", () => {
     rulerOrigin: "artboard",
     fingerDrawing: false,
     penDetected: true,
+    showAllHandles: false,
   });
 
   // Later pen contacts report nothing, and never fight a manual re-enable.
@@ -228,6 +233,7 @@ test("the preference store persists complete updates and resets", () => {
       rulerOrigin: "artboard",
       fingerDrawing: true,
       penDetected: false,
+      showAllHandles: false,
     },
     recovery: { enabled: false, maxWaitMs: 12345 },
     history: { limit: 75 },

@@ -15,6 +15,7 @@ import {
   HANDLE_DOT,
   WIDTH_KNOB,
   brushWidthKnobs,
+  handleKey,
   nodeSubpaths,
   type NodeEditShape,
 } from "./nodes";
@@ -328,7 +329,9 @@ export function drawNodes(
   active: readonly { sub: number; index: number }[],
   anchorSize = ANCHOR_SIZE,
   dotSize = HANDLE_DOT,
-  knobSize = WIDTH_KNOB
+  knobSize = WIDTH_KNOB,
+  /** Handles to draw (`visibleHandleKeys`); null draws every one. */
+  visibleHandles: ReadonlySet<string> | null = null
 ): void {
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   const toS = (w: Vec2) => worldToScreen(viewport, applyMatrix(transform, w));
@@ -339,11 +342,13 @@ export function drawNodes(
   ctx.strokeStyle = "#9bbcf6";
   ctx.fillStyle = "#ffffff";
   ctx.lineWidth = 1;
-  for (const subpath of subpaths) {
-    for (const a of subpath.anchors) {
+  subpaths.forEach((subpath, sub) => {
+    subpath.anchors.forEach((a, index) => {
       const sp = toS(a.p);
-      for (const h of [a.hIn, a.hOut]) {
+      for (const [part, h] of [["in", a.hIn], ["out", a.hOut]] as const) {
         if (!h) continue;
+        if (visibleHandles && !visibleHandles.has(handleKey(sub, index, part)))
+          continue;
         const sh = toS(h);
         ctx.beginPath();
         ctx.moveTo(sp.x, sp.y);
@@ -355,8 +360,8 @@ export function drawNodes(
         ctx.stroke();
         ctx.strokeStyle = "#9bbcf6";
       }
-    }
-  }
+    });
+  });
 
   // Width knobs, on the selected anchors of a brush only. Drawn under the
   // anchor squares so the anchor stays readable when the stroke is thin.

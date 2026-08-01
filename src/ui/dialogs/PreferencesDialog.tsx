@@ -87,6 +87,7 @@ export default function PreferencesDialog({ open, onClose }: Props) {
   );
   const setRulerOrigin = usePreferences((state) => state.setRulerOrigin);
   const setFingerDrawing = usePreferences((state) => state.setFingerDrawing);
+  const setShowAllHandles = usePreferences((state) => state.setShowAllHandles);
   const setRecoveryEnabled = usePreferences((state) => state.setRecoveryEnabled);
   const setRecoveryMaxWaitMs = usePreferences(
     (state) => state.setRecoveryMaxWaitMs
@@ -229,6 +230,21 @@ export default function PreferencesDialog({ open, onClose }: Props) {
                   aria-checked={canvas.fingerDrawing}
                   className={"pref-switch" + (canvas.fingerDrawing ? " on" : "")}
                   onClick={() => setFingerDrawing(!canvas.fingerDrawing)}
+                >
+                  <span className="pref-switch-knob" aria-hidden />
+                </button>
+              }
+            />
+            <Row
+              title="Show all handles"
+              description="Draw every Bézier handle while editing nodes. Off, only the handles around the selected anchors are shown — and only those can be grabbed."
+              control={
+                <button
+                  type="button"
+                  role="switch"
+                  aria-checked={canvas.showAllHandles}
+                  className={"pref-switch" + (canvas.showAllHandles ? " on" : "")}
+                  onClick={() => setShowAllHandles(!canvas.showAllHandles)}
                 >
                   <span className="pref-switch-knob" aria-hidden />
                 </button>

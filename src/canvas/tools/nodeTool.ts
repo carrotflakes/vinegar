@@ -35,6 +35,7 @@ import {
   widthGrabOffset,
 } from "@/model/brush/brushWidth";
 import {
+  grabbableHandles,
   pickShape,
   pickTolerance,
   pointSnap,
@@ -185,7 +186,8 @@ export function onNodeDown(
       screen,
       state.viewport,
       NODE_GRAB * ctx.hitScale(),
-      shiftKey
+      shiftKey,
+      grabbableHandles(state, shape)
     );
     return hit ? [{ shape, hit }] : [];
   })[0];
@@ -472,7 +474,9 @@ export function onNodeDoubleClick(
       shapeWorldMatrix(state.doc, shape),
       screen,
       state.viewport,
-      NODE_GRAB * ctx.hitScale()
+      NODE_GRAB * ctx.hitScale(),
+      false,
+      grabbableHandles(state, shape)
     );
     return hit ? [{ shape, hit }] : [];
   })[0];
@@ -507,7 +511,9 @@ export function nodeCursor(
     shapeWorldMatrix(state.doc, shape),
     screen,
     state.viewport,
-    NODE_GRAB * ctx.hitScale()
+    NODE_GRAB * ctx.hitScale(),
+    false,
+    grabbableHandles(state, shape)
   ))) {
     return "move";
   }

@@ -29,6 +29,47 @@ export function nodeSubpaths(
     : shape.subpaths;
 }
 
+/** Key identifying one control handle within a shape: `sub:index:in|out`. */
+export function handleKey(
+  sub: number,
+  index: number,
+  part: "in" | "out"
+): string {
+  return `${sub}:${index}:${part}`;
+}
+
+/**
+ * The handles the node tool shows — and therefore the only ones it lets you
+ * grab: the selected anchors' own handles, plus the neighbouring handles that
+ * *face* them, so both sides of a segment touching the selection can be shaped.
+ * A path of any size would otherwise bury itself under handle lines.
+ *
+ * `null` means "all of them" (the show-all preference); rendering and
+ * hit-testing must read the same answer, so both go through this.
+ */
+export function visibleHandleKeys(
+  shape: NodeEditShape,
+  active: readonly { sub: number; index: number }[],
+  showAll = false
+): ReadonlySet<string> | null {
+  if (showAll) return null;
+  const keys = new Set<string>();
+  const subpaths = nodeSubpaths(shape);
+  for (const { sub, index } of active) {
+    const subpath = subpaths[sub];
+    if (!subpath?.anchors[index]) continue;
+    keys.add(handleKey(sub, index, "in"));
+    keys.add(handleKey(sub, index, "out"));
+    const count = subpath.anchors.length;
+    // On a closed subpath the ends are neighbours; on an open one they aren't.
+    const previous = index > 0 ? index - 1 : subpath.closed ? count - 1 : -1;
+    const next = index < count - 1 ? index + 1 : subpath.closed ? 0 : -1;
+    if (previous >= 0) keys.add(handleKey(sub, previous, "out"));
+    if (next >= 0) keys.add(handleKey(sub, next, "in"));
+  }
+  return keys;
+}
+
 function shiftV(v: Vec2 | null, dx: number, dy: number): Vec2 | null {
   return v ? { x: v.x + dx, y: v.y + dy } : null;
 }

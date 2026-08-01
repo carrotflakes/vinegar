@@ -23,7 +23,9 @@ import {
   snapPoint,
   type SnapTargets,
 } from "@/model/geometry/snap";
+import { visibleHandleKeys } from "@/model/nodeEdit";
 import { nodeEditTargets } from "@/store/docOps";
+import { usePreferences } from "@/store/preferencesStore";
 import { activeGuideLines } from "./guides";
 import type { Document, Shape, Vec2 } from "../model/types";
 import { worldToScreen } from "@/model/geometry/viewport";
@@ -46,6 +48,22 @@ import type { NodeEditShape } from "./nodes";
 /** The single selected shape the node tool can edit (path or brush). */
 export function selectedNodeShapes(state: EditorState): NodeEditShape[] {
   return nodeEditTargets(state.doc, state.selection);
+}
+
+/**
+ * The handles of `shape` currently drawn by the node overlay, which are the
+ * only ones that may be grabbed — rendering (`paint.ts`) and hit-testing must
+ * agree on this. Null means all of them (the show-all preference).
+ */
+export function grabbableHandles(
+  state: EditorState,
+  shape: NodeEditShape
+): ReadonlySet<string> | null {
+  return visibleHandleKeys(
+    shape,
+    state.editNodes.filter((node) => node.shapeId === shape.id),
+    usePreferences.getState().canvas.showAllHandles
+  );
 }
 
 export function selectedNodeShape(state: EditorState): NodeEditShape | null {

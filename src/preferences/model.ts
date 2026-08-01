@@ -37,6 +37,12 @@ export interface PreferencesV1 {
     fingerDrawing: boolean;
     /** A pen has touched this canvas at least once in this browser. */
     penDetected: boolean;
+    /**
+     * Draw every Bézier handle of the shape being node-edited. Off (the
+     * default) shows only the handles around the selected anchors, which also
+     * keeps unseen handles from being grabbed. See docs/anchor-types.md.
+     */
+    showAllHandles: boolean;
   };
   recovery: {
     enabled: boolean;
@@ -90,6 +96,7 @@ export function createDefaultPreferences(): PreferencesV1 {
       rulerOrigin: "artboard",
       fingerDrawing: true,
       penDetected: false,
+      showAllHandles: false,
     },
     recovery: {
       enabled: true,
@@ -134,6 +141,9 @@ function validateV1(value: Record<string, unknown>): PreferencesV1 {
       penDetected: typeof canvas.penDetected === "boolean"
         ? canvas.penDetected
         : defaults.canvas.penDetected,
+      showAllHandles: typeof canvas.showAllHandles === "boolean"
+        ? canvas.showAllHandles
+        : defaults.canvas.showAllHandles,
     },
     recovery: {
       enabled: typeof recovery.enabled === "boolean"
