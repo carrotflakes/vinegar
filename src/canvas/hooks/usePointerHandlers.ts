@@ -128,12 +128,14 @@ export function usePointerHandlers(deps: PointerHandlerDeps): PointerHandlers {
   };
 
   /**
-   * Show the brush/eraser tip outline while a pen hovers over the canvas, and
-   * take it away for every other pointer. Only pens hover, so this is the one
-   * affordance touch cannot have — and the one that makes a stylus feel aimed.
+   * Show the brush/eraser tip outline while a pen or mouse hovers over the
+   * canvas. The size is in world units, so how thick a stroke lands depends on
+   * the zoom — the ring is the only way to know before drawing, which is as
+   * true of a mouse as of a stylus. Touch cannot hover, so it is the one
+   * pointer that goes without.
    */
-  const updateBrushHover = (isPen: boolean, tool: string, world: Vec2) => {
-    const wanted = isPen && (tool === "brush" || tool === "eraser");
+  const updateBrushHover = (tool: string, world: Vec2) => {
+    const wanted = tool === "brush" || tool === "eraser";
     if (!wanted) {
       if (!ctx.brushHover.current) return;
       ctx.brushHover.current = null;
@@ -338,7 +340,7 @@ export function usePointerHandlers(deps: PointerHandlerDeps): PointerHandlers {
       if (state.tool === "pen" && ctx.penDraft.current) {
         onPenHoverMove(ctx, state, world, mod.shift);
       }
-      updateBrushHover(isPen, state.tool, world);
+      updateBrushHover(state.tool, world);
       updateEndpointHint(state.tool, screen);
       updateHoverCursor(screen, world);
       return;

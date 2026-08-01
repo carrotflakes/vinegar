@@ -39,6 +39,7 @@ import {
   selectionRoots,
 } from "../model/scene";
 import { screenToWorld } from "@/model/geometry/viewport";
+import { useBrush } from "../store/brushStore";
 import { currentFocusRoot, useEditor } from "../store/editorStore";
 import { groupEditNodesByShape } from "../store/state";
 import type { EditorState } from "../store/state";
@@ -178,6 +179,18 @@ function canCutNodes(s: EditorState): boolean {
  * proportionate whether the stroke is hairline or heavy.
  */
 const WIDTH_STEP = 1.2;
+
+/** Whether `[` / `]` should resize the drawing tool instead of node widths. */
+function sizableTool(s: EditorState): boolean {
+  return s.tool === "brush" || s.tool === "eraser";
+}
+
+/** Step the active drawing tool's own size by `factor` (see WIDTH_STEP). */
+function stepToolSize(s: EditorState, factor: number): void {
+  const brush = useBrush.getState();
+  if (s.tool === "eraser") brush.setBrush({ eraserSize: brush.eraserSize * factor });
+  else brush.setBrush({ size: brush.size * factor });
+}
 
 /** Whether the node selection contains anchors of a brush stroke. */
 function hasBrushNodes(s: EditorState): boolean {
@@ -444,6 +457,25 @@ export const COMMANDS: Command[] = [
     enabled: (s) => hasBrushNodes(s),
     run: (s) => s.setEditNodeWidths({ factor: WIDTH_STEP }),
   },
+  // Same chords as the node-width pair above, resolved by which one applies:
+  // with brush anchors selected `[` / `]` edit the artwork, and while the brush
+  // or eraser is the active tool they resize the tool (the Photoshop idiom).
+  {
+    id: "brush.size.decrease",
+    label: "Smaller brush",
+    group: "Tools",
+    keys: [{ key: "[" }],
+    enabled: sizableTool,
+    run: (s) => stepToolSize(s, 1 / WIDTH_STEP),
+  },
+  {
+    id: "brush.size.increase",
+    label: "Larger brush",
+    group: "Tools",
+    keys: [{ key: "]" }],
+    enabled: sizableTool,
+    run: (s) => stepToolSize(s, WIDTH_STEP),
+  },
   {
     id: "path.union",
     label: "Union",
@@ -613,17 +645,27 @@ function strokeMatches(k: KeyStroke, e: KeyboardEvent): boolean {
   return true;
 }
 
-/** Find the command bound to a keydown event (regardless of enabled state). */
+/**
+ * Find the command bound to a keydown event. Several commands may share a chord
+ * when their contexts are disjoint (`[` / `]` are node widths or brush size), so
+ * the first *enabled* match wins when `s` is given. With none enabled the first
+ * match is still returned: the key stays claimed by the editor rather than
+ * falling through to the browser.
+ */
 export function matchKeydown(
-  e: KeyboardEvent
+  e: KeyboardEvent,
+  s?: EditorState
 ): { cmd: Command; stroke: KeyStroke } | null {
+  let first: { cmd: Command; stroke: KeyStroke } | null = null;
   for (const cmd of COMMANDS) {
     if (!cmd.keys) continue;
     for (const stroke of cmd.keys) {
-      if (strokeMatches(stroke, e)) return { cmd, stroke };
+      if (!strokeMatches(stroke, e)) continue;
+      if (!s || commandEnabled(cmd, s)) return { cmd, stroke };
+      first ??= { cmd, stroke };
     }
   }
-  return null;
+  return first;
 }
 
 // --- Display -------------------------------------------------------------

@@ -244,7 +244,9 @@ export default function App() {
         return;
       }
 
-      const match = matchKeydown(e);
+      // Passing the state lets chords shared by disjoint contexts (`[` / `]`)
+      // resolve to the one that currently applies.
+      const match = matchKeydown(e, s);
       if (match) {
         // Paste runs off the native `paste` event instead so it can read
         // system-clipboard images; let ⌘V through (don't preventDefault) so

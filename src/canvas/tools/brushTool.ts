@@ -26,6 +26,8 @@ interface ActiveStroke {
   raw: Sample[];
   /** EMA-smoothed position, updated per input sample. */
   smoothed: Vec2;
+  /** EMA-smoothed width multiplier, updated per input sample. */
+  smoothedW: number;
   /** Last raw position kept, for the minimum-distance filter. */
   last: Vec2;
   /** Timestamp of the last sample the average was advanced with (ms). */
@@ -34,6 +36,22 @@ interface ActiveStroke {
 }
 
 let active: ActiveStroke | null = null;
+
+/**
+ * Fraction of the width error kept per {@link SMOOTH_REF_MS}, i.e. a ~16 ms
+ * time constant. Pressure sensors are noisy at full rate and the envelope shows
+ * every wobble as a bulge, but the response has to stay much quicker than the
+ * position stabilizer: width is how a stroke reads as pressed, and lagging it
+ * would flatten short accents. Deliberately independent of the stabilizer
+ * setting — this smooths the sensor, not the hand.
+ */
+const PRESSURE_RETAIN = 0.35;
+
+/** Screen-space spacing between kept samples, in world units: screen-relative
+ *  keeps detail when zoomed out (the pencil filters the same way). */
+function brushMinDist(state: EditorState): number {
+  return 1.2 / state.viewport.scale;
+}
 
 /** A new preview object each frame so the envelope cache never serves a stale
  * ring for the growing stroke (the WeakMap is keyed on shape identity). */
@@ -66,6 +84,7 @@ export function startBrush(
   active = {
     raw: [{ p: world, w }],
     smoothed: world,
+    smoothedW: w,
     last: world,
     // Event timestamps share the `performance.now` clock, so the first sample's
     // dt is measured from the press.
@@ -84,9 +103,7 @@ export function onBrushMove(
 ) {
   if (!active) return;
   const { opts } = active;
-  // Minimum spacing in screen pixels, converted to world units: screen-relative
-  // keeps detail when zoomed out (the pencil filters the same way).
-  const minDist = 1.2 / state.viewport.scale;
+  const minDist = brushMinDist(state);
   let changed = false;
   for (const { world, pressure, t } of samples) {
     // Exponential moving average: strength 0 tracks exactly, →1 lags heavily.
@@ -101,9 +118,16 @@ export function onBrushMove(
       x: active.smoothed.x + (world.x - active.smoothed.x) * (1 - retain),
       y: active.smoothed.y + (world.y - active.smoothed.y) * (1 - retain),
     };
+    // Both averages advance on *every* sample, including the ones the distance
+    // filter drops below: their pressure is part of the stroke even where their
+    // position adds nothing, so pressing harder while barely moving still
+    // thickens the line.
+    const wRetain = PRESSURE_RETAIN ** (step / SMOOTH_REF_MS);
+    active.smoothedW +=
+      (pressureToWidth(pressure, opts) - active.smoothedW) * (1 - wRetain);
     const p = active.smoothed;
     if (Math.hypot(p.x - active.last.x, p.y - active.last.y) < minDist) continue;
-    active.raw.push({ p, w: pressureToWidth(pressure, opts) });
+    active.raw.push({ p, w: active.smoothedW });
     active.last = p;
     changed = true;
   }
@@ -113,7 +137,38 @@ export function onBrushMove(
   }
 }
 
-export function finishBrush(ctx: ToolContext, state: EditorState) {
+/** Frames the tail settle is allowed to take; at the maximum stabilizer (0.95)
+ *  this closes 96% of the remaining gap, and at the default it converges long
+ *  before. */
+const SETTLE_STEPS = 64;
+
+/**
+ * Walk the smoothed point the rest of the way to where the pen was lifted. The
+ * average trails the pointer, so without this a stroke ends short of its
+ * release point — barely at the default stabilizer, visibly at high settings,
+ * and the end of a stroke is what people aim. Settling by the same average
+ * rather than jumping straight to the raw point keeps a heavily smoothed line
+ * from growing a spike on its tail. The width holds at its last smoothed value:
+ * pens report a meaningless pressure (usually 0) on release, and the taper is
+ * what shapes the tip.
+ */
+function settleTail(stroke: ActiveStroke, world: Vec2, minDist: number): void {
+  for (let i = 0; i < SETTLE_STEPS; i++) {
+    const retain = stroke.opts.stabilizer;
+    stroke.smoothed = {
+      x: stroke.smoothed.x + (world.x - stroke.smoothed.x) * (1 - retain),
+      y: stroke.smoothed.y + (world.y - stroke.smoothed.y) * (1 - retain),
+    };
+    const p = stroke.smoothed;
+    if (Math.hypot(p.x - stroke.last.x, p.y - stroke.last.y) >= minDist) {
+      stroke.last = { ...p };
+      stroke.raw.push({ p: { ...p }, w: stroke.smoothedW });
+    }
+    if (Math.hypot(p.x - world.x, p.y - world.y) <= minDist / 2) break;
+  }
+}
+
+export function finishBrush(ctx: ToolContext, state: EditorState, world: Vec2) {
   const stroke = active;
   active = null;
   ctx.preview.current = null;
@@ -121,6 +176,7 @@ export function finishBrush(ctx: ToolContext, state: EditorState) {
     ctx.scheduleDraw();
     return;
   }
+  settleTail(stroke, world, brushMinDist(state));
   const opts = stroke.opts;
   const raw = stroke.raw.map((s) => ({ p: { ...s.p }, w: s.w }));
   // A tap with no travel becomes a single round dot.

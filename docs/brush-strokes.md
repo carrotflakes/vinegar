@@ -149,13 +149,20 @@ is one `addShape` = one undo step.
    constant (0.5 or 0), so force pressure = 1 there. Curve v1 is a gamma
    `wNorm = minWidth + (1 − minWidth) · pressure^γ` with user-set γ (0.25–4)
    and minimum-width fraction.
-3. **Stabilizer** — exponential moving average on position (and a lighter one
-   on pressure), strength 0–1 from tool options. 0 disables. The strength is
+3. **Stabilizer** — exponential moving average on position, strength 0–1 from
+   tool options. 0 disables. The strength is
    defined *per 60 Hz frame* and each sample keeps `s^(dt/16.7ms)` of the
    error, so a 240 Hz stylus and a 60 Hz mouse produce the same line at the
    same setting — a per-sample average would barely smooth the stylus. The
    pencil's smoothing works identically. (A pull-string stabilizer can replace
-   EMA later without changing anything downstream.)
+   EMA later without changing anything downstream.) Width gets its **own,
+   lighter** average (`PRESSURE_RETAIN`, a fixed ~16 ms constant, not the
+   stabilizer setting): it smooths the *sensor*, whose noise the envelope would
+   otherwise show as bulges, and it must stay fast because width is what makes
+   a stroke read as pressed. Both averages advance on every sample, including
+   the ones the min-distance filter drops — their pressure is part of the
+   stroke even where their position adds nothing, so pressing harder while
+   barely moving still thickens the line.
 4. **Preview** — the preview `BrushShape` holds the dense samples as
    handle-less anchors; the envelope is rebuilt per move (O(n), fine for
    thousands of points; an incremental tail rebuild is a later optimization).
@@ -163,6 +170,13 @@ is one `addShape` = one undo step.
    consulted for committed (immutable) shapes — the preview render path
    builds its envelope directly.
 5. **Commit** (`pointerup`):
+   - **tail settlement**: the average trails the pointer, so the capture is
+     first walked the rest of the way to the release point in 60 Hz steps
+     (`settleTail`, the same idea as the pencil's). Without it a stroke ends
+     short of where the pen was lifted — barely at the default stabilizer,
+     visibly at high settings — and the end of a stroke is what people aim.
+     The width holds at its last smoothed value: pens report a meaningless
+     pressure (usually 0) on release, and the taper is what shapes the tip;
    - optional **taper**: scale `w` down to 0 over a configured arc length at
      the start/end (this is what makes mouse strokes look drawn, 入り抜き);
    - **width-aware simplification**: RDP on position (existing
@@ -196,7 +210,13 @@ Tool options (persisted in `store/brushStore`, localStorage): base size (the
 stroke's own `strokeWidth`, not the shared style), pressure γ, min width %,
 stabilizer strength, taper length. UI: `BrushSection` shown in the properties
 panel while the brush tool is active; a proper brush preset system is out of
-scope for v1.
+scope for v1. Off-panel, `[` / `]` step the size by ×1.2 while the brush or
+eraser is active (the same chords the node tool uses for anchor widths — the
+contexts are disjoint, and `matchKeydown` resolves a shared chord to the command
+that is currently enabled). A tip ring follows the pointer for pen **and mouse**
+(`updateBrushHover`): the size is in world units, so how thick a stroke lands
+depends on the zoom, and the ring is the only way to know before drawing. Touch
+cannot hover, so it goes without.
 
 ## SVG export / import
 

@@ -218,7 +218,7 @@ export function finishToolInteraction(
       finishPencil(ctx, state, screenToWorld(state.viewport, screen));
       break;
     case "brush":
-      finishBrush(ctx, state);
+      finishBrush(ctx, state, screenToWorld(state.viewport, screen));
       break;
     case "eraser":
       finishEraser(ctx, state);

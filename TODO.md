@@ -95,6 +95,7 @@ additional effects, or other feature expansion.
 - [x] キーボード到達性 — `tabIndex={0}` + `:focus-visible` リング、`role="tree"` /
   `role="treeitem"` / `aria-selected` / `aria-level` / `aria-expanded`、
   `aria-activedescendant` でカーソル行を通知（Tab 到達時は選択末尾をカーソルに）
+- [ ] 折りたたみ機能
 
 ### Properties パネルのリファイン
 - [ ] UIの統一感
@@ -215,5 +216,22 @@ additional effects, or other feature expansion.
     （今の Esc はドラッグ中しか効かない）
   - [ ] pencil/brush: EMA＋最小距離フィルタ＋simplify＋オプションストア＋
     パネル UI がほぼ二重化（`pencilStore.smoothing` と
-    `brushStore.stabilizer` は同一セマンティクス）。共有サンプラに抜く
-- [ ] レイヤー折りたたみ機能
+    `brushStore.stabilizer` は同一セマンティクス）。共有サンプラに抜く。
+    tail settlement も両者で別実装になっている
+  - [ ] brush: 既定スタイルの stroke が None だとプレビューすら出ず無反応
+    （`paintBrush` が即 return）。ブラシ色が Appearance の「線」スロットに
+    あること自体が非自明なので、BrushSection に色スウォッチを置きたい
+  - [ ] brush: コミット直後にストロークが選択される（`addBrushStroke`）ため、
+    続けて色を変えると「次の線の既定」ではなく直前の線が変わる。ペイント系の
+    期待と逆。ブラシツール中は選択しない案
+  - [ ] brush: プレビューと確定結果が違う（taper / simplify / フィットは離した
+    瞬間に初めて適用される）。せめて taper はライブ反映したい
+  - [ ] brush: 描画中のプレビューがサンプルごとに全再構築（`buildPreview` ＋
+    エンベロープ O(n)）。長いストロークで重い。末尾差分のみの再構築が本命
+  - [ ] brush: 開始点が guide/grid にスナップしない（pencil はする）。
+    フリーハンドでも始点は狙う、という理屈が当てはまるかは要検討
+  - [ ] brush: 直線モード（Shift で直線セグメント）、入り/抜きの taper 個別設定、
+    ブラシプリセット、筆圧カーブのプレビュー図
+  - [ ] brush: マウス/タッチは pressure=1 固定なので強弱が taper しかない。
+    速度→幅シミュレーション
+- [ ] PWA

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef } from "react";
 import { subscribeImageCache } from "../imageCache";
 import { type Guide, type Spacing } from "@/model/geometry/snap";
 import type { PathShape, Bounds, Shape, Vec2 } from "../model/types";
+import { useBrush } from "../store/brushStore";
 import { useEditor } from "../store/editorStore";
 import { useHighlight } from "../store/highlightStore";
 import { setPointer } from "../store/pointerStore";
@@ -169,6 +170,24 @@ export default function CanvasView() {
 
   // Repaint while a panel row is hovered, to draw/erase its outline.
   useEffect(() => useHighlight.subscribe(scheduleDraw), [scheduleDraw]);
+
+  // Resize the hovering tip ring as the size changes. `[` / `]` and the panel
+  // both change it without the pointer moving, and the ring is where the new
+  // size is legible — leaving it stale until the next move would make the
+  // keyboard steps look like they did nothing.
+  useEffect(
+    () =>
+      useBrush.subscribe((brush) => {
+        const hover = brushHoverRef.current;
+        if (!hover) return;
+        const radius =
+          (useEditor.getState().tool === "eraser" ? brush.eraserSize : brush.size) / 2;
+        if (radius === hover.radius) return;
+        brushHoverRef.current = { ...hover, radius };
+        scheduleDraw();
+      }),
+    [scheduleDraw]
+  );
 
   useCanvasTheme(themeRef, scheduleDraw);
   useCanvasSizing(wrapRef, canvasRef, sizeRef, draw);
