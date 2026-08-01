@@ -1,6 +1,6 @@
 import ClipperLib from "clipper-lib";
-import { flattenSubpath, ringsToSubpaths } from "./path";
-import { intPath, SCALE, treeToPolys } from "./clipperPaths";
+import { flattenSubpathAdaptive, ringsToSubpaths } from "./path";
+import { contours, intPath, SCALE, treeToPolys } from "./clipperPaths";
 import { applyPathOpSubpaths } from "./pathOps";
 import type {
   PathModifier,
@@ -8,6 +8,8 @@ import type {
   PathSubpath,
   StrokeJoin,
 } from "../types";
+
+const OFFSET_FLATNESS = 0.1;
 
 export const DEFAULT_PATH_MODIFIER: Record<
   PathModifier["type"],
@@ -32,26 +34,41 @@ function clipperJoin(join: StrokeJoin): number {
 function offsetSubpaths(
   subpaths: PathSubpath[],
   distance: number,
-  join: StrokeJoin
+  join: StrokeJoin,
+  fillRule: PathShape["fillRule"]
 ): PathSubpath[] {
   if (distance === 0) return subpaths;
   const execute = (closed: boolean): PathSubpath[] => {
-    const offset = new ClipperLib.ClipperOffset(4, 0.25 * SCALE);
-    let added = false;
-    for (const subpath of subpaths) {
-      if (subpath.closed !== closed) continue;
-      const points = flattenSubpath(subpath);
-      if (points.length < (closed ? 3 : 2)) continue;
+    const offset = new ClipperLib.ClipperOffset(4, OFFSET_FLATNESS * SCALE);
+    const paths = subpaths
+      .filter((subpath) => subpath.closed === closed)
+      .map((subpath) => intPath(flattenSubpathAdaptive(subpath, OFFSET_FLATNESS)))
+      .filter((path) => path.length >= (closed ? 3 : 2));
+    if (!paths.length) return [];
+    let input = paths;
+    if (closed) {
+      // Canonicalize the filled region before offsetting. ClipperOffset relies
+      // on opposite outer/hole orientations; a union supplies those even when
+      // an even-odd source stores every contour in the same direction. It also
+      // removes redundant nested contours under the nonzero rule.
+      const clipper = new ClipperLib.Clipper();
+      clipper.AddPaths(paths, ClipperLib.PolyType.ptSubject, true);
+      const tree = new ClipperLib.PolyTree();
+      const rule = fillRule === "evenodd"
+        ? ClipperLib.PolyFillType.pftEvenOdd
+        : ClipperLib.PolyFillType.pftNonZero;
+      clipper.Execute(ClipperLib.ClipType.ctUnion, tree, rule, rule);
+      input = contours(tree);
+    }
+    for (const path of input) {
       offset.AddPath(
-        intPath(points),
+        path,
         clipperJoin(join),
         closed
           ? ClipperLib.EndType.etClosedPolygon
           : ClipperLib.EndType.etOpenButt
       );
-      added = true;
     }
-    if (!added) return [];
     const tree = new ClipperLib.PolyTree();
     // Open contours resolve to a symmetric two-sided outline.
     offset.Execute(tree, (closed ? distance : Math.abs(distance)) * SCALE);
@@ -63,7 +80,8 @@ function offsetSubpaths(
 
 function applyModifier(
   subpaths: PathSubpath[],
-  modifier: PathModifier
+  modifier: PathModifier,
+  fillRule: PathShape["fillRule"]
 ): PathSubpath[] {
   switch (modifier.type) {
     case "simplify":
@@ -75,7 +93,7 @@ function applyModifier(
     case "reverse":
       return applyPathOpSubpaths(subpaths, "reverse");
     case "offset":
-      return offsetSubpaths(subpaths, modifier.distance, modifier.join);
+      return offsetSubpaths(subpaths, modifier.distance, modifier.join, fillRule);
   }
 }
 
@@ -92,7 +110,7 @@ export function resolvedSubpaths(shape: PathShape): PathSubpath[] {
   let result = shape.subpaths;
   for (const modifier of modifiers) {
     if (modifier.enabled === false) continue;
-    result = applyModifier(result, modifier);
+    result = applyModifier(result, modifier, shape.fillRule);
   }
   resolvedCache.set(shape, result);
   return result;

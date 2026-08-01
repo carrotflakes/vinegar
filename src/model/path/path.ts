@@ -90,6 +90,59 @@ export function flattenSubpath(sp: PathSubpath, perSegment = 18): Vec2[] {
   return pts;
 }
 
+function distanceToLine(point: Vec2, start: Vec2, end: Vec2): number {
+  const dx = end.x - start.x;
+  const dy = end.y - start.y;
+  const length = Math.hypot(dx, dy);
+  if (length === 0) return Math.hypot(point.x - start.x, point.y - start.y);
+  return Math.abs(dy * point.x - dx * point.y + end.x * start.y - end.y * start.x) /
+    length;
+}
+
+function splitCubicHalf(segment: CubicSegment): [CubicSegment, CubicSegment] {
+  const p01 = lerp(segment.p0, segment.c1, 0.5);
+  const p12 = lerp(segment.c1, segment.c2, 0.5);
+  const p23 = lerp(segment.c2, segment.p1, 0.5);
+  const p012 = lerp(p01, p12, 0.5);
+  const p123 = lerp(p12, p23, 0.5);
+  const midpoint = lerp(p012, p123, 0.5);
+  return [
+    { p0: segment.p0, c1: p01, c2: p012, p1: midpoint },
+    { p0: midpoint, c1: p123, c2: p23, p1: segment.p1 },
+  ];
+}
+
+/**
+ * Flatten a path with a geometric error target instead of a fixed number of
+ * samples. Long or sharply curved cubics receive more points while straight
+ * and nearly-flat segments stay cheap. The tolerance is in path-local units.
+ */
+export function flattenSubpathAdaptive(
+  subpath: PathSubpath,
+  tolerance = 0.1
+): Vec2[] {
+  const segments = subpathSegments(subpath);
+  if (!segments.length) return subpath.anchors.map((anchor) => anchor.p);
+  const points: Vec2[] = [segments[0].p0];
+  const limit = Math.max(0.001, tolerance);
+  const maxDepth = 12;
+  const append = (segment: CubicSegment, depth: number) => {
+    const flatness = Math.max(
+      distanceToLine(segment.c1, segment.p0, segment.p1),
+      distanceToLine(segment.c2, segment.p0, segment.p1)
+    );
+    if (flatness <= limit || depth >= maxDepth) {
+      points.push(segment.p1);
+      return;
+    }
+    const [left, right] = splitCubicHalf(segment);
+    append(left, depth + 1);
+    append(right, depth + 1);
+  };
+  for (const segment of segments) append(segment, 0);
+  return points;
+}
+
 /** Every defining point of a path shape, across all subpaths (flattened). */
 export function flattenPath(shape: PathShape, perSegment = 18): Vec2[] {
   return resolvedSubpaths(shape).flatMap((sp) => flattenSubpath(sp, perSegment));
