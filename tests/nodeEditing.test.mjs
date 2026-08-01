@@ -478,3 +478,98 @@ test("multi-anchor translation preserves brush widths and unselected anchors", (
   assert.deepEqual(moved.anchors[0].hOut, { x: -1, y: 6 });
   assert.deepEqual(moved.anchors.map((item) => item.w), [0.25, 0.75, 1]);
 });
+
+test("deleting removes every selected anchor and keeps a neighbour selected", () => {
+  const shape = pathShape();
+  shape.subpaths[0].anchors.push(anchor(30, 0), anchor(40, 0));
+  useEditor.getState().addShape(shape);
+  useEditor.getState().setTool("node");
+  useEditor.getState().setEditNodes([
+    { shapeId: "curve", sub: 0, index: 1 },
+    { shapeId: "curve", sub: 0, index: 3 },
+  ]);
+
+  useEditor.getState().deleteEditNode();
+
+  assert.deepEqual(
+    useEditor.getState().doc.nodes.curve.subpaths[0].anchors.map((item) => item.p),
+    [{ x: 0, y: 0 }, { x: 20, y: 0 }, { x: 40, y: 0 }]
+  );
+  // The neighbour before the first deleted anchor stays selected, so a run of
+  // Delete presses walks the path instead of falling through to the shape.
+  assert.deepEqual(useEditor.getState().editNodes, [
+    { shapeId: "curve", sub: 0, index: 0 },
+  ]);
+});
+
+test("deleting the last usable anchors removes the shape and clears the selection", () => {
+  useEditor.getState().addShape(pathShape());
+  useEditor.getState().setTool("node");
+  useEditor.getState().setEditNodes([
+    { shapeId: "curve", sub: 0, index: 0 },
+    { shapeId: "curve", sub: 0, index: 1 },
+  ]);
+
+  useEditor.getState().deleteEditNode();
+
+  assert.equal(useEditor.getState().doc.nodes.curve, undefined);
+  assert.deepEqual(useEditor.getState().editNodes, []);
+  assert.deepEqual(useEditor.getState().selection, []);
+});
+
+test("select all takes every anchor of the shape being node-edited", () => {
+  useEditor.getState().addShape(pathShape());
+  useEditor.getState().setTool("node");
+  useEditor.getState().setSelection(["curve"]);
+
+  useEditor.getState().selectAll();
+
+  assert.deepEqual(useEditor.getState().editNodes, [
+    { shapeId: "curve", sub: 0, index: 0 },
+    { shapeId: "curve", sub: 0, index: 1 },
+    { shapeId: "curve", sub: 0, index: 2 },
+  ]);
+  // The shape selection is what the node tool edits, so it must survive.
+  assert.deepEqual(useEditor.getState().selection, ["curve"]);
+});
+
+test("nudging moves the selected anchors, and the whole shape when none are", () => {
+  useEditor.getState().addShape(pathShape());
+  useEditor.getState().setTool("node");
+  useEditor.getState().setEditNodes([{ shapeId: "curve", sub: 0, index: 0 }]);
+
+  useEditor.getState().nudge(0, -1);
+  useEditor.getState().nudge(0, -1);
+
+  const anchors = useEditor.getState().doc.nodes.curve.subpaths[0].anchors;
+  assert.deepEqual(anchors[0].p, { x: 0, y: -2 });
+  // Handles travel with their anchor; untouched anchors stay put.
+  assert.deepEqual(anchors[0].hOut, { x: 0, y: 18 });
+  assert.deepEqual(anchors[1].p, { x: 10, y: 0 });
+
+  // With no anchors selected the whole node moves, through its transform —
+  // the same way a select-tool drag moves it.
+  useEditor.getState().setEditNodes([]);
+  useEditor.getState().setSelection(["curve"]);
+  useEditor.getState().nudge(5, 0);
+  const moved = useEditor.getState().doc.nodes.curve;
+  assert.deepEqual(moved.transform, [1, 0, 0, 1, 5, 0]);
+  assert.deepEqual(moved.subpaths[0].anchors[0].p, { x: 0, y: -2 });
+});
+
+test("a run of nudges coalesces into one undo step", () => {
+  useEditor.getState().addShape(pathShape());
+  useEditor.getState().setSelection(["curve"]);
+  const before = useEditor.getState().history.past.length;
+
+  useEditor.getState().nudge(1, 0);
+  useEditor.getState().nudge(1, 0);
+  useEditor.getState().nudge(1, 0);
+
+  assert.equal(useEditor.getState().history.past.length, before + 1);
+  useEditor.getState().undo();
+  assert.deepEqual(
+    useEditor.getState().doc.nodes.curve.subpaths[0].anchors[0].p,
+    { x: 0, y: 0 }
+  );
+});

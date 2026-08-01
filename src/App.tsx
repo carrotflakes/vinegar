@@ -227,6 +227,9 @@ export default function App() {
       ) {
         return;
       }
+      // A focused component (the layers list's arrow-key navigation) that
+      // already handled the key owns it; don't also run a global command.
+      if (e.defaultPrevented) return;
       const s = useEditor.getState();
       const mod = e.ctrlKey || e.metaKey;
 
@@ -238,7 +241,10 @@ export default function App() {
       if (e.key === "Escape") {
         // An open menu owns Escape (Floating UI closes it); don't also act.
         if (anyMenuOpen()) return;
-        if (s.selection.length || s.editNodes.length) s.clearSelection();
+        // Anchors first: dropping the shape selection as well would leave the
+        // node tool with nothing to edit, which is rarely what Escape meant.
+        if (s.editNodes.length) s.setEditNodes([]);
+        else if (s.selection.length) s.clearSelection();
         else if (s.activeGroupId) s.exitGroup();
         else if (s.focusStack.length) s.exitFocus();
         return;

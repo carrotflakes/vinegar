@@ -192,6 +192,11 @@ function stepToolSize(s: EditorState, factor: number): void {
   else brush.setBrush({ size: brush.size * factor });
 }
 
+/** Whether the node tool currently has anchors selected. */
+function hasEditNodes(s: EditorState): boolean {
+  return s.editNodes.length > 0;
+}
+
 /** Whether the node selection contains anchors of a brush stroke. */
 function hasBrushNodes(s: EditorState): boolean {
   for (const shapeId of groupEditNodesByShape(s.editNodes).keys()) {
@@ -200,6 +205,37 @@ function hasBrushNodes(s: EditorState): boolean {
   }
   return false;
 }
+
+/**
+ * Arrow-key movement, in world units. Shift takes the coarse step, the usual
+ * "one unit / ten units" pair; both act on the selected anchors when the node
+ * tool has some, and on the selected nodes otherwise.
+ */
+const NUDGE_STEP = 1;
+const NUDGE_STEP_COARSE = 10;
+
+const NUDGE_COMMANDS: Command[] = (
+  [
+    ["Left", "ArrowLeft", -1, 0],
+    ["Right", "ArrowRight", 1, 0],
+    ["Up", "ArrowUp", 0, -1],
+    ["Down", "ArrowDown", 0, 1],
+  ] as const
+).flatMap(([name, key, x, y]) =>
+  ([false, true] as const).map((coarse) => {
+    const step = coarse ? NUDGE_STEP_COARSE : NUDGE_STEP;
+    return {
+      id: `edit.nudge${name}${coarse ? "Coarse" : ""}`,
+      label: coarse ? `Nudge ${name.toLowerCase()} ×10` : `Nudge ${name.toLowerCase()}`,
+      group: "Edit",
+      keys: [{ key, ...(coarse ? { shift: true } : {}) }],
+      // The coarse variants would only pad the palette with near-duplicates.
+      ...(coarse ? { hidden: true } : {}),
+      enabled: (s: EditorState) => s.editNodes.length > 0 || s.selection.length > 0,
+      run: (s: EditorState) => s.nudge(x * step, y * step),
+    };
+  })
+);
 
 /** The selected guide's id, if one is selected and actually actionable. */
 function selectedGuide(s: EditorState): string | null {
@@ -305,6 +341,8 @@ export const COMMANDS: Command[] = [
       else s.deleteSelected();
     },
   },
+
+  ...NUDGE_COMMANDS,
 
   // Structure ---------------------------------------------------------------
   {
@@ -485,6 +523,29 @@ export const COMMANDS: Command[] = [
     // Firefox's Web Console and cannot be overridden by the page.
     enabled: (s) => sel(s).canSplitSubpaths,
     run: (s) => s.splitSubpathsSelected(),
+  },
+  // Anchor kinds. The properties panel has the same three as a segmented
+  // control; these give the node context menu (and the palette) the same reach.
+  {
+    id: "node.type.cusp",
+    label: "Cusp anchor",
+    group: "Path",
+    enabled: hasEditNodes,
+    run: (s) => s.setEditNodeType("cusp"),
+  },
+  {
+    id: "node.type.smooth",
+    label: "Smooth anchor",
+    group: "Path",
+    enabled: hasEditNodes,
+    run: (s) => s.setEditNodeType("smooth"),
+  },
+  {
+    id: "node.type.symmetric",
+    label: "Symmetric anchor",
+    group: "Path",
+    enabled: hasEditNodes,
+    run: (s) => s.setEditNodeType("symmetric"),
   },
   {
     id: "path.cut",

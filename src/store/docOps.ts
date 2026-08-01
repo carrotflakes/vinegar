@@ -27,10 +27,12 @@ import {
 import {
   baseNodeDefaults,
   makeId,
+  type BrushShape,
   type Document,
   type DocumentAsset,
   type Group,
   type Matrix,
+  type PathShape,
   type SceneNode,
   type ScriptDef,
   type Swatch,
@@ -60,6 +62,26 @@ export interface ClipboardPayload extends NodePayload {
   swatches: Record<string, Swatch>;
   /** Whether the source document's scripts were trusted when copied. */
   scriptsTrusted: boolean;
+}
+
+/**
+ * The shapes the node tool edits for a given selection: a single path or brush,
+ * or the visible path children of a single compound path. Anything else (a
+ * multi-selection, a group, a generator-less non-path leaf) has no anchors to
+ * edit and yields nothing.
+ */
+export function nodeEditTargets(
+  doc: Document,
+  selection: readonly string[]
+): (PathShape | BrushShape)[] {
+  if (selection.length !== 1) return [];
+  const selected = doc.nodes[selection[0]];
+  if (selected?.type === "path" || selected?.type === "brush") return [selected];
+  if (selected?.type !== "compoundPath") return [];
+  return selected.childIds.flatMap((id) => {
+    const child = doc.nodes[id];
+    return child?.type === "path" && !child.hidden ? [child] : [];
+  });
 }
 
 /** Remove the given roots (and their subtrees) from the scene. */

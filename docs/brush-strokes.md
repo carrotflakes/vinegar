@@ -233,7 +233,7 @@ cannot hover, so it goes without.
   `strokeWidth` like other stroked leaves; non-uniform scale stays in
   `transform` (widths cannot shear).
 - **Node tool** (shipped): brush anchors reuse the path anchor/handle
-  editing. `nodes.ts` exposes a `NodeEditShape = PathShape | BrushShape` view
+  editing. `model/nodeEdit.ts` exposes a `NodeEditShape = PathShape | BrushShape` view
   (`nodeSubpaths` presents a brush as one open subpath); `hitNodes` /
   `moveAnchor` / `moveHandle` and the `drawNodes` overlay all operate on it, and
   `picking.selectedNodeShape` lets the node tool pick a brush. Moves preserve

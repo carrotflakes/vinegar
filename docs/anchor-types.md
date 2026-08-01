@@ -191,4 +191,6 @@ Extend `tests/nodeEditing.test.mjs`:
 - Inkscape's fourth **auto** type (handles continuously re-fitted from the
   neighbours).
 - Dragging an anchor's *position* re-fitting neighbouring auto handles.
-- Per-type keyboard shortcuts and context-menu entries.
+- Per-type keyboard shortcuts. (Context-menu entries have since landed:
+  right-clicking an anchor with the node tool opens `nodeMenu()` with the three
+  types, "Cut path" and "Delete".)

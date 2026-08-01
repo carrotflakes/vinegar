@@ -406,13 +406,18 @@ export function onNodeMove(
     return;
   }
 
+  // Shift constrains the handle to 45° rays from its own anchor, the same
+  // meaning it has when dragging an anchor.
+  const anchor = nodeSubpaths(inter.orig)[inter.sub]?.anchors[inter.index];
+  const target =
+    shiftKey && anchor ? constrain45(anchor.p, localWorld) : localWorld;
   state.applyShapes({
     [inter.shapeId]: moveHandle(
       inter.orig,
       inter.sub,
       inter.index,
       inter.part,
-      localWorld,
+      target,
       altKey
     ),
   });

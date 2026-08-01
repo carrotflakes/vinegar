@@ -9,7 +9,7 @@ import {
   applyPathModifiers,
   DEFAULT_PATH_MODIFIER,
 } from "@/model/path/pathModifiers";
-import { deleteBrushAnchor, toggleBrushAnchorSmooth } from "@/model/brush/brushEdit";
+import { toggleBrushAnchorSmooth } from "@/model/brush/brushEdit";
 import {
   scaleBrushAnchorWidths,
   setBrushAnchorWidths,
@@ -19,11 +19,21 @@ import { isShape, selectionRoots } from "../model/scene";
 import type { AnchorType, PathModifier } from "../model/types";
 import { removeRoots } from "./docOps";
 import {
-  clearTransient,
   groupEditNodesByShape,
+  type EditNode,
   type PathEditActions,
   type StoreCtx,
 } from "./state";
+
+/**
+ * The anchor that stays selected after `dropped` is removed from a run that now
+ * holds `remaining` anchors: the neighbour before the first deleted one, so a
+ * run of Delete presses walks backwards along the path.
+ */
+function neighbourAfterDelete(dropped: Set<number>, remaining: number): number {
+  const first = Math.min(...dropped);
+  return Math.max(0, Math.min(first - 1, remaining - 1));
+}
 
 export function createPathEditActions({ set, get, transact }: StoreCtx): PathEditActions {
   return {
@@ -127,30 +137,73 @@ export function createPathEditActions({ set, get, transact }: StoreCtx): PathEdi
       });
     },
     deleteEditNode: () => {
-      const { doc, editNodes } = get();
-      const editNode = editNodes[editNodes.length - 1];
-      if (!editNode) return;
-      const shape = doc.nodes[editNode.shapeId]; if (!isShape(shape)) return;
-      if (shape.type === "brush") {
-        const next = deleteBrushAnchor(shape, editNode.index);
-        if (next === null) {
-          const removed = removeRoots(doc, [shape.id]);
-          if (!hasValidSceneContainers(removed)) return;
-          transact(removed, { label: "Delete path node" }); set({ selection: [], ...clearTransient });
-        } else {
-          transact({ ...doc, nodes: { ...doc.nodes, [shape.id]: next } }, { label: "Delete path node" }); set({ editNodes: [] });
+      const { doc, editNodes, selection } = get();
+      if (editNodes.length === 0) return;
+      const nodes = { ...doc.nodes };
+      // Shapes left with nothing drawable go away entirely, in one removal so a
+      // compound path emptied by the last of its children collapses with them.
+      const emptied: string[] = [];
+      const survivors: EditNode[] = [];
+      let changed = false;
+      for (const [shapeId, targets] of groupEditNodesByShape(editNodes)) {
+        const shape = doc.nodes[shapeId];
+        if (!isShape(shape)) continue;
+        if (shape.type === "brush") {
+          const dropped = new Set(
+            targets.filter((target) => target.sub === 0).map((target) => target.index)
+          );
+          if (dropped.size === 0) continue;
+          const anchors = shape.anchors.filter((_, index) => !dropped.has(index));
+          changed = true;
+          if (anchors.length < 2) { emptied.push(shapeId); continue; }
+          nodes[shapeId] = { ...shape, anchors };
+          survivors.push({ shapeId, sub: 0, index: neighbourAfterDelete(dropped, anchors.length) });
+          continue;
         }
-        return;
+        if (shape.type !== "path") continue;
+        const bySub = new Map<number, Set<number>>();
+        for (const target of targets) {
+          const indices = bySub.get(target.sub) ?? new Set<number>();
+          indices.add(target.index);
+          bySub.set(target.sub, indices);
+        }
+        const subpaths: typeof shape.subpaths = [];
+        const kept: EditNode[] = [];
+        let touched = false;
+        shape.subpaths.forEach((subpath, sub) => {
+          const dropped = bySub.get(sub);
+          if (!dropped) { subpaths.push(subpath); return; }
+          const anchors = subpath.anchors.filter((_, index) => !dropped.has(index));
+          touched = true;
+          // A subpath that can no longer form a segment disappears with its
+          // anchors; the surviving ones renumber, so the kept selection is
+          // recorded against the new index.
+          if (anchors.length < 2) return;
+          kept.push({
+            shapeId,
+            sub: subpaths.length,
+            index: neighbourAfterDelete(dropped, anchors.length),
+          });
+          subpaths.push({ ...subpath, anchors });
+        });
+        if (!touched) continue;
+        changed = true;
+        if (subpaths.length === 0) { emptied.push(shapeId); continue; }
+        nodes[shapeId] = { ...shape, subpaths, generator: null };
+        survivors.push(...kept);
       }
-      if (shape.type !== "path") return;
-      const sp = shape.subpaths[editNode.sub]; if (!sp) return;
-      const anchors = sp.anchors.filter((_, i) => i !== editNode.index);
-      // A subpath that can no longer form a segment disappears with its anchor.
-      const subpaths = anchors.length < 2
-        ? shape.subpaths.filter((_, i) => i !== editNode.sub)
-        : shape.subpaths.map((s, i) => (i === editNode.sub ? { ...s, anchors } : s));
-      if (subpaths.length === 0) { const next = removeRoots(doc, [shape.id]); if (!hasValidSceneContainers(next)) return; transact(next, { label: "Delete path node" }); set({ selection: [], ...clearTransient }); }
-      else { const next = { ...doc, nodes: { ...doc.nodes, [shape.id]: { ...shape, subpaths, generator: null } } }; if (!hasValidSceneContainers(next)) return; transact(next, { label: "Delete path node" }); set({ editNodes: [] }); }
+      if (!changed) return;
+      let next = { ...doc, nodes };
+      if (emptied.length > 0) next = removeRoots(next, emptied);
+      if (!hasValidSceneContainers(next)) return;
+      transact(next, { label: "Delete path node" });
+      // Keeping a neighbour selected lets Delete be pressed repeatedly to walk
+      // back along a path, and stops the next press from falling through to
+      // "delete the whole shape".
+      set({
+        selection: selection.filter((id) => next.nodes[id]),
+        editNodes: survivors.filter((node) => next.nodes[node.shapeId]),
+      });
     },
     cutSelectedNodes: () => {
       const { doc, editNodes } = get();

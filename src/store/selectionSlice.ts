@@ -10,6 +10,7 @@ import {
   scopeRootIds,
 } from "../model/scene";
 import type { Document } from "../model/types";
+import { nodeEditTargets } from "./docOps";
 import {
   clearTransient,
   currentFocusRoot,
@@ -59,7 +60,27 @@ export function createSelectionActions({ set, get }: StoreCtx): SelectionActions
     // Clearing says nothing about which frame the user is working in, so the
     // ruler origin stays where it was.
     clearSelection: () => set({ selection: [], ...clearTransient }),
-    selectAll: () => { const s = get(); const roots = scopeRootIds(s.doc, currentFocusRoot(s)); set({ selection: roots.filter((id) => !isNodeHidden(s.doc, id) && !isNodeLocked(s.doc, id)), ...clearTransient }); },
+    selectAll: () => {
+      const s = get();
+      // In the node tool "everything" means every anchor of the shape being
+      // edited: selecting shapes instead would drop out of node editing (the
+      // tool only edits a single selected shape).
+      const editable = s.tool === "node" ? nodeEditTargets(s.doc, s.selection) : [];
+      if (editable.length > 0) {
+        set({
+          editNodes: editable.flatMap((shape) =>
+            shape.type === "brush"
+              ? shape.anchors.map((_, index) => ({ shapeId: shape.id, sub: 0, index }))
+              : shape.subpaths.flatMap((subpath, sub) =>
+                  subpath.anchors.map((_, index) => ({ shapeId: shape.id, sub, index }))
+                )
+          ),
+        });
+        return;
+      }
+      const roots = scopeRootIds(s.doc, currentFocusRoot(s));
+      set({ selection: roots.filter((id) => !isNodeHidden(s.doc, id) && !isNodeLocked(s.doc, id)), ...clearTransient });
+    },
     setEditNodes: (editNodes) => {
       const unique = new Map<string, (typeof editNodes)[number]>();
       for (const node of editNodes) {

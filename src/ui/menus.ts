@@ -162,6 +162,22 @@ export function selectionMenu(): MenuEntry[] {
   return entries;
 }
 
+/**
+ * Actions on the node tool's selected anchors, shown when a right-click lands
+ * on one. Deliberately short: everything here is about the anchors themselves,
+ * not the shape they belong to (that stays on `selectionMenu`).
+ */
+export function nodeMenu(): MenuEntry[] {
+  return [
+    item("node.type.cusp"),
+    item("node.type.smooth"),
+    item("node.type.symmetric"),
+    "separator",
+    ...(enabled("path.cut") ? [item("path.cut")] : []),
+    item("edit.delete"),
+  ];
+}
+
 /** Menu for empty canvas space. `at` is the click point in world coords. */
 export function canvasMenu(at: Vec2): MenuEntry[] {
   return [item("edit.paste", at), item("file.placeImage", at), item("select.all")];

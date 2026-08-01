@@ -167,15 +167,16 @@ export default function LayersPanel() {
       setReveal(next);
       return;
     }
-    if ((e.key === "ArrowRight" || e.key === "ArrowLeft") && at) {
+    if (e.key === "ArrowRight" || e.key === "ArrowLeft") {
+      // Claimed either way: with the list focused, arrows navigate rows rather
+      // than nudging the artwork.
+      e.preventDefault();
+      if (!at) return;
       const isCollapsed = collapsed.has(at);
       if (e.key === "ArrowRight" ? isCollapsed : !isCollapsed) {
         // Rows without children have no fold state to toggle.
         const node = doc.nodes[at];
-        if (node && childIdsOfNode(node).length > 0) {
-          e.preventDefault();
-          toggleCollapsed(at);
-        }
+        if (node && childIdsOfNode(node).length > 0) toggleCollapsed(at);
       }
     }
   };

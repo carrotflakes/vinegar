@@ -23,6 +23,7 @@ import {
   snapPoint,
   type SnapTargets,
 } from "@/model/geometry/snap";
+import { nodeEditTargets } from "@/store/docOps";
 import { activeGuideLines } from "./guides";
 import type { Document, Shape, Vec2 } from "../model/types";
 import { worldToScreen } from "@/model/geometry/viewport";
@@ -44,14 +45,7 @@ import type { NodeEditShape } from "./nodes";
 
 /** The single selected shape the node tool can edit (path or brush). */
 export function selectedNodeShapes(state: EditorState): NodeEditShape[] {
-  if (state.selection.length !== 1) return [];
-  const selected = state.doc.nodes[state.selection[0]];
-  if (selected?.type === "path" || selected?.type === "brush") return [selected];
-  if (selected?.type !== "compoundPath") return [];
-  return selected.childIds.flatMap((id) => {
-    const child = state.doc.nodes[id];
-    return child?.type === "path" && !child.hidden ? [child] : [];
-  });
+  return nodeEditTargets(state.doc, state.selection);
 }
 
 export function selectedNodeShape(state: EditorState): NodeEditShape | null {

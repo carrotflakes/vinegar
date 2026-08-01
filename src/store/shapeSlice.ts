@@ -5,7 +5,8 @@
 import { expandBounds, instanceWorldBounds, intersectBounds, shapeBounds, worldShapeBounds } from "@/model/geometry/bounds";
 import { hasValidSceneContainers } from "../model/sceneValidation";
 import { eraseBrush } from "@/model/brush/eraser";
-import { applyWorldTransformToNode, boundsTransform, IDENTITY, invertMatrix, isIdentity, multiply, nodeWorldMatrix, shapeWorldMatrix } from "@/model/geometry/matrix";
+import { applyMatrix, applyWorldTransformToNode, boundsTransform, IDENTITY, invertMatrix, isIdentity, multiply, nodeWorldMatrix, shapeWorldMatrix, translation as translationMatrix } from "@/model/geometry/matrix";
+import { moveAnchors } from "@/model/nodeEdit";
 import { childIdsOf, descendantShapeIds, isGroup, isInstance, isNodeHidden, isNodeLocked, isShape, parentIdOf, scopeLeafIds, selectionRoots, withChildIds } from "../model/scene";
 import { clampRectCornerRadius } from "../model/roundedRect";
 import { resizeShapeToBounds, translateShape } from "@/model/geometry/transforms";
@@ -15,6 +16,7 @@ import { appendToScope, groupNode } from "./docOps";
 import {
   clearTransient,
   currentFocusRoot,
+  groupEditNodesByShape,
   type ShapeActions,
   type StoreCtx,
 } from "./state";
@@ -265,6 +267,48 @@ export function createShapeActions({ set, get, transact, replaceDocumentWithoutH
         (patch.y ?? b.y) - b.y
       );
       transact({ ...doc, nodes: { ...doc.nodes, [id]: next } }, options);
+    },
+    nudge: (dx, dy) => {
+      const { doc, editNodes, selection } = get();
+      const nodes = { ...doc.nodes };
+      let changed = false;
+      if (editNodes.length > 0) {
+        for (const [shapeId, targets] of groupEditNodesByShape(editNodes)) {
+          const shape = doc.nodes[shapeId];
+          if (!isShape(shape) || (shape.type !== "path" && shape.type !== "brush")) continue;
+          // Anchors live in the shape's own space, so the world delta has to be
+          // mapped through the inverse world matrix (rotation included).
+          const inverse = invertMatrix(shapeWorldMatrix(doc, shape));
+          const origin = inverse ? applyMatrix(inverse, { x: 0, y: 0 }) : { x: 0, y: 0 };
+          const moved = inverse ? applyMatrix(inverse, { x: dx, y: dy }) : { x: dx, y: dy };
+          // `withSubpath` inside moveAnchors drops any generator link, as it
+          // does for a pointer drag: edited vertices override parametric
+          // geometry.
+          const next = moveAnchors(shape, targets, moved.x - origin.x, moved.y - origin.y);
+          if (next === shape) continue;
+          nodes[shapeId] = next;
+          changed = true;
+        }
+      } else {
+        const delta = translationMatrix(dx, dy);
+        for (const id of selectionRoots(doc, selection)) {
+          const node = doc.nodes[id];
+          if (!node) continue;
+          nodes[id] = applyWorldTransformToNode(doc, node, delta);
+          changed = true;
+        }
+      }
+      if (!changed) return;
+      // One undo step per run of presses; retargeting what is moved starts a
+      // new step (the key names the moved things).
+      transact({ ...doc, nodes }, {
+        label: "Nudge",
+        coalesceKey: `nudge:${editNodes.length ? "nodes" : "shapes"}:${
+          editNodes.length
+            ? editNodes.map((n) => `${n.shapeId}:${n.sub}:${n.index}`).join(",")
+            : selection.join(",")
+        }`,
+      });
     },
     setRectCornerRadius: (id, radius) => {
       const doc = get().doc; const shape = doc.nodes[id];

@@ -254,6 +254,12 @@ export interface ShapeActions {
   remeasureTextShapes: () => void;
   updateSelectedStyle: (patch: Partial<StyleStylableFields>) => void;
   setShapeGeometry: (id: string, patch: Partial<{ x: number; y: number; width: number; height: number }>) => void;
+  /**
+   * Move by a world-space delta (the arrow keys): the selected anchors when the
+   * node tool has some, otherwise the selected nodes. A run of presses
+   * coalesces into a single undo step.
+   */
+  nudge: (dx: number, dy: number) => void;
   setRectCornerRadius: (id: string, radius: number) => void;
   setImageLockAspect: (id: string, lock: boolean) => void;
 }

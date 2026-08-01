@@ -8,11 +8,13 @@ import { isGroup } from "../../model/scene";
 import { screenToWorld } from "@/model/geometry/viewport";
 import { currentFocusRoot, useEditor } from "../../store/editorStore";
 import { openContextMenu } from "../../store/menuStore";
-import { canvasMenu, guideMenu, selectionMenu } from "../../ui/menus";
+import { canvasMenu, guideMenu, nodeMenu, selectionMenu } from "../../ui/menus";
 import { pickGuide } from "../guides";
-import type { ToolContext } from "../interaction";
+import { NODE_GRAB, type ToolContext } from "../interaction";
+import { hitNodes } from "../nodes";
+import { shapeWorldMatrix } from "@/model/geometry/matrix";
 import { cancelActiveInteraction } from "../interactionLifecycle";
-import { pickShape } from "../picking";
+import { pickShape, selectedNodeShapes } from "../picking";
 import { overRulers } from "../rulers";
 
 const LONG_PRESS_DELAY = 500;
@@ -57,6 +59,34 @@ export function useCanvasContextMenu({
       if (guide && !state.guidesLocked) state.setSelectedGuide(guide.id);
       openContextMenu(clientX, clientY, guideMenu());
       return;
+    }
+
+    // A right-click on an anchor acts on the anchors, not on the shape. The
+    // pressed one joins the selection first when it wasn't part of it, the same
+    // rule a left-click follows.
+    if (state.tool === "node") {
+      const target = selectedNodeShapes(state).flatMap((shape) => {
+        const hit = hitNodes(
+          shape,
+          shapeWorldMatrix(state.doc, shape),
+          screen,
+          state.viewport,
+          NODE_GRAB * ctx.hitScale(),
+          true
+        );
+        return hit && hit.part === "anchor" ? [{ shape, hit }] : [];
+      })[0];
+      if (target) {
+        const { shape, hit } = target;
+        const already = state.editNodes.some(
+          (node) => node.shapeId === shape.id && node.sub === hit.sub && node.index === hit.index
+        );
+        if (!already) {
+          state.setEditNodes([{ shapeId: shape.id, sub: hit.sub, index: hit.index }]);
+        }
+        openContextMenu(clientX, clientY, nodeMenu());
+        return;
+      }
     }
 
     if (state.tool === "select" || state.tool === "node") {
