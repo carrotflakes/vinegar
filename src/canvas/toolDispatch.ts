@@ -131,6 +131,7 @@ export function dispatchToolMove(
     case "resize":
     case "rotate":
     case "corner-radius":
+    case "generator-param":
     case "marquee":
       onSelectMove(ctx, state, inter, screen, world, shift, noReparent);
       break;
@@ -202,6 +203,7 @@ export function finishToolInteraction(
     case "resize":
     case "rotate":
     case "corner-radius":
+    case "generator-param":
     case "node-anchor":
     case "node-handle":
     case "node-width":

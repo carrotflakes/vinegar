@@ -200,6 +200,22 @@ export function onSelectDown(
 ) {
   // Rotation / resize handles take priority over picking shapes.
   const hit = hitFrameHandle(ctx, screen);
+  if (hit?.type === "generator-param") {
+    const control = hit.control;
+    const inverse = invertMatrix(control.matrix);
+    if (inverse) {
+      state.beginInteraction(`Adjust ${control.param.label.toLowerCase()}`);
+      ctx.interaction.current = {
+        kind: "generator-param",
+        shapeId: control.shapeId,
+        control,
+        startLocal: applyMatrix(inverse, world),
+        startValue: control.value,
+        inverse,
+      };
+      return;
+    }
+  }
   if (hit?.type === "corner-radius") {
     const control = hit.control;
     state.beginInteraction("Adjust corner radius");
@@ -429,6 +445,7 @@ export function selectCursor(
   };
   const hit = hitFrameHandle(ctx, screen);
   if (hit?.type === "pivot") return "crosshair";
+  if (hit?.type === "generator-param") return "pointer";
   if (hit?.type === "corner-radius") {
     return frameCursor("se");
   }

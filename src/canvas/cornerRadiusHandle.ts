@@ -6,8 +6,8 @@ import {
 } from "../model/roundedRect";
 import type { Document, Vec2 } from "../model/types";
 import { worldToScreen, type Viewport } from "@/model/geometry/viewport";
+import { PARAM_KNOB_SIZE } from "./handles";
 
-export const CORNER_RADIUS_HANDLE_SIZE = 7;
 const HANDLE_INSET = 14;
 
 export interface CornerRadiusControl {
@@ -55,7 +55,7 @@ export function cornerRadiusControl(
   const dy = limit.y - corner.y;
   const length = Math.hypot(dx, dy);
   const inset = HANDLE_INSET * chromeScale;
-  if (length < inset * 2 + CORNER_RADIUS_HANDLE_SIZE * chromeScale) return null;
+  if (length < inset * 2 + PARAM_KNOB_SIZE * chromeScale) return null;
 
   const direction = { x: dx / length, y: dy / length };
   const radius = effectiveRectCornerRadius(shape);

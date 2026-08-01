@@ -13,6 +13,11 @@ import {
   shapeWorldMatrix,
   translation as translationMatrix,
 } from "@/model/geometry/matrix";
+import { GENERATORS, defaultArgs } from "@/model/generators/generators";
+import {
+  clampParamValue,
+  handleParamValue,
+} from "@/model/generators/handles";
 import { magnetAngle, snapAngle } from "@/model/geometry/rotate";
 import { resizeShapeToBounds } from "@/model/geometry/transforms";
 import { isFrame, isGroup, isShape } from "../../model/scene";
@@ -29,7 +34,16 @@ import { formatAngle, formatSize } from "../util";
 
 export type SelectInteraction = Extract<
   Interaction,
-  { kind: "pivot" | "move" | "resize" | "rotate" | "corner-radius" | "marquee" }
+  {
+    kind:
+      | "pivot"
+      | "move"
+      | "resize"
+      | "rotate"
+      | "corner-radius"
+      | "generator-param"
+      | "marquee";
+  }
 >;
 
 type Drag<K extends SelectInteraction["kind"]> = Extract<
@@ -285,6 +299,53 @@ function dragCornerRadius(
   setReadout(`R ${Math.round(radius)}`);
 }
 
+/** Generator args span whole counts and 0..1 ratios, so scale the precision. */
+function formatParam(value: number): string {
+  return Math.abs(value) < 10
+    ? String(Math.round(value * 100) / 100)
+    : String(Math.round(value));
+}
+
+/**
+ * Drag one generator argument by its on-canvas knob. Built-in generators build
+ * synchronously, so the geometry is regenerated in place on every move and the
+ * whole drag lands as the one undo step opened at pointer-down.
+ */
+function dragGeneratorParam(
+  state: EditorState,
+  inter: Drag<"generator-param">,
+  world: Vec2
+) {
+  const shape = state.doc.nodes[inter.shapeId];
+  if (!isShape(shape) || shape.type !== "path" || !shape.generator) return;
+  const def = GENERATORS[shape.generator.scriptId];
+  if (!def) return;
+  const key = inter.control.param.key;
+  const args = { ...defaultArgs(def), ...shape.generator.args };
+  const value = clampParamValue(
+    inter.control.param,
+    handleParamValue(
+      inter.control.handle,
+      inter.startValue,
+      args[key] ?? inter.startValue,
+      inter.startLocal,
+      applyMatrix(inter.inverse, world)
+    )
+  );
+  setReadout(`${inter.control.param.label} ${formatParam(value)}`);
+  if (args[key] === value) return;
+  const merged = { ...args, [key]: value };
+  const subpaths = def.build(merged);
+  if (!subpaths) return;
+  state.applyShapes({
+    [shape.id]: {
+      ...shape,
+      subpaths,
+      generator: { ...shape.generator, args: merged },
+    },
+  });
+}
+
 function dragMarquee(
   ctx: ToolContext,
   state: EditorState,
@@ -325,6 +386,9 @@ export function onSelectMove(
       break;
     case "corner-radius":
       dragCornerRadius(state, inter, screen);
+      break;
+    case "generator-param":
+      dragGeneratorParam(state, inter, world);
       break;
     case "marquee":
       dragMarquee(ctx, state, inter, screen);

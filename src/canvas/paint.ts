@@ -8,6 +8,7 @@ import { currentFocusRoot, type EditorState } from "../store/editorStore";
 import { usePreferences } from "../store/preferencesStore";
 import type { CanvasTheme } from "./canvasTheme";
 import { cornerRadiusControl } from "./cornerRadiusHandle";
+import { generatorControls } from "./generatorHandles";
 import {
   frameNodeSelectionFrame,
   getSelectionFrame,
@@ -169,6 +170,10 @@ export function paintCanvas(input: PaintInput): void {
     cornerRadiusHandle:
       tool === "select"
         ? cornerRadiusControl(doc, selection, viewport, chrome)?.point ?? null
+        : null,
+    generatorHandles:
+      tool === "select"
+        ? generatorControls(doc, selection, viewport).map((c) => c.point)
         : null,
     activeGroupBounds:
       tool === "select" && state.activeGroupId && doc.nodes[state.activeGroupId]

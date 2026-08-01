@@ -47,6 +47,7 @@ export function cancelActiveInteraction(ctx: ToolContext): void {
     case "resize":
     case "rotate":
     case "corner-radius":
+    case "generator-param":
     case "pivot":
     case "node-anchor":
     case "node-handle":

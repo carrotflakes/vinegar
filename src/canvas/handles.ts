@@ -24,6 +24,13 @@ export const HANDLE_IDS: HandleId[] = [
 /** Screen-space size (px) of a resize handle square. */
 export const HANDLE_SIZE = 9;
 
+/**
+ * Screen-space size (px) of a parameter knob — the diamonds that tune a value
+ * in place rather than move or resize anything (corner radius, generator args,
+ * brush width). One size and one shape for the whole family.
+ */
+export const PARAM_KNOB_SIZE = 8;
+
 /** World-space anchor point for each handle on a bounds rect. */
 export function handlePoint(b: Bounds, id: HandleId): Vec2 {
   const { x, y, width: w, height: h } = b;

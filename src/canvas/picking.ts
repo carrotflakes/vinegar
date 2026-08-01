@@ -36,11 +36,9 @@ import {
   type SelectionFrame,
   type SelectionLeaf,
 } from "./frame";
-import { HANDLE_IDS, HANDLE_SIZE } from "./handles";
-import {
-  cornerRadiusControl,
-  CORNER_RADIUS_HANDLE_SIZE,
-} from "./cornerRadiusHandle";
+import { HANDLE_IDS, HANDLE_SIZE, PARAM_KNOB_SIZE } from "./handles";
+import { cornerRadiusControl } from "./cornerRadiusHandle";
+import { generatorControls, pickGeneratorControl } from "./generatorHandles";
 import type { FrameHit, ToolContext } from "./interaction";
 import type { NodeEditShape } from "./nodes";
 
@@ -147,6 +145,16 @@ export function hitFrameHandle(ctx: ToolContext, screen: Vec2): FrameHit {
   // Frames are never rotated and have no corner-radius/pivot editing, so only
   // their resize handles are hit-testable.
   const isFrameSelection = singleSelectedFrame(doc, selection) !== null;
+  if (!isFrameSelection) {
+    // Generator knobs sit inside the selection, so they take priority over the
+    // frame's own handles when the two land on top of each other.
+    const control = pickGeneratorControl(
+      generatorControls(doc, selection, viewport),
+      screen,
+      (PARAM_KNOB_SIZE / 2 + 2) * ctx.hitScale()
+    );
+    if (control) return { type: "generator-param", control };
+  }
   const radiusControl = isFrameSelection
     ? null
     : cornerRadiusControl(doc, selection, viewport, ctx.hitScale());
@@ -155,7 +163,7 @@ export function hitFrameHandle(ctx: ToolContext, screen: Vec2): FrameHit {
     Math.hypot(
       radiusControl.point.x - screen.x,
       radiusControl.point.y - screen.y
-    ) <= CORNER_RADIUS_HANDLE_SIZE * ctx.hitScale()
+    ) <= PARAM_KNOB_SIZE * ctx.hitScale()
   ) {
     return { type: "corner-radius", control: radiusControl };
   }

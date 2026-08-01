@@ -19,7 +19,7 @@ The detailed, developer-facing catalogue of what Vinegar does.
 
 - Node editing: cusp, smooth, and symmetric anchor types with distinct on-canvas markers; drag anchors and control handles (Alt breaks the linkage into a cusp), click a segment to insert an anchor (curve-preserving), double-click an anchor to toggle smooth ↔ corner (handles removed), Delete to remove an anchor; Brush anchors use the same editing model; path children remain node-editable inside a compound path; open/close a path via the properties panel. See [anchor-types.md](anchor-types.md)
 - Move, resize (8 handles), **rotate** (rotation handle; Shift snaps to 15°) — all driven by per-node **affine matrices**, so rotated/nested resize is exact
-- Rectangles support one shared **corner radius** for all four corners, editable numerically or with an on-canvas control and preserved across export/geometry operations
+- Rectangles support one shared **corner radius** for all four corners, editable numerically or with an on-canvas knob (the same orange diamond used for generator parameters) and preserved across export/geometry operations
 - **Movable rotation centers** (transform origin) per shape and group; a transient pivot for multi-selection
 - Multi-select (shift-click & marquee)
 - Copy / cut / paste / duplicate (groups stay grouped on paste; **Paste here** from the canvas context menu)
@@ -69,6 +69,7 @@ Related design notes: [path-unification.md](path-unification.md), [path-modifier
 - **Scripting**: a one-shot drawing DSL that runs in a sandboxed Web Worker and applies its changes in a single undo step; can create shapes and read/edit existing ones (open via the "Script" button in the app bar)
 - **Parametric generators (experimental)**: insert the built-in Star, Gear, Spiral, Flower, Arrow, Sector and Moon generators from the toolbar's generator flyout — click a thumbnail to drop it at the canvas centre, or drag it onto the canvas to place it where you release — or author document-local generator scripts whose numeric parameters rebuild editable Bézier geometry. Copying a generated shape carries its script along, so pasting into another document keeps the shape re-tunable (a script arriving from a document whose generators were never approved re-arms the consent gate); a link that resolves to no script at all pastes as a plain path.
   Imported document scripts stay disabled until the user explicitly enables them and run in a watchdog-protected Web Worker.
+  Selecting a built-in generator node also shows its parameters as on-canvas knobs — the orange diamonds shared with the rectangle's corner radius — drag one to retune the shape in place (radius, tooth depth, sector angles, moon phase, …) as a single undo step. Document scripts have no knobs yet and stay panel-only.
 
 ## Canvas and workspace
 

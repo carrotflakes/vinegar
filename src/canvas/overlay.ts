@@ -3,7 +3,7 @@ import { applyMatrix } from "@/model/geometry/matrix";
 import { effectiveAnchorType } from "@/model/path/anchorType";
 import type { Bounds, PathShape, Matrix, Vec2 } from "../model/types";
 import { worldToScreen, type Viewport } from "@/model/geometry/viewport";
-import { HANDLE_IDS, HANDLE_SIZE } from "./handles";
+import { HANDLE_IDS, HANDLE_SIZE, PARAM_KNOB_SIZE } from "./handles";
 import {
   frameCorners,
   frameHandlePoint,
@@ -18,12 +18,15 @@ import {
   nodeSubpaths,
   type NodeEditShape,
 } from "./nodes";
-import { CORNER_RADIUS_HANDLE_SIZE } from "./cornerRadiusHandle";
 import type { PenHover } from "./interaction";
 
 const ACCENT = "#3b82f6";
-/** Width knobs get their own hue so they read apart from Bézier handles. */
-const WIDTH_ACCENT = "#f0a132";
+/**
+ * Parameter knobs — the diamonds that tune one value in place (brush width,
+ * corner radius, generator args) — get their own hue so they read apart from
+ * Bézier handles and from the blue chrome that moves geometry around.
+ */
+const PARAM_ACCENT = "#f0a132";
 
 export interface OverlayOptions {
   dpr: number;
@@ -43,6 +46,8 @@ export interface OverlayOptions {
   activeGroupBounds?: Bounds | null;
   /** Screen-space center of the selected rectangle's shared-radius control. */
   cornerRadiusHandle?: Vec2 | null;
+  /** Screen-space centers of the selected generator node's parameter knobs. */
+  generatorHandles?: Vec2[] | null;
 }
 
 /** Draw selection chrome on top of the rendered scene, in screen space. */
@@ -145,16 +150,23 @@ export function drawOverlay(
         ctx.stroke();
       }
 
-      if (opts.cornerRadiusHandle) {
-        const control = opts.cornerRadiusHandle;
-        const controlRadius = (CORNER_RADIUS_HANDLE_SIZE * handleSize) / HANDLE_SIZE / 2;
+      // Parameter knobs: a rectangle's corner radius and a generator node's
+      // arguments are the same gesture — drag to retune one value in place —
+      // so they share one shape and hue, apart from the frame's own handles.
+      const knobs = [
+        ...(opts.cornerRadiusHandle ? [opts.cornerRadiusHandle] : []),
+        ...(opts.generatorHandles ?? []),
+      ];
+      if (knobs.length) {
+        const knobSize = (PARAM_KNOB_SIZE * handleSize) / HANDLE_SIZE;
         ctx.fillStyle = "#ffffff";
-        ctx.strokeStyle = ACCENT;
+        ctx.strokeStyle = PARAM_ACCENT;
         ctx.lineWidth = 1.5;
-        ctx.beginPath();
-        ctx.arc(control.x, control.y, controlRadius, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.stroke();
+        for (const knob of knobs) {
+          diamond(ctx, knob, knobSize);
+          ctx.fill();
+          ctx.stroke();
+        }
       }
     }
   }
@@ -358,7 +370,7 @@ export function drawNodes(
     ctx.lineWidth = 1;
     for (const knob of knobs) {
       // A bar from the anchor out to the knob, reading as the half-width.
-      ctx.strokeStyle = WIDTH_ACCENT;
+      ctx.strokeStyle = PARAM_ACCENT;
       ctx.beginPath();
       ctx.moveTo(knob.anchorScreen.x, knob.anchorScreen.y);
       ctx.lineTo(knob.screen.x, knob.screen.y);

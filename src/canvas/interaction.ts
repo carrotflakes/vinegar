@@ -10,9 +10,11 @@ import type {
 } from "../model/types";
 import type { HandleId } from "./handles";
 import type { CornerRadiusControl } from "./cornerRadiusHandle";
+import type { GeneratorControl } from "./generatorHandles";
 
 export type FrameHit =
   | { type: "corner-radius"; control: CornerRadiusControl }
+  | { type: "generator-param"; control: GeneratorControl }
   | { type: "pivot" }
   | { type: "resize"; id: HandleId }
   | { type: "rotate" }
@@ -86,6 +88,17 @@ export type Interaction =
       direction: Vec2;
       pixelsPerRadius: number;
       maxRadius: number;
+    }
+  | {
+      /** Dragging one generator argument by its on-canvas knob. */
+      kind: "generator-param";
+      shapeId: string;
+      control: GeneratorControl;
+      /** Grab point in the node's local space, and the arg value there. */
+      startLocal: Vec2;
+      startValue: number;
+      /** World -> node local, captured at pointer-down. */
+      inverse: Matrix;
     }
   | { kind: "create"; start: Vec2 }
   | { kind: "text-create"; start: Vec2; current: Vec2 }
