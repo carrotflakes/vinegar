@@ -33,6 +33,14 @@ import {
 /** A selectable paintable leaf: a shape or a symbol instance. */
 export type SelectionLeaf = Shape | SymbolInstance;
 
+/** Mixed frame/artwork selections may move, but have no shared transform box. */
+export function isMixedFrameSelection(
+  doc: Document,
+  selection: string[]
+): boolean {
+  return selection.length > 1 && selection.some((id) => isFrame(doc.nodes[id]));
+}
+
 /** An oriented frame around the current selection. */
 export interface SelectionFrame {
   /** Geometric center of the selection in world space. */

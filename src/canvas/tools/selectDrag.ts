@@ -20,6 +20,7 @@ import {
 } from "@/model/generators/handles";
 import { magnetAngle, snapAngle } from "@/model/geometry/rotate";
 import { resizeShapeToBounds } from "@/model/geometry/transforms";
+import { normalizeRect } from "@/model/geometry/bounds";
 import { isFrame, isGroup, isShape } from "../../model/scene";
 import { computeSnap } from "@/model/geometry/snap";
 import { activeGuideLines } from "../guides";
@@ -157,6 +158,11 @@ function dragResize(
   const inverseFrame = invertMatrix(inter.frameTransform);
   if (!inverseFrame) return;
   const localPointer = applyMatrix(inverseFrame, handlePt);
+  const entries = Object.entries(inter.originals);
+  const soloFrame =
+    inter.single && entries.length === 1 && isFrame(entries[0][1])
+      ? entries[0][1]
+      : null;
   let to = resizeBounds(inter.from, inter.handle, localPointer);
   if (
     (inter.lockAspect || shiftKey) &&
@@ -170,15 +176,16 @@ function dragResize(
       inter.from.width / inter.from.height
     );
   }
-  const entries = Object.entries(inter.originals);
+  // Frames are artboards rather than artwork. Normalize only after aspect
+  // constraint so a crossed handle still follows the pointer without leaving
+  // a reflected frame transform behind.
+  if (soloFrame) {
+    to = normalizeRect(to.x, to.y, to.width, to.height);
+  }
   // A frame resizes its content box, never its children's scale. `to` is in
   // frame-local space; its origin offset folds into the frame transform so
   // the moved edge tracks the pointer while the opposite edge stays put.
   // (Frames are top-level, so their world matrix is their own transform.)
-  const soloFrame =
-    inter.single && entries.length === 1 && isFrame(entries[0][1])
-      ? entries[0][1]
-      : null;
   if (soloFrame) {
     const next: Record<string, SceneNode> = {
       [soloFrame.id]: {
@@ -198,28 +205,49 @@ function dragResize(
     setReadout(formatSize(to.width, to.height));
     return;
   }
-  // Text and parametric (generator-backed) shapes are excluded from the
-  // geometry-fold path and resize through the transform below instead.
+  // Text, compound paths and parametric (generator-backed) shapes are excluded
+  // from the geometry-fold path and resize through the transform below instead.
   // Text has no baked-scale representation (w/h are measured, not authored,
   // and fontSize is separate). A parametric shape's subpaths are the
   // generator's output; folding a scale into them would be overwritten on
   // the next regenerate, so the scale must live in `transform` to survive.
-  const soloLeaf =
+  const soloGeometryLeaf =
     inter.single &&
     entries.length === 1 &&
     isShape(entries[0][1]) &&
     entries[0][1].type !== "text" &&
+    entries[0][1].type !== "compoundPath" &&
     !entries[0][1].generator
       ? (entries[0][1] as Shape)
       : null;
   const next: Record<string, SceneNode> = {};
-  if (soloLeaf) {
+  if (soloGeometryLeaf) {
     // A single leaf shape resizes in its own local axes, so the scale can
     // be folded straight into its geometry (w/h or points) instead of the
     // transform — keeping `transform` rotation-only and the numeric size
-    // fields honest. Visually identical: resizeShapeToBounds applies the
-    // same axis-aligned scale the transform path would post-multiply.
-    next[soloLeaf.id] = resizeShapeToBounds(soloLeaf, inter.from, to);
+    // fields honest. A crossed axis is the exception: fold its absolute size
+    // into geometry, then retain only the reflection in the node transform.
+    const normalized = normalizeRect(to.x, to.y, to.width, to.height);
+    let resized = resizeShapeToBounds(
+      soloGeometryLeaf,
+      inter.from,
+      normalized
+    );
+    const centerX = normalized.x + normalized.width / 2;
+    const centerY = normalized.y + normalized.height / 2;
+    const reflection: SceneNode["transform"] = [
+      to.width < 0 ? -1 : 1,
+      0,
+      0,
+      to.height < 0 ? -1 : 1,
+      to.width < 0 ? centerX * 2 : 0,
+      to.height < 0 ? centerY * 2 : 0,
+    ];
+    resized = {
+      ...resized,
+      transform: multiply(resized.transform, reflection),
+    };
+    next[soloGeometryLeaf.id] = resized;
     state.applyShapes(next);
   } else {
     const localDelta = boundsTransform(inter.from, to);
@@ -240,7 +268,7 @@ function dragResize(
       );
     }
   }
-  setReadout(formatSize(to.width, to.height));
+  setReadout(formatSize(Math.abs(to.width), Math.abs(to.height)));
 }
 
 function dragRotate(

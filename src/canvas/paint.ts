@@ -12,6 +12,7 @@ import { generatorControls } from "./generatorHandles";
 import {
   frameNodeSelectionFrame,
   getSelectionFrame,
+  isMixedFrameSelection,
   singleSelectedFrame,
 } from "./frame";
 import { HANDLE_SIZE } from "./handles";
@@ -168,7 +169,10 @@ export function paintCanvas(input: PaintInput): void {
     viewport,
     frame: tool === "select" ? selectionFrame : null,
     marquee,
-    showHandles: tool === "select" && selectionFrame !== null,
+    showHandles:
+      tool === "select" &&
+      selectionFrame !== null &&
+      !isMixedFrameSelection(doc, selection),
     // Frames are never rotated, so hide their rotation stalk and pivot marker.
     hideRotate: soleFrame !== null,
     handleSize: HANDLE_SIZE * chrome,

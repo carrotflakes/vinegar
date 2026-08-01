@@ -6,6 +6,7 @@ import { handlePoint, type HandleId } from "./handles";
 export {
   frameNodeSelectionFrame,
   getSelectionFrame,
+  isMixedFrameSelection,
   singleSelectedFrame,
   type SelectionFrame,
   type SelectionLeaf,

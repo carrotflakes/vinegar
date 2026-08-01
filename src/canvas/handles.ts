@@ -100,28 +100,27 @@ export function handleCursorRotated(
 
 /**
  * Resize a bounds by dragging `handle` so its anchor moves to world `pointer`.
- * The opposite corner/edge stays fixed.
+ * The opposite corner/edge stays fixed. Width and height are intentionally
+ * signed: crossing the fixed edge produces a negative scale on that axis.
  */
 export function resizeBounds(
   b: Bounds,
   handle: HandleId,
   pointer: Vec2
 ): Bounds {
-  let left = b.x;
-  let top = b.y;
-  let right = b.x + b.width;
-  let bottom = b.y + b.height;
-
-  if (handle.includes("w")) left = pointer.x;
-  if (handle.includes("e")) right = pointer.x;
-  if (handle.includes("n")) top = pointer.y;
-  if (handle.includes("s")) bottom = pointer.y;
-
   return {
-    x: Math.min(left, right),
-    y: Math.min(top, bottom),
-    width: Math.abs(right - left),
-    height: Math.abs(bottom - top),
+    x: handle.includes("w") ? pointer.x : b.x,
+    y: handle.includes("n") ? pointer.y : b.y,
+    width: handle.includes("w")
+      ? b.x + b.width - pointer.x
+      : handle.includes("e")
+        ? pointer.x - b.x
+        : b.width,
+    height: handle.includes("n")
+      ? b.y + b.height - pointer.y
+      : handle.includes("s")
+        ? pointer.y - b.y
+        : b.height,
   };
 }
 
@@ -143,16 +142,20 @@ export function constrainAspectRatio(
   let width: number;
   let height: number;
   if (horiz && vert) {
-    // Corner: uniform scale by the axis that changed most.
-    const scale = Math.max(free.width / from.width, free.height / from.height);
-    width = from.width * scale;
-    height = from.height * scale;
+    // Corner: uniform scale by the axis that changed most, while each pointer
+    // coordinate independently decides whether its axis has crossed over.
+    const scale = Math.max(
+      Math.abs(free.width / from.width),
+      Math.abs(free.height / from.height)
+    );
+    width = from.width * scale * (free.width < 0 ? -1 : 1);
+    height = from.height * scale * (free.height < 0 ? -1 : 1);
   } else if (horiz) {
     width = free.width;
-    height = width / ratio;
+    height = Math.abs(width) / ratio;
   } else {
     height = free.height;
-    width = height * ratio;
+    width = Math.abs(height) * ratio;
   }
 
   // Anchor: the fixed edge stays put; a free axis grows about its centre.

@@ -28,6 +28,7 @@ import { currentFocusRoot, useEditor, type EditorState } from "../store/editorSt
 import {
   frameHandlePoint,
   frameRotationPoint,
+  isMixedFrameSelection,
   singleSelectedFrame,
   type SelectionFrame,
   type SelectionLeaf,
@@ -133,6 +134,7 @@ export function pickFrameBorder(
 /** Hit-test the resize handles and rotation handle of the selection frame. */
 export function hitFrameHandle(ctx: ToolContext, screen: Vec2): FrameHit {
   const { doc, selection, viewport } = useEditor.getState();
+  if (isMixedFrameSelection(doc, selection)) return null;
   const frame = selectionFrame();
   if (!frame) return null;
   // Frames are never rotated and have no corner-radius/pivot editing, so only
