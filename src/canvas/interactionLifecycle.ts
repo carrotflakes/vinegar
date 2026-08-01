@@ -64,9 +64,15 @@ export function cancelActiveInteraction(ctx: ToolContext): void {
       if (inter.created) state.setSelectedGuide(null);
       break;
     case "create":
-    case "pencil":
       // Drag-time changes live only in the preview shape.
       ctx.preview.current = null;
+      break;
+    case "pencil":
+      ctx.preview.current = null;
+      // Also drop the capture state (and its copy of the extended path) and
+      // the close ring, instead of leaving them for the next stroke to reset.
+      ctx.endpointHint.current = null;
+      resetPencilStroke();
       break;
     case "brush":
       // Also clear the brush tool's transient capture state.

@@ -203,3 +203,25 @@ additional effects, or other feature expansion.
     明示的な比較か変更フラグに置き換える
   - [ ] ペン: アンカー配置ドラッグ中に位置そのものを直す手段がない
     （Illustrator の Space ドラッグ相当）
+  - [ ] pencil: 選択パスの途中をなぞって区間を差し替える（Illustrator の
+    リシェイプ）。今できるのは端点からの延長だけ。パス上の最近点探索＋
+    de Casteljau 分割が要る本命機能
+  - [ ] pencil: 延長描画（`commitPencilExtend`）が常に `closed: false`。
+    既存の開パスの端点から描き始めて反対の端点に戻っても閉じられない
+  - [ ] pencil: 描いたストロークの収納先が brush と非対称。brush は
+    `addBrushStroke` で activeGroup（"Drawing"）に集約するのに pencil は
+    スコープ直下にバラ撒く。連続スケッチでレイヤーが荒れる
+  - [ ] pencil: `freehandToPath` が `fill: null` 固定なので、閉じたループを
+    描いても線だけになる。閉じたときは既定 fill を使う／PencilSection に
+    トグルを置く
+  - [ ] pencil: 始点のスナップがない（ペンは `pointSnap` でガイド・他図形に
+    吸着する）。未選択パスに繋ぎたいときの逃げ道にもなる
+  - [ ] pencil: 描き終えた直後のストロークを Esc/Backspace で取り消す
+    （今の Esc はドラッグ中しか効かない）
+  - [ ] pencil/brush: EMA 平滑化がイベント1件ごとなので、実効強度が
+    サンプルレート依存（マウス 60Hz とペン 120Hz で線質が変わる）。
+    距離か経過時間で正規化する
+  - [ ] pencil/brush: EMA＋最小距離フィルタ＋simplify＋オプションストア＋
+    パネル UI がほぼ二重化（`pencilStore.smoothing` と
+    `brushStore.stabilizer` は同一セマンティクス）。共有サンプラに抜く
+- [ ] レイヤー折りたたみ機能

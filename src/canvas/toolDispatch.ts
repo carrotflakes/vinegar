@@ -103,10 +103,10 @@ export interface ToolMoveInput {
   /** Cmd/Ctrl: a move drag would drop without reparenting into a frame. */
   noReparent: boolean;
   /**
-   * The full run of samples this move covers (coalesced events), so fast brush
-   * strokes keep their sample density. Only read by the brush.
+   * The full run of samples this move covers (coalesced events), so fast
+   * freehand strokes keep their sample density. Read by the brush and pencil.
    */
-  brushSamples: () => { world: Vec2; pressure: number }[];
+  strokeSamples: () => { world: Vec2; pressure: number }[];
 }
 
 /** Advance the live interaction. `inter` is never "none". */
@@ -114,7 +114,7 @@ export function dispatchToolMove(
   ctx: ToolContext,
   state: EditorState,
   inter: Interaction,
-  { screen, world, shift, alt, noReparent, brushSamples }: ToolMoveInput
+  { screen, world, shift, alt, noReparent, strokeSamples }: ToolMoveInput
 ): void {
   switch (inter.kind) {
     case "pan":
@@ -141,10 +141,14 @@ export function dispatchToolMove(
       moveTextCreate(ctx, inter, world);
       break;
     case "pencil":
-      onPencilMove(ctx, world);
+      onPencilMove(
+        ctx,
+        state,
+        strokeSamples().map((s) => s.world)
+      );
       break;
     case "brush":
-      onBrushMove(ctx, state, brushSamples());
+      onBrushMove(ctx, state, strokeSamples());
       break;
     case "eraser":
       onEraserMove(ctx, state, world);

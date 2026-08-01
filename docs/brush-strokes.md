@@ -142,8 +142,8 @@ is one `addShape` = one undo step.
    `e.nativeEvent.getCoalescedEvents?.() ?? [e.nativeEvent]` so fast strokes
    keep their full sample density instead of one point per frame. Each sample:
    world position + pressure. Min-distance filter in **screen** pixels
-   (`~1.5 / viewport.scale` in world units) — the current pencil filters in
-   world units, which drops detail when zoomed out.
+   (`~1.2 / viewport.scale` in world units); the pencil now drains the same
+   coalesced samples and filters the same way.
 2. **Pressure normalization** — `pointerType === "pen"` uses raw
    `e.pressure` through the brush's pressure curve; mouse/touch report a
    constant (0.5 or 0), so force pressure = 1 there. Curve v1 is a gamma

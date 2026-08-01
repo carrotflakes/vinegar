@@ -351,7 +351,7 @@ export function usePointerHandlers(deps: PointerHandlerDeps): PointerHandlers {
       alt: mod.alt,
       noReparent: e.metaKey || e.ctrlKey,
       // Drain coalesced moves so fast strokes keep their full sample density.
-      brushSamples: () => {
+      strokeSamples: () => {
         const native = e.nativeEvent;
         const coalesced =
           typeof native.getCoalescedEvents === "function"

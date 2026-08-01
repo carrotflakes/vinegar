@@ -195,7 +195,9 @@ export interface ToolContext {
   /**
    * World position of the open path's endpoint the active tool would continue
    * if drawing started now, highlighted as an affordance — the pencil needs the
-   * path selected, the pen takes any. Null when no endpoint is in reach.
+   * path selected, the pen takes any. Mid-stroke the pencil reuses it for its
+   * own start point while releasing there would close the path — the same
+   * "connect here" promise. Null when no endpoint is in reach.
    */
   endpointHint: { current: Vec2 | null };
   guides: { current: Guide[] };

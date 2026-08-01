@@ -84,6 +84,37 @@ let pencilStroke:
   | { smoothed: Vec2; smoothing: number; last: Vec2; extend: PencilExtend | null }
   | null = null;
 
+/** Screen-space spacing between kept freehand samples, in world units. The
+ *  filter has to be screen-relative: a fixed world distance would drop detail
+ *  when zoomed out and turn strokes angular when zoomed in. */
+function pencilMinDist(state: EditorState): number {
+  return 1.2 / state.viewport.scale;
+}
+
+/** How close the stroke's end has to come to its start to close the path. */
+function pencilCloseTol(ctx: ToolContext, state: EditorState): number {
+  // The same distance (and the same touch enlargement) at which the pen closes
+  // a draft by clicking its first anchor.
+  return grabRadius(ctx) / state.viewport.scale;
+}
+
+/**
+ * Does a freehand stroke end back on its start, closely enough to close it?
+ * The live close ring and the commit both ask this and must never disagree —
+ * a ring that promises a closed path and a release that leaves it open is
+ * worse than no ring at all — so the rule lives here only.
+ */
+function freehandCloses(
+  first: Vec2,
+  last: Vec2,
+  count: number,
+  closeTol: number
+): boolean {
+  return (
+    count > 3 && Math.hypot(last.x - first.x, last.y - first.y) <= closeTol
+  );
+}
+
 /** Throw away any half-captured stroke (the document it belonged to is gone). */
 export function resetPencilStroke() {
   pencilStroke = null;
@@ -136,29 +167,66 @@ export function startPencil(
   ctx.scheduleDraw();
 }
 
-export function onPencilMove(ctx: ToolContext, world: Vec2) {
+/** `samples` is the whole run the move event covers (coalesced included), so a
+ *  fast stroke keeps its sample density instead of one point per frame. */
+export function onPencilMove(
+  ctx: ToolContext,
+  state: EditorState,
+  samples: Vec2[]
+) {
   const shape = ctx.preview.current;
   if (!shape || shape.type !== "path" || !pencilStroke) return;
-  // Exponential moving average: strength 0 tracks the pointer exactly, →1 lags
-  // heavily. Advanced every sample even when no anchor is added below.
+  const minDist = pencilMinDist(state);
   const s = pencilStroke.smoothing;
-  pencilStroke.smoothed = {
-    x: pencilStroke.smoothed.x + (world.x - pencilStroke.smoothed.x) * (1 - s),
-    y: pencilStroke.smoothed.y + (world.y - pencilStroke.smoothed.y) * (1 - s),
-  };
-  const p = pencilStroke.smoothed;
-  const last = pencilStroke.last;
-  if (Math.hypot(p.x - last.x, p.y - last.y) <= 1.5) return;
-  pencilStroke.last = { ...p };
-  const ext = pencilStroke.extend;
-  if (ext) {
-    ext.newPoints.push({ ...p });
-    // Append to the preview in the path's local space so it renders in place.
-    shape.subpaths[0].anchors.push({ p: applyMatrix(ext.inverse, p), hIn: null, hOut: null });
-  } else {
-    shape.subpaths[0].anchors.push({ p: { ...p }, hIn: null, hOut: null });
+  let changed = false;
+  for (const world of samples) {
+    // Exponential moving average: strength 0 tracks the pointer exactly, →1
+    // lags heavily. Advanced every sample even when no anchor is added below.
+    pencilStroke.smoothed = {
+      x: pencilStroke.smoothed.x + (world.x - pencilStroke.smoothed.x) * (1 - s),
+      y: pencilStroke.smoothed.y + (world.y - pencilStroke.smoothed.y) * (1 - s),
+    };
+    const p = pencilStroke.smoothed;
+    const last = pencilStroke.last;
+    if (Math.hypot(p.x - last.x, p.y - last.y) < minDist) continue;
+    pencilStroke.last = { ...p };
+    const ext = pencilStroke.extend;
+    if (ext) {
+      ext.newPoints.push({ ...p });
+      // Append to the preview in the path's local space so it renders in place.
+      shape.subpaths[0].anchors.push({ p: applyMatrix(ext.inverse, p), hIn: null, hOut: null });
+    } else {
+      shape.subpaths[0].anchors.push({ p: { ...p }, hIn: null, hOut: null });
+    }
+    changed = true;
   }
-  ctx.scheduleDraw();
+  if (changed) {
+    updateCloseHint(ctx, state, shape);
+    ctx.scheduleDraw();
+  }
+}
+
+/**
+ * Ring the stroke's own start point while releasing there would close the path.
+ * Closing is otherwise invisible until the pointer is up, and by then it has
+ * already happened — the pen shows the same promise with the same mark while a
+ * click would close its draft. Extensions of an existing path never close.
+ */
+function updateCloseHint(
+  ctx: ToolContext,
+  state: EditorState,
+  shape: PathShape
+): void {
+  const stroke = pencilStroke;
+  if (!stroke) return;
+  const anchors = shape.subpaths[0].anchors;
+  const first = anchors[0].p;
+  // `stroke.last` is the last anchor appended above, so this asks exactly what
+  // the commit will ask of the finished point list.
+  const closes =
+    !stroke.extend &&
+    freehandCloses(first, stroke.last, anchors.length, pencilCloseTol(ctx, state));
+  ctx.endpointHint.current = closes ? first : null;
 }
 
 export function finishPencil(ctx: ToolContext, state: EditorState) {
@@ -166,6 +234,8 @@ export function finishPencil(ctx: ToolContext, state: EditorState) {
   pencilStroke = null;
   const shape = ctx.preview.current;
   ctx.preview.current = null;
+  // The close ring belongs to the stroke; touch has no hover to clear it later.
+  ctx.endpointHint.current = null;
   if (stroke?.extend) {
     commitPencilExtend(state, stroke.extend);
     ctx.scheduleDraw();
@@ -176,10 +246,7 @@ export function finishPencil(ctx: ToolContext, state: EditorState) {
       freehandToPath(
         shape.subpaths[0].anchors.map((anchor) => anchor.p),
         state,
-        // Ending a stroke back on its start closes it, at the same distance
-        // (and the same touch enlargement) at which the pen closes a draft by
-        // clicking its first anchor.
-        grabRadius(ctx) / state.viewport.scale
+        pencilCloseTol(ctx, state)
       )
     );
   }
@@ -305,16 +372,14 @@ function freehandToPath(
   closeTol: number
 ): PathShape {
   let pts = rawPoints;
-  const first = pts[0];
-  const last = pts[pts.length - 1];
-  let closed = false;
-  if (
-    pts.length > 3 &&
-    Math.hypot(last.x - first.x, last.y - first.y) <= closeTol
-  ) {
-    closed = true;
-    pts = pts.slice(0, -1);
-  }
+  const closed = freehandCloses(
+    pts[0],
+    pts[pts.length - 1],
+    pts.length,
+    closeTol
+  );
+  // The last point duplicates the first; the closed subpath implies that edge.
+  if (closed) pts = pts.slice(0, -1);
   const simplified = simplifyPath(pts, usePencil.getState().simplify / state.viewport.scale);
   const anchors = pointsToAnchors(simplified.length >= 2 ? simplified : pts, closed);
   return {

@@ -74,8 +74,8 @@ export function onBrushMove(
 ) {
   if (!active) return;
   const { opts } = active;
-  // Minimum spacing in screen pixels, converted to world units. The pencil
-  // filters in world units; screen-relative keeps detail when zoomed out.
+  // Minimum spacing in screen pixels, converted to world units: screen-relative
+  // keeps detail when zoomed out (the pencil filters the same way).
   const minDist = 1.2 / state.viewport.scale;
   let changed = false;
   for (const { world, pressure } of samples) {
