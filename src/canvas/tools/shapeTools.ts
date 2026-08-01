@@ -159,6 +159,16 @@ function pushPencilPoint(
   if (Math.hypot(p.x - stroke.last.x, p.y - stroke.last.y) < minDist) {
     return false;
   }
+  appendPencilPoint(stroke, shape, p);
+  return true;
+}
+
+/** Append an already-filtered point to the capture and its live preview. */
+function appendPencilPoint(
+  stroke: PencilStroke,
+  shape: PathShape,
+  p: Vec2
+): void {
   stroke.last = { ...p };
   const ext = stroke.extend;
   if (ext) {
@@ -172,13 +182,46 @@ function pushPencilPoint(
   } else {
     shape.subpaths[0].anchors.push({ p: { ...p }, hIn: null, hOut: null });
   }
-  return true;
 }
 
 /** Frames the tail settle is allowed to take; at the maximum smoothing (0.95)
  *  this closes 96% of the remaining gap, and at the default it converges long
  *  before. */
 const SETTLE_STEPS = 64;
+
+interface PencilTailSettlement {
+  smoothed: Vec2;
+  last: Vec2;
+  points: Vec2[];
+}
+
+/**
+ * Calculate the tail that a release at `world` would append. Keeping this pure
+ * lets the live close affordance ask the exact same question as pointer-up,
+ * without mutating the preview before the pointer is actually lifted.
+ */
+function pencilTailSettlement(
+  stroke: PencilStroke,
+  world: Vec2,
+  minDist: number
+): PencilTailSettlement {
+  const trial: PencilStroke = {
+    ...stroke,
+    smoothed: { ...stroke.smoothed },
+    last: { ...stroke.last },
+  };
+  const points: Vec2[] = [];
+  for (let i = 0; i < SETTLE_STEPS; i++) {
+    advanceSmoothing(trial, world, SMOOTH_REF_MS);
+    const p = trial.smoothed;
+    if (Math.hypot(p.x - trial.last.x, p.y - trial.last.y) >= minDist) {
+      trial.last = { ...p };
+      points.push({ ...p });
+    }
+    if (Math.hypot(p.x - world.x, p.y - world.y) <= minDist / 2) break;
+  }
+  return { smoothed: trial.smoothed, last: trial.last, points };
+}
 
 /**
  * Walk the smoothed point the rest of the way to where the pointer was lifted.
@@ -195,14 +238,9 @@ function settlePencilTail(
   world: Vec2,
   minDist: number
 ): void {
-  for (let i = 0; i < SETTLE_STEPS; i++) {
-    // One reference frame per step, so the settle takes the same shape as the
-    // smoothing the rest of the stroke was drawn with.
-    advanceSmoothing(stroke, world, SMOOTH_REF_MS);
-    pushPencilPoint(stroke, shape, minDist);
-    const p = stroke.smoothed;
-    if (Math.hypot(p.x - world.x, p.y - world.y) <= minDist / 2) break;
-  }
+  const settled = pencilTailSettlement(stroke, world, minDist);
+  for (const p of settled.points) appendPencilPoint(stroke, shape, p);
+  stroke.smoothed = settled.smoothed;
 }
 
 /** Throw away any half-captured stroke (the document it belonged to is gone). */
@@ -281,17 +319,21 @@ export function onPencilMove(
   if (!shape || shape.type !== "path" || !pencilStroke) return;
   const minDist = pencilMinDist(state);
   let changed = false;
+  let releaseWorld: Vec2 | null = null;
   for (const { world, t } of samples) {
+    releaseWorld = world;
     // The average advances on every sample, even ones the filter then drops.
     advanceSmoothing(pencilStroke, world, t - pencilStroke.lastT);
     pencilStroke.lastT = t;
     if (pushPencilPoint(pencilStroke, shape, minDist)) changed = true;
   }
-  if (changed) {
+  const closeHintChanged = releaseWorld
+    ? updateCloseHint(ctx, state, shape, releaseWorld)
+    : false;
+  if (changed || closeHintChanged) {
     // The start snap's guide lines have done their job once the stroke is
     // under way; leaving them up for its whole length is just clutter.
-    if (ctx.guides.current.length) ctx.guides.current = [];
-    updateCloseHint(ctx, state, shape);
+    if (changed && ctx.guides.current.length) ctx.guides.current = [];
     ctx.scheduleDraw();
   }
 }
@@ -306,19 +348,32 @@ export function onPencilMove(
 function updateCloseHint(
   ctx: ToolContext,
   state: EditorState,
-  shape: PathShape
-): void {
+  shape: PathShape,
+  releaseWorld: Vec2
+): boolean {
   const stroke = pencilStroke;
-  if (!stroke) return;
+  if (!stroke) return false;
   const anchors = shape.subpaths[0].anchors;
   const first = anchors[0].p;
-  // `stroke.last` is the last anchor appended above, so this asks exactly what
-  // the commit will ask of the finished point list.
+  const settled = pencilTailSettlement(
+    stroke,
+    releaseWorld,
+    pencilMinDist(state)
+  );
   const closes =
     !stroke.extend &&
-    freehandCloses(first, stroke.last, anchors.length, pencilCloseTol(ctx, state));
+    freehandCloses(
+      first,
+      settled.last,
+      anchors.length + settled.points.length,
+      pencilCloseTol(ctx, state)
+    );
+  const previousCloses = ctx.endpointHint.current !== null;
+  const nextFill = closes ? state.style.fill : null;
+  const fillChanged = !stroke.extend && shape.fill !== nextFill;
   ctx.endpointHint.current = closes ? first : null;
-  if (!stroke.extend) shape.fill = closes ? state.style.fill : null;
+  if (!stroke.extend) shape.fill = nextFill;
+  return previousCloses !== closes || fillChanged;
 }
 
 /** `world` is where the pointer was lifted; the stroke is settled onto it. */
