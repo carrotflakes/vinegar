@@ -10,6 +10,8 @@ import { marqueeHitNode } from "@/model/geometry/hitTest";
 import {
   applyMatrix,
   invertMatrix,
+  matrixAngle,
+  matrixDeterminant,
   multiply,
   nodeWorldMatrix,
 } from "@/model/geometry/matrix";
@@ -30,7 +32,11 @@ import {
 } from "../../model/scene";
 import { collectSnapTargets } from "@/model/geometry/snap";
 import type { Document, SceneNode, Shape, Vec2 } from "../../model/types";
-import { screenToWorld, worldToScreen } from "@/model/geometry/viewport";
+import {
+  screenToWorld,
+  viewportMatrix,
+  worldToScreen,
+} from "@/model/geometry/viewport";
 import { currentFocusRoot, useEditor, type EditorState } from "../../store/editorStore";
 import { HANDLE_SIZE, handleCursorRotated } from "../handles";
 import type { Interaction, ToolContext } from "../interaction";
@@ -438,9 +444,11 @@ export function selectCursor(
   const state = useEditor.getState();
   const frameCursor = (id: Parameters<typeof handleCursorRotated>[0]) => {
     const frame = selectionFrame();
-    const mirrored = !!state.viewport.flipX;
-    const screenRotation =
-      state.viewport.rotation + (mirrored ? -1 : 1) * (frame?.rotation ?? 0);
+    const screenTransform = frame
+      ? multiply(viewportMatrix(state.viewport), frame.transform)
+      : viewportMatrix(state.viewport);
+    const mirrored = matrixDeterminant(screenTransform) < 0;
+    const screenRotation = matrixAngle(screenTransform);
     return handleCursorRotated(id, screenRotation, mirrored);
   };
   const hit = hitFrameHandle(ctx, screen);

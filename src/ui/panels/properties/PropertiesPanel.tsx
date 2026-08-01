@@ -26,7 +26,7 @@ import NodeWidthSection from "./NodeWidthSection";
 import TextSection from "./TextSection";
 import SymbolInstanceSection from "./SymbolInstanceSection";
 import TransformSection, {
-  SelectionPivotSection,
+  SelectionTransformSection,
 } from "./TransformSection";
 import "../../Panel.css";
 import "./PropertiesPanel.css";
@@ -93,7 +93,12 @@ export default function PropertiesPanel() {
         />
       )}
 
-      {rootIds.length > 1 && selectionPivot && <SelectionPivotSection />}
+      {rootIds.length > 1 &&
+        rootIds.every((id) => doc.nodes[id]?.type !== "frame") && (
+          <SelectionTransformSection
+            canResetPivot={selectionPivot !== null}
+          />
+        )}
 
       {showAppearance && <AppearanceSection selected={selected} />}
 

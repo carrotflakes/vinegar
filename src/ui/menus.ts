@@ -87,6 +87,13 @@ export function selectionMenu(): MenuEntry[] {
       : []),
     item("structure.group"),
     item("structure.ungroup"),
+    {
+      label: "Transform",
+      submenu: [
+        item("structure.flipHorizontal"),
+        item("structure.flipVertical"),
+      ],
+    },
     item("structure.makeClippingMask"),
     item("structure.releaseClippingMask"),
     item("structure.makeCompound"),

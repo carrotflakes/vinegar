@@ -1,19 +1,14 @@
-import { exactlySelectedGroup } from "../model/groups";
 import {
   clippingMask,
   isNodeVisibleForHitTesting,
 } from "../model/clippingMask";
 import { hitTestNode } from "@/model/geometry/hitTest";
 import {
-  descendantNodeIds,
-  isGroup,
   isInstance,
   isNodeHidden,
   isNodeLocked,
   isShape,
   scopeLeafIds,
-  sceneIndex,
-  selectionRoots,
   shapesInPaintOrder,
 } from "../model/scene";
 import { framesInPaintOrder } from "../model/scene";
@@ -32,13 +27,15 @@ import { worldToScreen } from "@/model/geometry/viewport";
 import { currentFocusRoot, useEditor, type EditorState } from "../store/editorStore";
 import {
   frameHandlePoint,
-  frameNodeSelectionFrame,
   frameRotationPoint,
-  getSelectionFrame,
   singleSelectedFrame,
   type SelectionFrame,
   type SelectionLeaf,
 } from "./frame";
+import {
+  selectedSelectionLeaves,
+  selectionFrameForSelection,
+} from "@/model/geometry/selectionFrame";
 import { HANDLE_IDS, HANDLE_SIZE, PARAM_KNOB_SIZE } from "./handles";
 import { cornerRadiusControl } from "./cornerRadiusHandle";
 import { generatorControls, pickGeneratorControl } from "./generatorHandles";
@@ -80,19 +77,7 @@ export function selectedShapes(
   doc: EditorState["doc"],
   selection: string[]
 ): SelectionLeaf[] {
-  const paintable = new Set(sceneIndex(doc).shapeIds);
-  return selectionRoots(doc, selection)
-    .flatMap((id) => {
-      const node = doc.nodes[id];
-      if (isLeaf(node)) return [id];
-      if (isGroup(node) && node.clipsToMask) {
-        const mask = clippingMask(doc, node);
-        return mask ? [mask.id] : [];
-      }
-      return descendantNodeIds(doc, id).filter((childId) => paintable.has(childId));
-    })
-    .map((id) => doc.nodes[id])
-    .filter(isLeaf);
+  return selectedSelectionLeaves(doc, selection);
 }
 
 export const EMPTY_EXCLUDE = new Set<string>();
@@ -105,13 +90,9 @@ export const isVisibleForPicking = isNodeVisibleForHitTesting;
 export function selectionFrame(): SelectionFrame | null {
   const { doc, selection, selectionPivot, selectionTransform } =
     useEditor.getState();
-  const soleFrame = singleSelectedFrame(doc, selection);
-  if (soleFrame) return frameNodeSelectionFrame(doc, soleFrame);
-  const shapes = selectedShapes(doc, selection);
-  return getSelectionFrame(
+  return selectionFrameForSelection(
     doc,
-    shapes,
-    exactlySelectedGroup(doc, selection),
+    selection,
     selectionPivot,
     selectionTransform
   );

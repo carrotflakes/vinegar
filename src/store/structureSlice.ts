@@ -3,6 +3,7 @@
 // compound paths) live in shapeOpsSlice.
 
 import { nodeWorldBounds, unionNodeWorldBounds } from "@/model/geometry/bounds";
+import { selectionFrameForSelection } from "@/model/geometry/selectionFrame";
 import { canCompoundShape } from "@/model/path/compoundPath";
 import {
   canMakeClippingMaskSelection,
@@ -11,6 +12,7 @@ import {
 } from "../model/clippingMask";
 import { hasValidSceneContainers } from "../model/sceneValidation";
 import {
+  applyMatrix,
   applyWorldTransformToNode,
   invertMatrix,
   multiply,
@@ -29,7 +31,7 @@ import {
   parentIdOf,
   selectionRoots,
 } from "../model/scene";
-import { makeId, type Bounds, type Document } from "../model/types";
+import { makeId, type Bounds, type Document, type Matrix } from "../model/types";
 import { groupNode, removeRoots, replaceChildren } from "./docOps";
 import {
   clearTransient,
@@ -131,6 +133,63 @@ export function createStructureActions({ set, get, transact }: StoreCtx): Struct
     transact(doc, {
       label: forward ? "Bring forward" : "Send backward",
       coalesceKey: "layer-reorder",
+    });
+  };
+  const flipSelected = (axis: "horizontal" | "vertical") => {
+    const state = get();
+    const { doc } = state;
+    const roots = selectionRoots(doc, state.selection);
+    // A frame is the document's viewport/artboard rather than artwork. Its
+    // box and label assume an ordinary top-left origin, so flipping it would
+    // make the editor chrome disagree with the document transform.
+    if (!roots.length || roots.some((id) => isFrame(doc.nodes[id]))) return;
+    const frame = selectionFrameForSelection(
+      doc,
+      state.selection,
+      state.selectionPivot,
+      state.selectionTransform
+    );
+    if (!frame) return;
+    const inverseFrame = invertMatrix(frame.transform);
+    if (!inverseFrame) {
+      notify.error("The selection has a non-invertible transform.");
+      return;
+    }
+    // All roots must accept the same world delta. Refuse the whole operation
+    // when any parent space is singular instead of partially flipping a
+    // selection and violating the document transform invariant.
+    if (
+      roots.some(
+        (id) => !invertMatrix(nodeWorldMatrix(doc, parentIdOf(doc, id)))
+      )
+    ) {
+      notify.error("The selection has a non-invertible parent transform.");
+      return;
+    }
+    const centerX = frame.bounds.x + frame.bounds.width / 2;
+    const centerY = frame.bounds.y + frame.bounds.height / 2;
+    const localFlip: Matrix = axis === "horizontal"
+      ? [-1, 0, 0, 1, centerX * 2, 0]
+      : [1, 0, 0, -1, 0, centerY * 2];
+    const delta = multiply(
+      frame.transform,
+      multiply(localFlip, inverseFrame)
+    );
+    const nodes = { ...doc.nodes };
+    for (const id of roots) {
+      nodes[id] = applyWorldTransformToNode(doc, nodes[id], delta);
+    }
+    const label = axis === "horizontal"
+      ? "Flip horizontally"
+      : "Flip vertically";
+    transact({ ...doc, nodes }, { label });
+    set({
+      selectionPivot: state.selectionPivot
+        ? applyMatrix(delta, state.selectionPivot)
+        : null,
+      selectionTransform: state.selectionTransform
+        ? multiply(delta, state.selectionTransform)
+        : null,
     });
   };
   return {
@@ -263,6 +322,8 @@ export function createStructureActions({ set, get, transact }: StoreCtx): Struct
       });
       if (result.effectsRemoved) notifyEffectsRemoved();
     },
+    flipSelectedHorizontally: () => flipSelected("horizontal"),
+    flipSelectedVertically: () => flipSelected("vertical"),
     alignSelected: (type) => {
       const doc = get().doc; const items = selectionItems(doc, get().selection); const union = unionNodeWorldBounds(doc, items.map((i) => i.id)); if (items.length < 2 || !union) return; const nodes = { ...doc.nodes };
       for (const item of items) { const b = item.bounds; let dx = 0, dy = 0; if (type === "left") dx = union.x - b.x; if (type === "hcenter") dx = union.x + union.width / 2 - b.x - b.width / 2; if (type === "right") dx = union.x + union.width - b.x - b.width; if (type === "top") dy = union.y - b.y; if (type === "vmiddle") dy = union.y + union.height / 2 - b.y - b.height / 2; if (type === "bottom") dy = union.y + union.height - b.y - b.height; if (dx || dy) nodes[item.id] = applyWorldTransformToNode(doc, nodes[item.id], translationMatrix(dx, dy)); }

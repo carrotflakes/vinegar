@@ -374,6 +374,10 @@ export interface StructureActions {
   ungroupSelected: () => void;
   makeClippingMaskSelected: () => void;
   releaseClippingMaskSelected: () => void;
+  /** Mirror the selected roots left-to-right around their oriented selection frame. */
+  flipSelectedHorizontally: () => void;
+  /** Mirror the selected roots top-to-bottom around their oriented selection frame. */
+  flipSelectedVertically: () => void;
   alignSelected: (type: AlignType) => void;
   distributeSelected: (axis: "h" | "v") => void;
   toggleHidden: (id: string) => void;

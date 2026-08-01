@@ -84,6 +84,8 @@ function sel(s: EditorState) {
     hasSelection: s.selection.length > 0,
     canGroup: canGroupSelection(s.doc, s.selection),
     canUngroup: selectionUnits(s.doc, s.selection).groups.length > 0,
+    canFlip:
+      roots.length > 0 && roots.every((id) => !isFrame(s.doc.nodes[id])),
     canMakeClippingMask: canMakeClippingMaskSelection(s.doc, s.selection),
     canReleaseClippingMask: canReleaseClippingMaskSelection(s.doc, s.selection),
     canMakeCompound: canMakeCompoundPathSelection(s.doc, s.selection),
@@ -360,6 +362,22 @@ export const COMMANDS: Command[] = [
     keys: [{ key: "g", mod: true, shift: true }],
     enabled: (s) => sel(s).canUngroup,
     run: (s) => s.ungroupSelected(),
+  },
+  {
+    id: "structure.flipHorizontal",
+    label: "Flip horizontally",
+    group: "Transform",
+    keys: [{ key: "h", shift: true }],
+    enabled: (s) => sel(s).canFlip,
+    run: (s) => s.flipSelectedHorizontally(),
+  },
+  {
+    id: "structure.flipVertical",
+    label: "Flip vertically",
+    group: "Transform",
+    keys: [{ key: "v", shift: true }],
+    enabled: (s) => sel(s).canFlip,
+    run: (s) => s.flipSelectedVertically(),
   },
   {
     id: "structure.makeClippingMask",

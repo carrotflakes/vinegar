@@ -1,175 +1,18 @@
-import { leafLocalBounds, unionNodeWorldBounds } from "@/model/geometry/bounds";
-import {
-  applyMatrix,
-  groupWorldMatrix,
-  invertMatrix,
-  matrixAngle,
-  multiply,
-  nodeWorldMatrix,
-  transformBounds,
-} from "@/model/geometry/matrix";
-import { isFrame } from "../model/scene";
-import type { Bounds, Document, FrameNode, Group, Matrix, Shape, SymbolInstance, Vec2 } from "../model/types";
+import { applyMatrix } from "@/model/geometry/matrix";
+import type { SelectionFrame } from "@/model/geometry/selectionFrame";
+import type { Vec2 } from "../model/types";
 import { handlePoint, type HandleId } from "./handles";
 
-/** A selectable paintable leaf: a shape or a symbol instance. */
-export type SelectionLeaf = Shape | SymbolInstance;
-
-/**
- * An oriented frame around the current selection.
- * - Single shape: `bounds` is the shape's local geometry box and `rotation`
- *   its own rotation, so the frame is oriented with the shape.
- * - Multiple shapes: `bounds` is the world AABB and `rotation` is 0.
- */
-export interface SelectionFrame {
-  /** Geometric center of the selection in world space. */
-  center: Vec2;
-  /** Effective rotation center in world space. */
-  pivot: Vec2;
-  rotation: number;
-  bounds: Bounds;
-  transform: Matrix;
-}
+export {
+  frameNodeSelectionFrame,
+  getSelectionFrame,
+  singleSelectedFrame,
+  type SelectionFrame,
+  type SelectionLeaf,
+} from "@/model/geometry/selectionFrame";
 
 /** Screen-space gap (px) between the top edge and the rotation handle. */
 export const ROTATE_OFFSET = 22;
-
-export function getSelectionFrame(
-  doc: Document,
-  shapes: SelectionLeaf[],
-  group?: Group | null,
-  selectionPivot?: Vec2 | null,
-  selectionTransform?: Matrix | null
-): SelectionFrame | null {
-  if (shapes.length === 0) return null;
-  if (group) {
-    const transform = groupWorldMatrix(doc, group.id);
-    const inverse = invertMatrix(transform);
-    if (inverse) {
-      const localBounds = shapes.map((shape) =>
-        transformBounds(
-          leafLocalBounds(doc, shape),
-          multiply(inverse, nodeWorldMatrix(doc, shape.id))
-        )
-      );
-      const x = Math.min(...localBounds.map((b) => b.x));
-      const y = Math.min(...localBounds.map((b) => b.y));
-      const right = Math.max(...localBounds.map((b) => b.x + b.width));
-      const bottom = Math.max(...localBounds.map((b) => b.y + b.height));
-      const bounds = { x, y, width: right - x, height: bottom - y };
-      return {
-        center: applyMatrix(transform, {
-          x: x + bounds.width / 2,
-          y: y + bounds.height / 2,
-        }),
-        pivot: applyMatrix(
-          transform,
-          group.transformOrigin ?? {
-            x: x + bounds.width / 2,
-            y: y + bounds.height / 2,
-          }
-        ),
-        rotation: matrixAngle(transform),
-        bounds,
-        transform,
-      };
-    }
-  }
-  if (shapes.length === 1) {
-    const s = shapes[0];
-    const bounds = leafLocalBounds(doc, s);
-    const transform = nodeWorldMatrix(doc, s.id);
-    const center = applyMatrix(transform, {
-        x: bounds.x + bounds.width / 2,
-        y: bounds.y + bounds.height / 2,
-      });
-    return {
-      center,
-      pivot: s.transformOrigin
-        ? applyMatrix(transform, s.transformOrigin)
-        : center,
-      rotation: matrixAngle(transform),
-      bounds,
-      transform,
-    };
-  }
-  if (selectionTransform) {
-    const inverse = invertMatrix(selectionTransform);
-    if (inverse) {
-      const localBounds = shapes.map((shape) =>
-        transformBounds(
-          leafLocalBounds(doc, shape),
-          multiply(inverse, nodeWorldMatrix(doc, shape.id))
-        )
-      );
-      const x = Math.min(...localBounds.map((b) => b.x));
-      const y = Math.min(...localBounds.map((b) => b.y));
-      const right = Math.max(...localBounds.map((b) => b.x + b.width));
-      const bottom = Math.max(...localBounds.map((b) => b.y + b.height));
-      const bounds = { x, y, width: right - x, height: bottom - y };
-      const center = applyMatrix(selectionTransform, {
-        x: x + bounds.width / 2,
-        y: y + bounds.height / 2,
-      });
-      return {
-        center,
-        pivot: selectionPivot ?? center,
-        rotation: matrixAngle(selectionTransform),
-        bounds,
-        transform: selectionTransform,
-      };
-    }
-  }
-  // Can be null when the selection is only instances of empty symbols.
-  const b = unionNodeWorldBounds(doc, shapes.map((s) => s.id));
-  if (!b) return null;
-  return {
-    center: { x: b.x + b.width / 2, y: b.y + b.height / 2 },
-    pivot: selectionPivot ?? {
-      x: b.x + b.width / 2,
-      y: b.y + b.height / 2,
-    },
-    rotation: 0,
-    bounds: b,
-    transform: [1, 0, 0, 1, 0, 0],
-  };
-}
-
-/** The lone selected frame node, or null (used to frame it by its content box). */
-export function singleSelectedFrame(
-  doc: Document,
-  selection: string[]
-): FrameNode | null {
-  if (selection.length !== 1) return null;
-  const node = doc.nodes[selection[0]];
-  return isFrame(node) ? node : null;
-}
-
-/**
- * A selection frame for a frame node: its bounds are the content box
- * `[0,0,w,h]` in frame-local space (not the union of its children), oriented by
- * the frame's own transform.
- */
-export function frameNodeSelectionFrame(
-  doc: Document,
-  frame: FrameNode
-): SelectionFrame {
-  const transform = nodeWorldMatrix(doc, frame.id);
-  const bounds = { x: 0, y: 0, width: frame.width, height: frame.height };
-  const center = applyMatrix(transform, {
-    x: frame.width / 2,
-    y: frame.height / 2,
-  });
-  return {
-    center,
-    pivot: frame.transformOrigin
-      ? applyMatrix(transform, frame.transformOrigin)
-      : center,
-    rotation: matrixAngle(transform),
-    bounds,
-    transform,
-  };
-}
 
 /** World position of a resize handle on the frame. */
 export function frameHandlePoint(frame: SelectionFrame, id: HandleId): Vec2 {

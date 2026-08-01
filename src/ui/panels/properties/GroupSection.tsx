@@ -6,7 +6,7 @@ import { clippingMask } from "../../../model/clippingMask";
 import {
   applyMatrix,
   applyWorldTransformToNode,
-  matrixAngle,
+  matrixRotationAngle,
   nodeWorldMatrix,
   rotationAbout,
 } from "@/model/geometry/matrix";
@@ -21,6 +21,7 @@ import {
   RotationField,
 } from "./StyleFields";
 import Section from "../Section";
+import { TransformFlipControls } from "./TransformSection";
 
 interface GroupSectionProps {
   doc: Document;
@@ -39,7 +40,7 @@ export function GroupTransformSection({
 }: GroupSectionProps) {
   const updateNodeStyle = useEditor((state) => state.updateNodeStyle);
   const rotationDeg = Math.round(
-    (matrixAngle(nodeWorldMatrix(doc, group.id)) * 180) / Math.PI
+    (matrixRotationAngle(nodeWorldMatrix(doc, group.id)) * 180) / Math.PI
   );
   const setRotation = (degrees: number) => {
     const mask = clippingMask(doc, group);
@@ -56,7 +57,7 @@ export function GroupTransformSection({
     const world = nodeWorldMatrix(doc, group.id);
     const pivot = applyMatrix(world, localCenter);
     const target = (degrees * Math.PI) / 180;
-    const delta = target - matrixAngle(world);
+    const delta = target - matrixRotationAngle(world);
     updateNodeStyle(group.id, {
       transform: applyWorldTransformToNode(
         doc,
@@ -77,6 +78,7 @@ export function GroupTransformSection({
           updateNodeStyle(group.id, { transformOrigin: null })
         }
       />
+      <TransformFlipControls />
     </Section>
   );
 }

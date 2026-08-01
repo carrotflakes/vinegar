@@ -22,7 +22,7 @@ export function applyMatrix(m: Matrix, p: Vec2): Vec2 {
 }
 
 export function invertMatrix(m: Matrix): Matrix | null {
-  const det = m[0] * m[3] - m[1] * m[2];
+  const det = matrixDeterminant(m);
   if (Math.abs(det) < 1e-12) return null;
   return [
     m[3] / det,
@@ -32,6 +32,11 @@ export function invertMatrix(m: Matrix): Matrix | null {
     (m[2] * m[5] - m[3] * m[4]) / det,
     (m[1] * m[4] - m[0] * m[5]) / det,
   ];
+}
+
+/** Signed area scale. A negative value means the transform is mirrored. */
+export function matrixDeterminant(m: Matrix): number {
+  return m[0] * m[3] - m[1] * m[2];
 }
 
 export function translation(x: number, y: number): Matrix {
@@ -53,6 +58,21 @@ export function rotationAbout(pivot: Vec2, angle: number): Matrix {
 
 export function matrixAngle(m: Matrix): number {
   return Math.atan2(m[1], m[0]);
+}
+
+/**
+ * Rotation component of an affine transform. A mirrored matrix has two
+ * equivalent decompositions (horizontal flip at angle A, or vertical flip at
+ * A + 180°); use the one nearest zero so an ordinary axis flip does not present
+ * itself as an otherwise-unnecessary half-turn.
+ */
+export function matrixRotationAngle(m: Matrix): number {
+  let angle = matrixAngle(m);
+  if (matrixDeterminant(m) < 0) {
+    const horizontal = Math.atan2(-m[2], m[3]);
+    if (Math.abs(horizontal) <= Math.abs(angle)) angle = horizontal;
+  }
+  return Math.abs(angle) < 1e-12 ? 0 : angle;
 }
 
 /** Largest linear scale component; useful for world/local tolerances. */
