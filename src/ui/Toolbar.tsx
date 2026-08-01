@@ -14,6 +14,7 @@ import {
   LuType,
 } from "react-icons/lu";
 import { useEditor, type ToolId } from "../store/editorStore";
+import GeneratorFlyout from "./GeneratorFlyout";
 import "./Toolbar.css";
 
 interface ToolDef {
@@ -62,6 +63,9 @@ export default function Toolbar() {
           </button>
         </Fragment>
       ))}
+      {/* Not a tool: opens the experimental generator flyout. */}
+      <span className="tool-sep" />
+      <GeneratorFlyout />
     </div>
   );
 }

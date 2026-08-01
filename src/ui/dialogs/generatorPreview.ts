@@ -89,14 +89,25 @@ function drawPreviewGrid(
   ctx.restore();
 }
 
+export interface GeometryPreviewOptions {
+  /** Draw the reference grid and its scale key (off for small thumbnails). */
+  grid?: boolean;
+  /** Empty margin around the fitted geometry, in CSS pixels. */
+  pad?: number;
+}
+
 /**
  * Draw generator geometry into a preview canvas, fitted and centered. All
  * subpaths share one path so the nonzero fill cuts holes (e.g. a gear's
  * center), matching how the canvas renders a bezier node.
+ *
+ * With the grid on, the local origin is kept in view so the geometry's position
+ * relative to it is readable; a grid-less thumbnail fits the geometry alone.
  */
 export function drawGeometryPreview(
   canvas: HTMLCanvasElement | null,
-  subpaths: PathSubpath[] | null
+  subpaths: PathSubpath[] | null,
+  { grid = true, pad = 14 }: GeometryPreviewOptions = {}
 ): void {
   if (!canvas) return;
   const ctx = canvas.getContext("2d");
@@ -129,20 +140,21 @@ export function drawGeometryPreview(
 
   // Keep the generator's local origin visible, including for geometry that
   // lives entirely on one side of it.
-  minX = Math.min(minX, 0);
-  minY = Math.min(minY, 0);
-  maxX = Math.max(maxX, 0);
-  maxY = Math.max(maxY, 0);
+  if (grid) {
+    minX = Math.min(minX, 0);
+    minY = Math.min(minY, 0);
+    maxX = Math.max(maxX, 0);
+    maxY = Math.max(maxY, 0);
+  }
 
   const bw = maxX - minX || 1;
   const bh = maxY - minY || 1;
-  const pad = 14;
   const scale = Math.min((w - 2 * pad) / bw, (h - 2 * pad) / bh);
   const ox = (w - bw * scale) / 2 - minX * scale;
   const oy = (h - bh * scale) / 2 - minY * scale;
   const T = (p: Vec2): Vec2 => ({ x: p.x * scale + ox, y: p.y * scale + oy });
 
-  drawPreviewGrid(ctx, w, h, scale, ox, oy);
+  if (grid) drawPreviewGrid(ctx, w, h, scale, ox, oy);
 
   ctx.beginPath();
   for (const sp of subpaths) {

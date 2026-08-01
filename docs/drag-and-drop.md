@@ -46,7 +46,9 @@ capture.
 ## `usePanelCanvasDrag` — library item onto the canvas
 
 `src/ui/usePanelCanvasDrag.ts` wraps `useTouchDrag` (with `capture: true`) for
-dragging an asset, symbol or generator out of a panel and dropping it onto the drawing.
+dragging an asset, symbol or generator out of a panel — or a built-in generator
+out of the toolbar's generator flyout (`src/ui/GeneratorFlyout.tsx`) — and
+dropping it onto the drawing.
 Because there is no native drag image, it appends a floating **ghost** to
 `document.body` that follows the pointer, and on release over the canvas it
 computes the world-space drop point with `canvasDropPlacement(clientX, clientY)`
