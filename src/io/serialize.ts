@@ -12,11 +12,9 @@ import {
   type ShapeType,
 } from "../model/types";
 
-/**
- * Only the current version is accepted; there is no migration from older
- * formats — pre-v30 files fail to open with a clear message.
- */
-export const CURRENT_FILE_VERSION = 30 as const;
+export const CURRENT_FILE_VERSION = 31 as const;
+/** Older schemas accepted directly by the current document validator. */
+const SUPPORTED_FILE_VERSIONS = [30, CURRENT_FILE_VERSION] as const;
 
 export interface VinegarFile {
   app: "vinegar";
@@ -122,6 +120,11 @@ const isPathModifier = (value: unknown): boolean => {
   }
   if (value.type === "offset") {
     return isNumber(value.distance) && STROKE_JOINS.includes(value.join as never);
+  }
+  if (value.type === "outline") {
+    return isNumber(value.width) && value.width >= 0 &&
+      STROKE_CAPS.includes(value.cap as never) &&
+      STROKE_JOINS.includes(value.join as never);
   }
   return value.type === "smooth" || value.type === "reverse";
 };
@@ -234,7 +237,7 @@ export function parseDocument(text: string): Document {
   if (!isObject(data) || data.app !== "vinegar") {
     throw new Error("Not a Vinegar file.");
   }
-  if (data.version !== CURRENT_FILE_VERSION) {
+  if (!SUPPORTED_FILE_VERSIONS.includes(data.version as never)) {
     throw new Error(`Unsupported Vinegar file version: ${String(data.version)}.`);
   }
   if (!isCurrentDocument(data.document)) {

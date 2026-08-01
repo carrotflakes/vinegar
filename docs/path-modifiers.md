@@ -1,6 +1,6 @@
 # Path modifiers
 
-Status: **implemented** (2026-08-02). File version: **v30** (additive shape
+Status: **implemented** (2026-08-02). File version: **v31** (additive shape
 field, but Vinegar's strict current-only file policy requires a version bump;
 absent `modifiers` still means no change). Related: extends the generator concept
 ([document-model.md](document-model.md)); modeled on `effects`; overlaps
@@ -51,6 +51,8 @@ type Modifier =
   | { type: "simplify"; tolerance: number }
   | { type: "flatten"; tolerance: number }
   | { type: "offset"; distance: number; join: "miter" | "round" | "bevel" }
+  | { type: "outline"; width: number; cap: "butt" | "round" | "square";
+      join: "miter" | "round" | "bevel" }
   | { type: "smooth" }
   | { type: "reverse" };
 // each modifier optionally: { enabled?: boolean } to toggle without removing
@@ -132,7 +134,7 @@ top" model, and mirrors how `effects` already leaves `subpaths` untouched.
   resolved geometry once render does.
 - **File format**: additive `modifiers?` field; absent ⇒ unchanged. Vinegar
   persists base geometry plus the modifier stack, not a duplicate resolved
-  cache. Older builds reject the v30 wrapper under the current-only policy.
+  cache. Current builds also accept compatible v30 files.
 
 ## Decisions and deferred work
 
@@ -150,7 +152,9 @@ top" model, and mirrors how `effects` already leaves `subpaths` untouched.
 
 - `resolvedSubpaths()` with identity-based memoization routes rendering,
   hit-testing, bounds, snapping, geometry operations, clipping, and export.
-- Simplify, Flatten, Smooth, Reverse, and Offset are stackable and toggleable.
+- Simplify, Flatten, Smooth, Reverse, Offset, and Outline are stackable and
+  toggleable. Outline turns closed contours into centered bands and open
+  contours into filled strokes with configurable width, cap, and join.
 - The Properties panel supports live parameter preview, reorder, remove,
   enable/disable, and Apply; scrubbing commits as one undo step.
 - Registry commands expose modifier addition and Apply in the command palette

@@ -203,6 +203,35 @@ test("offset preserves separate contours in one path", () => {
   assert.deepEqual(shapeBounds(shape), { x: -2, y: -2, width: 44, height: 14 });
 });
 
+test("outline turns a closed contour into a centered band", () => {
+  const shape = path(
+    [{ type: "outline", width: 4, cap: "butt", join: "miter" }],
+    { fillRule: "evenodd" }
+  );
+  const resolved = resolvedSubpaths(shape);
+  assert.equal(insideEvenOdd(resolved, { x: 1, y: 5 }), true);
+  assert.equal(insideEvenOdd(resolved, { x: 10, y: 5 }), false);
+  assert.equal(insideEvenOdd(resolved, { x: -3, y: 5 }), false);
+  assert.deepEqual(shapeBounds(shape), { x: -2, y: -2, width: 24, height: 14 });
+});
+
+test("outline applies caps to an open contour", () => {
+  const shape = path(
+    [{ type: "outline", width: 10, cap: "square", join: "round" }],
+    {
+      fillRule: "evenodd",
+      subpaths: [{
+        closed: false,
+        anchors: [
+          { p: { x: 0, y: 0 }, hIn: null, hOut: null },
+          { p: { x: 20, y: 0 }, hIn: null, hOut: null },
+        ],
+      }],
+    }
+  );
+  assert.deepEqual(shapeBounds(shape), { x: -5, y: -5, width: 30, height: 10 });
+});
+
 test("apply bakes resolved geometry, clears the stack, and detaches generator", () => {
   const shape = path([{ type: "reverse" }]);
   shape.generator = { scriptId: "star", args: { points: 5 } };
@@ -214,10 +243,11 @@ test("apply bakes resolved geometry, clears the stack, and detaches generator", 
   assert.equal(shape.modifiers.length, 1);
 });
 
-test("modifier stacks round-trip in v30 documents", () => {
+test("modifier stacks round-trip in v31 documents", () => {
   const shape = path([
     { type: "simplify", tolerance: 1.25, enabled: false },
     { type: "offset", distance: -3, join: "bevel" },
+    { type: "outline", width: 6, cap: "square", join: "miter" },
   ]);
   const empty = createEmptyDocument();
   const doc = {
@@ -226,7 +256,7 @@ test("modifier stacks round-trip in v30 documents", () => {
     nodes: { [shape.id]: shape },
   };
   const text = serializeDocument(doc);
-  assert.equal(JSON.parse(text).version, 30);
+  assert.equal(JSON.parse(text).version, 31);
   assert.deepEqual(parseDocument(text).nodes[shape.id].modifiers, shape.modifiers);
 });
 
@@ -256,6 +286,7 @@ test("selection context menu groups modifier commands in a submenu", () => {
       "Add Simplify modifier",
       "Add Flatten modifier",
       "Add Offset modifier",
+      "Add Outline modifier",
       "Add Smooth modifier",
       "Add Reverse modifier",
     ]

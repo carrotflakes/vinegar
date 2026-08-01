@@ -6,19 +6,10 @@ active tool, selection, viewport and undo history does not belong in the file.
 ## Invariants
 
 - Every key in `nodes` equals that shape or group's `id`.
-- **No node field is optional.** Every field a node type declares is always
-  present: a defaulted field carries its default explicitly (`blendMode:
-  "normal"`, `effects: []`, `hidden: false`, `strokeDash: []`, `cornerRadius:
-  0`, `fillRule: "nonzero"`) and a genuinely absent value is `null`
-  (`generator`, `transformOrigin`, `fill`, an asset's `name`). `undefined` is
-  never a legal value, so each state has exactly one representation and the
-  validator rejects a file that omits a field. New fields follow the same rule
-  (`T | null`, never `T?`) — optional fields only ever existed to make additive
-  migrations free, and there is no migration chain any more.
-  `exactOptionalPropertyTypes` is on, so a patch may not smuggle an explicit
-  `undefined` into a required field either (`{ blendMode: undefined }` is a
-  compile error). Option bags outside the model that genuinely accept "absent
-  or undefined" declare it as `?: T | undefined`.
+- Node fields are required unless absence is a stable default for additive
+  compatibility (for example, absent `modifiers` means an empty stack).
+  Defaults are stored explicitly (`blendMode: "normal"`, `effects: []`); a
+  genuinely absent value is `null`. `undefined` is invalid for required fields.
 - `rootIds` and each container's `childIds` are back-to-front and are the only
   persisted sources of hierarchy and paint order.
 - Every node is owned exactly once by either `rootIds` or one `childIds` list.
@@ -93,10 +84,9 @@ active tool, selection, viewport and undo history does not belong in the file.
   Typography is one style per node (`fontFamily`, size, weight, italic,
   line-height and alignment); line layout is derived from the text at render.
 
-The file wrapper version is deliberately strict. The current version is v30 and
-it is the only accepted version — there is no migration chain, so older files
-are rejected outright. Changing the persisted shape of `Document` requires
-bumping `CURRENT_FILE_VERSION`.
+The current file version is v31; loading also accepts compatible v30 files.
+Persisted model changes require a version review and, when incompatible, a
+migration.
 
 ## Coordinate policy
 

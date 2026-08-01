@@ -106,6 +106,7 @@ export function selectionMenu(): MenuEntry[] {
     "path.addSimplifyModifier",
     "path.addFlattenModifier",
     "path.addOffsetModifier",
+    "path.addOutlineModifier",
     "path.addSmoothModifier",
     "path.addReverseModifier",
   ]

@@ -41,6 +41,8 @@ The detailed, developer-facing catalogue of what Vinegar does.
 - **Path ops**: **Join** welds selected open paths' nearby endpoints into continuous contours (closing a contour whose ends meet); **Cut** breaks a contour at selected anchors (the exact inverse of Join); **Combine** gathers several paths into one multi-contour path without moving anything — the container open contours otherwise lack, since a compound path only takes closed children; **Split subpaths** breaks a multi-contour path back into one path per contour, inside a group that preserves the original's compositing; and one-shot **Simplify / Smooth / Flatten / Reverse** cleanup. See [path-commands.md](path-commands.md)
 - **Convert to path** turns rectangles (including rounded corners), ellipses, lines, Brush strokes and compound paths into ordinary editable paths while preserving their appearance
 - **Outline stroke**: convert a shape's stroke into a filled path (`clipper-lib`)
+- **Path modifiers** include a non-destructive Outline stage with editable
+  width, cap, and join settings for closed contours and open paths
 
 Related design notes: [path-unification.md](path-unification.md), [path-modifiers.md](path-modifiers.md).
 

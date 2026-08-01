@@ -412,6 +412,13 @@ export const COMMANDS: Command[] = [
     run: (s) => s.addPathModifierSelected("offset"),
   },
   {
+    id: "path.addOutlineModifier",
+    label: "Add Outline modifier",
+    group: "Path",
+    enabled: (s) => sel(s).canPathOp,
+    run: (s) => s.addPathModifierSelected("outline"),
+  },
+  {
     id: "path.addSmoothModifier",
     label: "Add Smooth modifier",
     group: "Path",

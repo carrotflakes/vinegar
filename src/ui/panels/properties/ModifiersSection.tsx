@@ -9,6 +9,7 @@ function modifierLabel(type: PathModifier["type"]): string {
     case "simplify": return "Simplify";
     case "flatten": return "Flatten";
     case "offset": return "Offset";
+    case "outline": return "Outline";
     case "smooth": return "Smooth";
     case "reverse": return "Reverse";
   }
@@ -133,6 +134,44 @@ export default function ModifiersSection({ shape }: { shape: PathShape }) {
                 </select>
               </label>
             </>
+          ) : modifier.type === "outline" ? (
+            <>
+              <div className="geometry-grid">
+                {numberField("Width", modifier.width, (value) =>
+                  replace(index, { ...modifier, width: Math.max(0, value) }), 0
+                )}
+              </div>
+              <label className="field-inline">
+                <span>Cap</span>
+                <select
+                  className="blend-select"
+                  value={modifier.cap}
+                  onChange={(event) => replace(index, {
+                    ...modifier,
+                    cap: event.target.value as typeof modifier.cap,
+                  })}
+                >
+                  <option value="butt">Butt</option>
+                  <option value="round">Round</option>
+                  <option value="square">Square</option>
+                </select>
+              </label>
+              <label className="field-inline">
+                <span>Join</span>
+                <select
+                  className="blend-select"
+                  value={modifier.join}
+                  onChange={(event) => replace(index, {
+                    ...modifier,
+                    join: event.target.value as typeof modifier.join,
+                  })}
+                >
+                  <option value="miter">Miter</option>
+                  <option value="round">Round</option>
+                  <option value="bevel">Bevel</option>
+                </select>
+              </label>
+            </>
           ) : null}
         </div>
       ))}
@@ -150,6 +189,7 @@ export default function ModifiersSection({ shape }: { shape: PathShape }) {
           <option value="simplify">Simplify</option>
           <option value="flatten">Flatten</option>
           <option value="offset">Offset</option>
+          <option value="outline">Outline</option>
           <option value="smooth">Smooth</option>
           <option value="reverse">Reverse</option>
         </select>

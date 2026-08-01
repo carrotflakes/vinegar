@@ -6,6 +6,7 @@ import type {
   PathModifier,
   PathShape,
   PathSubpath,
+  StrokeCap,
   StrokeJoin,
 } from "../types";
 
@@ -18,6 +19,7 @@ export const DEFAULT_PATH_MODIFIER: Record<
   simplify: () => ({ type: "simplify", tolerance: 2.5 }),
   flatten: () => ({ type: "flatten", tolerance: 0.5 }),
   offset: () => ({ type: "offset", distance: 10, join: "round" }),
+  outline: () => ({ type: "outline", width: 10, cap: "round", join: "round" }),
   smooth: () => ({ type: "smooth" }),
   reverse: () => ({ type: "reverse" }),
 };
@@ -28,6 +30,37 @@ function clipperJoin(join: StrokeJoin): number {
     case "round": return ClipperLib.JoinType.jtRound;
     case "bevel": return ClipperLib.JoinType.jtSquare;
   }
+}
+
+function clipperEnd(cap: StrokeCap, closed: boolean): number {
+  if (closed) return ClipperLib.EndType.etClosedLine;
+  switch (cap) {
+    case "butt": return ClipperLib.EndType.etOpenButt;
+    case "round": return ClipperLib.EndType.etOpenRound;
+    case "square": return ClipperLib.EndType.etOpenSquare;
+  }
+}
+
+/** Turn every contour into a centered filled band. */
+function outlineSubpaths(
+  subpaths: PathSubpath[],
+  width: number,
+  cap: StrokeCap,
+  join: StrokeJoin
+): PathSubpath[] {
+  if (width <= 0) return [];
+  const outline = new ClipperLib.ClipperOffset(4, OFFSET_FLATNESS * SCALE);
+  let added = false;
+  for (const subpath of subpaths) {
+    const path = intPath(flattenSubpathAdaptive(subpath, OFFSET_FLATNESS));
+    if (path.length < 2) continue;
+    outline.AddPath(path, clipperJoin(join), clipperEnd(cap, subpath.closed));
+    added = true;
+  }
+  if (!added) return [];
+  const tree = new ClipperLib.PolyTree();
+  outline.Execute(tree, width / 2 * SCALE);
+  return ringsToSubpaths(treeToPolys(tree).flat());
 }
 
 /** Offset flattened contours. Open contours use a two-sided outline. */
@@ -94,6 +127,8 @@ function applyModifier(
       return applyPathOpSubpaths(subpaths, "reverse");
     case "offset":
       return offsetSubpaths(subpaths, modifier.distance, modifier.join, fillRule);
+    case "outline":
+      return outlineSubpaths(subpaths, modifier.width, modifier.cap, modifier.join);
   }
 }
 
