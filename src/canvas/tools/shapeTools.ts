@@ -343,7 +343,8 @@ export function onPencilMove(
  * and show the fill the closed path would get. Closing is otherwise invisible
  * until the pointer is up, and by then it has already happened — the pen shows
  * the same promise with the same mark while a click would close its draft.
- * Extensions of an existing path never close.
+ * Extensions of an existing path never close. This is the stroke's own state
+ * (`closeHint`), not the hover affordance that rings someone else's endpoint.
  */
 function updateCloseHint(
   ctx: ToolContext,
@@ -368,10 +369,10 @@ function updateCloseHint(
       anchors.length + settled.points.length,
       pencilCloseTol(ctx, state)
     );
-  const previousCloses = ctx.endpointHint.current !== null;
+  const previousCloses = ctx.closeHint.current !== null;
   const nextFill = closes ? state.style.fill : null;
   const fillChanged = !stroke.extend && shape.fill !== nextFill;
-  ctx.endpointHint.current = closes ? first : null;
+  ctx.closeHint.current = closes ? first : null;
   if (!stroke.extend) shape.fill = nextFill;
   return previousCloses !== closes || fillChanged;
 }
@@ -387,7 +388,7 @@ export function finishPencil(
   const shape = ctx.preview.current;
   ctx.preview.current = null;
   // The close ring belongs to the stroke; touch has no hover to clear it later.
-  ctx.endpointHint.current = null;
+  ctx.closeHint.current = null;
   ctx.guides.current = [];
   if (stroke && shape && shape.type === "path") {
     settlePencilTail(stroke, shape, world, pencilMinDist(state));

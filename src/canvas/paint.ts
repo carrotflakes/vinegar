@@ -56,6 +56,8 @@ export interface PaintInput {
   brushHover: { p: Vec2; radius: number } | null;
   /** World position of the open-path endpoint the pencil or pen would continue. */
   endpointHint: Vec2 | null;
+  /** Start point of the live freehand stroke while releasing would close it. */
+  closeHint: Vec2 | null;
   guides: Guide[];
   spacings: Spacing[];
   /** Shape hidden from the scene while its text is being edited in the DOM. */
@@ -80,6 +82,7 @@ export function paintCanvas(input: PaintInput): void {
     hover,
     brushHover,
     endpointHint,
+    closeHint,
     guides,
     spacings,
     hiddenTextId,
@@ -222,6 +225,9 @@ export function paintCanvas(input: PaintInput): void {
   if (endpointHint && (tool === "pencil" || tool === "pen")) {
     drawEndpointHint(ctx2d, dpr, viewport, endpointHint);
   }
+  // Same ring, different question: "release here and the path closes". Only a
+  // live stroke sets it, so no tool gate is needed.
+  if (closeHint) drawEndpointHint(ctx2d, dpr, viewport, closeHint);
   if (interaction.kind === "text-create") {
     drawTextDraft(ctx2d, dpr, viewport, interaction.start, interaction.current);
   }

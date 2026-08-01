@@ -215,11 +215,18 @@ export interface ToolContext {
   /**
    * World position of the open path's endpoint the active tool would continue
    * if drawing started now, highlighted as an affordance — the pencil needs the
-   * path selected, the pen takes any. Mid-stroke the pencil reuses it for its
-   * own start point while releasing there would close the path — the same
-   * "connect here" promise. Null when no endpoint is in reach.
+   * path selected, the pen takes any. Null when no endpoint is in reach. This
+   * is a *hover* state; the mid-stroke "would close" promise is
+   * {@link ToolContext.closeHint}, and the two are kept apart so neither has to
+   * reason about the other's lifetime (they render as the same ring: it means
+   * "the path connects here" either way).
    */
   endpointHint: { current: Vec2 | null };
+  /**
+   * World position of the live freehand stroke's own start point while
+   * releasing now would close it. Set during the drag, cleared when it ends.
+   */
+  closeHint: { current: Vec2 | null };
   guides: { current: Guide[] };
   spacings: { current: Spacing[] };
   /** Multiplier that enlarges hit targets when the primary pointer is touch. */

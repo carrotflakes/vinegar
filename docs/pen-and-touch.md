@@ -114,10 +114,19 @@ discards the stroke in progress. Only pen ownership rejects touch.
 
 ## Hover
 
-Pens report hover; fingers do not. The brush/eraser tip outline
-(`drawBrushCursor` in `overlay.ts`, fed by `ToolContext.brushHover`) is drawn
-only under a hovering pen, so it needs no touch-side teardown. Treat hover
-affordances as pen-and-mouse-only in general.
+Pens and mice report hover; fingers do not. The brush/eraser tip outline
+(`drawBrushCursor` in `overlay.ts`, fed by `ToolContext.brushHover`) follows
+both — the size is in world units, so how thick a stroke lands depends on the
+zoom, and the ring is the only way to know before drawing. Touch simply never
+sets it, so it needs no touch-side teardown. Treat hover affordances as
+pen-and-mouse-only in general.
+
+Do not confuse the hover rings with a drag's own state: `endpointHint` is the
+hover affordance ("start here to continue that open path"), while `closeHint`
+belongs to the live freehand stroke ("release here and it closes"). They draw
+as the same ring on purpose — it means the path connects at that point — but
+they are separate refs, so a pointer that leaves the canvas mid-stroke clears
+the hover chrome without touching the promise the drag is still making.
 
 ## Pressure
 

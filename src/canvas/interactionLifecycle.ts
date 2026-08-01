@@ -22,6 +22,7 @@ export function discardCanvasTransients(ctx: ToolContext): void {
   ctx.marquee.current = null;
   ctx.brushHover.current = null;
   ctx.endpointHint.current = null;
+  ctx.closeHint.current = null;
   ctx.lastInsert.current = null;
   ctx.guides.current = [];
   ctx.spacings.current = [];
@@ -71,7 +72,7 @@ export function cancelActiveInteraction(ctx: ToolContext): void {
       ctx.preview.current = null;
       // Also drop the capture state (and its copy of the extended path) and
       // the close ring, instead of leaving them for the next stroke to reset.
-      ctx.endpointHint.current = null;
+      ctx.closeHint.current = null;
       resetPencilStroke();
       break;
     case "brush":

@@ -30,6 +30,7 @@ function makeCtx() {
     hover: { current: null },
     brushHover: { current: null },
     endpointHint: { current: null },
+    closeHint: { current: null },
     guides: { current: [] },
     spacings: { current: [] },
     hitScale: () => 1,
@@ -78,7 +79,7 @@ test("previews a close that release-tail settlement will commit", () => {
   // The visible smoothed tail is still far from the start, but pointer-up at
   // the raw position will settle it inside the close radius.
   move({ x: 0, y: 0 }, 1000 / 60);
-  assert.deepEqual(ctx.endpointHint.current, { x: 0, y: 0 });
+  assert.deepEqual(ctx.closeHint.current, { x: 0, y: 0 });
 
   pencil.finishPencil(ctx, state, { x: 0, y: 0 });
   assert.equal(committedPath().subpaths[0].closed, true);
@@ -90,12 +91,12 @@ test("removes a stale close preview when release settlement will stay open", () 
   settleAt({ x: 60, y: 60 });
   settleAt({ x: 0, y: 60 });
   settleAt({ x: 0, y: 0 });
-  assert.deepEqual(ctx.endpointHint.current, { x: 0, y: 0 });
+  assert.deepEqual(ctx.closeHint.current, { x: 0, y: 0 });
 
   // One high-smoothing frame leaves the visible tail inside the close radius,
   // while settling toward this raw release position will make the path open.
   move({ x: 100, y: 0 }, 1000 / 60);
-  assert.equal(ctx.endpointHint.current, null);
+  assert.equal(ctx.closeHint.current, null);
   assert.equal(ctx.preview.current.fill, null);
 
   pencil.finishPencil(ctx, state, { x: 100, y: 0 });

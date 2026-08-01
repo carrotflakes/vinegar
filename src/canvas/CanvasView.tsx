@@ -48,6 +48,7 @@ export default function CanvasView() {
   const hoverRef = useRef<PenHover | null>(null);
   const brushHoverRef = useRef<{ p: Vec2; radius: number } | null>(null);
   const endpointHintRef = useRef<Vec2 | null>(null);
+  const closeHintRef = useRef<Vec2 | null>(null);
   const guidesRef = useRef<Guide[]>([]);
   const spacingsRef = useRef<Spacing[]>([]);
   const rafRef = useRef<number | null>(null);
@@ -83,6 +84,7 @@ export default function CanvasView() {
       hover: hoverRef.current,
       brushHover: brushHoverRef.current,
       endpointHint: endpointHintRef.current,
+      closeHint: closeHintRef.current,
       guides: guidesRef.current,
       spacings: spacingsRef.current,
       hiddenTextId: textEditRef.current?.original?.id ?? null,
@@ -126,6 +128,7 @@ export default function CanvasView() {
       hover: hoverRef,
       brushHover: brushHoverRef,
       endpointHint: endpointHintRef,
+      closeHint: closeHintRef,
       guides: guidesRef,
       spacings: spacingsRef,
       hitScale: () => (coarseRef.current ? TOUCH_HIT_SCALE : 1),

@@ -200,6 +200,10 @@ additional effects, or other feature expansion.
     アンカー種別あたりの置き場。PencilSection/BrushSection が前例）
   - [ ] ペン: アンカー 1 点だけで確定すると無言で消える（何も起きない理由が
     伝わらない）
+  - [ ] ペン: 開いたパスにも既定の塗りが乗る（`onPenDown` は
+    `styleFromDefaults` をそのまま使う）。pencil は開ストロークを `fill: null`
+    にし brush も常に null なので、同じ「開いた線」がツールで見た目が変わる。
+    Illustrator は乗せる側なので pen が業界標準ではあるが、どちらかに寄せる
   - [ ] ペン: `commitPenDraft` の変更検知が `JSON.stringify` 比較でキー順依存。
     明示的な比較か変更フラグに置き換える
   - [ ] ペン: アンカー配置ドラッグ中に位置そのものを直す手段がない
@@ -221,9 +225,10 @@ additional effects, or other feature expansion.
   - [ ] brush: 既定スタイルの stroke が None だとプレビューすら出ず無反応
     （`paintBrush` が即 return）。ブラシ色が Appearance の「線」スロットに
     あること自体が非自明なので、BrushSection に色スウォッチを置きたい
-  - [ ] brush: コミット直後にストロークが選択される（`addBrushStroke`）ため、
-    続けて色を変えると「次の線の既定」ではなく直前の線が変わる。ペイント系の
-    期待と逆。ブラシツール中は選択しない案
+  - [ ] pen/pencil/brush 共通: 描いた直後に図形が選択される（`addShape` の
+    `select` 既定が true、`addBrushStroke` も同様）ため、続けて色を変えると
+    「次の線の既定」ではなく直前の線が変わる。ペイント系の期待と逆なので、
+    描画ツール横断でどうするか決める（描画中は選択しない案）
   - [ ] brush: プレビューと確定結果が違う（taper / simplify / フィットは離した
     瞬間に初めて適用される）。せめて taper はライブ反映したい
   - [ ] brush: 描画中のプレビューがサンプルごとに全再構築（`buildPreview` ＋
