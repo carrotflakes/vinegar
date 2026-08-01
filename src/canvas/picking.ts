@@ -18,7 +18,11 @@ import {
 } from "../model/scene";
 import { framesInPaintOrder } from "../model/scene";
 import { invertMatrix, nodeWorldMatrix, applyMatrix } from "@/model/geometry/matrix";
-import { collectSnapTargets, snapPoint } from "@/model/geometry/snap";
+import {
+  collectSnapTargets,
+  snapPoint,
+  type SnapTargets,
+} from "@/model/geometry/snap";
 import { activeGuideLines } from "./guides";
 import type { Document, Shape, Vec2 } from "../model/types";
 import { worldToScreen } from "@/model/geometry/viewport";
@@ -242,7 +246,11 @@ export function pickLockedShape(ctx: ToolContext, world: Vec2): string | null {
 export function pointSnap(
   ctx: ToolContext,
   world: Vec2,
-  exclude: Set<string>
+  exclude: Set<string>,
+  /** Extra snap lines that are not shapes in the document — the pen's own
+   *  in-progress anchors, for instance. Honoured only when object snapping is
+   *  on, like the document's own targets. */
+  extra?: SnapTargets
 ): Vec2 {
   const state = useEditor.getState();
   ctx.spacings.current = [];
@@ -257,12 +265,19 @@ export function pointSnap(
       (s): s is Shape =>
         !!s && !isNodeHidden(state.doc, s.id) && !exclude.has(s.id)
     );
+  const docTargets = state.snapEnabled
+    ? collectSnapTargets(state.doc, others)
+    : { x: [], y: [] };
   const res = snapPoint(
     world,
     {
-      targets: state.snapEnabled
-        ? collectSnapTargets(state.doc, others)
-        : { x: [], y: [] },
+      targets:
+        extra && state.snapEnabled
+          ? {
+              x: [...docTargets.x, ...extra.x],
+              y: [...docTargets.y, ...extra.y],
+            }
+          : docTargets,
       gridSize: state.gridSnap ? state.gridSize : null,
       guideLines,
     },

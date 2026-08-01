@@ -3,6 +3,35 @@ import { setReadout } from "../store/pointerStore";
 import type { ToolContext } from "./interaction";
 import { cancelBrush } from "./tools/brushTool";
 import { cancelEraser } from "./tools/eraserTool";
+import { resetPencilStroke } from "./tools/shapeTools";
+import { usePenDraftInfo } from "../store/penDraftStore";
+
+/**
+ * Throw away every trace of an in-progress tool op *without* touching the
+ * store — for when the document itself has just been replaced (new / open /
+ * recover, see `_docEpoch`). Rolling back through history would be wrong here:
+ * the snapshot those rollbacks restore belongs to the previous document, and
+ * committing would drop a stray shape into the fresh one.
+ */
+export function discardCanvasTransients(ctx: ToolContext): void {
+  ctx.interaction.current = { kind: "none" };
+  ctx.penDraft.current = null;
+  ctx.penExtend.current = null;
+  ctx.preview.current = null;
+  ctx.hover.current = null;
+  ctx.marquee.current = null;
+  ctx.brushHover.current = null;
+  ctx.endpointHint.current = null;
+  ctx.lastInsert.current = null;
+  ctx.guides.current = [];
+  ctx.spacings.current = [];
+  resetPencilStroke();
+  cancelBrush(ctx);
+  cancelEraser(ctx);
+  usePenDraftInfo.getState().setAnchors(0);
+  setReadout(null);
+  ctx.scheduleDraw();
+}
 
 /** Discard any in-progress single-pointer tool op, rolling back the doc. */
 export function cancelActiveInteraction(ctx: ToolContext): void {

@@ -40,8 +40,16 @@ export interface TouchTapGesture {
  * handler: a real pinch travels far enough to disqualify itself, and the small
  * viewport drift a near-still pinch may have applied is rolled back here.
  */
-export function useTouchTapGesture(): TouchTapGesture {
+export function useTouchTapGesture(options?: {
+  /** Chance to claim the undo before the document's history sees it — the pen
+   *  draft steps back one anchor, exactly as its Cmd+Z does. Return true when
+   *  handled. */
+  undoOverride?: () => boolean;
+}): TouchTapGesture {
   const runRef = useRef<TapRun | null>(null);
+  // Read through a ref so the callbacks below stay stable across renders.
+  const optionsRef = useRef(options);
+  optionsRef.current = options;
 
   const reset = useCallback(() => {
     runRef.current = null;
@@ -86,6 +94,7 @@ export function useTouchTapGesture(): TouchTapGesture {
     if (!verdict) return false;
     const state = useEditor.getState();
     state.setViewport(run.startViewport);
+    if (verdict === "undo" && optionsRef.current?.undoOverride?.()) return true;
     // A gesture that lands on an empty stack would be completely silent, and
     // silence reads as "the gesture did not register". Say which it was.
     const stack = verdict === "undo" ? state.history.past : state.history.future;

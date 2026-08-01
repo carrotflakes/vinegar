@@ -28,6 +28,10 @@ import {
 let revisionCounter = 0;
 const nextRevision = () => ++revisionCounter;
 
+let epochCounter = 0;
+/** See `_docEpoch`: identifies one loaded document, not one of its states. */
+const nextEpoch = () => ++epochCounter;
+
 function historyLimit(): number {
   return usePreferences.getState().history.limit;
 }
@@ -102,6 +106,7 @@ function documentReset(doc: Document, saved: boolean) {
   const revision = { history: nextRevision(), maintenance: 0 };
   return {
     doc,
+    _docEpoch: nextEpoch(),
     gridSize: doc.settings.gridSize,
     selection: [],
     focusStack: [],

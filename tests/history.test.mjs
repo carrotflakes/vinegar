@@ -451,3 +451,28 @@ test("overlapping maintenance is cancelled with its interaction", () => {
   assert.equal(useEditor.getState().doc, saved);
   assert.equal(hasUnsavedChanges(useEditor.getState()), false);
 });
+
+// _docEpoch identifies one *loaded* document, not one of its states: the
+// canvas watches it to throw away drafts that belong to a document that is
+// gone (see CanvasView / discardCanvasTransients).
+test("the document epoch changes only when the document is replaced", () => {
+  const epoch = () => useEditor.getState()._docEpoch;
+  const start = epoch();
+
+  useEditor.getState().addShape(rect("r1"));
+  useEditor.getState().undo();
+  useEditor.getState().redo();
+  useEditor.getState().markSaved();
+  assert.equal(epoch(), start, "editing, undo, redo and saving stay in the doc");
+
+  useEditor.getState().newDocument();
+  const afterNew = epoch();
+  assert.notEqual(afterNew, start, "New replaces the document");
+
+  useEditor.getState().loadDocument(createEmptyDocument());
+  const afterLoad = epoch();
+  assert.notEqual(afterLoad, afterNew, "Open replaces it");
+
+  useEditor.getState().recoverDocument(createEmptyDocument());
+  assert.notEqual(epoch(), afterLoad, "recovery replaces it");
+});

@@ -30,9 +30,16 @@ export function useCanvasKeyboard(
           e.stopImmediatePropagation();
           commitPenDraft(ctx);
         } else if (e.key === "Escape") {
+          // Escape ends the path rather than discarding it: a draft never
+          // enters history, so throwing away a long one would be
+          // unrecoverable. Anything still worth keeping is committed (and can
+          // then be undone); a draft too short to be a path is dropped.
           e.preventDefault();
           e.stopImmediatePropagation();
-          cancelPenDraft(ctx);
+          const anchors =
+            ctx.penDraft.current.subpaths[0]?.anchors.length ?? 0;
+          if (anchors >= 2) commitPenDraft(ctx);
+          else cancelPenDraft(ctx);
         } else if (
           (mod && !e.shiftKey && e.key.toLowerCase() === "z") ||
           e.key === "Backspace" ||

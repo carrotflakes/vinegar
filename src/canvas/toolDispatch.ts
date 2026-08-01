@@ -150,7 +150,7 @@ export function dispatchToolMove(
       onEraserMove(ctx, state, world);
       break;
     case "pen-anchor":
-      onPenAnchorMove(ctx, state, inter.index, world, shift);
+      onPenAnchorMove(ctx, state, inter, world, shift, alt);
       break;
     case "node-anchor":
     case "node-handle":

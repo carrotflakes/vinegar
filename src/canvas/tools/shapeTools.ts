@@ -1,10 +1,5 @@
 import { pointsToAnchors, simplifyPath } from "@/model/path/freehand";
-import { reversePath } from "@/model/path/path";
-import {
-  applyMatrix,
-  invertMatrix,
-  shapeWorldMatrix,
-} from "@/model/geometry/matrix";
+import { applyMatrix } from "@/model/geometry/matrix";
 import {
   makeId,
   type Matrix,
@@ -22,7 +17,7 @@ import { usePencil } from "../../store/pencilStore";
 import { setReadout } from "../../store/pointerStore";
 import { CLICK_SLOP, type ToolContext } from "../interaction";
 import { EMPTY_EXCLUDE, pointSnap } from "../picking";
-import { pickOpenEndpoint } from "./penTool";
+import { grabRadius, pickupOpenPath } from "./openPathPickup";
 import { constrain45, formatAngle, formatSize } from "../util";
 
 // ---- rect / ellipse / line ------------------------------------------------
@@ -89,6 +84,11 @@ let pencilStroke:
   | { smoothed: Vec2; smoothing: number; last: Vec2; extend: PencilExtend | null }
   | null = null;
 
+/** Throw away any half-captured stroke (the document it belonged to is gone). */
+export function resetPencilStroke() {
+  pencilStroke = null;
+}
+
 export function startPencil(
   ctx: ToolContext,
   state: EditorState,
@@ -99,29 +99,24 @@ export function startPencil(
   // Starting near an endpoint of a *selected* open path continues it. Requiring
   // selection keeps the pencil from silently grabbing whatever lies under the
   // cursor (the pen tool continues any open path; here it must be deliberate).
-  const pick = pickOpenEndpoint(ctx, state, screen);
-  if (pick && state.selection.includes(pick.shape.id)) {
-    const worldMatrix = shapeWorldMatrix(state.doc, pick.shape);
-    const inverse = invertMatrix(worldMatrix);
-    if (inverse) {
-      // Reverse a "start" pickup so the drawn tail always appends to the end;
-      // continuing by hand overrides the geometry, so drop any generator link.
-      const base: PathShape = {
-        ...(pick.end === "start" ? reversePath(pick.shape) : pick.shape),
-        generator: null,
-      };
-      pencilStroke = {
-        smoothed: { ...world },
-        smoothing,
-        last: { ...world },
-        extend: { base, inverse, world: worldMatrix, newPoints: [] },
-      };
-      // The preview is the existing path; the drawn tail is appended live.
-      ctx.preview.current = structuredClone(base);
-      ctx.interaction.current = { kind: "pencil" };
-      ctx.scheduleDraw();
-      return;
-    }
+  const pick = pickupOpenPath(ctx, state, screen, { requireSelected: true });
+  if (pick) {
+    pencilStroke = {
+      smoothed: { ...world },
+      smoothing,
+      last: { ...world },
+      extend: {
+        base: pick.base,
+        inverse: pick.inverse,
+        world: pick.world,
+        newPoints: [],
+      },
+    };
+    // The preview is the existing path; the drawn tail is appended live.
+    ctx.preview.current = structuredClone(pick.base);
+    ctx.interaction.current = { kind: "pencil" };
+    ctx.scheduleDraw();
+    return;
   }
   pencilStroke = { smoothed: world, smoothing, last: world, extend: null };
   const shape: Shape = {
@@ -177,7 +172,16 @@ export function finishPencil(ctx: ToolContext, state: EditorState) {
     return;
   }
   if (shape && shape.type === "path" && shape.subpaths[0].anchors.length >= 2) {
-    state.addShape(freehandToPath(shape.subpaths[0].anchors.map((anchor) => anchor.p), state));
+    state.addShape(
+      freehandToPath(
+        shape.subpaths[0].anchors.map((anchor) => anchor.p),
+        state,
+        // Ending a stroke back on its start closes it, at the same distance
+        // (and the same touch enlargement) at which the pen closes a draft by
+        // clicking its first anchor.
+        grabRadius(ctx) / state.viewport.scale
+      )
+    );
   }
   ctx.scheduleDraw();
 }
@@ -295,11 +299,14 @@ function makeCreatedShape(
  * Convert a freehand polyline into a smooth, editable Bézier shape. Closes the
  * path when the stroke ends near where it began.
  */
-function freehandToPath(rawPoints: Vec2[], state: EditorState): PathShape {
+function freehandToPath(
+  rawPoints: Vec2[],
+  state: EditorState,
+  closeTol: number
+): PathShape {
   let pts = rawPoints;
   const first = pts[0];
   const last = pts[pts.length - 1];
-  const closeTol = 10 / state.viewport.scale;
   let closed = false;
   if (
     pts.length > 3 &&

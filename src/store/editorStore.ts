@@ -57,6 +57,7 @@ export const useEditor = create<EditorState>((set, get) => {
     savedDoc: initialDoc,
     _revision: initialRevision,
     _savedRevision: initialRevision,
+    _docEpoch: 0,
     selection: [],
     selectionPivot: null,
     selectionTransform: null,

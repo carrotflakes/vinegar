@@ -93,6 +93,12 @@ rejected while the pen is actually down are not, and reset the run). Without
 that, "draw a bad stroke, immediately two-finger undo" — the most common pair of
 actions in a painting app — would be swallowed by palm rejection.
 
+A live **pen draft** claims the two-finger undo before the document's history
+sees it (`undoOverride` in `useTouchTapGesture.ts`), so the gesture steps back
+one anchor — the same thing ⌘Z means while a draft is open. Without that, the
+finger and the keyboard would disagree: one would drop an anchor, the other
+would rewind an unrelated earlier edit.
+
 A tap that lands on an empty history stack says so ("Nothing to undo") rather
 than doing nothing: silence reads as a gesture that failed to register. The
 gestures themselves are advertised in the status-bar hint on coarse pointers,

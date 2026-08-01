@@ -14,7 +14,11 @@ import {
   singleSelectedFrame,
 } from "./frame";
 import { HANDLE_SIZE } from "./handles";
-import { TOUCH_DRAW_SCALE, type Interaction } from "./interaction";
+import {
+  TOUCH_DRAW_SCALE,
+  type Interaction,
+  type PenHover,
+} from "./interaction";
 import { ANCHOR_SIZE, HANDLE_DOT, WIDTH_KNOB } from "./nodes";
 import {
   drawFrameDropTarget,
@@ -46,11 +50,12 @@ export interface PaintInput {
   marquee: Bounds | null;
   interaction: Interaction;
   penDraft: PathShape | null;
-  hover: Vec2 | null;
+  /** Where the pen would place its next anchor, drawn as a rubber band. */
+  hover: PenHover | null;
   /** Hovering pen tip for the brush/eraser, with its radius in world units. */
   brushHover: { p: Vec2; radius: number } | null;
-  /** World position of the open-path endpoint the pencil would continue, if any. */
-  pencilHint: Vec2 | null;
+  /** World position of the open-path endpoint the pencil or pen would continue. */
+  endpointHint: Vec2 | null;
   guides: Guide[];
   spacings: Spacing[];
   /** Shape hidden from the scene while its text is being edited in the DOM. */
@@ -74,7 +79,7 @@ export function paintCanvas(input: PaintInput): void {
     penDraft,
     hover,
     brushHover,
-    pencilHint,
+    endpointHint,
     guides,
     spacings,
     hiddenTextId,
@@ -214,8 +219,8 @@ export function paintCanvas(input: PaintInput): void {
   if (brushHover && (tool === "brush" || tool === "eraser")) {
     drawBrushCursor(ctx2d, dpr, viewport, brushHover.p, brushHover.radius);
   }
-  if (pencilHint && tool === "pencil") {
-    drawEndpointHint(ctx2d, dpr, viewport, pencilHint);
+  if (endpointHint && (tool === "pencil" || tool === "pen")) {
+    drawEndpointHint(ctx2d, dpr, viewport, endpointHint);
   }
   if (interaction.kind === "text-create") {
     drawTextDraft(ctx2d, dpr, viewport, interaction.start, interaction.current);

@@ -18,6 +18,16 @@ export type FrameHit =
   | { type: "rotate" }
   | null;
 
+/**
+ * The pen's rubber-band target: where the next anchor would land (in the
+ * draft's local space) and whether placing it there closes the path — the
+ * preview and the click itself must agree on that.
+ */
+export interface PenHover {
+  p: Vec2;
+  close: boolean;
+}
+
 export type Interaction =
   | { kind: "none" }
   | { kind: "pan"; startScreen: Vec2; startOffset: Vec2 }
@@ -82,7 +92,13 @@ export type Interaction =
   | { kind: "pencil" }
   | { kind: "brush" }
   | { kind: "eraser" }
-  | { kind: "pen-anchor"; index: number }
+  | {
+      kind: "pen-anchor";
+      index: number;
+      /** The anchor already had an incoming handle (the pen picked up an
+       *  existing endpoint), so the drag may only pull its outgoing one. */
+      keepIn: boolean;
+    }
   | {
       kind: "node-anchor";
       shapeId: string;
@@ -172,15 +188,16 @@ export interface ToolContext {
   /** When the pen picked up an existing open path, its pre-edit original. */
   penExtend: { current: PathShape | null };
   lastInsert: { current: LastInsert | null };
-  hover: { current: Vec2 | null };
+  /** Where the pen's next anchor would land (see {@link PenHover}). */
+  hover: { current: PenHover | null };
   /** Brush/eraser tip preview under a hovering pen (world units), if any. */
   brushHover: { current: { p: Vec2; radius: number } | null };
   /**
-   * World position of a selected open path's endpoint the pencil would continue
-   * if a stroke started now, highlighted as an affordance. Null when the pencil
-   * is not hovering such an endpoint.
+   * World position of the open path's endpoint the active tool would continue
+   * if drawing started now, highlighted as an affordance — the pencil needs the
+   * path selected, the pen takes any. Null when no endpoint is in reach.
    */
-  pencilHint: { current: Vec2 | null };
+  endpointHint: { current: Vec2 | null };
   guides: { current: Guide[] };
   spacings: { current: Spacing[] };
   /** Multiplier that enlarges hit targets when the primary pointer is touch. */

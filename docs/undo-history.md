@@ -19,7 +19,14 @@ Document writes fall into three categories:
    redo and active interactions.
 
 Document lifecycle operations (`newDocument`, `loadDocument` and
-`recoverDocument`) reset both history stacks instead of creating entries.
+`recoverDocument`) reset both history stacks instead of creating entries, and
+bump `_docEpoch` — a counter identifying one *loaded* document rather than one
+of its states. Transient state that lives outside the store watches it: the
+canvas throws away its in-flight pen draft, freehand stroke and inline text
+session when the epoch changes (`discardCanvasTransients`), because they were
+drawn into a document that no longer exists. They are **discarded, never
+committed or rolled back** — committing would drop a stray shape into the fresh
+document, and a rollback would restore a snapshot belonging to the old one.
 Undo or redo during an interaction first cancels that interaction and stops.
 A regular transaction during an interaction terminates the gesture and records
 the gesture and command as separate linear entries. Later pointer updates are

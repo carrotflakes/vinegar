@@ -19,6 +19,7 @@ import {
   type NodeEditShape,
 } from "./nodes";
 import { CORNER_RADIUS_HANDLE_SIZE } from "./cornerRadiusHandle";
+import type { PenHover } from "./interaction";
 
 const ACCENT = "#3b82f6";
 /** Width knobs get their own hue so they read apart from Bézier handles. */
@@ -414,18 +415,12 @@ export function drawBrushCursor(
 }
 
 /**
- * Ring over the endpoint of a selected open path that the pencil would continue
- * if a stroke started now. A hollow accent disc, sized like a node handle, so it
- * reads as "connect here" without hiding the anchor beneath it.
+ * The "connect here" mark: a hollow accent disc sized like a node handle, so it
+ * reads without hiding the anchor beneath it. Drawn over an endpoint a tool
+ * would continue, and over the pen draft's first anchor when clicking there
+ * would close the path — the same promise either way, so the same mark.
  */
-export function drawEndpointHint(
-  ctx: CanvasRenderingContext2D,
-  dpr: number,
-  viewport: Viewport,
-  world: Vec2
-): void {
-  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-  const p = worldToScreen(viewport, world);
+function endpointRing(ctx: CanvasRenderingContext2D, p: Vec2): void {
   ctx.beginPath();
   ctx.arc(p.x, p.y, 5, 0, Math.PI * 2);
   ctx.fillStyle = "rgba(59, 130, 246, 0.25)";
@@ -435,6 +430,18 @@ export function drawEndpointHint(
   ctx.stroke();
 }
 
+/** Ring over the endpoint of an open path the pencil or pen would continue if
+ *  drawing started now. */
+export function drawEndpointHint(
+  ctx: CanvasRenderingContext2D,
+  dpr: number,
+  viewport: Viewport,
+  world: Vec2
+): void {
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  endpointRing(ctx, worldToScreen(viewport, world));
+}
+
 /** Draw the in-progress pen path: placed anchors plus a rubber-band segment. */
 export function drawPenDraft(
   ctx: CanvasRenderingContext2D,
@@ -442,7 +449,7 @@ export function drawPenDraft(
   viewport: Viewport,
   shape: PathShape,
   transform: Matrix,
-  hover: Vec2 | null
+  hover: PenHover | null
 ): void {
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   const toS = (w: Vec2) => worldToScreen(viewport, applyMatrix(transform, w));
@@ -451,17 +458,20 @@ export function drawPenDraft(
   if (anchors.length === 0) return;
 
   // Rubber band from the last anchor to the cursor, curving out via its handle.
+  // When the cursor is over the first anchor the band previews the *closing*
+  // segment instead, using that anchor's incoming handle as the far control.
   if (hover) {
     const last = anchors[anchors.length - 1];
     const from = toS(last.p);
     const c1 = toS(last.hOut ?? last.p);
-    const to = toS(hover);
+    const to = toS(hover.p);
+    const c2 = hover.close ? toS(anchors[0].hIn ?? anchors[0].p) : to;
     ctx.strokeStyle = "#c7d7f7";
     ctx.lineWidth = 1;
     ctx.setLineDash([4, 3]);
     ctx.beginPath();
     ctx.moveTo(from.x, from.y);
-    ctx.bezierCurveTo(c1.x, c1.y, to.x, to.y, to.x, to.y);
+    ctx.bezierCurveTo(c1.x, c1.y, c2.x, c2.y, to.x, to.y);
     ctx.stroke();
     ctx.setLineDash([]);
   }
@@ -490,6 +500,9 @@ export function drawPenDraft(
     ctx.lineWidth = 1.5;
     ctx.stroke();
   });
+
+  // Ring the first anchor while a click there would close the path.
+  if (hover?.close) endpointRing(ctx, toS(anchors[0].p));
 }
 
 /** Rubber-band rectangle swept while dragging out an area-text box. */

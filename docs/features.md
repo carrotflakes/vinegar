@@ -6,14 +6,14 @@ The detailed, developer-facing catalogue of what Vinegar does.
 ## Tools
 
 - Tools: Select, Edit Nodes, Rectangle, Ellipse, Line, **Pen (Bézier)**, **Brush** (pressure / variable width), **Eraser**, Pencil (freehand), **Bucket Fill**, Text, Frame
-- Pencil: freehand strokes are simplified and smoothed into an editable Bézier path (tweak it with the Node tool); end near the start to close it. Live smoothing strength and the commit-time simplify tolerance are adjustable in the tool options (both shared with the brush). Start a stroke near an endpoint of a **selected** open path to continue (extend) it instead of drawing a new one
+- Pencil: freehand strokes are simplified and smoothed into an editable Bézier path (tweak it with the Node tool); end near the start to close it (at the same distance the pen closes a draft, enlarged for touch). Live smoothing strength and the commit-time simplify tolerance are adjustable in the tool options (both shared with the brush). Start a stroke near an endpoint of a **selected** open path to continue (extend) it instead of drawing a new one
 - Brush: pen-pressure capture with adjustable size, pressure curve, stabilizer and taper; strokes remain editable vector centerlines with a derived variable-width envelope, or can be converted to ordinary filled paths.
   Consecutive strokes collect in an active drawing group. See [brush-strokes.md](brush-strokes.md)
 - Eraser: split or trim Brush strokes with a vector centerline eraser while preserving the surviving Bézier geometry and width profile
 - **Bucket Fill**: click an enclosed empty region to fill it with the current fill color — detected **vectorially** (no raster tracing), with an adjustable **gap-closing** tolerance for not-quite-closed line art; the fill lands as an ordinary editable even-odd path *below* the surrounding strokes.
   Clicking a filled shape or image treats it as the region's background: the fill spreads up to its edges and the strokes drawn on top, and is inserted directly above it — paint a background, draw line art, fill in between.
   An optional **"Fill to stroke centers"** mode stops fills at stroke/brush centerlines so adjacent fills stay seamless if the line art changes later. See [bucket-fill.md](bucket-fill.md)
-- Pen tool: click for corner anchors, click-drag for smooth anchors; click the first anchor to close, or Enter / double-click to finish, Esc to cancel; click an endpoint of an existing open path to continue it
+- Pen tool: click for corner anchors, click-drag for smooth anchors (**Alt** while dragging breaks the linkage — the outgoing handle moves alone, giving a cusp); click the first anchor to close (the rubber band previews the closing segment and the anchor rings when it is in reach), or Enter / Esc / double-click to finish, Backspace / ⌘Z to step back one anchor. Click an endpoint of an existing open path to continue it (the endpoint rings when it is in reach, as it does for the pencil) — dragging then pulls only the new outgoing handle, leaving the segment already drawn alone. Anchors snap to the draft's own anchors as well as to the document; a **Done / Close / Undo / Discard** bar appears while a path is in progress, so none of this needs a keyboard
 
 ## Editing geometry
 

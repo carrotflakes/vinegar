@@ -24,7 +24,8 @@ additional effects, or other feature expansion.
   arbitrary canvas rotation (currently only multiples of 90°)
 
 ## Mobile / touch
-- [ ] On-screen alternatives for the remaining keyboard-only actions (delete, copy/paste, group, pen finish/cancel)
+- [ ] On-screen alternatives for the remaining keyboard-only actions (delete, copy/paste, group)
+      — the pen's draft bar (Done / Close / Undo / Discard) is done
 
 ## Backlog / ideas
 
@@ -168,11 +169,6 @@ additional effects, or other feature expansion.
   - [ ] マスクの分割 — 全輪郭が閉じている場合に限り group ではなく compoundPath で
     包めば有効なマスクのまま分割できる（穴の読みまで保たれる）。開いた subpath を
     含むマスクは compound の子になれないので引き続き拒否
-  - [x] `path.outlineStroke` / `path.divide` は結果を group に包むため、マスクに対して
-    実行すると `hasValidSceneContainers` で落ちて無言で何も起きなかった。`maskMultiNodeError`
-    を出すようにした（divide は入力にマスクがあれば拒否、outline stroke は group 化する
-    塗り付き areal のマスクのみスキップ）
-  - [ ] brush <-> path 相互変換
   - [ ] テキストのパス化
 - [ ] シンボル（再利用可能部品）の拡充
   - [ ] In-place symbol editing (dimmed scene context via an instance's world transform)
@@ -195,3 +191,15 @@ additional effects, or other feature expansion.
 - [ ] pencil 直線モード（描画中に修飾キーで直線セグメント）
 - [ ] ノード編集でctrl+A
 - [ ] generator図形、丸角四角（四方制御）
+- [ ] 各ツールについての使い勝手向上
+  - [ ] ペン: 別の開いたパスの端点で描き終えて 2 本を 1 本に連結する（今は単一
+    サブパスの開曲線しか拾えず、コンパウンドパス内のパスは継続できない）。
+    Join コマンド（上記 path-ops）と同じ縫合処理を共有する形で設計する
+  - [ ] ペン: ツールオプションがない（スナップ切替、閉じたときの塗り、既定の
+    アンカー種別あたりの置き場。PencilSection/BrushSection が前例）
+  - [ ] ペン: アンカー 1 点だけで確定すると無言で消える（何も起きない理由が
+    伝わらない）
+  - [ ] ペン: `commitPenDraft` の変更検知が `JSON.stringify` 比較でキー順依存。
+    明示的な比較か変更フラグに置き換える
+  - [ ] ペン: アンカー配置ドラッグ中に位置そのものを直す手段がない
+    （Illustrator の Space ドラッグ相当）

@@ -66,8 +66,16 @@ lot of places — `model/generators/generators.ts` (every parametric shape),
 `canvas/tools/shapeTools.ts` — and **none of them need to change**: they emit
 geometry, and the derivation reads the intent back out. `t` exists only to
 record a choice the *user* made explicitly, where geometry alone is ambiguous
-(e.g. a smooth anchor whose handles happen to be equal length must not silently
-behave as symmetric once tagged).
+
+(One exception has since appeared: the pen tags the anchor it is dragging
+handles out of, `cusp` when Alt breaks the linkage — or when continuing an
+existing endpoint, which only pulls the outgoing handle — and `symmetric`
+otherwise. That is a user choice made at draw time, so it is exactly the case
+`t` is for; leaving it derived would let a later Node-tool edit re-link handles
+the user deliberately broke.)
+
+The ambiguous case `t` guards against: a smooth anchor whose handles happen to
+be equal length must not silently behave as symmetric once tagged.
 
 Epsilons are relative to the handle lengths, not absolute, so the derivation is
 scale-independent.

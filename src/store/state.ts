@@ -85,6 +85,13 @@ export interface EditorData {
   savedDoc: Document;
   _revision: DocumentRevision;
   _savedRevision: DocumentRevision | null;
+  /**
+   * Bumped every time the whole document is *replaced* (new / open / recover),
+   * as opposed to edited. Transient state living outside the store — the
+   * canvas's in-progress drafts and strokes — watches this to throw itself
+   * away, since it belongs to a document that no longer exists.
+   */
+  _docEpoch: number;
   selection: string[];
   selectionPivot: Vec2 | null;
   selectionTransform: Matrix | null;

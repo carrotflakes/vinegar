@@ -19,8 +19,8 @@ import { cancelActiveInteraction } from "../interactionLifecycle";
 import { pickShape } from "../picking";
 import { onGuideDown } from "../tools/guideTool";
 import { onNodeDoubleClick } from "../tools/nodeTool";
-import { commitPenDraft, onPenHoverMove, pickOpenEndpoint } from "../tools/penTool";
-import { applyMatrix, shapeWorldMatrix } from "@/model/geometry/matrix";
+import { commitPenDraft, onPenHoverMove, undoPenAnchor } from "../tools/penTool";
+import { endpointWorld, pickOpenEndpoint } from "../tools/openPathPickup";
 import { onSelectDoubleClick } from "../tools/selectTool";
 import {
   dispatchToolMove,
@@ -63,7 +63,15 @@ export function usePointerHandlers(deps: PointerHandlerDeps): PointerHandlers {
     gestures;
   const { textEditRef, beginTextEdit, commitTextEdit } = text;
   const contextMenu = useCanvasContextMenu({ ctx, canvasRef, sizeRef });
-  const tap = useTouchTapGesture();
+  const tap = useTouchTapGesture({
+    // A live pen draft owns undo whichever way it is invoked, so the gesture
+    // steps back one anchor instead of rewinding an unrelated earlier edit.
+    undoOverride: () => {
+      if (!ctx.penDraft.current) return false;
+      undoPenAnchor(ctx);
+      return true;
+    },
+  });
 
   /** A pen is on the glass right now. */
   const penDownRef = useRef(false);
@@ -141,28 +149,28 @@ export function usePointerHandlers(deps: PointerHandlerDeps): PointerHandlers {
   };
 
   /**
-   * Highlight the endpoint of a selected open path that the pencil would
-   * continue if a stroke started here, so extending is discoverable rather than
-   * hidden. Unlike the brush tip this works for mouse too — the pencil extends
-   * with any pointer. Only the deliberate case (a *selected* path) lights up.
+   * Highlight the endpoint of an open path the pencil or pen would continue if
+   * drawing started here, so extending is discoverable rather than hidden.
+   * Unlike the brush tip this works for mouse too — both tools extend with any
+   * pointer. The pencil only lights up the deliberate case (a *selected*
+   * path); the pen continues any open path, but not while it already has a
+   * draft going.
    */
-  const updatePencilHint = (tool: string, screen: Vec2) => {
+  const updateEndpointHint = (tool: string, screen: Vec2) => {
     let next: Vec2 | null = null;
-    if (tool === "pencil") {
+    if (tool === "pencil" || (tool === "pen" && !ctx.penDraft.current)) {
       const state = useEditor.getState();
       const pick = pickOpenEndpoint(ctx, state, screen);
-      if (pick && state.selection.includes(pick.shape.id)) {
-        const anchors = pick.shape.subpaths[0].anchors;
-        const end = pick.end === "start" ? anchors[0] : anchors[anchors.length - 1];
-        next = applyMatrix(shapeWorldMatrix(state.doc, pick.shape), end.p);
+      if (pick && (tool === "pen" || state.selection.includes(pick.shape.id))) {
+        next = endpointWorld(state, pick);
       }
     }
-    const prev = ctx.pencilHint.current;
+    const prev = ctx.endpointHint.current;
     const same =
       prev === next ||
       (prev !== null && next !== null && prev.x === next.x && prev.y === next.y);
     if (!same) {
-      ctx.pencilHint.current = next;
+      ctx.endpointHint.current = next;
       ctx.scheduleDraw();
     }
   };
@@ -218,7 +226,7 @@ export function usePointerHandlers(deps: PointerHandlerDeps): PointerHandlers {
     ownerRef.current = { pointerId: e.pointerId, pointerType: e.pointerType };
     // The tip outline is a hover affordance; the stroke itself replaces it.
     ctx.brushHover.current = null;
-    ctx.pencilHint.current = null;
+    ctx.endpointHint.current = null;
 
     // Pinch/pan gestures are touch-only. Tracking pen/mouse pointers here would
     // let a lingering pen contact — e.g. two rapid Apple Pencil strokes whose
@@ -331,7 +339,7 @@ export function usePointerHandlers(deps: PointerHandlerDeps): PointerHandlers {
         onPenHoverMove(ctx, state, world, mod.shift);
       }
       updateBrushHover(isPen, state.tool, world);
-      updatePencilHint(state.tool, screen);
+      updateEndpointHint(state.tool, screen);
       updateHoverCursor(screen, world);
       return;
     }

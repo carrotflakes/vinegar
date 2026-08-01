@@ -17,6 +17,8 @@ export interface TextEditing {
   beginTextEdit: (shape: TextShape, original: TextShape | null) => void;
   commitTextEdit: (expectedId?: string) => void;
   cancelTextEdit: (expectedId?: string) => void;
+  /** Drop the session outright, for when its document has been replaced. */
+  discardTextEdit: () => void;
   changeTextEdit: (text: string) => void;
 }
 
@@ -85,6 +87,12 @@ export function useTextEditing(scheduleDraw: () => void): TextEditing {
     [setTextEdit]
   );
 
+  // Unlike cancel, this restores nothing: the selection it would put back
+  // names nodes of a document that is gone.
+  const discardTextEdit = useCallback(() => {
+    if (textEditRef.current) setTextEdit(null);
+  }, [setTextEdit]);
+
   const changeTextEdit = useCallback(
     (text: string) => {
       const session = textEditRef.current;
@@ -121,6 +129,7 @@ export function useTextEditing(scheduleDraw: () => void): TextEditing {
     beginTextEdit,
     commitTextEdit,
     cancelTextEdit,
+    discardTextEdit,
     changeTextEdit,
   };
 }

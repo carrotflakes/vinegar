@@ -23,12 +23,15 @@ import {
   TOUCH_HIT_SCALE,
   type Interaction,
   type LastInsert,
+  type PenHover,
   type ToolContext,
 } from "./interaction";
 import ModifierBar from "./ModifierBar";
+import PenDraftBar from "./PenDraftBar";
 import FocusBreadcrumb from "./FocusBreadcrumb";
 import TextEditor from "./TextEditor";
 import { commitPenDraft } from "./tools/penTool";
+import { discardCanvasTransients } from "./interactionLifecycle";
 import { useRenderBenchmark } from "@/debug/useRenderBenchmark";
 
 export default function CanvasView() {
@@ -41,9 +44,9 @@ export default function CanvasView() {
   const penDraftRef = useRef<PathShape | null>(null);
   const penExtendRef = useRef<PathShape | null>(null);
   const lastInsertRef = useRef<LastInsert | null>(null);
-  const hoverRef = useRef<Vec2 | null>(null);
+  const hoverRef = useRef<PenHover | null>(null);
   const brushHoverRef = useRef<{ p: Vec2; radius: number } | null>(null);
-  const pencilHintRef = useRef<Vec2 | null>(null);
+  const endpointHintRef = useRef<Vec2 | null>(null);
   const guidesRef = useRef<Guide[]>([]);
   const spacingsRef = useRef<Spacing[]>([]);
   const rafRef = useRef<number | null>(null);
@@ -78,7 +81,7 @@ export default function CanvasView() {
       penDraft: penDraftRef.current,
       hover: hoverRef.current,
       brushHover: brushHoverRef.current,
-      pencilHint: pencilHintRef.current,
+      endpointHint: endpointHintRef.current,
       guides: guidesRef.current,
       spacings: spacingsRef.current,
       hiddenTextId: textEditRef.current?.original?.id ?? null,
@@ -106,6 +109,7 @@ export default function CanvasView() {
     beginTextEdit,
     commitTextEdit,
     cancelTextEdit,
+    discardTextEdit,
     changeTextEdit,
   } = useTextEditing(scheduleDraw);
 
@@ -120,7 +124,7 @@ export default function CanvasView() {
       lastInsert: lastInsertRef,
       hover: hoverRef,
       brushHover: brushHoverRef,
-      pencilHint: pencilHintRef,
+      endpointHint: endpointHintRef,
       guides: guidesRef,
       spacings: spacingsRef,
       hitScale: () => (coarseRef.current ? TOUCH_HIT_SCALE : 1),
@@ -132,14 +136,30 @@ export default function CanvasView() {
   const gestures = useCanvasGestures(ctx);
 
   // Redraw on any store change; commit a pending pen path when leaving the tool.
-  useEffect(
-    () =>
-      useEditor.subscribe((s) => {
-        if (s.tool !== "pen" && penDraftRef.current) commitPenDraft(ctx);
-        scheduleDraw();
-      }),
-    [ctx, scheduleDraw]
-  );
+  // Unmounting is the same kind of exit: the draft lives in a ref that is about
+  // to go away, and its on-screen bar reads a store that would otherwise be
+  // left claiming a draft nothing owns any more.
+  //
+  // A *replaced* document (new / open / recover) is the opposite case: nothing
+  // in flight may be committed, because it was drawn into a document that no
+  // longer exists — it is dropped instead. See `_docEpoch`.
+  const epochRef = useRef(useEditor.getState()._docEpoch);
+  useEffect(() => {
+    const unsubscribe = useEditor.subscribe((s) => {
+      if (s._docEpoch !== epochRef.current) {
+        epochRef.current = s._docEpoch;
+        discardCanvasTransients(ctx);
+        discardTextEdit();
+      } else if (s.tool !== "pen" && penDraftRef.current) {
+        commitPenDraft(ctx);
+      }
+      scheduleDraw();
+    });
+    return () => {
+      unsubscribe();
+      if (penDraftRef.current) commitPenDraft(ctx);
+    };
+  }, [ctx, scheduleDraw, discardTextEdit]);
 
   // Repaint when an image asset finishes decoding.
   useEffect(() => subscribeImageCache(scheduleDraw), [scheduleDraw]);
@@ -189,7 +209,7 @@ export default function CanvasView() {
         onPointerLeave={() => {
           setPointer(null);
           brushHoverRef.current = null;
-          pencilHintRef.current = null;
+          endpointHintRef.current = null;
           scheduleDraw();
         }}
         onDoubleClick={onDoubleClick}
@@ -210,6 +230,7 @@ export default function CanvasView() {
         />
       )}
       <ModifierBar />
+      <PenDraftBar ctx={ctx} />
       <FocusBreadcrumb />
     </div>
   );
