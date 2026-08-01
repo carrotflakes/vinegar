@@ -94,28 +94,45 @@ export function selectionMenu(): MenuEntry[] {
   ];
   // Group path & boolean ops into submenus so the top level stays short; each
   // submenu lists only its currently-applicable items (omitted entirely if none).
-  const pathItems = [
+  const pathItems: MenuEntry[] = [
     "structure.convertToPath",
     "structure.convertToBrush",
     "structure.brushToOutline",
     "path.outlineStroke",
+  ]
+    .filter(enabled)
+    .map((id) => item(id));
+  const modifierItems: MenuEntry[] = [
     "path.addSimplifyModifier",
     "path.addFlattenModifier",
     "path.addOffsetModifier",
     "path.addSmoothModifier",
     "path.addReverseModifier",
-    "path.applyModifiers",
-    "path.simplify",
-    "path.smooth",
-    "path.flatten",
-    "path.reverse",
-    "path.join",
-    "path.combine",
-    "path.splitSubpaths",
-    "path.cut",
   ]
     .filter(enabled)
     .map((id) => item(id));
+  if (enabled("path.applyModifiers")) {
+    modifierItems.push("separator", item("path.applyModifiers"));
+  }
+  if (modifierItems.length) {
+    // Keep non-destructive stack operations distinct from the bake-once path
+    // cleanups while avoiding six adjacent entries in the Path menu.
+    pathItems.push({ label: "Modifiers", submenu: modifierItems });
+  }
+  pathItems.push(
+    ...[
+      "path.simplify",
+      "path.smooth",
+      "path.flatten",
+      "path.reverse",
+      "path.join",
+      "path.combine",
+      "path.splitSubpaths",
+      "path.cut",
+    ]
+      .filter(enabled)
+      .map((id) => item(id))
+  );
   const boolItems = ["path.union", "path.subtract", "path.intersect", "path.exclude", "path.divide"]
     .filter(enabled)
     .map((id) => item(id));

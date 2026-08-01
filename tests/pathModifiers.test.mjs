@@ -14,6 +14,8 @@ let cubicPoint;
 let flattenSubpath;
 let flattenSubpathAdaptive;
 let subpathSegments;
+let selectionMenu;
+let useEditor;
 
 before(async () => {
   server = await createServer({ server: { middlewareMode: true } });
@@ -27,6 +29,8 @@ before(async () => {
     await server.ssrLoadModule("/src/io/serialize.ts"));
   ({ cubicPoint, flattenSubpath, flattenSubpathAdaptive, subpathSegments } =
     await server.ssrLoadModule("/src/model/path/path.ts"));
+  ({ selectionMenu } = await server.ssrLoadModule("/src/ui/menus.ts"));
+  ({ useEditor } = await server.ssrLoadModule("/src/store/editorStore.ts"));
 });
 
 after(async () => server.close());
@@ -224,4 +228,42 @@ test("modifier stacks round-trip in v30 documents", () => {
   const text = serializeDocument(doc);
   assert.equal(JSON.parse(text).version, 30);
   assert.deepEqual(parseDocument(text).nodes[shape.id].modifiers, shape.modifiers);
+});
+
+test("selection context menu groups modifier commands in a submenu", () => {
+  const shape = path();
+  const empty = createEmptyDocument();
+  useEditor.getState().loadDocument({
+    ...empty,
+    rootIds: [shape.id],
+    nodes: { [shape.id]: shape },
+  });
+  useEditor.getState().setSelection([shape.id]);
+
+  const pathMenu = selectionMenu().find(
+    (entry) => entry !== "separator" && entry.label === "Path" && "submenu" in entry
+  );
+  assert.ok(pathMenu && "submenu" in pathMenu);
+  const modifierMenu = pathMenu.submenu.find(
+    (entry) => entry !== "separator" && entry.label === "Modifiers" && "submenu" in entry
+  );
+  assert.ok(modifierMenu && "submenu" in modifierMenu);
+  assert.deepEqual(
+    modifierMenu.submenu
+      .filter((entry) => entry !== "separator")
+      .map((entry) => entry.label),
+    [
+      "Add Simplify modifier",
+      "Add Flatten modifier",
+      "Add Offset modifier",
+      "Add Smooth modifier",
+      "Add Reverse modifier",
+    ]
+  );
+  assert.equal(
+    pathMenu.submenu.some(
+      (entry) => entry !== "separator" && entry.label === "Add Simplify modifier"
+    ),
+    false
+  );
 });
