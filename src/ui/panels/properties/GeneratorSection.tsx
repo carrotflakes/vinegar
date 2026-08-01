@@ -64,6 +64,7 @@ export default function GeneratorSection({ shape }: { shape: PathShape }) {
                 max={param.max}
                 step={param.step}
                 value={gen.args[param.key] ?? param.default}
+                defaultValue={param.default}
                 aria-label={param.label}
                 onChange={(value) =>
                   setGeneratorArgs(shape.id, {
