@@ -159,6 +159,26 @@ export interface FrameSnap {
   boxes: Bounds[];
 }
 
+/**
+ * One input sample for a freehand tool (pencil, brush). A move event carries a
+ * whole run of these — its coalesced history — so a fast stroke keeps its
+ * density. `t` is the event timestamp in milliseconds on the `performance.now`
+ * clock, which lets the smoothing be expressed per unit of *time* rather than
+ * per sample: pointers report anywhere from 60 to 240 samples a second, and a
+ * per-sample average would smooth a 240 Hz stylus far less than a 60 Hz mouse
+ * at the same setting.
+ */
+export interface StrokeSample {
+  world: Vec2;
+  pressure: number;
+  t: number;
+}
+
+/** The sample interval the freehand smoothing strengths are defined against:
+ *  one 60 Hz frame. A stroke sampled faster takes proportionally smaller steps
+ *  towards the pointer, so the same setting means the same line either way. */
+export const SMOOTH_REF_MS = 1000 / 60;
+
 /** Distance below which a created shape is considered an accidental click. */
 export const CLICK_SLOP = 3;
 export const NODE_GRAB = 8;

@@ -8,6 +8,8 @@ export interface PencilOptions {
    * Live position smoothing strength, 0 (off) .. ~0.95 (very smooth). Applied
    * as an exponential moving average while drawing, mirroring the brush's
    * stabilizer; the commit-time simplify runs on top of the smoothed points.
+   * The value is the fraction of the error kept per 60 Hz frame, not per input
+   * sample, so a faster pointer does not draw a less smoothed line.
    */
   smoothing: number;
   /**

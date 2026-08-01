@@ -243,6 +243,37 @@ export function pickLockedShape(ctx: ToolContext, world: Vec2): string | null {
  * Snap a single world point to alignment lines / grid (for creation, resize
  * and vertex editing). Updates the on-screen guides and returns the point.
  */
+/** Screen-pixel radius within which a point snaps. */
+const SNAP_PX = 6;
+
+/**
+ * Snap a point to *deliberate* references only — the user's guides and the
+ * grid — skipping the document's own shapes. The shape targets are bounding-box
+ * lines, which is right for placing a rectangle but noise for a freehand stroke
+ * that merely starts near existing art; and skipping them also skips collecting
+ * every shape's world bounds, which would land on pointer-down latency.
+ */
+export function guideGridSnap(ctx: ToolContext, world: Vec2): Vec2 {
+  const state = useEditor.getState();
+  ctx.spacings.current = [];
+  const guideLines = activeGuideLines(state);
+  if (!state.gridSnap && !guideLines.x.length && !guideLines.y.length) {
+    ctx.guides.current = [];
+    return world;
+  }
+  const res = snapPoint(
+    world,
+    {
+      targets: { x: [], y: [] },
+      gridSize: state.gridSnap ? state.gridSize : null,
+      guideLines,
+    },
+    SNAP_PX / state.viewport.scale
+  );
+  ctx.guides.current = res.guides;
+  return res.point;
+}
+
 export function pointSnap(
   ctx: ToolContext,
   world: Vec2,
@@ -281,7 +312,7 @@ export function pointSnap(
       gridSize: state.gridSnap ? state.gridSize : null,
       guideLines,
     },
-    6 / state.viewport.scale
+    SNAP_PX / state.viewport.scale
   );
   ctx.guides.current = res.guides;
   return res.point;

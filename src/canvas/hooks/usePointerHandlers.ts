@@ -361,6 +361,9 @@ export function usePointerHandlers(deps: PointerHandlerDeps): PointerHandlers {
         return events.map((ev) => ({
           world: screenToWorld(state.viewport, screenPoint(ev)),
           pressure: isPen ? ev.pressure : 1,
+          // Same clock as `performance.now`, which is what the tools compare
+          // the first sample of a stroke against.
+          t: ev.timeStamp,
         }));
       },
     });

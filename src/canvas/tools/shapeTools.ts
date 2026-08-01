@@ -15,8 +15,13 @@ import {
 } from "../../store/editorStore";
 import { usePencil } from "../../store/pencilStore";
 import { setReadout } from "../../store/pointerStore";
-import { CLICK_SLOP, type ToolContext } from "../interaction";
-import { EMPTY_EXCLUDE, pointSnap } from "../picking";
+import {
+  CLICK_SLOP,
+  SMOOTH_REF_MS,
+  type StrokeSample,
+  type ToolContext,
+} from "../interaction";
+import { EMPTY_EXCLUDE, guideGridSnap, pointSnap } from "../picking";
 import { grabRadius, pickupOpenPath } from "./openPathPickup";
 import { constrain45, formatAngle, formatSize } from "../util";
 
@@ -80,9 +85,15 @@ interface PencilExtend {
   world: Matrix;
   newPoints: Vec2[];
 }
-let pencilStroke:
-  | { smoothed: Vec2; smoothing: number; last: Vec2; extend: PencilExtend | null }
-  | null = null;
+interface PencilStroke {
+  smoothed: Vec2;
+  smoothing: number;
+  last: Vec2;
+  /** Timestamp of the last sample the average was advanced with (ms). */
+  lastT: number;
+  extend: PencilExtend | null;
+}
+let pencilStroke: PencilStroke | null = null;
 
 /** Screen-space spacing between kept freehand samples, in world units. The
  *  filter has to be screen-relative: a fixed world distance would drop detail
@@ -115,6 +126,85 @@ function freehandCloses(
   );
 }
 
+/**
+ * Advance the exponential moving average towards the raw pointer: strength 0
+ * tracks it exactly, →1 lags heavily. The strength is defined per
+ * {@link SMOOTH_REF_MS}, and a sample covering `dt` keeps `s^(dt/ref)` of the
+ * error, so the line comes out the same on a 60 Hz mouse and a 240 Hz stylus
+ * (see {@link StrokeSample}). `dt` is clamped: a batch of coalesced samples
+ * sharing one timestamp must not stall the average, and a stroke resumed after
+ * a long pause must not snap to the pointer.
+ */
+function advanceSmoothing(
+  stroke: PencilStroke,
+  world: Vec2,
+  dt: number
+): void {
+  const step = Math.min(100, Math.max(1, dt));
+  const retain = stroke.smoothing ** (step / SMOOTH_REF_MS);
+  stroke.smoothed = {
+    x: stroke.smoothed.x + (world.x - stroke.smoothed.x) * (1 - retain),
+    y: stroke.smoothed.y + (world.y - stroke.smoothed.y) * (1 - retain),
+  };
+}
+
+/** Append the current smoothed point to the live stroke, unless it sits too
+ *  close to the last kept one. Reports whether anything was added. */
+function pushPencilPoint(
+  stroke: PencilStroke,
+  shape: PathShape,
+  minDist: number
+): boolean {
+  const p = stroke.smoothed;
+  if (Math.hypot(p.x - stroke.last.x, p.y - stroke.last.y) < minDist) {
+    return false;
+  }
+  stroke.last = { ...p };
+  const ext = stroke.extend;
+  if (ext) {
+    ext.newPoints.push({ ...p });
+    // Append to the preview in the path's local space so it renders in place.
+    shape.subpaths[0].anchors.push({
+      p: applyMatrix(ext.inverse, p),
+      hIn: null,
+      hOut: null,
+    });
+  } else {
+    shape.subpaths[0].anchors.push({ p: { ...p }, hIn: null, hOut: null });
+  }
+  return true;
+}
+
+/** Frames the tail settle is allowed to take; at the maximum smoothing (0.95)
+ *  this closes 96% of the remaining gap, and at the default it converges long
+ *  before. */
+const SETTLE_STEPS = 64;
+
+/**
+ * Walk the smoothed point the rest of the way to where the pointer was lifted.
+ * The average trails the pointer, so without this a stroke ends short of its
+ * release point — barely at the default smoothing, visibly at high settings,
+ * and it is the end of a stroke that people aim. Settling by the same average
+ * rather than jumping straight to the raw point keeps a heavily smoothed line
+ * from growing a spike on its tail; it also lets the release point decide
+ * whether the stroke closes.
+ */
+function settlePencilTail(
+  stroke: PencilStroke,
+  shape: PathShape,
+  world: Vec2,
+  minDist: number
+): void {
+  for (let i = 0; i < SETTLE_STEPS; i++) {
+    // One reference frame per step, so the settle takes the same shape as the
+    // smoothing the rest of the stroke was drawn with.
+    advanceSmoothing(stroke, world, SMOOTH_REF_MS);
+    pushPencilPoint(stroke, shape, minDist);
+    const p = stroke.smoothed;
+    if (Math.hypot(p.x - world.x, p.y - world.y) <= minDist / 2) break;
+  }
+}
+
 /** Throw away any half-captured stroke (the document it belonged to is gone). */
 export function resetPencilStroke() {
   pencilStroke = null;
@@ -136,6 +226,7 @@ export function startPencil(
       smoothed: { ...world },
       smoothing,
       last: { ...world },
+      lastT: performance.now(),
       extend: {
         base: pick.base,
         inverse: pick.inverse,
@@ -149,7 +240,19 @@ export function startPencil(
     ctx.scheduleDraw();
     return;
   }
-  pencilStroke = { smoothed: world, smoothing, last: world, extend: null };
+  // A freehand stroke is imprecise everywhere except where it begins, so the
+  // start point snaps — but only to guides and the grid, the references the
+  // user placed on purpose. Nothing after it snaps: the rest is freehand.
+  world = guideGridSnap(ctx, world);
+  pencilStroke = {
+    smoothed: world,
+    smoothing,
+    last: world,
+    // Event timestamps share the `performance.now` clock, so the first sample's
+    // dt is measured from the press.
+    lastT: performance.now(),
+    extend: null,
+  };
   const shape: Shape = {
     id: makeId("path"),
     name: "Path",
@@ -172,45 +275,33 @@ export function startPencil(
 export function onPencilMove(
   ctx: ToolContext,
   state: EditorState,
-  samples: Vec2[]
+  samples: StrokeSample[]
 ) {
   const shape = ctx.preview.current;
   if (!shape || shape.type !== "path" || !pencilStroke) return;
   const minDist = pencilMinDist(state);
-  const s = pencilStroke.smoothing;
   let changed = false;
-  for (const world of samples) {
-    // Exponential moving average: strength 0 tracks the pointer exactly, →1
-    // lags heavily. Advanced every sample even when no anchor is added below.
-    pencilStroke.smoothed = {
-      x: pencilStroke.smoothed.x + (world.x - pencilStroke.smoothed.x) * (1 - s),
-      y: pencilStroke.smoothed.y + (world.y - pencilStroke.smoothed.y) * (1 - s),
-    };
-    const p = pencilStroke.smoothed;
-    const last = pencilStroke.last;
-    if (Math.hypot(p.x - last.x, p.y - last.y) < minDist) continue;
-    pencilStroke.last = { ...p };
-    const ext = pencilStroke.extend;
-    if (ext) {
-      ext.newPoints.push({ ...p });
-      // Append to the preview in the path's local space so it renders in place.
-      shape.subpaths[0].anchors.push({ p: applyMatrix(ext.inverse, p), hIn: null, hOut: null });
-    } else {
-      shape.subpaths[0].anchors.push({ p: { ...p }, hIn: null, hOut: null });
-    }
-    changed = true;
+  for (const { world, t } of samples) {
+    // The average advances on every sample, even ones the filter then drops.
+    advanceSmoothing(pencilStroke, world, t - pencilStroke.lastT);
+    pencilStroke.lastT = t;
+    if (pushPencilPoint(pencilStroke, shape, minDist)) changed = true;
   }
   if (changed) {
+    // The start snap's guide lines have done their job once the stroke is
+    // under way; leaving them up for its whole length is just clutter.
+    if (ctx.guides.current.length) ctx.guides.current = [];
     updateCloseHint(ctx, state, shape);
     ctx.scheduleDraw();
   }
 }
 
 /**
- * Ring the stroke's own start point while releasing there would close the path.
- * Closing is otherwise invisible until the pointer is up, and by then it has
- * already happened — the pen shows the same promise with the same mark while a
- * click would close its draft. Extensions of an existing path never close.
+ * Ring the stroke's own start point while releasing there would close the path,
+ * and show the fill the closed path would get. Closing is otherwise invisible
+ * until the pointer is up, and by then it has already happened — the pen shows
+ * the same promise with the same mark while a click would close its draft.
+ * Extensions of an existing path never close.
  */
 function updateCloseHint(
   ctx: ToolContext,
@@ -227,15 +318,25 @@ function updateCloseHint(
     !stroke.extend &&
     freehandCloses(first, stroke.last, anchors.length, pencilCloseTol(ctx, state));
   ctx.endpointHint.current = closes ? first : null;
+  if (!stroke.extend) shape.fill = closes ? state.style.fill : null;
 }
 
-export function finishPencil(ctx: ToolContext, state: EditorState) {
+/** `world` is where the pointer was lifted; the stroke is settled onto it. */
+export function finishPencil(
+  ctx: ToolContext,
+  state: EditorState,
+  world: Vec2
+) {
   const stroke = pencilStroke;
   pencilStroke = null;
   const shape = ctx.preview.current;
   ctx.preview.current = null;
   // The close ring belongs to the stroke; touch has no hover to clear it later.
   ctx.endpointHint.current = null;
+  ctx.guides.current = [];
+  if (stroke && shape && shape.type === "path") {
+    settlePencilTail(stroke, shape, world, pencilMinDist(state));
+  }
   if (stroke?.extend) {
     commitPencilExtend(state, stroke.extend);
     ctx.scheduleDraw();
@@ -389,7 +490,9 @@ function freehandToPath(
     subpaths: [{ anchors, closed }],
     fillRule: "nonzero",
     ...styleFromDefaults(state.style),
-    fill: null,
+    // An open stroke is a line and takes no fill; a loop the user deliberately
+    // closed is a region, so it gets the current fill like any drawn shape.
+    ...(closed ? {} : { fill: null }),
   };
 }
 

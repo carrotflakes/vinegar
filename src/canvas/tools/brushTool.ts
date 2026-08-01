@@ -12,7 +12,7 @@ import {
 } from "../../model/types";
 import { styleFromDefaults, type EditorState } from "../../store/editorStore";
 import { useBrush, pressureToWidth, type BrushOptions } from "../../store/brushStore";
-import type { ToolContext } from "../interaction";
+import { SMOOTH_REF_MS, type StrokeSample, type ToolContext } from "../interaction";
 
 /** One captured input sample: smoothed position + width multiplier. */
 type Sample = WidthSample;
@@ -28,6 +28,8 @@ interface ActiveStroke {
   smoothed: Vec2;
   /** Last raw position kept, for the minimum-distance filter. */
   last: Vec2;
+  /** Timestamp of the last sample the average was advanced with (ms). */
+  lastT: number;
   opts: BrushOptions;
 }
 
@@ -61,7 +63,15 @@ export function startBrush(
 ) {
   const opts = useBrush.getState();
   const w = pressureToWidth(pressure, opts);
-  active = { raw: [{ p: world, w }], smoothed: world, last: world, opts };
+  active = {
+    raw: [{ p: world, w }],
+    smoothed: world,
+    last: world,
+    // Event timestamps share the `performance.now` clock, so the first sample's
+    // dt is measured from the press.
+    lastT: performance.now(),
+    opts,
+  };
   ctx.preview.current = buildPreview(state, anchorsFromRaw(active.raw));
   ctx.interaction.current = { kind: "brush" };
   ctx.scheduleDraw();
@@ -70,7 +80,7 @@ export function startBrush(
 export function onBrushMove(
   ctx: ToolContext,
   state: EditorState,
-  samples: { world: Vec2; pressure: number }[]
+  samples: StrokeSample[]
 ) {
   if (!active) return;
   const { opts } = active;
@@ -78,12 +88,18 @@ export function onBrushMove(
   // keeps detail when zoomed out (the pencil filters the same way).
   const minDist = 1.2 / state.viewport.scale;
   let changed = false;
-  for (const { world, pressure } of samples) {
+  for (const { world, pressure, t } of samples) {
     // Exponential moving average: strength 0 tracks exactly, →1 lags heavily.
-    const s = opts.stabilizer;
+    // The strength is per SMOOTH_REF_MS and each sample keeps `s^(dt/ref)` of
+    // the error, so a 240 Hz stylus and a 60 Hz mouse draw the same line at the
+    // same setting. dt is clamped: coalesced samples may share a timestamp
+    // (which must not stall the average) and a resumed stroke must not snap.
+    const step = Math.min(100, Math.max(1, t - active.lastT));
+    const retain = opts.stabilizer ** (step / SMOOTH_REF_MS);
+    active.lastT = t;
     active.smoothed = {
-      x: active.smoothed.x + (world.x - active.smoothed.x) * (1 - s),
-      y: active.smoothed.y + (world.y - active.smoothed.y) * (1 - s),
+      x: active.smoothed.x + (world.x - active.smoothed.x) * (1 - retain),
+      y: active.smoothed.y + (world.y - active.smoothed.y) * (1 - retain),
     };
     const p = active.smoothed;
     if (Math.hypot(p.x - active.last.x, p.y - active.last.y) < minDist) continue;

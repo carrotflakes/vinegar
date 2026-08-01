@@ -13,7 +13,9 @@ export interface BrushOptions {
   pressureGamma: number;
   /** Width at zero pressure, as a fraction of `size` (0..1). */
   minWidth: number;
-  /** Position smoothing strength, 0 (off) .. ~0.95 (very smooth). */
+  /** Position smoothing strength, 0 (off) .. ~0.95 (very smooth): the fraction
+   *  of the error kept per 60 Hz frame, not per input sample, so a faster
+   *  pointer does not draw a less smoothed line. */
   stabilizer: number;
   /** Taper each end to a point over this arc length in world units; 0 = off. */
   taper: number;

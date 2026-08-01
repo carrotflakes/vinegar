@@ -7,7 +7,7 @@
 import type { EditorState } from "../store/editorStore";
 import type { TextShape, Vec2 } from "../model/types";
 import { screenToWorld } from "@/model/geometry/viewport";
-import type { Interaction, ToolContext } from "./interaction";
+import type { Interaction, StrokeSample, ToolContext } from "./interaction";
 import { pickShape } from "./picking";
 import { finishFrame, onFrameDown, onFrameMove } from "./tools/frameTool";
 import { finishBrush, onBrushMove, startBrush } from "./tools/brushTool";
@@ -106,7 +106,7 @@ export interface ToolMoveInput {
    * The full run of samples this move covers (coalesced events), so fast
    * freehand strokes keep their sample density. Read by the brush and pencil.
    */
-  strokeSamples: () => { world: Vec2; pressure: number }[];
+  strokeSamples: () => StrokeSample[];
 }
 
 /** Advance the live interaction. `inter` is never "none". */
@@ -141,11 +141,7 @@ export function dispatchToolMove(
       moveTextCreate(ctx, inter, world);
       break;
     case "pencil":
-      onPencilMove(
-        ctx,
-        state,
-        strokeSamples().map((s) => s.world)
-      );
+      onPencilMove(ctx, state, strokeSamples());
       break;
     case "brush":
       onBrushMove(ctx, state, strokeSamples());
@@ -219,7 +215,7 @@ export function finishToolInteraction(
       beginTextEdit(finishTextCreate(state, inter), null);
       break;
     case "pencil":
-      finishPencil(ctx, state);
+      finishPencil(ctx, state, screenToWorld(state.viewport, screen));
       break;
     case "brush":
       finishBrush(ctx, state);

@@ -150,8 +150,12 @@ is one `addShape` = one undo step.
    `wNorm = minWidth + (1 − minWidth) · pressure^γ` with user-set γ (0.25–4)
    and minimum-width fraction.
 3. **Stabilizer** — exponential moving average on position (and a lighter one
-   on pressure), strength 0–1 from tool options. 0 disables. (A pull-string
-   stabilizer can replace EMA later without changing anything downstream.)
+   on pressure), strength 0–1 from tool options. 0 disables. The strength is
+   defined *per 60 Hz frame* and each sample keeps `s^(dt/16.7ms)` of the
+   error, so a 240 Hz stylus and a 60 Hz mouse produce the same line at the
+   same setting — a per-sample average would barely smooth the stylus. The
+   pencil's smoothing works identically. (A pull-string stabilizer can replace
+   EMA later without changing anything downstream.)
 4. **Preview** — the preview `BrushShape` holds the dense samples as
    handle-less anchors; the envelope is rebuilt per move (O(n), fine for
    thousands of points; an incremental tail rebuild is a later optimization).
