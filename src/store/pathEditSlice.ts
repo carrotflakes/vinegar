@@ -5,6 +5,10 @@ import { toggleAnchorSmooth } from "@/model/path/path";
 import { setAnchorType } from "@/model/path/anchorType";
 import { cutPathAtNodes } from "@/model/path/cutPath";
 import { PATH_OP_LABEL, pathOpShape } from "@/model/path/pathOps";
+import {
+  applyPathModifiers,
+  DEFAULT_PATH_MODIFIER,
+} from "@/model/path/pathModifiers";
 import { deleteBrushAnchor, toggleBrushAnchorSmooth } from "@/model/brush/brushEdit";
 import {
   scaleBrushAnchorWidths,
@@ -12,7 +16,7 @@ import {
 } from "@/model/brush/brushWidth";
 import { hasValidSceneContainers } from "../model/sceneValidation";
 import { isShape, selectionRoots } from "../model/scene";
-import type { AnchorType } from "../model/types";
+import type { AnchorType, PathModifier } from "../model/types";
 import { removeRoots } from "./docOps";
 import {
   clearTransient,
@@ -204,7 +208,8 @@ export function createPathEditActions({ set, get, transact }: StoreCtx): PathEdi
       for (const id of selectionRoots(doc, get().selection)) {
         const shape = nodes[id];
         if (!isShape(shape) || shape.type !== "path") continue;
-        const result = pathOpShape(shape, op);
+        const baked = applyPathModifiers(shape);
+        const result = pathOpShape(baked, op);
         if (result) {
           nodes[id] = result;
           changed = true;
@@ -212,6 +217,53 @@ export function createPathEditActions({ set, get, transact }: StoreCtx): PathEdi
       }
       const next = { ...doc, nodes };
       if (changed && hasValidSceneContainers(next)) transact(next, { label: PATH_OP_LABEL[op] });
+    },
+    setPathModifiers: (id, modifiers) => {
+      const doc = get().doc;
+      const shape = doc.nodes[id];
+      if (!isShape(shape) || shape.type !== "path") return;
+      const nextShape = { ...shape, modifiers };
+      if (get()._interaction) {
+        get().applyShapes({ [id]: nextShape });
+        return;
+      }
+      transact(
+        { ...doc, nodes: { ...doc.nodes, [id]: nextShape } },
+        { label: "Edit path modifiers", coalesceKey: "modifiers:" + id }
+      );
+    },
+    addPathModifierSelected: (type: PathModifier["type"]) => {
+      const doc = get().doc;
+      const nodes = { ...doc.nodes };
+      let changed = false;
+      for (const id of selectionRoots(doc, get().selection)) {
+        const shape = nodes[id];
+        if (!isShape(shape) || shape.type !== "path") continue;
+        nodes[id] = {
+          ...shape,
+          modifiers: [...(shape.modifiers ?? []), DEFAULT_PATH_MODIFIER[type]()],
+        };
+        changed = true;
+      }
+      if (changed) transact(
+        { ...doc, nodes },
+        { label: "Add path modifier" }
+      );
+    },
+    applyPathModifiersSelected: () => {
+      const doc = get().doc;
+      const nodes = { ...doc.nodes };
+      let changed = false;
+      for (const id of selectionRoots(doc, get().selection)) {
+        const shape = nodes[id];
+        if (!isShape(shape) || shape.type !== "path" || !shape.modifiers?.length) continue;
+        nodes[id] = applyPathModifiers(shape);
+        changed = true;
+      }
+      if (changed) transact(
+        { ...doc, nodes },
+        { label: "Apply path modifiers" }
+      );
     },
   };
 }

@@ -292,6 +292,27 @@ export interface PathSubpath {
   closed: boolean;
 }
 
+interface PathModifierBase {
+  /** `false` bypasses this stage without removing it from the stack. */
+  enabled?: boolean;
+}
+
+export type PathModifier = PathModifierBase & (
+  | { type: "simplify"; tolerance: number }
+  | { type: "flatten"; tolerance: number }
+  | { type: "offset"; distance: number; join: StrokeJoin }
+  | { type: "smooth" }
+  | { type: "reverse" }
+);
+
+export const PATH_MODIFIER_TYPES = [
+  "simplify",
+  "flatten",
+  "offset",
+  "smooth",
+  "reverse",
+] as const;
+
 /**
  * A multi-subpath outline. Null handles make straight segments; non-null
  * handles make cubic Bézier segments. All subpaths share one winding rule.
@@ -299,6 +320,8 @@ export interface PathSubpath {
 export interface PathShape extends BaseShape {
   type: "path";
   subpaths: PathSubpath[];
+  /** Ordered non-destructive geometry stages; absent is an empty stack. */
+  modifiers?: PathModifier[];
   /** Winding rule for fill, hit-testing, and clipping. */
   fillRule: "nonzero" | "evenodd";
 }

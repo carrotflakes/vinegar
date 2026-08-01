@@ -1,4 +1,5 @@
 import { flattenSubpath } from "@/model/path/path";
+import { resolvedSubpaths } from "@/model/path/pathModifiers";
 import { cachedBrushEnvelope } from "@/model/brush/brushOutline";
 import { compoundChildren } from "@/model/path/compoundPath";
 import {
@@ -123,7 +124,7 @@ function containsGeometry(
     }
     case "path":
       return containsRings(
-        shape.subpaths
+        resolvedSubpaths(shape)
           .filter((subpath) => subpath.anchors.length >= 2)
           // Wrap the call: `.map(flattenSubpath)` would leak the array index
           // into `perSegment`, collapsing the first ring to a single point.
@@ -295,7 +296,8 @@ export function hitTestShape(
       );
     }
     case "path": {
-      const rings = shape.subpaths
+      const subpaths = resolvedSubpaths(shape);
+      const rings = subpaths
         .filter((subpath) => subpath.anchors.length >= 2)
         .map((subpath) => flattenSubpath(subpath));
       const inside = containsRings(
@@ -304,7 +306,7 @@ export function hitTestShape(
         shape.fillRule ?? "nonzero"
       );
       if (hasFill && inside) return true;
-      return shape.subpaths.some((sp) =>
+      return subpaths.some((sp) =>
         hitsStroke(distToPolyline(p, flattenSubpath(sp), sp.closed), inside)
       );
     }
@@ -603,7 +605,7 @@ function localPolylines(shape: Shape, doc?: Document): WorldPolyline[] {
         closed: false,
       }];
     case "path":
-      return shape.subpaths.map((sp) => ({
+      return resolvedSubpaths(shape).map((sp) => ({
         points: flattenSubpath(sp),
         closed: sp.closed,
       }));

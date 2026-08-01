@@ -1,6 +1,7 @@
 import { applyMatrix } from "@/model/geometry/matrix";
 import type { Matrix, PathAnchor, PathShape, PathSubpath, Vec2 } from "../types";
 import { setAnchorType } from "./anchorType";
+import { resolvedSubpaths } from "./pathModifiers";
 
 export interface CubicSegment {
   p0: Vec2;
@@ -91,7 +92,7 @@ export function flattenSubpath(sp: PathSubpath, perSegment = 18): Vec2[] {
 
 /** Every defining point of a path shape, across all subpaths (flattened). */
 export function flattenPath(shape: PathShape, perSegment = 18): Vec2[] {
-  return shape.subpaths.flatMap((sp) => flattenSubpath(sp, perSegment));
+  return resolvedSubpaths(shape).flatMap((sp) => flattenSubpath(sp, perSegment));
 }
 
 function lerp(a: Vec2, b: Vec2, t: number): Vec2 {

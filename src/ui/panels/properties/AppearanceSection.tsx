@@ -19,6 +19,7 @@ import {
   OpacityField,
 } from "./StyleFields";
 import Section from "../Section";
+import { resolvedSubpaths } from "@/model/path/pathModifiers";
 
 const FILL_RULES: SegmentedControlOption<PathShape["fillRule"]>[] = [
   { value: "nonzero", label: "Nonzero", title: "Overlaps of same-direction contours stay filled" },
@@ -74,7 +75,7 @@ export default function AppearanceSection({
   );
   const showFillRule =
     paths.length === selected.length &&
-    paths.some((path) => path.subpaths.length > 1);
+    paths.some((path) => resolvedSubpaths(path).length > 1);
   const fillRule = paths.every((path) => path.fillRule === paths[0]?.fillRule)
     ? paths[0]?.fillRule ?? null
     : null;

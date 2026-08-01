@@ -16,6 +16,7 @@ import FrameSection from "./FrameSection";
 import AppearanceSection from "./AppearanceSection";
 import EffectsSection from "./EffectsSection";
 import GeneratorSection from "./GeneratorSection";
+import ModifiersSection from "./ModifiersSection";
 import GroupSection, { GroupTransformSection } from "./GroupSection";
 import SelectionActionsSection from "./SelectionActionsSection";
 import SelectionHeader from "./SelectionHeader";
@@ -124,6 +125,10 @@ export default function PropertiesPanel() {
         selected[0].generator && (
           <GeneratorSection shape={selected[0]} />
         )}
+
+      {selected.length === 1 && selected[0].type === "path" && (
+        <ModifiersSection shape={selected[0]} />
+      )}
 
       {/* Effects on a frame would have to composite the whole board; frames
           stay out until that is designed. */}

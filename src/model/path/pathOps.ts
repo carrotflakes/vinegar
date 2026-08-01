@@ -74,33 +74,45 @@ function reverseSubpath(sp: PathSubpath): PathSubpath {
  * because the geometry no longer matches the generator's output.
  */
 export function pathOpShape(shape: PathShape, op: PathOp): PathShape | null {
+  const source = shape.subpaths;
+  const subpaths = applyPathOpSubpaths(source, op);
+  if (subpaths === source) return null;
+  return {
+    ...shape,
+    subpaths,
+    modifiers: [],
+    generator: null,
+  };
+}
+
+/** Apply one cleanup to an arbitrary pipeline stage. */
+export function applyPathOpSubpaths(
+  source: PathSubpath[],
+  op: PathOp,
+  tolerance?: number
+): PathSubpath[] {
   if (op === "reverse") {
-    return {
-      ...shape,
-      subpaths: shape.subpaths.map(reverseSubpath),
-      generator: null,
-    };
+    return source.map(reverseSubpath);
   }
   ensurePaper();
   let changed = false;
-  const subpaths = shape.subpaths.map((sp) => {
+  const subpaths = source.map((sp) => {
     if (sp.anchors.length < 2) return sp;
     const path = subpathToPath(sp);
     switch (op) {
       case "simplify":
-        path.simplify(SIMPLIFY_TOLERANCE);
+        path.simplify(Math.max(0, tolerance ?? SIMPLIFY_TOLERANCE));
         break;
       case "smooth":
         path.smooth();
         break;
       case "flatten":
-        path.flatten(FLATTEN_TOLERANCE);
+        path.flatten(Math.max(0.001, tolerance ?? FLATTEN_TOLERANCE));
         break;
     }
     if (path.segments.length < 2) return sp;
     changed = true;
     return pathToSubpath(path, sp.closed);
   });
-  if (!changed) return null;
-  return { ...shape, subpaths, generator: null };
+  return changed ? subpaths : source;
 }

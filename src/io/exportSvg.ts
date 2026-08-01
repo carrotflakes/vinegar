@@ -1,4 +1,5 @@
 import { subpathSegments } from "@/model/path/path";
+import { resolvedSubpaths } from "@/model/path/pathModifiers";
 import { shapeBounds } from "@/model/geometry/bounds";
 import { cachedBrushEnvelope } from "@/model/brush/brushOutline";
 import { compoundChildren } from "@/model/path/compoundPath";
@@ -549,7 +550,7 @@ function primitivePathData(shape: PrimitiveShape, matrix: Matrix): string {
     case "line":
       return `M ${point({ x: shape.x1, y: shape.y1 })} L ${point({ x: shape.x2, y: shape.y2 })}`;
     case "path":
-      return shape.subpaths.map((sp) => {
+      return resolvedSubpaths(shape).map((sp) => {
         if (!sp.anchors.length) return "";
         let d = `M ${point(sp.anchors[0].p)}`;
         for (const segment of subpathSegments(sp)) {
@@ -562,7 +563,7 @@ function primitivePathData(shape: PrimitiveShape, matrix: Matrix): string {
 
 function pathData(shape: PathShape): string {
   const parts: string[] = [];
-  for (const sp of shape.subpaths) {
+  for (const sp of resolvedSubpaths(shape)) {
     const segs = subpathSegments(sp);
     if (sp.anchors.length === 0) continue;
     const start = sp.anchors[0].p;

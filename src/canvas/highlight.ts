@@ -4,6 +4,7 @@ import { isShape } from "@/model/scene";
 import type { Bounds, Document, Shape, Vec2 } from "@/model/types";
 import { worldToScreen, type Viewport } from "@/model/geometry/viewport";
 import { cachedShapePath, tracePath } from "./render/path";
+import { resolvedSubpaths } from "@/model/path/pathModifiers";
 
 const HIGHLIGHT = "#3b82f6";
 /**
@@ -75,7 +76,8 @@ function traceLeaf(
 function fillable(shape: Shape): boolean {
   if (shape.type === "line") return false;
   if (shape.type === "path") {
-    return shape.subpaths.length > 0 && shape.subpaths.every((sp) => sp.closed);
+    const subpaths = resolvedSubpaths(shape);
+    return subpaths.length > 0 && subpaths.every((sp) => sp.closed);
   }
   return true;
 }

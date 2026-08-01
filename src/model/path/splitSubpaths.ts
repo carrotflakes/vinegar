@@ -6,6 +6,7 @@ import {
   type PathShape,
   type SceneNode,
 } from "../types";
+import { resolvedSubpaths } from "./pathModifiers";
 
 /**
  * Whether the node is a path holding more than one contour, i.e. splitting it
@@ -17,7 +18,7 @@ import {
 export function canSplitSubpaths(
   node: SceneNode | undefined
 ): node is PathShape {
-  return !!node && node.type === "path" && node.subpaths.length > 1;
+  return !!node && node.type === "path" && resolvedSubpaths(node).length > 1;
 }
 
 export interface SplitSubpathsResult {
@@ -69,13 +70,15 @@ export function flattenSplitPieces(result: SplitSubpathsResult): PathShape[] {
 }
 
 export function splitSubpaths(shape: PathShape): SplitSubpathsResult | null {
-  if (shape.subpaths.length < 2) return null;
-  const pieces = shape.subpaths.map((sp, i) => ({
+  const subpaths = resolvedSubpaths(shape);
+  if (subpaths.length < 2) return null;
+  const pieces = subpaths.map((sp, i) => ({
     ...structuredClone(shape),
     ...baseNodeDefaults(),
     id: makeId("path"),
     name: `${shape.name} ${i + 1}`,
     subpaths: [structuredClone(sp)],
+    modifiers: [],
     transform: [...IDENTITY] as PathShape["transform"],
   }));
   const group: Group = {

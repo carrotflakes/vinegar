@@ -14,6 +14,7 @@ import type {
   BlendMode,
   Document,
   Effect,
+  PathModifier,
   Matrix,
   PathShape,
   SceneNode,
@@ -312,6 +313,12 @@ export interface PathEditActions {
   setClosedSelected: (closed: boolean) => void;
   setSelectedFillRule: (rule: PathShape["fillRule"]) => void;
   pathOpSelected: (op: PathOp) => void;
+  /** Replace one path's ordered non-destructive modifier stack. */
+  setPathModifiers: (id: string, modifiers: PathModifier[]) => void;
+  /** Append a default modifier to every selected path. */
+  addPathModifierSelected: (type: PathModifier["type"]) => void;
+  /** Bake the selected paths' stacks into their editable base geometry. */
+  applyPathModifiersSelected: () => void;
 }
 
 /** Parametric generators and the document's generator scripts. */

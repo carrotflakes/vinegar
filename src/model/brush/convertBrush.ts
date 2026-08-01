@@ -8,6 +8,7 @@
 import { cachedBrushEnvelope } from "@/model/brush/brushOutline";
 import { IDENTITY } from "@/model/geometry/matrix";
 import { strokeDetailFields } from "../stroke";
+import { resolvedSubpaths } from "@/model/path/pathModifiers";
 import {
   baseNodeDefaults,
   makeId,
@@ -37,7 +38,7 @@ export function canConvertPathToBrush(
   node: SceneNode | undefined
 ): node is PathShape {
   return (
-    node?.type === "path" && node.subpaths.some(hasBrushableCenterline)
+    node?.type === "path" && resolvedSubpaths(node).some(hasBrushableCenterline)
   );
 }
 
@@ -93,7 +94,7 @@ export interface ConvertPathToBrushResult {
 export function convertPathToBrush(
   shape: PathShape
 ): ConvertPathToBrushResult | null {
-  const subpaths = shape.subpaths.filter(hasBrushableCenterline);
+  const subpaths = resolvedSubpaths(shape).filter(hasBrushableCenterline);
   if (!subpaths.length) return null;
   const appearance = brushAppearance(shape);
   const detail = strokeDetailFields(shape);

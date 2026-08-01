@@ -93,7 +93,7 @@ active tool, selection, viewport and undo history does not belong in the file.
   Typography is one style per node (`fontFamily`, size, weight, italic,
   line-height and alignment); line layout is derived from the text at render.
 
-The file wrapper version is deliberately strict. The current version is v29 and
+The file wrapper version is deliberately strict. The current version is v30 and
 it is the only accepted version — there is no migration chain, so older files
 are rejected outright. Changing the persisted shape of `Document` requires
 bumping `CURRENT_FILE_VERSION`.

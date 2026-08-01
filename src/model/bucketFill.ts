@@ -16,6 +16,7 @@
 
 import ClipperLib, { type IntPoint, type PolyNode, type PolyTree } from "clipper-lib";
 import { flattenSubpath } from "@/model/path/path";
+import { resolvedSubpaths } from "@/model/path/pathModifiers";
 import { brushCenterlineSamples, cachedBrushEnvelope } from "@/model/brush/brushOutline";
 import { shapeBounds } from "@/model/geometry/bounds";
 import { compoundChildren } from "@/model/path/compoundPath";
@@ -77,7 +78,7 @@ function fillGeometry(
       return { rings: [pts], fillType: evenOdd };
     }
     case "path":
-      const rings = shape.subpaths
+      const rings = resolvedSubpaths(shape)
         .filter((sp) => sp.anchors.length >= 2)
         .map((sp) => flattenSubpath(sp));
       return rings.length

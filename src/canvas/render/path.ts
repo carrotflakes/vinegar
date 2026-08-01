@@ -2,6 +2,7 @@ import { shapeBounds } from "@/model/geometry/bounds";
 import { cachedBrushEnvelope } from "@/model/brush/brushOutline";
 import { isCompoundChild } from "@/model/path/compoundPath";
 import { subpathSegments } from "@/model/path/path";
+import { resolvedSubpaths } from "@/model/path/pathModifiers";
 import { effectiveRectCornerRadius, roundedRectSubpath } from "@/model/roundedRect";
 import { isShape } from "@/model/scene";
 import type { Document, Shape } from "@/model/types";
@@ -66,7 +67,7 @@ function appendPath(target: PathTarget, shape: Shape): void {
       break;
     }
     case "path": {
-      for (const sp of shape.subpaths) {
+      for (const sp of resolvedSubpaths(shape)) {
         const segs = subpathSegments(sp);
         if (segs.length === 0) {
           if (sp.anchors[0]) {

@@ -1,6 +1,7 @@
 import { IDENTITY } from "@/model/geometry/matrix";
 import { strokeDetailFields } from "../stroke";
 import { transformAnchor } from "./path";
+import { resolvedSubpaths } from "./pathModifiers";
 import {
   makeId,
   baseNodeDefaults,
@@ -32,7 +33,7 @@ function reverseAnchors(anchors: PathAnchor[]): PathAnchor[] {
 
 /** Whether a path shape carries any open subpath that could be joined. */
 export function joinableSubpathCount(shape: PathShape): number {
-  return shape.subpaths.filter(
+  return resolvedSubpaths(shape).filter(
     (sp) => !sp.closed && sp.anchors.length >= 2
   ).length;
 }
@@ -55,7 +56,7 @@ export function joinShapes(
   const passthrough: PathSubpath[] = [];
   for (const shape of shapes) {
     const m = shape.transform;
-    for (const sp of shape.subpaths) {
+    for (const sp of resolvedSubpaths(shape)) {
       const anchors = sp.anchors.map((a) => transformAnchor(m, a));
       if (sp.closed || anchors.length < 2) {
         passthrough.push({ anchors, closed: sp.closed });

@@ -8,6 +8,7 @@ import { ellipseSubpath } from "../ellipse";
 import { IDENTITY } from "@/model/geometry/matrix";
 import { roundedRectSubpath } from "../roundedRect";
 import { strokeDetailFields } from "../stroke";
+import { resolvedSubpaths } from "./pathModifiers";
 import {
   baseNodeDefaults,
   makeId,
@@ -80,7 +81,7 @@ function shapeToGeom(shape: Shape, doc?: Document): paper.PathItem | null {
     }
     case "path":
       item = compound(
-        shape.subpaths
+        resolvedSubpaths(shape)
           .filter((sp) => sp.anchors.length >= 2)
           .map((sp) => {
             // Force the implicit fill close paper.js needs to see an area.
@@ -117,7 +118,7 @@ export function isAreal(shape: Shape): boolean {
     case "compoundPath":
       return true;
     case "path":
-      return shape.subpaths.some((sp) => sp.anchors.length >= 2);
+      return resolvedSubpaths(shape).some((sp) => sp.anchors.length >= 2);
     case "line":
     case "image":
     case "text":

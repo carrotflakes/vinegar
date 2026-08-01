@@ -3,6 +3,7 @@ import { convertBrushToCenterlinePath } from "@/model/brush/convertBrush";
 import { ellipseSubpath } from "../ellipse";
 import { roundedRectSubpath } from "../roundedRect";
 import { transformSubpath } from "./path";
+import { resolvedSubpaths } from "./pathModifiers";
 import { strokeDetailFields } from "../stroke";
 import type {
   CompoundPathNode,
@@ -53,7 +54,7 @@ function primitiveSubpaths(shape: PrimitiveShape): PathSubpath[] {
     case "line":
       return [lineSubpath(shape)];
     case "path":
-      return shape.subpaths;
+      return resolvedSubpaths(shape);
   }
 }
 

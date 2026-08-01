@@ -1,16 +1,16 @@
-# Path modifiers (plan)
+# Path modifiers
 
-Status: **proposed** (design agreed 2026-07-24; not yet implemented). File
-version: **bump TBD** (additive — absent `modifiers` ⇒ no change, so a no-op
-migration). Related: extends the generator concept
-([document-model.md](document-model.md)); models on `effects`; overlaps
+Status: **implemented** (2026-08-02). File version: **v30** (additive shape
+field, but Vinegar's strict current-only file policy requires a version bump;
+absent `modifiers` still means no change). Related: extends the generator concept
+([document-model.md](document-model.md)); modeled on `effects`; overlaps
 [path-unification.md](path-unification.md) (v21) and
 [compound-path-nodes.md](compound-path-nodes.md) (v22).
 
 ## Problem / motivation
 
-Path cleanups (Simplify, Flatten, Offset, …) currently **bake once** into
-`subpaths` (`model/pathOps.ts`, one-shot commands). The user wants them to be
+Path cleanups (Simplify, Flatten, Offset, …) historically **baked once** into
+`subpaths` (`model/pathOps.ts`, one-shot commands). They are now also available as
 **non-destructive, re-editable modifiers** — a Blender-style modifier stack —
 so a tolerance (or offset distance, etc.) can be tuned at any time with a live
 preview, and removed or reordered without losing the original geometry.
@@ -22,7 +22,7 @@ downstream. Modifiers are the **geometry** counterpart of effects:
 | | `effects` (shipped) | `modifiers` (this plan) |
 | --- | --- | --- |
 | transforms | appearance (blur, shadow) | **geometry** (`subpaths`) |
-| evaluated in | render + SVG export only | render + hit-test + bounds + snap + SVG export + node tool |
+| evaluated in | render + SVG export only | render + hit-test + bounds + snap + SVG export |
 | bounds impact | inflate by a margin | geometry actually changes |
 
 Relation to **generators**: today `generator` is a *source-less, single-stage*
@@ -73,10 +73,10 @@ harder; deferred), per-fill/stroke modifiers.
 the same result feeds render, hit-test, bounds, snap and export within a frame,
 recomputing per call is wasteful. Options, cheapest first:
 
-1. **Memo keyed on identity** — cache `{ subpaths, modifiers } → resolved` in a
+1. **Memo keyed on identity** — caches `{ subpaths, modifiers } → resolved` in a
    `WeakMap`-ish per-node cache invalidated by the node object identity (edits
    are immutable, so a new node object ⇒ recompute). Simplest; matches the
-   immutable-doc model. **Recommended for v1.**
+   immutable-doc model. **Implemented for v1.**
 2. Store a derived `_resolved` alongside on transact (denormalized) — faster but
    risks drift; rejected.
 
@@ -121,7 +121,7 @@ top" model, and mirrors how `effects` already leaves `subpaths` untouched.
   (`path.simplify`, …) — but as an "add modifier" variant (group "Path"),
   surfaced in the selection context menu + command palette. The existing
   one-shot `pathOpSelected` commands remain as **Apply once (bake)**.
-- **Detach / Apply** buttons (mirror the generator's "Detach"): *Apply* bakes
+- **Apply** (mirroring the generator's "Detach") bakes
   the resolved geometry into `subpaths` and clears `modifiers`
   (`convertToPath`-style); *Remove* drops a single modifier.
 
@@ -130,15 +130,15 @@ top" model, and mirrors how `effects` already leaves `subpaths` untouched.
 - **SVG/PNG**: emit resolved geometry (modifiers are baked at export time; no
   SVG modifier concept, unlike effects' `<filter>`). Export bounds already use
   resolved geometry once render does.
-- **File format**: additive `modifiers?` field; absent ⇒ unchanged. A
-  document that opens in an older build loses interactivity but not shape (if we
-  also keep a baked `subpaths`… **decide**: do we persist base-only, or
-  base+lastResolved for forward-compat? Recommend base-only + modifiers).
+- **File format**: additive `modifiers?` field; absent ⇒ unchanged. Vinegar
+  persists base geometry plus the modifier stack, not a duplicate resolved
+  cache. Older builds reject the v30 wrapper under the current-only policy.
 
-## Open questions / deferred
+## Decisions and deferred work
 
-- Offset of open paths (one-sided vs two-sided) — reuse `outlineStroke.ts`
-  clipper path; needs the same join/side options.
+- Offset of open paths is a two-sided closed outline in v1. The sign is ignored
+  for open contours; signed inward/outward offsets remain meaningful for closed
+  contours. One-sided offset is deferred.
 - Boolean-as-modifier (needs a second operand reference) — deferred.
 - Modifiers on non-path shapes (auto-convert-on-add?) — deferred.
 - Interaction with `brush` width profile and `compoundPath` children — v1 scopes
@@ -146,21 +146,18 @@ top" model, and mirrors how `effects` already leaves `subpaths` untouched.
 - Caching strategy under heavy documents (ties into
   [render-performance.md](render-performance.md) culling/caching work).
 
-## Phasing
+## Implemented scope
 
-1. **Vertical slice** (de-risk the blast radius): `modifiers?: Modifier[]` +
-   `resolvedSubpaths()` with the identity-memo cache; route **render + hit-test
-   + bounds** through it; ship **one** modifier (Simplify) with a live-tolerance
-   Modifiers panel section. Prove edit→preview→commit and undo end-to-end.
-2. Route the remaining resolved readers (stroke, boolean, bucket, clip, outline,
-   SVG export, snap, overlay). Add Apply/Detach.
-3. Fill out the modifier set (Flatten, Smooth, Reverse, Offset).
-4. Reorder/enable UI polish; context-menu "add modifier" entries.
+- `resolvedSubpaths()` with identity-based memoization routes rendering,
+  hit-testing, bounds, snapping, geometry operations, clipping, and export.
+- Simplify, Flatten, Smooth, Reverse, and Offset are stackable and toggleable.
+- The Properties panel supports live parameter preview, reorder, remove,
+  enable/disable, and Apply; scrubbing commits as one undo step.
+- Registry commands expose modifier addition and Apply in the command palette
+  and selection context menu. Existing cleanup commands remain bake-once.
 
 ## Sequencing vs. roadmap
 
-v21 path-unification is **done** (subpaths is already the canonical path
-geometry), so the base type is ready — no need to wait. v22 compound-path-nodes
-(real children) will need `resolvedSubpaths` to compose across children; keep the
-resolver a pure `(node, doc)` function so v22 can recurse. Build modifiers on the
-current model; keep the resolver signature v22-friendly.
+v21 path-unification and v22 compound-path nodes are both **done**. Path
+modifiers operate on plain path leaves; compound containers consume each
+child's resolved geometry through the shared readers.

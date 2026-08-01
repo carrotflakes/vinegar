@@ -15,6 +15,7 @@ import {
   parentIdOf,
   selectionRoots,
 } from "../scene";
+import { resolvedSubpaths } from "./pathModifiers";
 
 export function isCompoundChild(
   node: SceneNode | undefined
@@ -23,7 +24,7 @@ export function isCompoundChild(
     return false;
   }
   return node.type !== "path" ||
-    (node.subpaths.length > 0 && node.subpaths.every((sp) => sp.closed));
+    (resolvedSubpaths(node).length > 0 && resolvedSubpaths(node).every((sp) => sp.closed));
 }
 
 /** Real child shapes whose outlines currently participate in the compound. */
@@ -45,7 +46,8 @@ export function canCompoundShape(shape: Shape): boolean {
   if (shape.type === "compoundPath") return shape.childIds.length > 0;
   if (!isAreal(shape)) return false;
   if (shape.type === "path") {
-    return shape.subpaths.length > 0 && shape.subpaths.every((sp) => sp.closed);
+    const subpaths = resolvedSubpaths(shape);
+    return subpaths.length > 0 && subpaths.every((sp) => sp.closed);
   }
   return true;
 }

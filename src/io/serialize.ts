@@ -4,6 +4,7 @@ import { referencedAssetIds } from "../model/scene";
 import {
   BLEND_MODES,
   EFFECT_TYPES,
+  PATH_MODIFIER_TYPES,
   STROKE_ALIGNMENTS,
   STROKE_CAPS,
   STROKE_JOINS,
@@ -13,9 +14,9 @@ import {
 
 /**
  * Only the current version is accepted; there is no migration from older
- * formats — pre-v28 files fail to open with a clear message.
+ * formats — pre-v30 files fail to open with a clear message.
  */
-export const CURRENT_FILE_VERSION = 29 as const;
+export const CURRENT_FILE_VERSION = 30 as const;
 
 export interface VinegarFile {
   app: "vinegar";
@@ -113,6 +114,19 @@ const isEffect = (value: unknown): boolean => {
 };
 const isEffects = (value: unknown): boolean =>
   Array.isArray(value) && value.every(isEffect);
+const isPathModifier = (value: unknown): boolean => {
+  if (!isObject(value) || !PATH_MODIFIER_TYPES.includes(value.type as never)) return false;
+  if (value.enabled !== undefined && typeof value.enabled !== "boolean") return false;
+  if (value.type === "simplify" || value.type === "flatten") {
+    return isNumber(value.tolerance) && value.tolerance >= 0;
+  }
+  if (value.type === "offset") {
+    return isNumber(value.distance) && STROKE_JOINS.includes(value.join as never);
+  }
+  return value.type === "smooth" || value.type === "reverse";
+};
+const isPathModifiersOrAbsent = (value: unknown): boolean =>
+  value === undefined || (Array.isArray(value) && value.every(isPathModifier));
 const isStrokeDash = (value: unknown): boolean =>
   Array.isArray(value) && value.every((entry) => isNumber(entry) && entry >= 0);
 const isGeneratorOrNull = (value: unknown): boolean => {
@@ -183,6 +197,7 @@ const isNode = (id: string, node: unknown): boolean => {
     case "path":
       return (
         (node.fillRule === "nonzero" || node.fillRule === "evenodd") &&
+        isPathModifiersOrAbsent(node.modifiers) &&
         Array.isArray(node.subpaths) &&
         node.subpaths.every((sp) =>
           isObject(sp) && typeof sp.closed === "boolean" &&

@@ -391,6 +391,51 @@ export const COMMANDS: Command[] = [
     run: (s) => s.pathOpSelected("simplify"),
   },
   {
+    id: "path.addSimplifyModifier",
+    label: "Add Simplify modifier",
+    group: "Path",
+    enabled: (s) => sel(s).canPathOp,
+    run: (s) => s.addPathModifierSelected("simplify"),
+  },
+  {
+    id: "path.addFlattenModifier",
+    label: "Add Flatten modifier",
+    group: "Path",
+    enabled: (s) => sel(s).canPathOp,
+    run: (s) => s.addPathModifierSelected("flatten"),
+  },
+  {
+    id: "path.addOffsetModifier",
+    label: "Add Offset modifier",
+    group: "Path",
+    enabled: (s) => sel(s).canPathOp,
+    run: (s) => s.addPathModifierSelected("offset"),
+  },
+  {
+    id: "path.addSmoothModifier",
+    label: "Add Smooth modifier",
+    group: "Path",
+    enabled: (s) => sel(s).canPathOp,
+    run: (s) => s.addPathModifierSelected("smooth"),
+  },
+  {
+    id: "path.addReverseModifier",
+    label: "Add Reverse modifier",
+    group: "Path",
+    enabled: (s) => sel(s).canPathOp,
+    run: (s) => s.addPathModifierSelected("reverse"),
+  },
+  {
+    id: "path.applyModifiers",
+    label: "Apply path modifiers",
+    group: "Path",
+    enabled: (s) => selectionRoots(s.doc, s.selection).some((id) => {
+      const node = s.doc.nodes[id];
+      return node?.type === "path" && !!node.modifiers?.length;
+    }),
+    run: (s) => s.applyPathModifiersSelected(),
+  },
+  {
     id: "path.smooth",
     label: "Smooth path",
     group: "Path",

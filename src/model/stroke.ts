@@ -5,6 +5,7 @@ import type {
   StrokeCap,
   StrokeJoin,
 } from "./types";
+import { resolvedSubpaths } from "./path/pathModifiers";
 
 export const DEFAULT_STROKE_CAP: StrokeCap = "round";
 export const DEFAULT_STROKE_JOIN: StrokeJoin = "round";
@@ -26,7 +27,8 @@ export function supportsStrokeAlignment(shape: Shape): boolean {
     case "text":
       return true;
     case "path":
-      return shape.subpaths.length > 0 && shape.subpaths.every((subpath) => subpath.closed);
+      const subpaths = resolvedSubpaths(shape);
+      return subpaths.length > 0 && subpaths.every((subpath) => subpath.closed);
     case "line":
     case "image":
     case "brush":

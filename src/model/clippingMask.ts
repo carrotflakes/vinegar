@@ -17,6 +17,7 @@ import type {
   SceneNode,
   Shape,
 } from "./types";
+import { resolvedSubpaths } from "./path/pathModifiers";
 
 /** Shapes whose closed geometry can define a vector clipping mask. */
 export type ClippingMaskShape =
@@ -42,9 +43,10 @@ export function isClippingMaskCandidate(
         (!doc || node.childIds.every((id) => isClippingMaskCandidate(doc.nodes[id], doc)))
       );
     case "path":
+      const subpaths = resolvedSubpaths(node);
       return (
-        node.subpaths.length > 0 &&
-        node.subpaths.every((subpath) => subpath.anchors.length >= 2)
+        subpaths.length > 0 &&
+        subpaths.every((subpath) => subpath.anchors.length >= 2)
       );
     case "line":
     case "image":

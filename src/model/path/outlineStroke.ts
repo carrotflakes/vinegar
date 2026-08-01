@@ -1,5 +1,6 @@
 import ClipperLib, { type PolyNode } from "clipper-lib";
 import { flattenSubpath } from "./path";
+import { resolvedSubpaths } from "./pathModifiers";
 import { shapeBounds } from "@/model/geometry/bounds";
 import { compoundChildren } from "./compoundPath";
 import { contours, intPath, SCALE, treeToPolys } from "./clipperPaths";
@@ -56,7 +57,7 @@ function centerlines(shape: Shape, doc?: Document): Polyline[] {
       return [{ points: pts, closed: true }];
     }
     case "path":
-      return shape.subpaths.map((sp) => ({
+      return resolvedSubpaths(shape).map((sp) => ({
         points: flattenSubpath(sp),
         closed: sp.closed,
       }));

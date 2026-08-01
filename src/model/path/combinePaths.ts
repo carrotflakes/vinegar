@@ -7,6 +7,7 @@ import {
 import { parentIdOf, selectionRoots } from "../scene";
 import { strokeDetailFields } from "../stroke";
 import { transformSubpath } from "./path";
+import { resolvedSubpaths } from "./pathModifiers";
 import {
   baseNodeDefaults,
   makeId,
@@ -68,9 +69,10 @@ export function combineShapes(shapes: PathShape[]): PathShape | null {
       // Base-space contours pass through untouched; the rest are re-expressed
       // in it (parent space when the base transform cannot be inverted).
       const m = intoBase ? multiply(intoBase, shape.transform) : shape.transform;
+      const subpaths = resolvedSubpaths(shape);
       return isIdentity(m)
-        ? shape.subpaths.map((sp) => structuredClone(sp))
-        : shape.subpaths.map((sp) => transformSubpath(m, sp));
+        ? subpaths.map((sp) => structuredClone(sp))
+        : subpaths.map((sp) => transformSubpath(m, sp));
     }),
     // Irrelevant to the open contours this exists for; kept from the base so a
     // closed input keeps filling the way it did.

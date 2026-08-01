@@ -10,6 +10,10 @@ type Props = {
   defaultValue?: number;
   className?: string;
   "aria-label"?: string;
+  /** Optional lifecycle hooks for callers that batch a scrub into one undo step. */
+  onScrubStart?: () => void;
+  onScrubEnd?: () => void;
+  onScrubCancel?: () => void;
 };
 
 /** Number field that can be scrubbed: drag left/right to change the value, or
@@ -24,6 +28,9 @@ export default function ScrubbableNumber({
   step = 1,
   defaultValue,
   className,
+  onScrubStart,
+  onScrubEnd,
+  onScrubCancel,
   "aria-label": ariaLabel,
 }: Props) {
   const inputRef = useRef<HTMLInputElement>(null);
@@ -66,6 +73,7 @@ export default function ScrubbableNumber({
     if (!d.scrubbing) {
       if (Math.abs(dx) < 3) return; // tolerate jitter so clicks still edit
       d.scrubbing = true;
+      onScrubStart?.();
       inputRef.current?.blur();
       inputRef.current?.setPointerCapture(d.pointerId);
     }
@@ -82,6 +90,7 @@ export default function ScrubbableNumber({
     if (!d) return;
     if (d.scrubbing) {
       inputRef.current?.releasePointerCapture(d.pointerId);
+      onScrubEnd?.();
     } else {
       // A plain click/tap: focus for text editing.
       inputRef.current?.focus();
@@ -92,6 +101,7 @@ export default function ScrubbableNumber({
 
   const onPointerCancel = () => {
     // Touch gestures can be interrupted; just drop the scrub without editing.
+    if (drag.current?.scrubbing) onScrubCancel?.();
     drag.current = null;
   };
 
