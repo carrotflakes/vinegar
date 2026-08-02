@@ -1,5 +1,11 @@
-import { useEffect } from "react";
-import { LuX } from "react-icons/lu";
+import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  LuPalette,
+  LuPencilRuler,
+  LuSave,
+  LuWrench,
+  LuX,
+} from "react-icons/lu";
 import {
   isPositiveSafeInteger,
   isRulerOrigin,
@@ -51,6 +57,16 @@ const UNDO_HISTORY_LIMIT_OPTIONS = [
   { value: 200, label: "200 steps" },
 ] as const;
 
+/** The panel is one continuous scroll; the sidebar is a table of contents. */
+const CATEGORIES = [
+  { id: "interface", label: "Interface", icon: LuPalette },
+  { id: "canvas", label: "Canvas & Editing", icon: LuPencilRuler },
+  { id: "files", label: "Files & Recovery", icon: LuSave },
+  { id: "advanced", label: "Advanced", icon: LuWrench },
+] as const;
+
+type CategoryId = (typeof CATEGORIES)[number]["id"];
+
 /** A labelled preference row: title + description on the left, control on the right. */
 function Row({
   title,
@@ -72,7 +88,39 @@ function Row({
   );
 }
 
+/** The on/off pill used by every boolean preference. */
+function Switch({
+  label,
+  checked,
+  disabled,
+  onChange,
+}: {
+  label: string;
+  checked: boolean;
+  disabled?: boolean;
+  onChange: (next: boolean) => void;
+}) {
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-label={label}
+      aria-checked={checked}
+      disabled={disabled ?? false}
+      className={"pref-switch" + (checked ? " on" : "")}
+      onClick={() => onChange(!checked)}
+    >
+      <span className="pref-switch-knob" aria-hidden />
+    </button>
+  );
+}
+
 export default function PreferencesDialog({ open, onClose }: Props) {
+  const [category, setCategory] = useState<CategoryId>("interface");
+  const bodyRef = useRef<HTMLDivElement | null>(null);
+  const sectionRefs = useRef(
+    {} as Partial<Record<CategoryId, HTMLElement | null>>
+  );
   const general = usePreferences((state) => state.general);
   const canvas = usePreferences((state) => state.canvas);
   const recovery = usePreferences((state) => state.recovery);
@@ -98,6 +146,43 @@ export default function PreferencesDialog({ open, onClose }: Props) {
   const resetPreferences = usePreferences((state) => state.resetPreferences);
   const resetLayout = useDock((state) => state.resetLayout);
 
+  /** Highlight the category whose heading last passed the top of the panel. */
+  const syncActiveCategory = useCallback(() => {
+    const body = bodyRef.current;
+    if (!body) return;
+    // A short final category can never reach the top, so once the panel is
+    // scrolled to the end it always owns the highlight.
+    if (body.scrollHeight - body.clientHeight - body.scrollTop < 4) {
+      setCategory(CATEGORIES[CATEGORIES.length - 1].id);
+      return;
+    }
+    let active: CategoryId = CATEGORIES[0].id;
+    for (const { id } of CATEGORIES) {
+      const section = sectionRefs.current[id];
+      if (!section) continue;
+      if (section.offsetTop > body.scrollTop + 24) break;
+      active = id;
+    }
+    setCategory(active);
+  }, []);
+
+  useEffect(() => {
+    if (!open) return;
+    const body = bodyRef.current;
+    if (!body) return;
+    syncActiveCategory();
+    body.addEventListener("scroll", syncActiveCategory, { passive: true });
+    return () => body.removeEventListener("scroll", syncActiveCategory);
+  }, [open, syncActiveCategory]);
+
+  const scrollToCategory = (id: CategoryId) => {
+    const body = bodyRef.current;
+    const section = sectionRefs.current[id];
+    if (!body || !section) return;
+    body.scrollTo({ top: section.offsetTop - 12, behavior: "smooth" });
+    setCategory(id);
+  };
+
   useEffect(() => {
     if (!open) return;
     const onKeyDown = (event: KeyboardEvent) => {
@@ -114,6 +199,197 @@ export default function PreferencesDialog({ open, onClose }: Props) {
   }, [open, onClose]);
 
   if (!open) return null;
+
+  const sections: Record<CategoryId, React.ReactNode> = {
+    interface: (
+      <>
+        <Row
+          title="Theme"
+          description="Match the system setting or pick a fixed appearance."
+          control={
+            <div className="pref-segmented" role="group" aria-label="Theme">
+              {THEME_PREFERENCES.map((theme) => (
+                <button
+                  key={theme}
+                  type="button"
+                  className={
+                    "pref-seg" + (general.theme === theme ? " active" : "")
+                  }
+                  aria-pressed={general.theme === theme}
+                  onClick={() => setTheme(theme)}
+                >
+                  {THEME_LABELS[theme]}
+                </button>
+              ))}
+            </div>
+          }
+        />
+        <Row
+          title="Language"
+          control={
+            <select
+              className="pref-select"
+              value={general.locale}
+              disabled={SUPPORTED_LOCALES.length === 1}
+              onChange={(event) => {
+                const locale = event.target.value;
+                if (isUiLocale(locale)) setLocale(locale);
+              }}
+            >
+              {SUPPORTED_LOCALES.map((locale) => (
+                <option key={locale} value={locale}>
+                  {LOCALE_LABELS[locale]}
+                </option>
+              ))}
+            </select>
+          }
+        />
+      </>
+    ),
+    canvas: (
+      <>
+        <Row
+          title="Canvas rotation"
+          description="Rotate the view with a two-finger twist or the zoom menu."
+          control={
+            <Switch
+              label="Canvas rotation"
+              checked={canvas.rotationEnabled}
+              onChange={setCanvasRotationEnabled}
+            />
+          }
+        />
+        <Row
+          title="Snap rotation to 90°"
+          description="Snap the canvas to quarter turns while rotating."
+          control={
+            <Switch
+              label="Snap rotation to 90°"
+              checked={canvas.rotationSnap}
+              disabled={!canvas.rotationEnabled}
+              onChange={setCanvasRotationSnap}
+            />
+          }
+        />
+        <Row
+          title="Draw with finger"
+          description="Let a finger paint with the brush, pencil and eraser. Off, it only pans and pinches — turned off automatically once a pen is used."
+          control={
+            <Switch
+              label="Draw with finger"
+              checked={canvas.fingerDrawing}
+              onChange={setFingerDrawing}
+            />
+          }
+        />
+        <Row
+          title="Show all handles"
+          description="Draw every Bézier handle while editing nodes. Off, only the handles around the selected anchors are shown — and only those can be grabbed."
+          control={
+            <Switch
+              label="Show all handles"
+              checked={canvas.showAllHandles}
+              onChange={setShowAllHandles}
+            />
+          }
+        />
+        <Row
+          title="Ruler origin"
+          description="Count the rulers from the active artboard, or always from the document origin."
+          control={
+            <select
+              className="pref-select"
+              value={canvas.rulerOrigin}
+              onChange={(event) => {
+                const origin = event.target.value;
+                if (isRulerOrigin(origin)) setRulerOrigin(origin);
+              }}
+            >
+              {RULER_ORIGINS.map((origin) => (
+                <option key={origin} value={origin}>
+                  {RULER_ORIGIN_LABELS[origin]}
+                </option>
+              ))}
+            </select>
+          }
+        />
+      </>
+    ),
+    files: (
+      <>
+        <Row
+          title="Recovery autosave"
+          description="Keep a recovery snapshot in this browser."
+          control={
+            <Switch
+              label="Recovery autosave"
+              checked={recovery.enabled}
+              onChange={setRecoveryEnabled}
+            />
+          }
+        />
+        <Row
+          title="Snapshot interval"
+          description="Maximum time between browser recovery snapshots."
+          control={
+            <select
+              className="pref-select"
+              value={recovery.maxWaitMs}
+              disabled={!recovery.enabled}
+              onChange={(event) => {
+                const interval = Number(event.target.value);
+                if (isPositiveSafeInteger(interval)) {
+                  setRecoveryMaxWaitMs(interval);
+                }
+              }}
+            >
+              {!RECOVERY_INTERVAL_OPTIONS.some(
+                (option) => option.value === recovery.maxWaitMs
+              ) && (
+                <option value={recovery.maxWaitMs}>
+                  {recovery.maxWaitMs} ms (custom)
+                </option>
+              )}
+              {RECOVERY_INTERVAL_OPTIONS.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+          }
+        />
+      </>
+    ),
+    advanced: (
+      <Row
+        title="Undo history limit"
+        description="Maximum number of undo and redo steps kept in memory."
+        control={
+          <select
+            className="pref-select"
+            value={undoHistoryLimit}
+            onChange={(event) => {
+              const limit = Number(event.target.value);
+              if (isPositiveSafeInteger(limit)) setUndoHistoryLimit(limit);
+            }}
+          >
+            {!UNDO_HISTORY_LIMIT_OPTIONS.some(
+              (option) => option.value === undoHistoryLimit
+            ) && (
+              <option value={undoHistoryLimit}>
+                {undoHistoryLimit} steps (custom)
+              </option>
+            )}
+            {UNDO_HISTORY_LIMIT_OPTIONS.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+        }
+      />
+    ),
+  };
 
   return (
     <div className="modal-overlay" onMouseDown={onClose}>
@@ -137,249 +413,61 @@ export default function PreferencesDialog({ open, onClose }: Props) {
           </button>
         </div>
 
-        <div className="preferences-body">
-          <section className="pref-section">
-            <h3 className="pref-section-title">General</h3>
-            <Row
-              title="Theme"
-              description="Match the system setting or pick a fixed appearance."
-              control={
-                <div className="pref-segmented" role="group" aria-label="Theme">
-                  {THEME_PREFERENCES.map((theme) => (
-                    <button
-                      key={theme}
-                      type="button"
-                      className={
-                        "pref-seg" + (general.theme === theme ? " active" : "")
-                      }
-                      aria-pressed={general.theme === theme}
-                      onClick={() => setTheme(theme)}
-                    >
-                      {THEME_LABELS[theme]}
-                    </button>
-                  ))}
-                </div>
-              }
-            />
-            <Row
-              title="Language"
-              control={
-                <select
-                  className="pref-select"
-                  value={general.locale}
-                  disabled={SUPPORTED_LOCALES.length === 1}
-                  onChange={(event) => {
-                    const locale = event.target.value;
-                    if (isUiLocale(locale)) setLocale(locale);
-                  }}
-                >
-                  {SUPPORTED_LOCALES.map((locale) => (
-                    <option key={locale} value={locale}>
-                      {LOCALE_LABELS[locale]}
-                    </option>
-                  ))}
-                </select>
-              }
-            />
-          </section>
+        <div className="preferences-layout">
+          <nav className="preferences-nav" aria-label="Preference categories">
+            {CATEGORIES.map(({ id, label, icon: Icon }) => (
+              <button
+                key={id}
+                type="button"
+                aria-current={category === id}
+                className={"pref-nav-item" + (category === id ? " active" : "")}
+                onClick={() => scrollToCategory(id)}
+              >
+                <Icon aria-hidden />
+                <span>{label}</span>
+              </button>
+            ))}
+          </nav>
 
-          <section className="pref-section">
-            <h3 className="pref-section-title">Canvas</h3>
-            <Row
-              title="Canvas rotation"
-              description="Rotate the view with a two-finger twist or the zoom menu."
-              control={
-                <button
-                  type="button"
-                  role="switch"
-                  aria-checked={canvas.rotationEnabled}
-                  className={
-                    "pref-switch" + (canvas.rotationEnabled ? " on" : "")
-                  }
-                  onClick={() =>
-                    setCanvasRotationEnabled(!canvas.rotationEnabled)
-                  }
-                >
-                  <span className="pref-switch-knob" aria-hidden />
-                </button>
-              }
-            />
-            <Row
-              title="Snap rotation to 90°"
-              description="Snap the canvas to quarter turns while rotating."
-              control={
-                <button
-                  type="button"
-                  role="switch"
-                  aria-checked={canvas.rotationSnap}
-                  disabled={!canvas.rotationEnabled}
-                  className={"pref-switch" + (canvas.rotationSnap ? " on" : "")}
-                  onClick={() => setCanvasRotationSnap(!canvas.rotationSnap)}
-                >
-                  <span className="pref-switch-knob" aria-hidden />
-                </button>
-              }
-            />
-            <Row
-              title="Draw with finger"
-              description="Let a finger paint with the brush, pencil and eraser. Off, it only pans and pinches — turned off automatically once a pen is used."
-              control={
-                <button
-                  type="button"
-                  role="switch"
-                  aria-checked={canvas.fingerDrawing}
-                  className={"pref-switch" + (canvas.fingerDrawing ? " on" : "")}
-                  onClick={() => setFingerDrawing(!canvas.fingerDrawing)}
-                >
-                  <span className="pref-switch-knob" aria-hidden />
-                </button>
-              }
-            />
-            <Row
-              title="Show all handles"
-              description="Draw every Bézier handle while editing nodes. Off, only the handles around the selected anchors are shown — and only those can be grabbed."
-              control={
-                <button
-                  type="button"
-                  role="switch"
-                  aria-checked={canvas.showAllHandles}
-                  className={"pref-switch" + (canvas.showAllHandles ? " on" : "")}
-                  onClick={() => setShowAllHandles(!canvas.showAllHandles)}
-                >
-                  <span className="pref-switch-knob" aria-hidden />
-                </button>
-              }
-            />
-            <Row
-              title="Ruler origin"
-              description="Count the rulers from the active artboard, or always from the document origin."
-              control={
-                <select
-                  className="pref-select"
-                  value={canvas.rulerOrigin}
-                  onChange={(event) => {
-                    const origin = event.target.value;
-                    if (isRulerOrigin(origin)) setRulerOrigin(origin);
-                  }}
-                >
-                  {RULER_ORIGINS.map((origin) => (
-                    <option key={origin} value={origin}>
-                      {RULER_ORIGIN_LABELS[origin]}
-                    </option>
-                  ))}
-                </select>
-              }
-            />
-          </section>
-
-          <section className="pref-section">
-            <h3 className="pref-section-title">Recovery</h3>
-            <Row
-              title="Recovery autosave"
-              description="Keep a recovery snapshot in this browser."
-              control={
-                <button
-                  type="button"
-                  role="switch"
-                  aria-checked={recovery.enabled}
-                  className={
-                    "pref-switch" + (recovery.enabled ? " on" : "")
-                  }
-                  onClick={() => setRecoveryEnabled(!recovery.enabled)}
-                >
-                  <span className="pref-switch-knob" aria-hidden />
-                </button>
-              }
-            />
-            <Row
-              title="Snapshot interval"
-              description="Maximum time between browser recovery snapshots."
-              control={
-                <select
-                  className="pref-select"
-                  value={recovery.maxWaitMs}
-                  disabled={!recovery.enabled}
-                  onChange={(event) => {
-                    const interval = Number(event.target.value);
-                    if (isPositiveSafeInteger(interval)) {
-                      setRecoveryMaxWaitMs(interval);
-                    }
-                  }}
-                >
-                  {!RECOVERY_INTERVAL_OPTIONS.some(
-                    (option) => option.value === recovery.maxWaitMs
-                  ) && (
-                    <option value={recovery.maxWaitMs}>
-                      {recovery.maxWaitMs} ms (custom)
-                    </option>
-                  )}
-                  {RECOVERY_INTERVAL_OPTIONS.map((option) => (
-                    <option key={option.value} value={option.value}>
-                      {option.label}
-                    </option>
-                  ))}
-                </select>
-              }
-            />
-          </section>
-
-          <section className="pref-section">
-            <h3 className="pref-section-title">Workspace</h3>
-            <Row
-              title="Panel layout"
-              description="Restore the default arrangement of the docked panels."
-              control={
-                <button
-                  type="button"
-                  className="preferences-button"
-                  onClick={resetLayout}
-                >
-                  Reset layout
-                </button>
-              }
-            />
-          </section>
-
-          <section className="pref-section">
-            <h3 className="pref-section-title">History</h3>
-            <Row
-              title="Undo history limit"
-              description="Maximum number of undo and redo steps kept in memory."
-              control={
-                <select
-                  className="pref-select"
-                  value={undoHistoryLimit}
-                  onChange={(event) => {
-                    const limit = Number(event.target.value);
-                    if (isPositiveSafeInteger(limit)) setUndoHistoryLimit(limit);
-                  }}
-                >
-                  {!UNDO_HISTORY_LIMIT_OPTIONS.some(
-                    (option) => option.value === undoHistoryLimit
-                  ) && (
-                    <option value={undoHistoryLimit}>
-                      {undoHistoryLimit} steps (custom)
-                    </option>
-                  )}
-                  {UNDO_HISTORY_LIMIT_OPTIONS.map((option) => (
-                    <option key={option.value} value={option.value}>
-                      {option.label}
-                    </option>
-                  ))}
-                </select>
-              }
-            />
-          </section>
+          <div className="preferences-body" ref={bodyRef} tabIndex={0}>
+            {CATEGORIES.map(({ id, label }) => (
+              <section
+                key={id}
+                className="pref-section"
+                aria-labelledby={`preferences-heading-${id}`}
+                ref={(element) => {
+                  sectionRefs.current[id] = element;
+                }}
+              >
+                <h3 className="pref-section-title" id={`preferences-heading-${id}`}>
+                  {label}
+                </h3>
+                {sections[id]}
+              </section>
+            ))}
+          </div>
         </div>
 
         <div className="modal-foot preferences-foot">
-          <button
-            type="button"
-            className="preferences-button"
-            onClick={resetPreferences}
-          >
-            Reset to defaults
-          </button>
+          {/* Both resets are actions rather than settings, so they live beside
+           * the dialog's other buttons instead of inside a category. */}
+          <div className="preferences-foot-resets">
+            <button
+              type="button"
+              className="preferences-button"
+              onClick={resetPreferences}
+            >
+              Reset to defaults
+            </button>
+            <button
+              type="button"
+              className="preferences-button"
+              onClick={resetLayout}
+              title="Restore the default arrangement of the docked panels"
+            >
+              Reset layout
+            </button>
+          </div>
           <button
             type="button"
             className="preferences-button primary"

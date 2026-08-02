@@ -34,7 +34,7 @@ per-tool concern.
 
 ## Finger drawing is a preference that turns itself off
 
-`canvas.fingerDrawing` (Preferences → Canvas) decides whether a bare finger may
+`canvas.fingerDrawing` (Preferences → Canvas & Editing) decides whether a bare finger may
 paint with the brush, pencil or eraser. It starts **on**, so a device with no
 stylus is usable out of the box, and turns **off by itself the first time a pen
 contact is seen** — `notePenInput()` in `src/store/preferencesStore.ts`, guarded
