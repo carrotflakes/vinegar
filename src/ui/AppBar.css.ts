@@ -67,6 +67,11 @@ globalStyle(".zoom-menu-knob", {
   color: vars.muted,
 });
 
+globalStyle(".zoom-menu-mirror", {
+  flex: "0 0 auto",
+  color: vars.accent,
+});
+
 globalStyle(".zoom-menu-knob.is-rotated", {
   color: vars.accent,
 });
@@ -97,22 +102,32 @@ globalStyle(".zoom-menu-item", {
   gap: "18px",
 });
 
-globalStyle(".zoom-menu-rotation", {
+/** The zoom/rotate/flip control block above the plain menu items. */
+globalStyle(".zoom-menu-controls", {
   display: "flex",
-  alignItems: "center",
-  gap: "8px",
+  flexDirection: "column",
+  gap: "2px",
   padding: "6px 10px",
   borderBottom: `1px solid ${vars.border}`,
   marginBottom: "4px",
 });
 
-globalStyle(".zoom-menu-rotation-label", {
+globalStyle(".zoom-menu-row", {
+  display: "flex",
+  alignItems: "center",
+  gap: "8px",
+});
+
+/** A shared label column keeps the fields of every row on one edge. */
+globalStyle(".zoom-menu-row-label", {
+  flex: "0 0 auto",
+  width: "42px",
   color: vars.muted,
   fontSize: "12px",
 });
 
-/** Scrubbable degree field; the unit sign sits inside the field's border. */
-globalStyle(".zoom-menu-rotation-field", {
+/** Scrubbable value field; the unit sign sits inside the field's border. */
+globalStyle(".zoom-menu-field", {
   flex: "1 1 auto",
   minWidth: "0",
   display: "flex",
@@ -124,11 +139,11 @@ globalStyle(".zoom-menu-rotation-field", {
   background: vars.field,
 });
 
-globalStyle(".zoom-menu-rotation-field:focus-within", {
+globalStyle(".zoom-menu-field:focus-within", {
   borderColor: vars.accent,
 });
 
-globalStyle(".zoom-menu-rotation-field input", {
+globalStyle(".zoom-menu-field input", {
   flex: "1 1 auto",
   minWidth: "0",
   width: "100%",
@@ -141,17 +156,31 @@ globalStyle(".zoom-menu-rotation-field input", {
 });
 
 // The wrapper already shows focus; a second ring inside it would double up.
-globalStyle(".zoom-menu-rotation-field input:focus-visible", {
+globalStyle(".zoom-menu-field input:focus-visible", {
   boxShadow: "none",
 });
 
-globalStyle(".zoom-menu-rotation-unit", {
+globalStyle(".zoom-menu-unit", {
   flex: "0 0 auto",
   color: vars.muted,
   fontSize: "12px",
 });
 
-globalStyle(".zoom-menu-rotation-step,\n.zoom-menu-rotation-reset", {
+/** The flip pair occupies the field column, so it starts on the same edge. */
+globalStyle(".zoom-menu-flip-group", {
+  flex: "1 1 auto",
+  display: "flex",
+  alignItems: "center",
+  gap: "2px",
+});
+
+globalStyle(".zoom-menu-flag", {
+  flex: "0 0 auto",
+  color: vars.accent,
+  fontSize: "11px",
+});
+
+globalStyle(".zoom-menu-step,\n.zoom-menu-reset", {
   display: "inline-flex",
   alignItems: "center",
   justifyContent: "center",
@@ -167,12 +196,12 @@ globalStyle(".zoom-menu-rotation-step,\n.zoom-menu-rotation-reset", {
   cursor: "pointer",
 });
 
-globalStyle(".zoom-menu-rotation-step:hover,\n.zoom-menu-rotation-reset:hover:not(:disabled)", {
+globalStyle(".zoom-menu-step:hover,\n.zoom-menu-reset:hover:not(:disabled)", {
   background: vars.accentWeak,
   color: vars.accent,
 });
 
-globalStyle(".zoom-menu-rotation-reset:disabled", {
+globalStyle(".zoom-menu-reset:disabled", {
   opacity: "0.4",
   cursor: "default",
 });

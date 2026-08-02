@@ -1,5 +1,13 @@
 import { useEffect, useState } from "react";
-import { LuChevronDown, LuRotateCcwSquare, LuRotateCwSquare } from "react-icons/lu";
+import {
+  LuChevronDown,
+  LuFlipHorizontal2,
+  LuFlipVertical2,
+  LuMinus,
+  LuPlus,
+  LuRotateCcwSquare,
+  LuRotateCwSquare,
+} from "react-icons/lu";
 import ScrubbableNumber from "./controls/ScrubbableNumber";
 import {
   canvasCenter,
@@ -8,7 +16,7 @@ import {
   getCommand,
   runCommand,
 } from "../commands/registry";
-import { rotateAt } from "@/model/geometry/viewport";
+import { clampScale, rotateAt, zoomAt } from "@/model/geometry/viewport";
 import { useEditor } from "../store/editorStore";
 import { usePreferences } from "../store/preferencesStore";
 import { barButton } from "./AppBar.css";
@@ -17,8 +25,6 @@ import "./menus.css";
 
 const ITEMS = [
   "view.reset",
-  "view.flipHorizontal",
-  "view.flipVertical",
   "view.fitSelection",
   "view.fitAll",
   "view.fitFrame",
@@ -30,10 +36,21 @@ function rotationDegrees(rotation: number): number {
   return ((((deg + 180) % 360) + 360) % 360) - 180;
 }
 
+const zoomPercent = (scale: number) => Math.round(scale * 100);
+
+/** Title text for a command, with its shortcut appended when it has one. */
+function commandTitle(id: string, fallback: string): string {
+  const command = getCommand(id);
+  const shortcut = command ? commandShortcut(command) : null;
+  const label = command?.label ?? fallback;
+  return shortcut ? `${label} (${shortcut})` : label;
+}
+
 /** Zoom/rotation readout plus discoverable reset/fit navigation actions. */
 export default function ZoomMenu() {
   const scale = useEditor((s) => s.viewport.scale);
   const angle = useEditor((s) => rotationDegrees(s.viewport.rotation));
+  const mirrored = useEditor((s) => !!s.viewport.flipX);
   const rotationEnabled = usePreferences((s) => s.canvas.rotationEnabled);
 
   return (
@@ -46,14 +63,17 @@ export default function ZoomMenu() {
             ref={ref}
             className={`${barButton({ active: open })} zoom-readout zoom-menu-trigger`}
             title="Zoom and fit options"
-            aria-label={`Zoom ${Math.round(scale * 100)}%${
+            aria-label={`Zoom ${zoomPercent(scale)}%${
               angle !== 0 ? `, rotated ${angle} degrees` : ""
-            }. Open zoom and fit options`}
+            }${mirrored ? ", mirrored" : ""}. Open zoom and fit options`}
             aria-haspopup="menu"
             aria-expanded={open}
             {...props}
           >
-            <span>{Math.round(scale * 100)}%</span>
+            <span>{zoomPercent(scale)}%</span>
+            {/* Only shown while the view is mirrored: an easy state to forget
+                you are in, and the readout alone cannot express it. */}
+            {mirrored && <LuFlipHorizontal2 className="zoom-menu-mirror" aria-hidden />}
             {rotationEnabled && (
               <svg
                 className={`zoom-menu-knob${angle !== 0 ? " is-rotated" : ""}`}
@@ -86,7 +106,9 @@ export default function ZoomMenu() {
  * enablement without re-rendering the readout trigger on every edit. */
 function ZoomMenuPanel({ close }: { close: () => void }) {
   const state = useEditor((s) => s);
+  const percent = zoomPercent(state.viewport.scale);
   const angle = rotationDegrees(state.viewport.rotation);
+  const mirrored = !!state.viewport.flipX;
   const rotationEnabled = usePreferences((s) => s.canvas.rotationEnabled);
 
   // The field's own value, kept separate from the normalized store angle so
@@ -97,6 +119,14 @@ function ZoomMenuPanel({ close }: { close: () => void }) {
   useEffect(() => {
     setFieldAngle((prev) => ((prev - angle) % 360 === 0 ? prev : angle));
   }, [angle]);
+
+  // Zoom about the canvas centre, like the zoom in/out commands, so typing a
+  // percentage keeps the same world point under the middle of the view.
+  const zoomTo = (nextPercent: number) => {
+    const viewport = useEditor.getState().viewport;
+    const target = clampScale(nextPercent / 100);
+    state.setViewport(zoomAt(viewport, canvasCenter(), target / viewport.scale));
+  };
 
   const rotateBy = (deltaDeg: number) => {
     const viewport = useEditor.getState().viewport;
@@ -113,48 +143,116 @@ function ZoomMenuPanel({ close }: { close: () => void }) {
 
   return (
     <>
-      {rotationEnabled && (
-        <div className="zoom-menu-rotation">
-          <span className="zoom-menu-rotation-label">Rotate</span>
-          <span className="zoom-menu-rotation-field">
+      <div className="zoom-menu-controls">
+        <div className="zoom-menu-row">
+          <span className="zoom-menu-row-label">Zoom</span>
+          <span className="zoom-menu-field">
             <ScrubbableNumber
-              value={fieldAngle}
-              min={-180}
-              max={180}
-              aria-label="Canvas rotation"
-              onChange={rotateTo}
+              value={percent}
+              min={5}
+              max={6400}
+              defaultValue={100}
+              aria-label="Zoom percentage"
+              onChange={zoomTo}
             />
-            <span className="zoom-menu-rotation-unit" aria-hidden>
-              °
+            <span className="zoom-menu-unit" aria-hidden>
+              %
             </span>
           </span>
           <button
-            className="zoom-menu-rotation-step"
-            title="Rotate 90° counter-clockwise"
-            aria-label="Rotate 90 degrees counter-clockwise"
-            onClick={() => rotateBy(-90)}
+            className="zoom-menu-step"
+            title={commandTitle("view.zoomOut", "Zoom out")}
+            aria-label="Zoom out"
+            onClick={() => runCommand("view.zoomOut")}
           >
-            <LuRotateCcwSquare aria-hidden />
+            <LuMinus aria-hidden />
           </button>
           <button
-            className="zoom-menu-rotation-step"
-            title="Rotate 90° clockwise"
-            aria-label="Rotate 90 degrees clockwise"
-            onClick={() => rotateBy(90)}
+            className="zoom-menu-step"
+            title={commandTitle("view.zoomIn", "Zoom in")}
+            aria-label="Zoom in"
+            onClick={() => runCommand("view.zoomIn")}
           >
-            <LuRotateCwSquare aria-hidden />
+            <LuPlus aria-hidden />
           </button>
           <button
-            className="zoom-menu-rotation-reset"
-            title="Reset rotation"
-            aria-label="Reset rotation"
-            disabled={fieldAngle === 0}
-            onClick={() => rotateTo(0)}
+            className="zoom-menu-reset"
+            title="Zoom to 100%"
+            aria-label="Zoom to 100 percent"
+            disabled={percent === 100}
+            onClick={() => zoomTo(100)}
           >
-            0°
+            1:1
           </button>
         </div>
-      )}
+        {rotationEnabled && (
+          <div className="zoom-menu-row">
+            <span className="zoom-menu-row-label">Rotate</span>
+            <span className="zoom-menu-field">
+              <ScrubbableNumber
+                value={fieldAngle}
+                min={-180}
+                max={180}
+                defaultValue={0}
+                aria-label="Canvas rotation"
+                onChange={rotateTo}
+              />
+              <span className="zoom-menu-unit" aria-hidden>
+                °
+              </span>
+            </span>
+            <button
+              className="zoom-menu-step"
+              title="Rotate 90° counter-clockwise"
+              aria-label="Rotate 90 degrees counter-clockwise"
+              onClick={() => rotateBy(-90)}
+            >
+              <LuRotateCcwSquare aria-hidden />
+            </button>
+            <button
+              className="zoom-menu-step"
+              title="Rotate 90° clockwise"
+              aria-label="Rotate 90 degrees clockwise"
+              onClick={() => rotateBy(90)}
+            >
+              <LuRotateCwSquare aria-hidden />
+            </button>
+            <button
+              className="zoom-menu-reset"
+              title="Reset rotation"
+              aria-label="Reset rotation"
+              disabled={fieldAngle === 0}
+              onClick={() => rotateTo(0)}
+            >
+              0°
+            </button>
+          </div>
+        )}
+        <div className="zoom-menu-row">
+          <span className="zoom-menu-row-label">Flip</span>
+          <span className="zoom-menu-flip-group" role="group" aria-label="Flip view">
+            <button
+              className="zoom-menu-step"
+              title={commandTitle("view.flipHorizontal", "Flip view horizontally")}
+              aria-label="Flip view horizontally"
+              onClick={() => runCommand("view.flipHorizontal")}
+            >
+              <LuFlipHorizontal2 aria-hidden />
+            </button>
+            <button
+              className="zoom-menu-step"
+              title={commandTitle("view.flipVertical", "Flip view vertically")}
+              aria-label="Flip view vertically"
+              onClick={() => runCommand("view.flipVertical")}
+            >
+              <LuFlipVertical2 aria-hidden />
+            </button>
+          </span>
+          {/* Both flips share one mirror flag, so the state is "mirrored or
+              not" rather than a per-axis toggle. */}
+          {mirrored && <span className="zoom-menu-flag">Mirrored</span>}
+        </div>
+      </div>
       {ITEMS.map((id) => {
         const command = getCommand(id);
         if (!command) return null;
