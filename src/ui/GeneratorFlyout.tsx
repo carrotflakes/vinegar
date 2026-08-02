@@ -55,6 +55,7 @@ export default function GeneratorFlyout() {
     <Popover
       placement="right-start"
       className="gen-flyout-popover"
+      label="Insert generator shape"
       renderTrigger={({ ref, open, props }) => (
         <button
           ref={ref}

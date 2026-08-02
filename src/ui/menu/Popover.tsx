@@ -26,12 +26,18 @@ import "../menus.css";
 export function Popover({
   placement = "bottom-start",
   className,
+  label,
   renderTrigger,
   children,
 }: {
   placement?: Placement;
   /** Extra class(es) appended to the `.menu-popover` panel. */
   className?: string;
+  /** Accessible name for the panel. It is a non-modal `dialog` rather than a
+   * `menu`: it holds arbitrary controls, so menu keyboard semantics would
+   * promise navigation it does not implement. Triggers should therefore say
+   * `aria-haspopup="dialog"`. */
+  label: string;
   renderTrigger: (p: {
     ref: (node: HTMLElement | null) => void;
     open: boolean;
@@ -72,6 +78,8 @@ export function Popover({
             <div
               ref={refs.setFloating}
               className={"menu-popover" + (className ? " " + className : "")}
+              role="dialog"
+              aria-label={label}
               style={floatingStyles}
               {...getFloatingProps()}
             >

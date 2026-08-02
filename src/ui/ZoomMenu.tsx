@@ -58,6 +58,7 @@ export default function ZoomMenu() {
       <Popover
         placement="bottom-end"
         className="zoom-menu-popover"
+        label="Zoom and fit options"
         renderTrigger={({ ref, open, props }) => (
           <button
             ref={ref}
@@ -66,7 +67,7 @@ export default function ZoomMenu() {
             aria-label={`Zoom ${zoomPercent(scale)}%${
               angle !== 0 ? `, rotated ${angle} degrees` : ""
             }${mirrored ? ", mirrored" : ""}. Open zoom and fit options`}
-            aria-haspopup="menu"
+            aria-haspopup="dialog"
             aria-expanded={open}
             {...props}
           >
@@ -262,7 +263,6 @@ function ZoomMenuPanel({ close }: { close: () => void }) {
         return (
           <button
             key={id}
-            role="menuitem"
             className="menu-item zoom-menu-item"
             disabled={!enabled}
             onClick={() => {

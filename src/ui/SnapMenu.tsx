@@ -35,13 +35,14 @@ export default function SnapMenu() {
       <Popover
         placement="top-end"
         className="snap-menu-popover"
+        label="Snapping options"
         renderTrigger={({ ref, open, props }) => (
           <button
             ref={ref}
             className={`${barButton()} snap-menu-trigger${active ? " is-active" : ""}`}
             title="Snapping options"
             aria-label="Snapping options"
-            aria-haspopup="menu"
+            aria-haspopup="dialog"
             aria-expanded={open}
             {...props}
           >
