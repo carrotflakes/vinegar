@@ -114,6 +114,7 @@ export function convertPathToBrush(
       locked: shape.locked,
       // The brush geometry no longer matches the generator's path output.
       generator: null,
+      bindings: { ...shape.bindings },
       transform: [...shape.transform],
       transformOrigin: shape.transformOrigin
         ? { ...shape.transformOrigin }
@@ -137,6 +138,7 @@ export function convertPathToBrush(
     name: shape.name,
     type: "group",
     clipsToMask: false,
+    bindings: {},
     childIds: brushes.map((brush) => brush.id),
     transform: [...shape.transform],
     transformOrigin: shape.transformOrigin,
@@ -194,6 +196,7 @@ export function convertBrushToOutlinePath(shape: BrushShape): PathShape | null {
     locked: shape.locked,
     // The envelope outline no longer matches the generator's brush output.
     generator: null,
+    bindings: {},
     transform: [...shape.transform],
     transformOrigin: shape.transformOrigin
       ? { ...shape.transformOrigin }
@@ -237,6 +240,7 @@ export function convertBrushToCenterlinePath(shape: BrushShape): PathShape {
     hidden: shape.hidden,
     locked: shape.locked,
     generator: null,
+    bindings: { ...shape.bindings },
     transform: [...shape.transform],
     transformOrigin: shape.transformOrigin
       ? { ...shape.transformOrigin }

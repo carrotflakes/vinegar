@@ -1,4 +1,5 @@
 import { clippingMask } from "../model/clippingMask";
+import { hasValidParams } from "../model/params";
 import { isCompoundChild } from "@/model/path/compoundPath";
 import { referencedAssetIds } from "../model/scene";
 import {
@@ -12,9 +13,9 @@ import {
   type ShapeType,
 } from "../model/types";
 
-export const CURRENT_FILE_VERSION = 31 as const;
+export const CURRENT_FILE_VERSION = 32 as const;
 /** Older schemas accepted directly by the current document validator. */
-const SUPPORTED_FILE_VERSIONS = [30, CURRENT_FILE_VERSION] as const;
+const SUPPORTED_FILE_VERSIONS = [31, CURRENT_FILE_VERSION] as const;
 
 export interface VinegarFile {
   app: "vinegar";
@@ -137,6 +138,21 @@ const isGeneratorOrNull = (value: unknown): boolean => {
   if (!isObject(value) || typeof value.scriptId !== "string" || !isObject(value.args)) return false;
   return Object.values(value.args).every(isNumber);
 };
+/** A node's parameter bindings. Absent is the v31 form: no bindings. */
+const isBindingsOrAbsent = (value: unknown): boolean =>
+  value === undefined ||
+  (isObject(value) &&
+    Object.values(value).every(
+      (ref) => isObject(ref) && typeof ref.paramId === "string" && isNumber(ref.scale)
+    ));
+/** A named document number. `min`/`max`/`step` are scrubber hints or null. */
+const isParam = (id: string, value: unknown): boolean =>
+  isObject(value) && value.id === id && typeof value.name === "string" &&
+  isNumber(value.value) &&
+  (value.min === null || isNumber(value.min)) &&
+  (value.max === null || isNumber(value.max)) &&
+  (value.step === null || isNumber(value.step)) &&
+  typeof value.integer === "boolean";
 // Shared node fields are all required: `undefined` is not a legal value for any
 // of them, so a file that omits one is rejected rather than silently defaulted.
 const isNode = (id: string, node: unknown): boolean => {
@@ -147,6 +163,7 @@ const isNode = (id: string, node: unknown): boolean => {
       !BLEND_MODES.includes(node.blendMode as never) ||
       !isEffects(node.effects) ||
       !isGeneratorOrNull(node.generator) ||
+      !isBindingsOrAbsent(node.bindings) ||
       typeof node.hidden !== "boolean" ||
       typeof node.locked !== "boolean") return false;
   if (node.type === "group") {
@@ -243,8 +260,27 @@ export function parseDocument(text: string): Document {
   if (!isCurrentDocument(data.document)) {
     throw new Error("Document data is missing or malformed.");
   }
-  validateTree(data.document);
-  return structuredClone(data.document);
+  const doc = withParamDefaults(structuredClone(data.document));
+  validateTree(doc);
+  return doc;
+}
+
+/**
+ * Fill in the parameter fields a v31 file predates. The model has no optional
+ * fields, so "the document has no parameters" is an empty registry and an empty
+ * binding map on every node, not an absent key.
+ */
+function withParamDefaults(doc: Document): Document {
+  const nodes: Document["nodes"] = {};
+  for (const [id, node] of Object.entries(doc.nodes)) {
+    nodes[id] = node.bindings ? node : { ...node, bindings: {} };
+  }
+  return {
+    ...doc,
+    nodes,
+    params: doc.params ?? {},
+    paramOrder: doc.paramOrder ?? [],
+  };
 }
 
 function isCurrentDocument(value: unknown): value is Document {
@@ -263,6 +299,13 @@ function isCurrentDocument(value: unknown): value is Document {
       typeof sw.name === "string" && isSolidPaint(sw.paint)) &&
     Array.isArray(value.swatchOrder) &&
     value.swatchOrder.every((id) => typeof id === "string") &&
+    // Absent params/paramOrder is the v31 form: the document has none.
+    (value.params === undefined ||
+      (isObject(value.params) &&
+        Object.entries(value.params).every(([id, param]) => isParam(id, param)))) &&
+    (value.paramOrder === undefined ||
+      (Array.isArray(value.paramOrder) &&
+        value.paramOrder.every((id) => typeof id === "string"))) &&
     isObject(value.scripts) &&
     Object.entries(value.scripts).every(([id, def]) =>
       isObject(def) && def.id === id &&
@@ -349,6 +392,11 @@ function validateTree(doc: Document): void {
   if (doc.swatchOrder.length !== Object.keys(doc.swatches).length ||
       doc.swatchOrder.some((id) => !doc.swatches[id])) {
     throw new Error("Global colors order does not match the swatch registry.");
+  }
+  // Parameters: `paramOrder` and `params` must be a bijection. A binding whose
+  // parameter is missing is tolerated — the bound field keeps its last value.
+  if (!hasValidParams(doc)) {
+    throw new Error("Parameter order does not match the parameter registry.");
   }
   for (const id of doc.rootIds) visit(id);
   for (const def of Object.values(doc.symbols)) {

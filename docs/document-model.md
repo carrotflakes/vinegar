@@ -84,9 +84,19 @@ active tool, selection, viewport and undo history does not belong in the file.
   Typography is one style per node (`fontFamily`, size, weight, italic,
   line-height and alignment); line layout is derived from the text at render.
 
-The current file version is v31; loading also accepts compatible v30 files.
-Persisted model changes require a version review and, when incompatible, a
-migration.
+- A number field can be driven by a *document parameter* (`doc.params` /
+  `doc.paramOrder`, a bijection like swatches). The reference lives beside the
+  field, in `node.bindings` keyed by bindable field path (`"strokeWidth"`,
+  `"generator.args.<key>"`, `"modifiers.<index>.<key>"`), while the field itself
+  holds the last resolved number — so every consumer reads a plain `number` and
+  a dangling reference degrades to the value it was showing. Bound fields are
+  derived state: `syncParamBindings` re-resolves them on every committed
+  document, and a binding whose field path no longer addresses anything is
+  pruned there. See [parameters.md](parameters.md).
+
+The current file version is v32; loading also accepts compatible v31 files
+(their absent `params`/`paramOrder`/`bindings` fill in as empty). Persisted
+model changes require a version review and, when incompatible, a migration.
 
 ## Coordinate policy
 

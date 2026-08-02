@@ -13,6 +13,7 @@ export const NODE_BASE = {
   hidden: false,
   locked: false,
   generator: null,
+  bindings: {},
 };
 
 /** Paint/stroke fields shared by every leaf shape and compound path. */

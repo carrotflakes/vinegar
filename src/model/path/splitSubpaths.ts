@@ -86,6 +86,7 @@ export function splitSubpaths(shape: PathShape): SplitSubpathsResult | null {
     name: shape.name,
     type: "group",
     clipsToMask: false,
+    bindings: {},
     childIds: pieces.map((piece) => piece.id),
     transform: [...shape.transform],
     transformOrigin: shape.transformOrigin,

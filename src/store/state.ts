@@ -12,9 +12,11 @@ import type {
   BaseNode,
   AnchorType,
   BlendMode,
+  DocParam,
   Document,
   Effect,
   PathModifier,
+  ParamRef,
   Matrix,
   PathShape,
   SceneNode,
@@ -320,7 +322,17 @@ export interface PathEditActions {
   setSelectedFillRule: (rule: PathShape["fillRule"]) => void;
   pathOpSelected: (op: PathOp) => void;
   /** Replace one path's ordered non-destructive modifier stack. */
-  setPathModifiers: (id: string, modifiers: PathModifier[]) => void;
+  /**
+   * Replace a path's modifier stack. `bindings` re-keys the node's parameter
+   * bindings when the change moved or dropped a stage — index-keyed paths like
+   * `modifiers.1.distance` would otherwise follow the slot instead of the
+   * modifier that was bound (see remapModifierBindings).
+   */
+  setPathModifiers: (
+    id: string,
+    modifiers: PathModifier[],
+    bindings?: Record<string, ParamRef>
+  ) => void;
   /** Append a default modifier to every selected path. */
   addPathModifierSelected: (type: PathModifier["type"]) => void;
   /** Bake the selected paths' stacks into their editable base geometry. */
@@ -485,6 +497,35 @@ export interface SwatchActions {
   reorderSwatch: (id: string, index: number) => void;
 }
 
+/**
+ * Document parameters ("global numbers"): named values that drive bound node
+ * number fields. Binding is per node and field path; see docs/parameters.md.
+ */
+export interface ParamActions {
+  /** Create a parameter and resolve its new id. */
+  createParam: (name?: string, value?: number) => string;
+  /** Rename or retune a parameter; every bound field follows on commit. */
+  updateParam: (id: string, patch: Partial<Omit<DocParam, "id">>) => void;
+  /** Drop every binding to `id` (fields keep their value), then remove it. */
+  deleteParam: (id: string) => void;
+  /** Move a parameter to `index` in the panel display order. */
+  reorderParam: (id: string, index: number) => void;
+  /**
+   * Bind one node field to a parameter. `scale` defaults to whatever keeps the
+   * field's current value, so binding never moves anything on its own.
+   */
+  bindField: (nodeId: string, path: string, paramId: string, scale?: number) => void;
+  /** Detach a bound field, keeping the number it currently shows. */
+  unbindField: (nodeId: string, path: string) => void;
+  /** Create a parameter seeded from a field's current value and bind it. */
+  bindFieldToNewParam: (nodeId: string, path: string, name: string) => void;
+  /**
+   * Detach every binding on the given nodes (all of them when `nodeIds` is
+   * omitted). Bound fields keep the number they show, so nothing moves.
+   */
+  unbindAll: (nodeIds?: Iterable<string>) => void;
+}
+
 export interface SymbolActions {
   createSymbolFromSelection: () => void;
   placeSymbolInstance: (symbolId: string, at?: Vec2) => void;
@@ -524,6 +565,7 @@ export type EditorState = EditorData &
   GuideActions &
   ClipboardActions &
   SwatchActions &
+  ParamActions &
   SymbolActions;
 
 export type StoreSet = (

@@ -271,11 +271,11 @@ export function createPathEditActions({ set, get, transact }: StoreCtx): PathEdi
       const next = { ...doc, nodes };
       if (changed && hasValidSceneContainers(next)) transact(next, { label: PATH_OP_LABEL[op] });
     },
-    setPathModifiers: (id, modifiers) => {
+    setPathModifiers: (id, modifiers, bindings) => {
       const doc = get().doc;
       const shape = doc.nodes[id];
       if (!isShape(shape) || shape.type !== "path") return;
-      const nextShape = { ...shape, modifiers };
+      const nextShape = { ...shape, modifiers, ...(bindings ? { bindings } : {}) };
       if (get()._interaction) {
         get().applyShapes({ [id]: nextShape });
         return;

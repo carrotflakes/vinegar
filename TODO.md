@@ -63,11 +63,13 @@ additional effects, or other feature expansion.
   `systemClipboard.ts` degrade to plain SVG
 
 ### New ideas
-- [ ] **Parameters and references** (docs/parameters.md) — numbers can only be
-  literals while colours can already be references (`swatch`). Close the
-  asymmetry in phases: document parameters (v32) → parametric symbols (v33) →
-  non-destructive boolean as a node→node operand (v34) → expressions (optional).
-  Each phase ships alone; not before the 1.0 gates above.
+- [ ] **Parameters and references** (docs/parameters.md) — phase 1 shipped:
+  document parameters (v32) drive `strokeWidth`, path-modifier params and
+  built-in generator args through `node.bindings`. Remaining phases: parametric
+  symbols (v33) → non-destructive boolean as a node→node operand (v34) →
+  expressions (optional). Each ships alone; not before the 1.0 gates above.
+  Phase-1 gap: document-script generators are not bindable (their geometry only
+  rebuilds through the worker, which the pure resolution step cannot await).
 - [ ] Swatches saved in the document (currently localStorage, color-only)
 - [ ] Distribution: match an existing gap (not just centering)
 - [ ] Status bar: color swatch under the cursor (eyedropper-style; watch getImageData cost)

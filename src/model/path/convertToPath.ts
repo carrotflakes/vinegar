@@ -92,6 +92,7 @@ export function convertShapeToPath(
     hidden: shape.hidden,
     locked: shape.locked,
     generator: shape.generator,
+    bindings: { ...shape.bindings },
     transform: [...shape.transform],
     transformOrigin: shape.transformOrigin ? { ...shape.transformOrigin } : null,
   };

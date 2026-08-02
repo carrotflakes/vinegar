@@ -303,6 +303,7 @@ test("selecting a node inside a frame activates that frame", () => {
     hidden: false,
     locked: false,
     generator: null,
+    bindings: {},
   };
   const doc = useEditor.getState().doc;
   useEditor.getState().loadDocument({

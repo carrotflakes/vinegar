@@ -27,6 +27,7 @@ import {
 } from "./state";
 import { createStructureActions } from "./structureSlice";
 import { createShapeOpsActions } from "./shapeOpsSlice";
+import { createParamActions } from "./paramSlice";
 import { createSwatchActions } from "./swatchSlice";
 import { createSymbolActions } from "./symbolSlice";
 
@@ -86,6 +87,7 @@ export const useEditor = create<EditorState>((set, get) => {
     ...createGuideActions(ctx),
     ...createClipboardActions(ctx),
     ...createSwatchActions(ctx),
+    ...createParamActions(ctx),
     ...createSymbolActions(ctx),
   };
 });

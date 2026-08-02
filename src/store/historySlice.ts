@@ -3,6 +3,7 @@
 // commit a document change as an undoable step.
 
 import { createEmptyDocument, type Document } from "../model/types";
+import { syncParamBindings } from "../model/params";
 import { hasValidSceneContainers } from "../model/sceneValidation";
 import {
   isGroup,
@@ -185,9 +186,16 @@ export function createHistory(set: StoreSet, get: StoreGet): HistorySlice {
     return true;
   };
   const finishInteraction = (): boolean => {
-    const state = get(), interaction = state._interaction;
+    let state = get();
+    const interaction = state._interaction;
     if (!interaction) return false;
     if (!interaction.dirty) { set({ _interaction: null }); return false; }
+    // `applyShapes`/`setDoc` publish intermediate states without passing
+    // through `transact`, so a drag that touched a bound field (resizing scales
+    // stroke width, say) can end with it off its parameter. Re-resolve once
+    // here, so what lands in history is the same document `transact` produces.
+    const resolved = syncParamBindings(state.doc);
+    if (resolved !== state.doc) { set({ doc: resolved }); state = get(); }
     const entry = createEntry(
       interaction.before,
       state.doc,
@@ -199,9 +207,14 @@ export function createHistory(set: StoreSet, get: StoreGet): HistorySlice {
     set({ history: { past: appendPast(state.history.past, entry), future: [] }, _interaction: null, _revision: { ...state._revision, history: entry.afterRevision } });
     return true;
   };
-  const transact = (next: Document, options: HistoryTransactionOptions = {}) => {
+  const transact = (input: Document, options: HistoryTransactionOptions = {}) => {
     const { coalesceKey: key, label } = options;
     let state = get();
+    // Bound number fields are derived, so every committed document has them
+    // re-resolved here. Doing it at the single commit point is what makes
+    // drift between `doc.params` and the fields they drive impossible — no
+    // slice has to remember to re-resolve after touching a bound node.
+    const next = syncParamBindings(input);
     if (next === state.doc || !hasValidSceneContainers(next)) return;
     if (state._interaction) { resetCoalesce(); finishInteraction(); state = get(); }
     const now = Date.now(), last = state.history.past[state.history.past.length - 1];
@@ -223,8 +236,9 @@ export function createHistory(set: StoreSet, get: StoreGet): HistorySlice {
     set({ doc: next, history: { past: appendPast(state.history.past, entry), future: [] }, _revision: { ...state._revision, history: entry.afterRevision } });
     if (key) armCoalesce(key, state.doc, entry.beforeRevision, entry.afterRevision, now);
   };
-  const replaceDocumentWithoutHistory = (next: Document, additionalState: Partial<Pick<EditorData, "gridSize">> = {}) => {
+  const replaceDocumentWithoutHistory = (input: Document, additionalState: Partial<Pick<EditorData, "gridSize">> = {}) => {
     resetCoalesce();
+    const next = syncParamBindings(input);
     const state = get();
     if (next === state.doc || !hasValidSceneContainers(next)) { if (additionalState.gridSize !== undefined) set(additionalState); return; }
     const maintenancePatches = diffDocument(state.doc, next).patches;
@@ -245,8 +259,10 @@ export function createHistory(set: StoreSet, get: StoreGet): HistorySlice {
 
   const actions: HistoryActions = {
     newDocument: () => { resetCoalesce(); const doc = createEmptyDocument(); set({ ...documentReset(doc, true), savedDoc: doc }); },
-    loadDocument: (doc) => { resetCoalesce(); set({ ...documentReset(doc, true), savedDoc: doc }); },
-    recoverDocument: (doc) => { resetCoalesce(); set({ ...documentReset(doc, false), savedDoc: doc }); },
+    // An opened document may come from an older build or a hand edit, so its
+    // bound fields are resolved once before it becomes the current document.
+    loadDocument: (input) => { resetCoalesce(); const doc = syncParamBindings(input); set({ ...documentReset(doc, true), savedDoc: doc }); },
+    recoverDocument: (input) => { resetCoalesce(); const doc = syncParamBindings(input); set({ ...documentReset(doc, false), savedDoc: doc }); },
     markSaved: () => { resetCoalesce(); finishInteraction(); const state = get(); set({ savedDoc: state.doc, _savedRevision: state._revision }); },
     beginInteraction: (label) => {
       const state = get();

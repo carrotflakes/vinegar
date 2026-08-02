@@ -1,6 +1,7 @@
 # Parameters and references
 
-Status: **proposal** (2026-08-02). Not implemented. Related:
+Status: **phase 1 implemented** (2026-08-03); phases 2–4 remain a proposal.
+Related:
 [path-modifiers.md](path-modifiers.md) (the stage pipeline this feeds),
 [global-colors.md](global-colors.md) (the existing reference edge this copies),
 [document-model.md](document-model.md).
@@ -38,7 +39,7 @@ outcome.
 - Animation, constraints/solvers, and responsive auto-layout are out of scope.
   They may consume parameters later; they do not motivate this design.
 
-## Phase 1 — document parameters
+## Phase 1 — document parameters (implemented)
 
 Named numbers on the document, mirroring swatches field-for-field:
 
@@ -63,54 +64,84 @@ interface Document {
 ```
 
 `paramOrder` exists for the same reason `swatchOrder` does, and carries the same
-invariant (checked in `sceneValidation.ts`).
+invariant (`hasValidParams` in `model/params.ts`, enforced by the serializer).
 
-A bindable number replaces a bare `number` at the sinks listed below:
+### Bindings live beside the field, not in it
+
+The original proposal widened each sink to a `NumValue` union — the reference
+stored *in* the field, resolved on every read. That was rejected during
+implementation for a concrete reason: the sinks are read by pure geometry
+helpers that take a shape and nothing else (`resolvedSubpaths(shape)`,
+`strokeOutset(shape)`, `brushEnvelope(shape)`, `hitTestShape`, `shapeStrokeMargin`,
+…). Widening the field type forces the parameter scope into ~55 call sites
+across the geometry, hit-testing, rendering and export layers — the same wide
+mechanical signature change this note defers to phase 3, pulled forward into
+phase 1 and multiplied by three sinks.
+
+Instead the reference lives in a side table on the node, and the field itself
+holds the last resolved number:
 
 ```ts
-export type NumValue =
-  | number
-  | {
-      type: "param";
-      paramId: string;
-      /** Per-use multiplier, 1 = as stored. */
-      scale: number;
-      /** Last resolved value; used when the reference dangles. */
-      last: number;
-    };
+interface BaseNode {
+  /** Bindable field path -> reference. Empty means the node binds nothing. */
+  bindings: Record<string, ParamRef>;
+}
+
+interface ParamRef {
+  paramId: string;
+  /** Per-use multiplier, 1 = as stored. */
+  scale: number;
+}
 ```
 
-Two deliberate choices:
+Field paths are `"strokeWidth"`, `"generator.args.<key>"` and
+`"modifiers.<index>.<key>"`.
 
-- **`scale`** is precedented by `SwatchRefPaint.alpha` — a per-use modulation of
-  a shared value, which covers "half the margin" / "double the stroke" without
-  an expression language. An additive `offset` is deferred; if both are wanted,
-  that is the signal to go to phase 4 instead of growing this record.
-- **`last`** exists because a dangling numeric reference has no neutral value. A
-  dangling swatch resolves to *no paint* (`resolvePaintRef` returns `null`) and
-  that is a sensible picture; "no stroke width" is not. Storing the last
-  resolved value means deleting a parameter, or pasting a node into a document
-  that lacks it, degrades to the literal it was showing — the drawing never
-  changes appearance behind the user's back. The UI surfaces the dangling state
-  (below) rather than the model hiding it.
+What this buys and what it costs:
 
-Resolution is a pure helper next to the model:
+- **Every consumer keeps reading a plain `number`.** Not one geometry, render,
+  hit-test or export signature changed. The whole feature is additive.
+- **`last` is no longer a separate field** — the literal *is* the last resolved
+  value, so the reasoning behind it holds unchanged: deleting a parameter, or
+  pasting a node into a document that lacks it, degrades to the number it was
+  showing. A dangling numeric reference has no neutral value the way a dangling
+  swatch does (`resolvePaintRef` → `null` → no paint is a sensible picture; "no
+  stroke width" is not), and the UI surfaces the dangling state rather than the
+  model hiding it.
+- **`scale`** is unchanged and still precedented by `SwatchRefPaint.alpha`. An
+  additive `offset` is still deferred; wanting both is still the signal to
+  evaluate phase 4 rather than grow this record.
+- **The cost is denormalization**, which this note originally ruled out. It is
+  contained by resolving at exactly one place: `syncParamBindings(doc)` runs
+  inside `transact`, inside `endInteraction`, and on document load. No slice has
+  to remember to re-resolve, and there is no code path that commits a document
+  with a stale bound field. Bindings whose field path stops addressing anything
+  — a removed modifier stage, a detached generator — are pruned in the same
+  pass; bindings whose *parameter* is missing are kept, since the parameter may
+  come back (undo, a later paste).
+- **Index-keyed modifier paths** have to be re-keyed when the stack is reordered
+  or a stage is removed, or a binding would follow the slot instead of the
+  modifier it was attached to. `remapModifierBindings` does this and
+  `setPathModifiers` takes the result; `ModifiersSection` is the only caller
+  that needs it.
+
+Resolution and the panel's needs are pure helpers next to the model:
 
 ```ts
 // model/params.ts
-export function resolveNum(v: NumValue, params: Record<string, DocParam>): number;
+export function syncParamBindings(doc: Document): Document;
 export function paramUsageCounts(doc: Document): Map<string, number>;
-export function bakeParamRefs(doc: Document, opts?: { paramId?: string; nodeIds?: Iterable<string> }): Document;
+export function bakeParamRefs(doc, opts?: { paramId?; nodeIds?; path? }): Record<string, SceneNode>;
 ```
 
-`paramUsageCounts` / `bakeParamRefs` mirror `swatchUsageCount(s)` and the
-baking helper in `model/swatches.ts`; the panel and the "unbind" command need
-exactly those two shapes.
+`paramUsageCounts` / `bakeParamRefs` mirror `swatchUsageCount(s)` and the baking
+helper in `model/swatches.ts`; the panel and the "unbind" commands need exactly
+those two shapes.
 
 **Sinks in phase 1** (kept deliberately small):
 
-- `GeneratorRef.args` — `Record<string, NumValue>`
-- `Modifier` numeric params
+- `GeneratorRef.args` — built-in generators only (below)
+- `PathModifier` numeric params (`tolerance`, `distance`, `width`)
 - `strokeWidth`
 
 Not in phase 1: position/size/rotation. Geometry lives in `subpaths` and
@@ -118,8 +149,19 @@ Not in phase 1: position/size/rotation. Geometry lives in `subpaths` and
 the whole transform pipeline to become parameter-aware. Deferred to phase 4 or
 never.
 
-File version: **v32** (additive `params`/`paramOrder`, plus the widened field
-types; absent ⇒ no parameters, and a bare `number` stays legal everywhere).
+**Document-script generators are not bindable.** A bound generator arg has to
+retune its geometry in the same document commit, and `syncParamBindings` is a
+pure `Document → Document` step: it can call a built-in's `build` synchronously,
+but a document script's geometry only comes back from the worker. Binding one
+would let its args and its geometry drift apart, so the bind button is disabled
+on script generators with that reason as its tooltip. Lifting this needs the
+async commit path `setGeneratorArgs` already has, wired into parameter edits —
+worth doing when someone actually wants it.
+
+File version: **v32**. Additive: `params`/`paramOrder` on the document and
+`bindings` on every node. v31 files still open — the parser fills the three
+fields with their empty values, the same "no parameters" state a new document
+has.
 
 ## Phase 2 — parametric symbols
 
@@ -221,68 +263,75 @@ contain parameters worth relating to each other.
 
 ## Evaluation & caching
 
-- `resolveNum` is trivially cheap; no caching in phases 1–2. The expensive part
-  is *downstream*: a parameter feeding a generator arg or a modifier param
-  invalidates that node's resolved geometry, which the existing identity-based
-  memo in `resolvedSubpaths` already handles — the node object changes, so the
-  cache misses. No new invalidation mechanism.
+- Resolving one reference is trivially cheap, and `syncParamBindings` skips any
+  node with an empty `bindings` map in one property read, so the per-commit pass
+  costs about what the validation pass beside it already costs. No caching.
+- The expensive part is *downstream*: a parameter feeding a generator arg or a
+  modifier param invalidates that node's resolved geometry, which the existing
+  identity-based memo in `resolvedSubpaths` already handles — the node object
+  changes, so the cache misses. No new invalidation mechanism.
 - **A parameter edit touches many nodes at once.** Scrubbing a parameter that
-  20 nodes bind is 20 node rewrites per frame plus 20 generator rebuilds.
-  Parameter scrubbing must therefore use the interaction pattern
-  (`beginInteraction` → `applyShapes` → `endInteraction`), not per-frame
-  `transact` with a `coalesceKey` — the same reason slider drags on shapes do.
-  Generator rebuilds are already async through the worker client; the panel must
-  tolerate in-flight results arriving out of order during a drag.
+  20 nodes bind is 20 node rewrites per frame plus 20 generator rebuilds. So
+  parameter scrubbing uses the interaction pattern (`beginInteraction` →
+  `setDoc` → `endInteraction`), not per-frame `transact` with a `coalesceKey` —
+  the same reason slider drags on shapes do. Both the Parameters panel and a
+  bound field in the properties panel go through it.
 - If profiling shows parameter scrubs are the worst case in large documents, the
   fix is a `paramId → nodeIds` reverse index built on demand (cached per
-  document revision), not eager denormalization onto nodes.
+  document revision).
 
 ## Read-site impact
 
-Phase 1 is narrow because the sinks were chosen to be narrow. Every site that
-reads one of the three widened fields must go through `resolveNum`:
+**None.** That is the point of keeping the reference beside the field rather
+than in it: bound fields stay plain numbers, so rendering, hit-testing, bounds,
+brush width, path modifiers and SVG/raster export were not touched at all. The
+one discipline that replaces the base/resolved split is that **every path that
+publishes a document re-resolves it** — `transact`, `endInteraction`, and
+document load — so no consumer can ever observe a stale bound field.
 
-- `canvas/render/style.ts` and `model/stroke.ts` — `strokeWidth`
-- `model/generators/generatorClient.ts` — args before dispatching to the worker
-- the modifier evaluation in the resolved-geometry path
-- `io/exportSvg.ts` and the raster export — resolved numbers, never refs
-- `store/*Slice.ts` write paths — writing a literal into a bound field must
-  either unbind or edit the parameter; see UI below
-
-The base/resolved split is the same discipline as modifiers: **the model stores
-the reference, every consumer reads the resolved number**, and nothing
-denormalizes the resolution back onto the node.
+Write paths do need care, and they get it in one place: writing a literal into a
+bound field is not silently dropped, it is simply overwritten on the next commit
+by the parameter that owns it. The UI never offers that write — see below.
 
 ## UI
 
-- **Parameters section** in a panel, modeled on the Swatches panel: name, value
-  scrubber, usage count, add/rename/delete, delete offering "bake into uses".
-- **Binding a field**: the numeric field gets a bind affordance (context menu
-  *Bind to parameter…* plus a link glyph shown when bound). A bound field shows
-  the parameter name and resolved value, and scrubbing it edits **the
-  parameter** — with a clear affordance to unbind first when the user meant to
-  change only this node. Getting this wrong (silently unbinding on drag) is the
-  single most likely usability failure in phase 1.
+- **Parameters panel** (`ui/panels/params/ParamsPanel.tsx`), modeled on the
+  Swatches panel: name, value scrubber, usage count, add/delete, delete
+  detaching every binding first so nothing dangles and nothing moves.
+- **Binding a field**: `ui/controls/BindableNumber.tsx` wraps `ScrubbableNumber`
+  with a link button. Unbound, the menu offers *New parameter from this value*
+  and the document's existing parameters. Bound, the field shows the resolved
+  value and scrubbing it edits **the parameter** — every other field bound to it
+  moves too — while the menu offers *Unbind (keep value)*. Binding never moves
+  anything: `scale` defaults to whatever keeps the field's current value.
+  Getting this wrong (silently unbinding on drag) was called out as the single
+  most likely usability failure, and it is why scrubbing a bound field is
+  deliberately *not* an unbind.
+- Stroke width shows the affordance only for a single-node selection: binding is
+  per node, and a multi-selection has no single field to bind.
+- **Dangling refs** render the last value with a warning glyph offering *Unbind
+  (keep value)*.
 - **Picking a reference** (phase 3): a target button on the modifier row, then
   click the operand on canvas — the eyedropper interaction, reused.
-- **Dangling refs** render the `last` value with a warning chip offering *Unbind
-  (keep value)* or *Recreate parameter*.
-- Commands go in `commands/registry.ts` as usual: `param.create`,
-  `param.bindSelection`, `param.unbindSelection`, `param.bakeAll`.
+- Commands in `commands/registry.ts`: `param.create`, `param.unbindSelection`,
+  `param.bakeAll`.
 
 ## Export & serialization
 
 - **SVG/PNG**: parameters are resolved and baked at export; there is no SVG
   concept to map them onto (unlike effects → `<filter>`).
-- **File format**: parameters and refs persist as authored; the resolved values
-  are never written. Each phase bumps `CURRENT_FILE_VERSION` per the
-  no-migration-chain policy in `io/serialize.ts`, and updates
-  `docs/document-model.md`.
-- **Clipboard**: copying a bound node must carry the referenced `DocParam`s in
-  the payload and merge them on paste (name-collision → reuse the existing
-  parameter if value and name match, else rename). Without the merge, `last`
-  keeps the picture correct but the binding is lost — the same failure the
-  generator `scriptId` had (TODO.md, system clipboard).
+- **File format**: parameters and bindings persist as authored. The resolved
+  value is written too, because it *is* the field — an older build, or any
+  reader that ignores `bindings`, still sees a correct drawing. Each phase bumps
+  `CURRENT_FILE_VERSION` per the no-migration-chain policy in `io/serialize.ts`,
+  and updates `docs/document-model.md`.
+- **Clipboard**: copying a bound node carries the referenced `DocParam`s in the
+  payload and merges them on paste, so the binding survives a move between
+  documents (`referencedParamIds` → `copyPayload` →
+  `reattachPayloadResources`). Merging is by id, matching how scripts, assets
+  and swatches already reattach: the destination's own definition wins. Without
+  the merge the picture would still be right — the field keeps its number — but
+  the link would be lost.
 - **Script API**: parameters should be readable and writable from scripts before
   phase 4, since "set a parameter, re-run" is the cheapest possible version of
   the parametric-generation wish in TODO.md.
@@ -302,7 +351,13 @@ denormalizes the resolution back onto the node.
 
 ## Sequencing
 
-Phase 1 is independent of everything currently in flight. Phases 2 and 3 both
-depend on phase 1's `NumValue` and on work already shipped (symbols v1, path
-modifiers v31). None of this should precede the 1.0 release gates in TODO.md
-(SVG import, clipboard, save workflow, export fidelity).
+Phase 1 shipped independently of everything else in flight. Phases 2 and 3 build
+on phase 1's `ParamRef`/`bindings` and on work already shipped (symbols v1, path
+modifiers v31). None of the remaining phases should precede the 1.0 release
+gates in TODO.md (SVG import, clipboard, save workflow, export fidelity).
+
+Phase 2 note: `SymbolInstance.args` was proposed as `Record<string, NumValue>`.
+With bindings beside the field it becomes `Record<string, number>` plus the
+instance's own `bindings` entries under `args.<key>`, and the scope chain
+(instance args ⊕ definition defaults ⊕ document parameters) moves into
+`syncParamBindings` rather than into a `resolveNum(v, scope)` signature.

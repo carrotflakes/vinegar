@@ -6,6 +6,8 @@ import {
 } from "../../../model/stroke";
 import { type PathShape, type Shape } from "../../../model/types";
 import { useEditor } from "../../../store/editorStore";
+import { STROKE_WIDTH_PATH } from "@/model/params";
+import BindableNumber from "@/ui/controls/BindableNumber";
 import ColorField from "@/ui/controls/ColorField";
 import ScrubbableNumber from "@/ui/controls/ScrubbableNumber";
 import SegmentedControl, {
@@ -132,14 +134,29 @@ export default function AppearanceSection({
 
           <div className="field-inline">
             <label>Stroke width</label>
-            <ScrubbableNumber
-              className="num"
-              min={0}
-              step={0.5}
-              value={strokeWidth}
-              onChange={setStrokeWidth}
-              aria-label="Stroke width"
-            />
+            {/* Binding is per node, so the link affordance only appears when the
+                field addresses exactly one — a multi-selection edits them all
+                at once and has no single field to bind. */}
+            {selected.length === 1 ? (
+              <BindableNumber
+                nodeId={first.id}
+                path={STROKE_WIDTH_PATH}
+                label="Stroke width"
+                min={0}
+                step={0.5}
+                value={strokeWidth}
+                onChange={setStrokeWidth}
+              />
+            ) : (
+              <ScrubbableNumber
+                className="num"
+                min={0}
+                step={0.5}
+                value={strokeWidth}
+                onChange={setStrokeWidth}
+                aria-label="Stroke width"
+              />
+            )}
           </div>
           <StrokeDetailControls
             value={strokeDetails}

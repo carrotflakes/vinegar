@@ -53,12 +53,12 @@ export function createClipboardActions({ set, get, transact }: StoreCtx): Clipbo
       const scope = currentFocusRoot(state);
       if (wouldCreateSymbolCycle(doc, enclosingSymbolId(doc, scope), symbolIds)) return false;
       const remapped = remapPayload(clipboard, at ? 0 : PASTE_OFFSET);
-      // Scripts, assets and swatches the destination lacks come from the
+      // Scripts, assets, swatches and parameters the destination lacks come from the
       // payload; unresolvable generator links are dropped, and a missing image
       // asset refuses the paste (the caller can fall back to plain SVG).
       const resolved = reattachPayloadResources(doc, remapped, clipboard);
       if (resolved.missingAsset) return false;
-      const { nodes: reattached, scripts, assets, swatches, swatchOrder } = resolved;
+      const { nodes: reattached, scripts, assets, swatches, swatchOrder, params, paramOrder } = resolved;
       const pasted = { ...remapped, nodes: reattached };
       if (at) {
         const temp: Document = { ...doc, nodes: { ...doc.nodes, ...pasted.nodes }, rootIds: pasted.rootIds };
@@ -66,7 +66,7 @@ export function createClipboardActions({ set, get, transact }: StoreCtx): Clipbo
         if (bounds) { const dx = at.x - bounds.x - bounds.width / 2; const dy = at.y - bounds.y - bounds.height / 2; for (const id of pasted.rootIds) pasted.nodes[id] = { ...pasted.nodes[id], transform: multiply(translationMatrix(dx, dy), pasted.nodes[id].transform) }; }
       }
       const next = appendToScope(
-        { ...doc, nodes: { ...doc.nodes, ...pasted.nodes }, scripts, assets, swatches, swatchOrder },
+        { ...doc, nodes: { ...doc.nodes, ...pasted.nodes }, scripts, assets, swatches, swatchOrder, params, paramOrder },
         scope,
         pasted.rootIds
       );

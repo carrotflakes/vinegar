@@ -3,6 +3,7 @@ import AssetsPanel from "../panels/assets/AssetsPanel";
 import GeneratorsPanel from "../panels/generators/GeneratorsPanel";
 import HistoryPanel from "../panels/history/HistoryPanel";
 import LayersPanel from "../panels/layers/LayersPanel";
+import ParamsPanel from "../panels/params/ParamsPanel";
 import PropertiesPanel from "../panels/properties/PropertiesPanel";
 import SwatchesPanel from "../panels/swatches/SwatchesPanel";
 import SymbolsPanel from "../panels/symbols/SymbolsPanel";
@@ -20,6 +21,7 @@ export const PANELS: PanelDef[] = [
   { id: "layers", title: "Layers", render: () => <LayersPanel /> },
   { id: "symbols", title: "Symbols", render: () => <SymbolsPanel /> },
   { id: "swatches", title: "Global colors", render: () => <SwatchesPanel /> },
+  { id: "params", title: "Parameters", render: () => <ParamsPanel /> },
   { id: "generators", title: "Generators", render: () => <GeneratorsPanel /> },
   { id: "assets", title: "Assets", render: () => <AssetsPanel /> },
   { id: "history", title: "History", render: () => <HistoryPanel /> },

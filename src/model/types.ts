@@ -154,6 +154,14 @@ export interface BaseNode {
    * field goes back to null), leaving a plain hand-editable node.
    */
   generator: GeneratorRef | null;
+  /**
+   * Numeric fields driven by a document parameter, keyed by bindable field
+   * path (`"strokeWidth"`, `"generator.args.radius"`, `"modifiers.1.distance"`).
+   * The field itself keeps the last resolved number, so every consumer reads a
+   * plain value and a dangling reference degrades to the literal it was
+   * showing. Empty means the node binds nothing. See docs/parameters.md.
+   */
+  bindings: Record<string, ParamRef>;
 }
 
 /**
@@ -163,7 +171,7 @@ export interface BaseNode {
  */
 export function baseNodeDefaults(): Pick<
   BaseNode,
-  "transformOrigin" | "opacity" | "blendMode" | "effects" | "hidden" | "locked" | "generator"
+  "transformOrigin" | "opacity" | "blendMode" | "effects" | "hidden" | "locked" | "generator" | "bindings"
 > {
   return {
     transformOrigin: null,
@@ -173,6 +181,7 @@ export function baseNodeDefaults(): Pick<
     hidden: false,
     locked: false,
     generator: null,
+    bindings: {},
   };
 }
 
@@ -186,6 +195,35 @@ export interface Swatch {
   name: string;
   /** Concrete paint. v1: SolidPaint. Never a swatch reference (no chains). */
   paint: SolidPaint;
+}
+
+/**
+ * A named number stored on the document, the numeric counterpart of a
+ * {@link Swatch}. Node fields reference it through {@link BaseNode.bindings},
+ * so editing the parameter once retunes every bound field. See
+ * docs/parameters.md.
+ */
+export interface DocParam {
+  id: string;
+  name: string;
+  value: number;
+  /** UI hints for the scrubber; not enforced on bound values. */
+  min: number | null;
+  max: number | null;
+  step: number | null;
+  /** Round the value to a whole number when resolving bound fields. */
+  integer: boolean;
+}
+
+/**
+ * One bound numeric field's link to a document parameter. `scale` is a per-use
+ * multiplier (1 = the parameter as stored), precedented by a swatch
+ * reference's per-use `alpha`: it covers "half the margin" / "double the
+ * stroke" without an expression language.
+ */
+export interface ParamRef {
+  paramId: string;
+  scale: number;
 }
 
 /** A node's link to the generator that produced its geometry. */
@@ -579,6 +617,10 @@ export interface Document {
   swatches: Record<string, Swatch>;
   /** Panel display order. Every id here exists in `swatches` and vice versa. */
   swatchOrder: string[];
+  /** Named global numbers referenced by node `bindings`. */
+  params: Record<string, DocParam>;
+  /** Panel display order. Every id here exists in `params` and vice versa. */
+  paramOrder: string[];
   /** User-authored parametric generators referenced by node `generator` links. */
   scripts: Record<string, ScriptDef>;
   /** Persistent ruler guides (world space); see docs/rulers-and-guides.md. */
@@ -598,6 +640,8 @@ export function createEmptyDocument(): Document {
     symbols: {},
     swatches: {},
     swatchOrder: [],
+    params: {},
+    paramOrder: [],
     scripts: {},
     guides: [],
     settings: { unit: "px", dpi: 96, gridSize: 50 },

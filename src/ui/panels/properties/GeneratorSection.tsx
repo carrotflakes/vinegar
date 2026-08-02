@@ -6,7 +6,8 @@ import {
 } from "@/model/generators/generators";
 import type { PathShape } from "../../../model/types";
 import { useEditor } from "../../../store/editorStore";
-import ScrubbableNumber from "@/ui/controls/ScrubbableNumber";
+import { canBindGeneratorArgs, generatorArgPath } from "@/model/params";
+import BindableNumber from "@/ui/controls/BindableNumber";
 import Section from "../Section";
 
 /**
@@ -58,14 +59,20 @@ export default function GeneratorSection({ shape }: { shape: PathShape }) {
           {def.params.map((param) => (
             <div className="field" key={param.key}>
               <label>{param.label}</label>
-              <ScrubbableNumber
-                className="num"
+              <BindableNumber
+                nodeId={shape.id}
+                path={generatorArgPath(param.key)}
+                label={param.label}
                 min={param.min}
                 max={param.max}
                 step={param.step}
                 value={gen.args[param.key] ?? param.default}
                 defaultValue={param.default}
-                aria-label={param.label}
+                bindDisabled={
+                  canBindGeneratorArgs(gen.scriptId)
+                    ? undefined
+                    : "Script generators cannot be parameter-bound yet"
+                }
                 onChange={(value) =>
                   setGeneratorArgs(shape.id, {
                     [param.key]: param.integer ? Math.round(value) : value,

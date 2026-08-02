@@ -27,6 +27,7 @@ function makeCtx(anchors, { hitScale = 1 } = {}) {
     type: "path",
     subpaths: [{ anchors, closed: false }],
     fillRule: "nonzero",
+    bindings: {},
   };
   return {
     ctx: {

@@ -1,7 +1,8 @@
 import { LuChevronDown, LuChevronUp, LuX } from "react-icons/lu";
 import type { PathModifier, PathShape } from "@/model/types";
 import { useEditor } from "@/store/editorStore";
-import ScrubbableNumber from "@/ui/controls/ScrubbableNumber";
+import { modifierParamPath, remapModifierBindings } from "@/model/params";
+import BindableNumber from "@/ui/controls/BindableNumber";
 import Section from "../Section";
 
 function modifierLabel(type: PathModifier["type"]): string {
@@ -19,9 +20,6 @@ export default function ModifiersSection({ shape }: { shape: PathShape }) {
   const setPathModifiers = useEditor((state) => state.setPathModifiers);
   const addPathModifierSelected = useEditor((state) => state.addPathModifierSelected);
   const applyPathModifiersSelected = useEditor((state) => state.applyPathModifiersSelected);
-  const beginInteraction = useEditor((state) => state.beginInteraction);
-  const endInteraction = useEditor((state) => state.endInteraction);
-  const cancelInteraction = useEditor((state) => state.cancelInteraction);
   const modifiers = shape.modifiers ?? [];
 
   const replace = (index: number, next: PathModifier) =>
@@ -31,19 +29,34 @@ export default function ModifiersSection({ shape }: { shape: PathShape }) {
         modifierIndex === index ? next : modifier
       )
     );
-  const remove = (index: number) =>
+  // Bindings are keyed by stack index, so removing or moving a stage has to
+  // carry them along or they would stay pointing at the slot instead of the
+  // modifier the user bound. `replace` never moves anything, so it does not.
+  const remove = (index: number) => {
+    const moved = new Map<number, number>();
+    modifiers.forEach((_, i) => {
+      if (i < index) moved.set(i, i);
+      else if (i > index) moved.set(i, i - 1);
+    });
     setPathModifiers(
       shape.id,
-      modifiers.filter((_, modifierIndex) => modifierIndex !== index)
+      modifiers.filter((_, modifierIndex) => modifierIndex !== index),
+      remapModifierBindings(shape.bindings, moved)
     );
+  };
   const move = (index: number, direction: -1 | 1) => {
     const destination = index + direction;
     if (destination < 0 || destination >= modifiers.length) return;
     const next = [...modifiers];
     [next[index], next[destination]] = [next[destination], next[index]];
-    setPathModifiers(shape.id, next);
+    const moved = new Map(modifiers.map((_, i) => [i, i]));
+    moved.set(index, destination);
+    moved.set(destination, index);
+    setPathModifiers(shape.id, next, remapModifierBindings(shape.bindings, moved));
   };
   const numberField = (
+    index: number,
+    key: string,
     label: string,
     value: number,
     onChange: (value: number) => void,
@@ -51,16 +64,14 @@ export default function ModifiersSection({ shape }: { shape: PathShape }) {
   ) => (
     <label className="geo-field">
       <span>{label}</span>
-      <ScrubbableNumber
-        className="num"
+      <BindableNumber
+        nodeId={shape.id}
+        path={modifierParamPath(index, key)}
+        label={label}
         value={Math.round(value * 100) / 100}
         min={min}
         step={0.1}
         onChange={onChange}
-        onScrubStart={() => beginInteraction("Edit path modifier")}
-        onScrubEnd={endInteraction}
-        onScrubCancel={cancelInteraction}
-        aria-label={label}
       />
     </label>
   );
@@ -107,14 +118,14 @@ export default function ModifiersSection({ shape }: { shape: PathShape }) {
           </div>
           {modifier.type === "simplify" || modifier.type === "flatten" ? (
             <div className="geometry-grid">
-              {numberField("Tolerance", modifier.tolerance, (value) =>
+              {numberField(index, "tolerance", "Tolerance", modifier.tolerance, (value) =>
                 replace(index, { ...modifier, tolerance: Math.max(0, value) }), 0
               )}
             </div>
           ) : modifier.type === "offset" ? (
             <>
               <div className="geometry-grid">
-                {numberField("Distance", modifier.distance, (value) =>
+                {numberField(index, "distance", "Distance", modifier.distance, (value) =>
                   replace(index, { ...modifier, distance: value })
                 )}
               </div>
@@ -137,7 +148,7 @@ export default function ModifiersSection({ shape }: { shape: PathShape }) {
           ) : modifier.type === "outline" ? (
             <>
               <div className="geometry-grid">
-                {numberField("Width", modifier.width, (value) =>
+                {numberField(index, "width", "Width", modifier.width, (value) =>
                   replace(index, { ...modifier, width: Math.max(0, value) }), 0
                 )}
               </div>

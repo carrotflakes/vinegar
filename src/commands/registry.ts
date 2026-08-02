@@ -499,6 +499,30 @@ export const COMMANDS: Command[] = [
     run: (s) => s.applyPathModifiersSelected(),
   },
   {
+    id: "param.create",
+    label: "New parameter",
+    group: "Parameter",
+    run: (s) => void s.createParam(),
+  },
+  {
+    id: "param.unbindSelection",
+    label: "Unbind parameters from selection",
+    group: "Parameter",
+    enabled: (s) =>
+      selectionRoots(s.doc, s.selection).some(
+        (id) => Object.keys(s.doc.nodes[id]?.bindings ?? {}).length > 0
+      ),
+    run: (s) => s.unbindAll(selectionRoots(s.doc, s.selection)),
+  },
+  {
+    id: "param.bakeAll",
+    label: "Unbind all parameters",
+    group: "Parameter",
+    enabled: (s) =>
+      Object.values(s.doc.nodes).some((node) => Object.keys(node.bindings).length > 0),
+    run: (s) => s.unbindAll(),
+  },
+  {
     id: "path.smooth",
     label: "Smooth path",
     group: "Path",

@@ -84,6 +84,8 @@ function payloadDocument(doc: Document, payload: ClipboardPayload): Document {
     assets: payload.assets,
     swatches: payload.swatches,
     swatchOrder: Object.keys(payload.swatches),
+    params: payload.params,
+    paramOrder: Object.keys(payload.params),
   };
 }
 
@@ -167,6 +169,7 @@ export function payloadFromSvg(svgText: string): ClipboardPayload | null {
     scripts: doc.scripts,
     assets: doc.assets,
     swatches: doc.swatches,
+    params: doc.params,
     scriptsTrusted: false,
   };
 }

@@ -88,6 +88,7 @@ export function makeCompoundPath(shapes: Shape[]): CompoundPathNode | null {
     hidden: base.hidden,
     locked: base.locked,
     generator: null,
+    bindings: { ...base.bindings },
     transform: [...IDENTITY],
     transformOrigin: null,
   };
