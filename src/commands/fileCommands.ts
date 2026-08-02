@@ -1,10 +1,11 @@
-import { createDemoDocument } from "@/demo/createDemoDocument";
+import { loadDemoDocument } from "@/demo/demoDocument";
 import {
   downloadBlob,
   downloadText,
   pickTextFile,
   pickTextFileWithName,
 } from "@/io/download";
+import { contentBounds } from "@/io/exportBounds";
 import { fileSlug, uniqueFileSlugs } from "@/io/exportFilenames";
 import { exportPng } from "@/io/exportPng";
 import { exportSvg } from "@/io/exportSvg";
@@ -18,6 +19,10 @@ import { importSvg } from "@/io/importSvg";
 import { loadDocumentText } from "@/io/openDocument";
 import { saveDocument, saveDocumentAs } from "@/io/saveDocument";
 import { nodeWorldBounds } from "@/model/geometry/bounds";
+import {
+  fitBoundsInViewport,
+  initialViewport,
+} from "@/model/geometry/viewport";
 import { framesInPaintOrder, isFrame } from "@/model/scene";
 import type { FrameNode } from "@/model/types";
 import { useDocumentFile } from "@/store/documentFileStore";
@@ -25,7 +30,11 @@ import { hasUnsavedChanges } from "@/store/editorStore";
 import type { EditorState } from "@/store/state";
 import { notify } from "@/store/toastStore";
 import { useUi } from "@/store/uiStore";
-import { placeImagesFitted, placeSvgFitted } from "./canvasPlacement";
+import {
+  canvasViewportSize,
+  placeImagesFitted,
+  placeSvgFitted,
+} from "./canvasPlacement";
 import type { Command } from "./types";
 
 /**
@@ -245,15 +254,19 @@ export const FILE_COMMANDS: Command[] = [
     id: "file.demo",
     label: "Open demo",
     group: "File",
-    run: (state) => {
+    run: async (state) => {
       if (!confirmDiscard(state)) return;
-      state.loadDocument(createDemoDocument());
+      const doc = await loadDemoDocument();
+      state.loadDocument(doc);
       useDocumentFile.getState().clear();
-      state.setViewport({
-        scale: 0.85,
-        rotation: 0,
-        offset: { x: 12, y: 12 },
-      });
+      // The demo is a multi-frame tour, so open it fitted rather than at a
+      // fixed zoom that would land on one corner of it.
+      const bounds = contentBounds(doc, 0, null);
+      state.setViewport(
+        bounds
+          ? fitBoundsInViewport(bounds, canvasViewportSize())
+          : initialViewport
+      );
     },
   },
   {

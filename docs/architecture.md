@@ -50,7 +50,8 @@ src/
   ui/        Toolbar, PropertiesPanel, LayersPanel, FileMenu, ColorField,
              ContextMenu, CommandPalette, export/preferences/script/generator
              dialogs, Inspector, dockable panels
-  demo/      demo document
+  demo/      demo.vinegar.json (the bundled feature-tour document, a real save
+             file) + its loader; the render-stress document
   App.tsx    layout, app bar, global shortcuts
 docs/        document model and feature design notes
 tests/       node --test model/store/persistence tests via Vite SSR

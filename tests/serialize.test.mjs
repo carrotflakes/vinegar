@@ -10,7 +10,8 @@ let serializeDocument;
 let nodeWorldBounds;
 let hitTestShape;
 let parentIdOf;
-let createDemoDocument;
+let loadDemoDocument;
+let GENERATORS;
 let useEditor;
 let nodeWorldMatrix;
 let booleanShapes;
@@ -30,7 +31,8 @@ before(async () => {
   ({ nodeWorldBounds } = await server.ssrLoadModule("/src/model/geometry/bounds.ts"));
   ({ hitTestShape } = await server.ssrLoadModule("/src/model/geometry/hitTest.ts"));
   ({ parentIdOf, sceneIndex } = await server.ssrLoadModule("/src/model/scene.ts"));
-  ({ createDemoDocument } = await server.ssrLoadModule("/src/demo/createDemoDocument.ts"));
+  ({ loadDemoDocument } = await server.ssrLoadModule("/src/demo/demoDocument.ts"));
+  ({ GENERATORS } = await server.ssrLoadModule("/src/model/generators/generators.ts"));
   ({ useEditor } = await server.ssrLoadModule("/src/store/editorStore.ts"));
   ({ nodeWorldMatrix } = await server.ssrLoadModule("/src/model/geometry/matrix.ts"));
   ({ booleanShapes } = await server.ssrLoadModule("/src/model/path/boolean.ts"));
@@ -225,43 +227,64 @@ test("a nested v8 scene tree survives save/load and remains usable", () => {
   assert.throws(() => parseDocument(JSON.stringify(malformed)), /multiple parents/);
   malformed.version = 5;
   assert.throws(() => parseDocument(JSON.stringify(malformed)), /Unsupported/);
+});
 
-  const demo = parseDocument(serializeDocument(createDemoDocument()));
+test("the bundled demo file loads, validates, and stays editable", async () => {
+  // The bundled demo is a data file, so this is also its schema check: it has
+  // to survive the same parse the app performs when the command opens it.
+  const demo = parseDocument(serializeDocument(await loadDemoDocument()));
   assert.deepEqual(
     new Set(Object.values(demo.nodes).map((node) => node.type)),
-    new Set(["frame", "group", "rect", "ellipse", "line", "path", "compoundPath", "text"])
+    new Set(["frame", "group", "rect", "ellipse", "line", "path", "compoundPath",
+      "image", "text", "brush", "instance"])
   );
-  const demoCompound = demo.nodes.demo_compound_path;
+  // Every generator link resolves to a built-in or to a document script, and
+  // every swatch reference to a real global colour.
+  for (const node of Object.values(demo.nodes)) {
+    if (node.generator) {
+      assert.ok(
+        GENERATORS[node.generator.scriptId] || demo.scripts[node.generator.scriptId],
+        `dangling generator ${node.generator.scriptId}`
+      );
+    }
+    for (const paint of [node.fill, node.stroke]) {
+      if (paint?.type === "swatch") assert.ok(demo.swatches[paint.swatchId]);
+    }
+  }
+  const demoCompound = demo.nodes.struct_compound;
   assert.equal(demoCompound.type, "compoundPath");
   assert.deepEqual(
     demoCompound.childIds.map((id) => demo.nodes[id].type),
-    ["path", "ellipse"]
+    ["path", "ellipse", "rect"]
   );
-  assert.equal(parentIdOf(demo, "demo_compound_outer"), "demo_compound_path");
-  assert.equal(hitTestShape(demo, demoCompound, { x: 690, y: 270 }, 0), true);
-  assert.equal(hitTestShape(demo, demoCompound, { x: 773, y: 309 }, 0), false);
+  assert.equal(parentIdOf(demo, "struct_compound_outer"), "struct_compound");
+  // Inside the outer contour, but not inside either even-odd hole.
+  assert.equal(hitTestShape(demo, demoCompound, { x: 680, y: 860 }, 0), true);
+  assert.equal(hitTestShape(demo, demoCompound, { x: 733, y: 895 }, 0), false);
   assert.ok(Object.values(demo.nodes).some((node) => node.type === "group" && node.childIds.length === 0));
 
   const editor = useEditor.getState();
   editor.loadDocument(demo);
-  useEditor.getState().setSelection(["demo_compound_path"]);
+  useEditor.getState().setSelection(["struct_compound"]);
+  // Only the compound's path child is node-editable; its rect/ellipse children
+  // are not.
   assert.deepEqual(
     selectedNodeShapes(useEditor.getState()).map((shape) => shape.id),
-    ["demo_compound_outer"]
+    ["struct_compound_outer"]
   );
-  const beforeMove = nodeWorldMatrix(demo, "demo_skew_rect");
-  useEditor.getState().moveNode("demo_skew_rect", "demo_card_paths", 1);
+  const beforeMove = nodeWorldMatrix(demo, "struct_nested_a");
+  useEditor.getState().moveNode("struct_nested_a", "struct_nested", 1);
   const moved = useEditor.getState().doc;
-  assert.equal(parentIdOf(moved, "demo_skew_rect"), "demo_card_paths");
-  nodeWorldMatrix(moved, "demo_skew_rect").forEach((value, i) =>
+  assert.equal(parentIdOf(moved, "struct_nested_a"), "struct_nested");
+  nodeWorldMatrix(moved, "struct_nested_a").forEach((value, i) =>
     assert.ok(Math.abs(value - beforeMove[i]) < 1e-9)
   );
-  // Moving demo_cards into its own descendant is rejected, so its parent (the
-  // poster frame, since the demo wraps its content in one) stays unchanged.
-  useEditor.getState().moveNode("demo_cards", "demo_card_paths", 0);
-  assert.equal(parentIdOf(useEditor.getState().doc, "demo_cards"), "demo_frame");
+  // Moving a group into its own descendant is rejected, so its parent (the
+  // frame the demo authors it in) stays unchanged.
+  useEditor.getState().moveNode("struct_nested", "struct_nested_inner", 0);
+  assert.equal(parentIdOf(useEditor.getState().doc, "struct_nested"), "frame_structure");
   useEditor.getState().undo();
-  assert.equal(parentIdOf(useEditor.getState().doc, "demo_skew_rect"), "demo_card_shapes");
+  assert.equal(parentIdOf(useEditor.getState().doc, "struct_nested_a"), "struct_nested_inner");
 });
 
 test("boolean ops keep curves and produce editable multi-subpath paths", () => {
