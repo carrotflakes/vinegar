@@ -9,11 +9,8 @@ import {
   translation as translationMatrix,
 } from "@/model/geometry/matrix";
 import {
-  childIdsOf,
   enclosingSymbolId,
-  parentIdOf,
   referencedSymbolIds,
-  selectionRoots,
   wouldCreateSymbolCycle,
 } from "../model/scene";
 import { copySelectionToSystemClipboard } from "@/io/systemClipboard";
@@ -21,9 +18,9 @@ import type { Document } from "../model/types";
 import {
   appendToScope,
   copyPayload,
+  duplicateRoots,
   reattachPayloadResources,
   remapPayload,
-  replaceChildren,
 } from "./docOps";
 import {
   clearTransient,
@@ -84,24 +81,13 @@ export function createClipboardActions({ set, get, transact }: StoreCtx): Clipbo
       return true;
     },
     duplicateSelected: () => {
-      const { doc, selection } = get(); const roots = selectionRoots(doc, selection); if (!roots.length) return;
-      const selectedByParent = new Map<string | null, string[]>();
-      for (const id of roots) { const p = parentIdOf(doc, id); selectedByParent.set(p, [...(selectedByParent.get(p) ?? []), id]); }
-      let next = doc; const allNew: string[] = [];
-      for (const [parent, selected] of selectedByParent) {
-        const raw = copyPayload(doc, selected)!;
-        for (const id of raw.rootIds) raw.nodes[id] = { ...raw.nodes[id], transform: structuredClone(doc.nodes[id].transform) };
-        const dup = remapPayload(raw);
-        next = { ...next, nodes: { ...next.nodes, ...dup.nodes } };
-        const oldToNew = new Map(selected.map((id, i) => [id, dup.rootIds[i]]));
-        const siblings = childIdsOf(next, parent); const reordered: string[] = [];
-        for (const id of siblings) { reordered.push(id); const copy = oldToNew.get(id); if (copy) reordered.push(copy); }
-        next = replaceChildren(next, parent, reordered);
-        const moved = { ...next.nodes };
-        for (const id of dup.rootIds) moved[id] = applyWorldTransformToNode(next, moved[id], translationMatrix(PASTE_OFFSET, PASTE_OFFSET));
-        next = { ...next, nodes: moved }; allNew.push(...dup.rootIds);
-      }
-      transact(next, { label: "Duplicate selection" }); set({ selection: allNew, ...clearTransient });
+      const { doc, selection } = get();
+      const { doc: copied, newIds } = duplicateRoots(doc, selection);
+      if (!newIds.length) return;
+      // The copies land on top of their originals; nudge them clear.
+      const nodes = { ...copied.nodes };
+      for (const id of newIds) nodes[id] = applyWorldTransformToNode(copied, nodes[id], translationMatrix(PASTE_OFFSET, PASTE_OFFSET));
+      transact({ ...copied, nodes }, { label: "Duplicate selection" }); set({ selection: newIds, ...clearTransient });
     },
   };
 }

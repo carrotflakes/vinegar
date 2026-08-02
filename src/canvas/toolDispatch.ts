@@ -24,6 +24,7 @@ import {
 import { onPenAnchorMove, onPenDown } from "./tools/penTool";
 import {
   finishSelectMove,
+  finishSelectPending,
   onMarqueeUp,
   onSelectDown,
 } from "./tools/selectTool";
@@ -126,6 +127,7 @@ export function dispatchToolMove(
         },
       });
       break;
+    case "select-pending":
     case "pivot":
     case "move":
     case "resize":
@@ -133,7 +135,7 @@ export function dispatchToolMove(
     case "corner-radius":
     case "generator-param":
     case "marquee":
-      onSelectMove(ctx, state, inter, screen, world, shift, noReparent);
+      onSelectMove(ctx, state, inter, screen, world, shift, alt, noReparent);
       break;
     case "create":
       onCreateMove(ctx, state, inter.start, world, shift, alt);
@@ -191,6 +193,10 @@ export function finishToolInteraction(
   { screen, noReparent, canvasSize, beginTextEdit }: ToolUpInput
 ): void {
   switch (inter.kind) {
+    case "select-pending":
+      // Released without ever becoming a drag: it was a click.
+      finishSelectPending(ctx, state, inter);
+      break;
     case "pivot":
       if (inter.persistent) state.endInteraction();
       ctx.scheduleDraw();

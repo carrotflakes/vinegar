@@ -93,7 +93,8 @@ export function cancelActiveInteraction(ctx: ToolContext): void {
       ctx.marquee.current = null;
       state.setEditNodes(inter.original);
       break;
-    // "pan" / "pen-anchor" / "none": nothing to undo.
+    // "pan" / "pen-anchor" / "select-pending" / "none": nothing to undo — a
+    // pending press never opened an undo step or touched the document.
   }
   ctx.scheduleDraw();
 }

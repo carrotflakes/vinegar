@@ -144,6 +144,49 @@ export function copyPayload(
   };
 }
 
+/**
+ * Copy `roots` in place: every copy keeps its original's transform and lands
+ * directly after it among its siblings, so paint order stays interleaved.
+ * Shared by Duplicate, which then nudges the copies, and the select tool's
+ * Alt-drag, which drags them away instead.
+ */
+export function duplicateRoots(
+  doc: Document,
+  roots: string[]
+): { doc: Document; newIds: string[] } {
+  const effective = selectionRoots(doc, roots);
+  const byParent = new Map<string | null, string[]>();
+  for (const id of effective) {
+    const parent = parentIdOf(doc, id);
+    byParent.set(parent, [...(byParent.get(parent) ?? []), id]);
+  }
+  let next = doc;
+  const newIds: string[] = [];
+  for (const [parent, selected] of byParent) {
+    const raw = copyPayload(doc, selected)!;
+    // copyPayload lifts the roots to world transforms for pasting elsewhere;
+    // these copies stay siblings of their originals, so put the local ones back.
+    for (const id of raw.rootIds) {
+      raw.nodes[id] = {
+        ...raw.nodes[id],
+        transform: structuredClone(doc.nodes[id].transform),
+      };
+    }
+    const dup = remapPayload(raw);
+    next = { ...next, nodes: { ...next.nodes, ...dup.nodes } };
+    const oldToNew = new Map(selected.map((id, i) => [id, dup.rootIds[i]]));
+    const reordered: string[] = [];
+    for (const id of childIdsOf(next, parent)) {
+      reordered.push(id);
+      const copy = oldToNew.get(id);
+      if (copy) reordered.push(copy);
+    }
+    next = withChildIds(next, parent, reordered);
+    newIds.push(...dup.rootIds);
+  }
+  return { doc: next, newIds };
+}
+
 /** What {@link reattachPayloadResources} resolved for a pending paste. */
 export interface ReattachedPayload {
   nodes: Record<string, SceneNode>;

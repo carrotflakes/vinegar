@@ -26,17 +26,19 @@ import { computeSnap } from "@/model/geometry/snap";
 import { activeGuideLines } from "../guides";
 import type { SceneNode, Shape, Vec2 } from "../../model/types";
 import { worldToScreen } from "@/model/geometry/viewport";
-import type { EditorState } from "../../store/editorStore";
+import { useEditor, type EditorState } from "../../store/editorStore";
 import { setReadout } from "../../store/pointerStore";
 import { constrainAspectRatio, resizeBounds } from "../handles";
-import type { Interaction, ToolContext } from "../interaction";
+import { CLICK_SLOP, type Interaction, type ToolContext } from "../interaction";
 import { pointSnap } from "../picking";
+import { promotePendingMove } from "./selectTool";
 import { formatAngle, formatSize } from "../util";
 
 export type SelectInteraction = Extract<
   Interaction,
   {
     kind:
+      | "select-pending"
       | "pivot"
       | "move"
       | "resize"
@@ -96,13 +98,24 @@ function dragMove(
   state: EditorState,
   inter: Drag<"move">,
   world: Vec2,
+  shiftKey: boolean,
   noReparent: boolean
 ) {
   // Record the live modifier so the drop-target highlight can hide while
   // reparenting is suppressed.
   inter.noReparent = noReparent;
-  const rawDx = world.x - inter.start.x;
-  const rawDy = world.y - inter.start.y;
+  let rawDx = world.x - inter.start.x;
+  let rawDy = world.y - inter.start.y;
+  // Shift locks the drag to whichever axis leads, matching the Shift on resize
+  // and rotate. The lock outranks snapping: an alignment line on the locked
+  // axis would otherwise pull the move off it.
+  const locked: "x" | "y" | null = shiftKey
+    ? Math.abs(rawDx) >= Math.abs(rawDy)
+      ? "y"
+      : "x"
+    : null;
+  if (locked === "y") rawDy = 0;
+  if (locked === "x") rawDx = 0;
   let dx = rawDx;
   let dy = rawDy;
   const gridSize = state.gridSnap ? state.gridSize : null;
@@ -124,10 +137,12 @@ function dragMove(
       },
       6 / state.viewport.scale
     );
-    dx += snap.dx;
-    dy += snap.dy;
-    ctx.guides.current = snap.guides;
-    ctx.spacings.current = snap.spacings;
+    if (locked !== "x") dx += snap.dx;
+    if (locked !== "y") dy += snap.dy;
+    ctx.guides.current = locked
+      ? snap.guides.filter((guide) => guide.axis !== locked)
+      : snap.guides;
+    ctx.spacings.current = locked ? [] : snap.spacings;
   } else {
     ctx.guides.current = [];
     ctx.spacings.current = [];
@@ -390,6 +405,41 @@ function dragMarquee(
   ctx.scheduleDraw();
 }
 
+/**
+ * A press only becomes a move once it has travelled this far in screen pixels,
+ * so pressing on a shape to select it can no longer nudge it. Coarse pointers
+ * get the same slop as every other hit target.
+ */
+function pendingSlop(ctx: ToolContext): number {
+  return CLICK_SLOP * ctx.hitScale();
+}
+
+/**
+ * Advance an armed press: below the slop nothing happens yet, past it the drag
+ * is promoted to a real move and the same event drives its first step.
+ */
+function dragPending(
+  ctx: ToolContext,
+  state: EditorState,
+  inter: Drag<"select-pending">,
+  screen: Vec2,
+  world: Vec2,
+  shiftKey: boolean,
+  altKey: boolean,
+  noReparent: boolean
+) {
+  const travelled = Math.hypot(
+    screen.x - inter.startScreen.x,
+    screen.y - inter.startScreen.y
+  );
+  if (travelled < pendingSlop(ctx)) return;
+  promotePendingMove(ctx, state, inter, altKey);
+  const promoted = ctx.interaction.current;
+  if (promoted.kind !== "move") return;
+  // Duplicating replaced the document, so the move runs against fresh state.
+  dragMove(ctx, useEditor.getState(), promoted, world, shiftKey, noReparent);
+}
+
 export function onSelectMove(
   ctx: ToolContext,
   state: EditorState,
@@ -397,14 +447,18 @@ export function onSelectMove(
   screen: Vec2,
   world: Vec2,
   shiftKey: boolean,
+  altKey = false,
   noReparent = false
 ) {
   switch (inter.kind) {
+    case "select-pending":
+      dragPending(ctx, state, inter, screen, world, shiftKey, altKey, noReparent);
+      break;
     case "pivot":
       dragPivot(state, inter, world);
       break;
     case "move":
-      dragMove(ctx, state, inter, world, noReparent);
+      dragMove(ctx, state, inter, world, shiftKey, noReparent);
       break;
     case "resize":
       dragResize(ctx, state, inter, world, shiftKey);

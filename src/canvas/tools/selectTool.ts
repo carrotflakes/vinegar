@@ -31,6 +31,7 @@ import {
   withChildIds,
 } from "../../model/scene";
 import { collectSnapTargets } from "@/model/geometry/snap";
+import { duplicateRoots } from "@/store/docOps";
 import type { Document, SceneNode, Shape, Vec2 } from "../../model/types";
 import {
   screenToWorld,
@@ -58,6 +59,27 @@ function snapshot(ids: string[]): Record<string, SceneNode> {
 }
 
 /**
+ * Arm a move of `selection` without starting it: the drag only becomes real
+ * once the pointer leaves the click slop, and until then the press is still a
+ * click. `collapseTo` is what a click that never travels narrows down to.
+ */
+function pendSelectionMove(
+  ctx: ToolContext,
+  screen: Vec2,
+  world: Vec2,
+  selection: string[],
+  collapseTo: string[] | null = null
+) {
+  ctx.interaction.current = {
+    kind: "select-pending",
+    startScreen: screen,
+    start: world,
+    selection,
+    collapseTo,
+  };
+}
+
+/**
  * Start moving `selection` without changing it. Shared by normal picking and
  * the drag-an-already-selected-locked-shape path (lock blocks *selecting*, not
  * moving what is already selected).
@@ -66,7 +88,9 @@ function beginSelectionMove(
   ctx: ToolContext,
   state: EditorState,
   world: Vec2,
-  selection: string[]
+  selection: string[],
+  /** The caller already opened the undo step (Alt-drag duplicates first). */
+  alreadyBegun = false
 ) {
   const originals = snapshot(selection);
   const selectedGroup = exactlySelectedGroup(state.doc, selection);
@@ -76,10 +100,15 @@ function beginSelectionMove(
       descendantShapeIds(state.doc, id)
     )
   );
-  const others = shapesInPaintOrder(state.doc, currentFocusRoot(state)).filter(
-    (s): s is Shape => !selectedLeafIds.has(s.id) && !isShapeHidden(state.doc, s)
-  );
-  state.beginInteraction("Move selection");
+  // Alignment targets are only read while object snapping is on, and collecting
+  // them walks every shape in scope — skip that work when it can't be used.
+  const others = state.snapEnabled
+    ? shapesInPaintOrder(state.doc, currentFocusRoot(state)).filter(
+        (s): s is Shape =>
+          !selectedLeafIds.has(s.id) && !isShapeHidden(state.doc, s)
+      )
+    : [];
+  if (!alreadyBegun) state.beginInteraction("Move selection");
   ctx.interaction.current = {
     kind: "move",
     start: world,
@@ -173,6 +202,56 @@ function reparentDroppedIntoFrames(doc: Document, ids: string[]): Document {
     };
   }
   return next;
+}
+
+/**
+ * Turn a press that has left the click slop into a real move drag. With Alt
+ * held the selection is duplicated in place first and the copies are what
+ * move, so the originals stay behind — the duplicate and the move land as the
+ * one undo step. The modifier is read once, here, so the drag can't change its
+ * mind halfway.
+ */
+export function promotePendingMove(
+  ctx: ToolContext,
+  state: EditorState,
+  inter: Extract<Interaction, { kind: "select-pending" }>,
+  alt: boolean
+) {
+  if (!alt) {
+    beginSelectionMove(ctx, state, inter.start, inter.selection);
+    return;
+  }
+  state.beginInteraction("Duplicate selection");
+  const { doc, newIds } = duplicateRoots(state.doc, inter.selection);
+  if (!newIds.length) {
+    state.cancelInteraction();
+    beginSelectionMove(ctx, state, inter.start, inter.selection);
+    return;
+  }
+  state.setDoc(doc);
+  state.setSelection(newIds);
+  beginSelectionMove(ctx, useEditor.getState(), inter.start, newIds, true);
+}
+
+/**
+ * A press that was released without ever becoming a drag: it was a click.
+ * Clicking one member of a multi-selection singles it out — the selection
+ * itself is kept during the press so that dragging moves the whole group.
+ */
+export function finishSelectPending(
+  ctx: ToolContext,
+  state: EditorState,
+  inter: Extract<Interaction, { kind: "select-pending" }>
+) {
+  const collapseTo = inter.collapseTo;
+  if (
+    collapseTo?.length &&
+    (collapseTo.length !== state.selection.length ||
+      !collapseTo.every((id) => state.selection.includes(id)))
+  ) {
+    state.setSelection(collapseTo);
+  }
+  ctx.scheduleDraw();
 }
 
 /**
@@ -316,7 +395,7 @@ export function onSelectDown(
     const scopeRoot = currentFocusRoot(state);
     const roots = expandToGroups(state.doc, [lockedHit], scopeRoot);
     if (roots.some((id) => state.selection.includes(id))) {
-      beginSelectionMove(ctx, state, world, state.selection);
+      pendSelectionMove(ctx, screen, world, state.selection);
       return;
     }
   }
@@ -334,21 +413,29 @@ export function onSelectDown(
       activeGroup != null && isWithinGroup(state.doc, hitId, activeGroup);
     if (activeGroup && !insideActive) state.setActiveGroup(null);
     const scopeRoot = insideActive ? activeGroup : focusRoot;
-    let selection: string[];
+    const roots = expandToGroups(state.doc, [hitId], scopeRoot);
     if (shiftKey) {
-      const group = expandToGroups(state.doc, [hitId], scopeRoot);
-      const has = group.every((id) => state.selection.includes(id));
-      selection = has
-        ? state.selection.filter((id) => !group.includes(id))
-        : [...new Set([...state.selection, ...group])];
+      if (roots.every((id) => state.selection.includes(id))) {
+        // Shift-clicking something already selected drops it, and that is the
+        // whole gesture: no move is armed, so carrying on into a drag can no
+        // longer walk off with the rest of the selection.
+        state.setSelection(state.selection.filter((id) => !roots.includes(id)));
+        ctx.scheduleDraw();
+        return;
+      }
+      const selection = [...new Set([...state.selection, ...roots])];
       state.setSelection(selection);
-    } else if (!expandToGroups(state.doc, [hitId], scopeRoot).some((id) => state.selection.includes(id))) {
-      selection = expandToGroups(state.doc, [hitId], scopeRoot);
-      state.setSelection(selection);
-    } else {
-      selection = state.selection;
+      pendSelectionMove(ctx, screen, world, selection);
+      return;
     }
-    beginSelectionMove(ctx, state, world, selection);
+    if (!roots.some((id) => state.selection.includes(id))) {
+      state.setSelection(roots);
+      pendSelectionMove(ctx, screen, world, roots);
+    } else {
+      // Already part of the selection: hold the whole selection for a drag, but
+      // a click that never travels narrows down to what was clicked.
+      pendSelectionMove(ctx, screen, world, state.selection, roots);
+    }
     return;
   }
 
@@ -360,7 +447,7 @@ export function onSelectDown(
   if (borderFrame) {
     if (activeGroup) state.setActiveGroup(null);
     if (!state.selection.includes(borderFrame)) state.setSelection([borderFrame]);
-    beginSelectionMove(ctx, state, world, [borderFrame]);
+    pendSelectionMove(ctx, screen, world, [borderFrame]);
     return;
   }
 

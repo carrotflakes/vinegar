@@ -40,6 +40,24 @@ export type Interaction =
       persistent: boolean;
     }
   | {
+      /**
+       * A press on the selection that has not yet travelled far enough to be a
+       * drag. Past {@link CLICK_SLOP} it is promoted to a "move" (see
+       * `promotePendingMove`); released before that it resolves as a click, so
+       * a shaky hand can no longer nudge artwork by pressing on it.
+       */
+      kind: "select-pending";
+      startScreen: Vec2;
+      start: Vec2;
+      /** Selection roots a promoted move would carry. */
+      selection: string[];
+      /**
+       * Releasing without a drag narrows the selection to this — clicking one
+       * member of a multi-selection singles it out. Null leaves it alone.
+       */
+      collapseTo: string[] | null;
+    }
+  | {
       kind: "move";
       start: Vec2;
       originals: Record<string, SceneNode>;
