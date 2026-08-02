@@ -1,4 +1,5 @@
 import { useRef } from "react";
+import { isScrub, scrubbedValue, type ScrubScale } from "./scrub";
 
 type Props = {
   value: number;
@@ -6,6 +7,8 @@ type Props = {
   min?: number | undefined;
   max?: number;
   step?: number;
+  /** `log` scrubs by ratio instead of by `step` — see `ScrubScale`. */
+  scale?: ScrubScale;
   /** When set, double-clicking the field resets it to this value. */
   defaultValue?: number;
   className?: string;
@@ -17,15 +20,17 @@ type Props = {
 };
 
 /** Number field that can be scrubbed: drag left/right to change the value, or
- * click to edit it as text. Hold Shift for coarse (×10) or Alt for fine (×0.1)
- * steps. Native ↑/↓ keys still adjust by `step` while focused. Double-click
- * resets to `defaultValue` when one is provided. */
+ * click to edit it as text. Hold Shift for a coarse or Alt for a fine drag.
+ * `scale="log"` scrubs by ratio rather than by step. Native ↑/↓ keys still
+ * adjust by `step` while focused. Double-click resets to `defaultValue` when
+ * one is provided. */
 export default function ScrubbableNumber({
   value,
   onChange,
   min,
   max,
   step = 1,
+  scale = "linear",
   defaultValue,
   className,
   onScrubStart,
@@ -48,14 +53,6 @@ export default function ScrubbableNumber({
     return v;
   };
 
-  const commit = (raw: number, effectiveStep: number) => {
-    // Round to the effective step so fine/coarse drags land on clean values and
-    // floating-point noise (0.30000004) never reaches the store.
-    const snapped = Math.round(raw / effectiveStep) * effectiveStep;
-    const decimals = (String(effectiveStep).split(".")[1] ?? "").length;
-    onChange(clamp(Number(snapped.toFixed(decimals))));
-  };
-
   const onPointerDown = (e: React.PointerEvent<HTMLInputElement>) => {
     if (e.button !== 0) return;
     drag.current = {
@@ -71,17 +68,23 @@ export default function ScrubbableNumber({
     if (!d) return;
     const dx = e.clientX - d.startX;
     if (!d.scrubbing) {
-      if (Math.abs(dx) < 3) return; // tolerate jitter so clicks still edit
+      if (!isScrub(dx)) return; // tolerate jitter so clicks still edit
       d.scrubbing = true;
       onScrubStart?.();
       inputRef.current?.blur();
       inputRef.current?.setPointerCapture(d.pointerId);
     }
-    const multiplier = e.shiftKey ? 10 : e.altKey ? 0.1 : 1;
-    const effectiveStep = step * multiplier;
-    // 4px of travel per step keeps the drag controllable.
-    const steps = Math.round(dx / 4);
-    commit(d.startValue + steps * effectiveStep, effectiveStep);
+    onChange(
+      clamp(
+        scrubbedValue({
+          scale,
+          startValue: d.startValue,
+          dx,
+          step,
+          modifier: e.shiftKey ? "coarse" : e.altKey ? "fine" : "none",
+        })
+      )
+    );
   };
 
   const onPointerUp = (e: React.PointerEvent<HTMLInputElement>) => {

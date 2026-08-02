@@ -151,6 +151,7 @@ function ZoomMenuPanel({ close }: { close: () => void }) {
               value={percent}
               min={5}
               max={6400}
+              scale="log"
               defaultValue={100}
               aria-label="Zoom percentage"
               onChange={zoomTo}
