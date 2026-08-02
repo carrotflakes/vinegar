@@ -253,6 +253,27 @@ export function paintCanvas(input: PaintInput): void {
   if (interaction.kind === "text-create") {
     drawTextDraft(ctx2d, dpr, viewport, interaction.start, interaction.current);
   }
+  // A locked node under the pointer, outlined as locked — first, so the accent
+  // outline of whatever the click *would* take draws over it where they meet.
+  const lockedHoverId = selectHover?.lockedId ?? null;
+  if (
+    lockedHoverId &&
+    interaction.kind === "none" &&
+    doc.nodes[lockedHoverId] &&
+    !selection.includes(lockedHoverId)
+  ) {
+    drawNodeHighlight(ctx2d, {
+      dpr,
+      size: { width, height },
+      viewport,
+      doc,
+      nodeId: lockedHoverId,
+      pulse: 0,
+      rulerInset: state.rulersVisible ? RULER_SIZE : 0,
+      variant: "locked",
+    });
+  }
+
   // What a click would select, outlined under the pointer. Drawn with the same
   // accent as the Layers-panel hover — it means the same thing — and skipped
   // for anything already selected, whose selection frame says it louder.

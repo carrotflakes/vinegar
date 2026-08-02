@@ -44,7 +44,9 @@ import type { Interaction, ToolContext } from "../interaction";
 import {
   hitFrameHandle,
   isVisibleForPicking,
+  lockedTopId,
   pickFrameBorder,
+  pickLeaves,
   pickLockedShape,
   pickShape,
   selectionFrame,
@@ -533,6 +535,12 @@ export interface SelectHover {
   targetId: string | null;
   /** A locked leaf sits on top *and* is already selected, so a drag moves it. */
   lockedMovable: boolean;
+  /**
+   * A locked leaf is the frontmost thing under the pointer, so a click will
+   * pass straight through it. Outlined as locked, which is the only way to
+   * tell that from "nothing here" or "the click missed".
+   */
+  lockedId: string | null;
 }
 
 /** A resolved hover, tagged with the point it was resolved for. */
@@ -540,7 +548,11 @@ export interface CachedSelectHover extends SelectHover {
   at: Vec2;
 }
 
-const NO_HOVER: SelectHover = { targetId: null, lockedMovable: false };
+const NO_HOVER: SelectHover = {
+  targetId: null,
+  lockedMovable: false,
+  lockedId: null,
+};
 
 /**
  * Resolve what the select tool is hovering. The cursor and the hover outline
@@ -558,34 +570,34 @@ export function resolveSelectHover(
     state.activeGroupId && isGroup(state.doc.nodes[state.activeGroupId])
       ? state.activeGroupId
       : null;
-  // Only worth asking when something is selected: a locked leaf that isn't
-  // already selected behaves like any other unpickable node.
-  if (state.selection.length) {
-    const lockedHit = pickLockedShape(ctx, world);
-    if (
-      lockedHit &&
-      expandToGroups(state.doc, [lockedHit], focusRoot).some((id) =>
-        state.selection.includes(id)
-      )
-    ) {
-      return { targetId: null, lockedMovable: true };
-    }
+  const pick = pickLeaves(ctx, world);
+  const lockedId = lockedTopId(state.doc, pick);
+  if (
+    lockedId &&
+    expandToGroups(state.doc, [lockedId], focusRoot).some((id) =>
+      state.selection.includes(id)
+    )
+  ) {
+    // Already selected, so the selection frame speaks for it and a drag moves
+    // it — nothing to flag as blocked.
+    return { targetId: null, lockedMovable: true, lockedId: null };
   }
-  const hitId = pickShape(ctx, world);
-  if (hitId) {
+  if (pick.hitId) {
     const insideActive =
-      activeGroup != null && isWithinGroup(state.doc, hitId, activeGroup);
+      activeGroup != null && isWithinGroup(state.doc, pick.hitId, activeGroup);
     const scopeRoot = insideActive ? activeGroup : focusRoot;
     return {
-      targetId: expandToGroups(state.doc, [hitId], scopeRoot)[0] ?? hitId,
+      targetId:
+        expandToGroups(state.doc, [pick.hitId], scopeRoot)[0] ?? pick.hitId,
       lockedMovable: false,
+      lockedId,
     };
   }
   const borderTol =
     ((HANDLE_SIZE / 2 + 3) * ctx.hitScale()) / state.viewport.scale;
   const borderFrame = pickFrameBorder(state.doc, world, borderTol);
-  return borderFrame
-    ? { targetId: borderFrame, lockedMovable: false }
+  return borderFrame || lockedId
+    ? { targetId: borderFrame, lockedMovable: false, lockedId }
     : NO_HOVER;
 }
 

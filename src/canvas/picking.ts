@@ -189,7 +189,21 @@ export function hitFrameHandle(ctx: ToolContext, screen: Vec2): FrameHit {
   return null;
 }
 
-export function pickShape(ctx: ToolContext, world: Vec2): string | null {
+/** What sits under a point: the frontmost leaf, and the frontmost pickable one. */
+export interface LeafPick {
+  /** Frontmost leaf under the pointer, locked or not. */
+  topId: string | null;
+  /** Frontmost *selectable* leaf — what a click would actually take. */
+  hitId: string | null;
+}
+
+/**
+ * Hit-test the scene once for both answers. The select tool needs to know what
+ * a click would take *and* whether a locked leaf is covering it (to say so on
+ * hover, and to move one that is already selected), and walking the scene twice
+ * for that runs on every pointer move.
+ */
+export function pickLeaves(ctx: ToolContext, world: Vec2): LeafPick {
   const state = useEditor.getState();
   const { doc } = state;
   const tol = pickTolerance(ctx);
@@ -203,17 +217,19 @@ export function pickShape(ctx: ToolContext, world: Vec2): string | null {
   if (activeMask && ids.includes(activeMask.id)) {
     ids = [activeMask.id, ...ids.filter((id) => id !== activeMask.id)];
   }
+  let topId: string | null = null;
   for (let i = ids.length - 1; i >= 0; i--) {
     const node = doc.nodes[ids[i]];
-    if (
-      isLeaf(node) &&
-      isVisibleForPicking(doc, node.id) &&
-      !isNodeLocked(doc, node.id) &&
-      hitTestNode(doc, node, world, tol, scope ?? undefined)
-    )
-      return ids[i];
+    if (!isLeaf(node) || !isVisibleForPicking(doc, node.id)) continue;
+    if (!hitTestNode(doc, node, world, tol, scope ?? undefined)) continue;
+    if (topId === null) topId = node.id;
+    if (!isNodeLocked(doc, node.id)) return { topId, hitId: node.id };
   }
-  return null;
+  return { topId, hitId: null };
+}
+
+export function pickShape(ctx: ToolContext, world: Vec2): string | null {
+  return pickLeaves(ctx, world).hitId;
 }
 
 /**
@@ -224,22 +240,12 @@ export function pickShape(ctx: ToolContext, world: Vec2): string | null {
  * not moving what's already selected).
  */
 export function pickLockedShape(ctx: ToolContext, world: Vec2): string | null {
-  const state = useEditor.getState();
-  const { doc } = state;
-  const tol = pickTolerance(ctx);
-  const scope = currentFocusRoot(state);
-  const ids = scopeLeafIds(doc, scope);
-  for (let i = ids.length - 1; i >= 0; i--) {
-    const node = doc.nodes[ids[i]];
-    if (
-      isLeaf(node) &&
-      isVisibleForPicking(doc, node.id) &&
-      hitTestNode(doc, node, world, tol, scope ?? undefined)
-    ) {
-      return isNodeLocked(doc, node.id) ? ids[i] : null;
-    }
-  }
-  return null;
+  return lockedTopId(useEditor.getState().doc, pickLeaves(ctx, world));
+}
+
+/** The frontmost leaf of a pick when it is the locked one. */
+export function lockedTopId(doc: Document, pick: LeafPick): string | null {
+  return pick.topId && isNodeLocked(doc, pick.topId) ? pick.topId : null;
 }
 
 /**

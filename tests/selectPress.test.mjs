@@ -189,6 +189,7 @@ test("the hover resolves to what a click would select", () => {
   useEditor.getState().addShape(rect("a"), false);
   assert.equal(resolveSelectHover(ctx, at(50, 50)).targetId, "a");
   assert.equal(resolveSelectHover(ctx, at(500, 500)).targetId, null);
+  assert.equal(resolveSelectHover(ctx, at(500, 500)).lockedId, null);
 });
 
 test("the hover resolves a grouped shape to its group", () => {
@@ -201,16 +202,32 @@ test("the hover resolves a grouped shape to its group", () => {
   assert.equal(resolveSelectHover(ctx, at(50, 50)).targetId, groupId);
 });
 
-test("the hover reports an already-selected locked shape as movable", () => {
+test("the hover flags a locked shape a click would pass through", () => {
   useEditor.getState().addShape(rect("a", { locked: true }), false);
   assert.deepEqual(resolveSelectHover(ctx, at(50, 50)), {
     targetId: null,
     lockedMovable: false,
+    lockedId: "a",
   });
+});
+
+test("the hover reports an already-selected locked shape as movable", () => {
+  useEditor.getState().addShape(rect("a", { locked: true }), false);
   useEditor.getState().setSelection(["a"]);
   assert.deepEqual(resolveSelectHover(ctx, at(50, 50)), {
     targetId: null,
     lockedMovable: true,
+    lockedId: null,
+  });
+});
+
+test("a locked shape over pickable art flags both", () => {
+  useEditor.getState().addShape(rect("under"), false);
+  useEditor.getState().addShape(rect("over", { locked: true }), false);
+  assert.deepEqual(resolveSelectHover(ctx, at(50, 50)), {
+    targetId: "under",
+    lockedMovable: false,
+    lockedId: "over",
   });
 });
 

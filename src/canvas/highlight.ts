@@ -8,6 +8,14 @@ import { resolvedSubpaths } from "@/model/path/pathModifiers";
 
 const HIGHLIGHT = "#3b82f6";
 /**
+ * A locked node under the pointer. Deliberately not the accent: it marks what
+ * a click will *not* take, so it has to read as a different kind of statement
+ * from "this is what you would get".
+ */
+const LOCKED = "#cbd5e1";
+/** Dash pattern (CSS px) of the locked outline. */
+const LOCKED_DASH = [5, 4];
+/**
  * Dark backing line under the accent one. The outline lands on artwork of any
  * color, so a single stroke disappears against something close to its own hue;
  * two contrasting lines always leave one of them visible.
@@ -88,7 +96,9 @@ function outlineShape(
   doc: Document,
   shape: Shape,
   viewport: Viewport,
-  pulse: number
+  pulse: number,
+  accent: string,
+  dash: number[]
 ): void {
   const m = shapeWorldMatrix(doc, shape);
   ctx.save();
@@ -100,17 +110,20 @@ function outlineShape(
   const stroke = () => (path ? ctx.stroke(path) : ctx.stroke());
 
   if (pulse > 0 && fillable(shape)) {
-    ctx.fillStyle = HIGHLIGHT;
+    ctx.fillStyle = accent;
     ctx.globalAlpha = PULSE_WASH * pulse;
     if (path) ctx.fill(path, "evenodd");
     else ctx.fill("evenodd");
     ctx.globalAlpha = 1;
   }
   const width = OUTLINE_WIDTH + PULSE_WIDTH * pulse;
+  // The dash pattern is authored in screen pixels like the widths are, so it
+  // has to be scaled into the world space this strokes in.
+  if (dash.length) ctx.setLineDash(dash.map((step) => step * unit));
   ctx.strokeStyle = HALO;
   ctx.lineWidth = (width + 2) * unit;
   stroke();
-  ctx.strokeStyle = HIGHLIGHT;
+  ctx.strokeStyle = accent;
   ctx.lineWidth = width * unit;
   stroke();
   ctx.restore();
@@ -125,7 +138,9 @@ function outlineBox(
   ctx: CanvasRenderingContext2D,
   viewport: Viewport,
   bounds: Bounds,
-  pulse: number
+  pulse: number,
+  accent: string,
+  dash: number[]
 ): void {
   const corners = [
     worldToScreen(viewport, { x: bounds.x, y: bounds.y }),
@@ -146,19 +161,63 @@ function outlineBox(
   };
   if (pulse > 0) {
     box();
-    ctx.fillStyle = HIGHLIGHT;
+    ctx.fillStyle = accent;
     ctx.globalAlpha = PULSE_WASH * 0.6 * pulse;
     ctx.fill();
     ctx.globalAlpha = 1;
   }
   const width = OUTLINE_WIDTH + PULSE_WIDTH * pulse;
+  if (dash.length) ctx.setLineDash(dash);
   box();
   ctx.strokeStyle = HALO;
   ctx.lineWidth = width + 2;
   ctx.stroke();
-  ctx.strokeStyle = HIGHLIGHT;
+  ctx.strokeStyle = accent;
   ctx.lineWidth = width;
   ctx.stroke();
+}
+
+/**
+ * Padlock badge, drawn in screen space at a corner of the outlined node. The
+ * dashed outline alone reads as "some other kind of line" — the lock is what
+ * makes it say *why* the click will pass through.
+ */
+function drawLockBadge(
+  ctx: CanvasRenderingContext2D,
+  at: Vec2,
+  accent: string
+): void {
+  const bodyW = 9;
+  const bodyH = 7;
+  const x = at.x;
+  const y = at.y;
+  ctx.save();
+  ctx.lineJoin = "round";
+  ctx.lineCap = "round";
+  // Shackle first, so the body covers where it meets the case.
+  const shackle = () => {
+    ctx.beginPath();
+    ctx.arc(x, y - bodyH / 2, 2.4, Math.PI, 0);
+  };
+  const body = () => {
+    ctx.beginPath();
+    ctx.rect(x - bodyW / 2, y - bodyH / 2, bodyW, bodyH);
+  };
+  // Dark backing, for the same reason the outline has a halo.
+  ctx.strokeStyle = HALO;
+  ctx.lineWidth = 4;
+  shackle();
+  ctx.stroke();
+  body();
+  ctx.stroke();
+  ctx.strokeStyle = accent;
+  ctx.lineWidth = 1.6;
+  shackle();
+  ctx.stroke();
+  ctx.fillStyle = accent;
+  body();
+  ctx.fill();
+  ctx.restore();
 }
 
 /**
@@ -222,12 +281,16 @@ function drawOffscreenArrow(
 }
 
 /**
- * Outline the node hovered in the Layers panel: a leaf along its real geometry
- * (a box alone is ambiguous when shapes overlap), a container by its extent.
- * A node entirely outside the view gets an edge arrow pointing towards it.
+ * Outline a node the pointer is over: a leaf along its real geometry (a box
+ * alone is ambiguous when shapes overlap), a container by its extent. A node
+ * entirely outside the view gets an edge arrow pointing towards it.
  * `pulse` (1 → 0) briefly thickens the outline and washes the interior when the
  * hover starts, which is what actually catches the eye — the resting outline is
  * quiet on purpose.
+ *
+ * The "locked" variant is the same drawing in a muted dashed line with a
+ * padlock badge: it marks something a click will pass *through*, which has to
+ * be distinguishable at a glance from what the click would take.
  */
 export function drawNodeHighlight(
   ctx: CanvasRenderingContext2D,
@@ -240,9 +303,13 @@ export function drawNodeHighlight(
     pulse: number;
     /** Screen space the rulers cover on the top/left edges (0 when hidden). */
     rulerInset: number;
+    variant?: "accent" | "locked";
   }
 ): void {
   const { dpr, size, viewport, doc, nodeId, pulse, rulerInset } = opts;
+  const locked = opts.variant === "locked";
+  const accent = locked ? LOCKED : HIGHLIGHT;
+  const dash = locked ? LOCKED_DASH : [];
   const bounds = nodeWorldBounds(doc, nodeId);
   if (!bounds) return;
 
@@ -273,9 +340,23 @@ export function drawNodeHighlight(
     ctx.translate(viewport.offset.x, viewport.offset.y);
     ctx.rotate(viewport.rotation);
     ctx.scale(viewport.flipX ? -viewport.scale : viewport.scale, viewport.scale);
-    outlineShape(ctx, doc, node, viewport, pulse);
+    outlineShape(ctx, doc, node, viewport, pulse, accent, dash);
   } else {
-    outlineBox(ctx, viewport, bounds, pulse);
+    outlineBox(ctx, viewport, bounds, pulse, accent, dash);
   }
   ctx.restore();
+
+  if (locked) {
+    // Top-left of the outline, kept inside the viewport (and clear of the
+    // rulers) so a locked background bigger than the screen still shows it.
+    const inset = 9;
+    drawLockBadge(
+      ctx,
+      {
+        x: Math.min(Math.max(b.x + inset, rulerInset + inset), size.width - inset),
+        y: Math.min(Math.max(b.y + inset, rulerInset + inset), size.height - inset),
+      },
+      accent
+    );
+  }
 }

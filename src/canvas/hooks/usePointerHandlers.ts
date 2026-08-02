@@ -156,14 +156,17 @@ export function usePointerHandlers(deps: PointerHandlerDeps): PointerHandlers {
    * same answer, and the scene is hit-tested once per move rather than twice.
    */
   const updateSelectHoverTarget = (tool: string, world: Vec2) => {
-    const previous = ctx.selectHover.current?.targetId ?? null;
+    const previous = ctx.selectHover.current;
+    const outlined = previous
+      ? `${previous.targetId}/${previous.lockedId}`
+      : null;
     if (tool !== "select") {
       ctx.selectHover.current = null;
-      if (previous !== null) ctx.scheduleDraw();
+      if (outlined !== null) ctx.scheduleDraw();
       return;
     }
     const hover = updateSelectHover(ctx, world);
-    if (hover.targetId !== previous) ctx.scheduleDraw();
+    if (`${hover.targetId}/${hover.lockedId}` !== outlined) ctx.scheduleDraw();
   };
 
   /**
