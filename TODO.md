@@ -63,6 +63,11 @@ additional effects, or other feature expansion.
   `systemClipboard.ts` degrade to plain SVG
 
 ### New ideas
+- [ ] **Parameters and references** (docs/parameters.md) — numbers can only be
+  literals while colours can already be references (`swatch`). Close the
+  asymmetry in phases: document parameters (v32) → parametric symbols (v33) →
+  non-destructive boolean as a node→node operand (v34) → expressions (optional).
+  Each phase ships alone; not before the 1.0 gates above.
 - [ ] Swatches saved in the document (currently localStorage, color-only)
 - [ ] Distribution: match an existing gap (not just centering)
 - [ ] Status bar: color swatch under the cursor (eyedropper-style; watch getImageData cost)
@@ -245,3 +250,4 @@ additional effects, or other feature expansion.
 - [ ] PWA
 - [ ] modifier部分焼き込み
 - [x] viewの上下反転
+- [ ] 自由変形
