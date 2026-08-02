@@ -285,8 +285,10 @@ export function usePointerHandlers(deps: PointerHandlerDeps): PointerHandlers {
       sizeRef.current
     );
 
-    // Touch cannot hover, so a contact must not leave a hover outline behind.
-    if (isTouch) ctx.selectHover.current = null;
+    // The hover belongs to the pointer resting somewhere, not to a contact:
+    // drop it so a release never leaves a stale outline (touch cannot hover at
+    // all, and a mouse re-resolves it on its next move).
+    ctx.selectHover.current = null;
 
     if (e.button === 1 || spaceRef.current) {
       ctx.interaction.current = {

@@ -192,6 +192,8 @@ function drawLockBadge(
   const x = at.x;
   const y = at.y;
   ctx.save();
+  // The badge follows a dashed outline; its own strokes are solid.
+  ctx.setLineDash([]);
   ctx.lineJoin = "round";
   ctx.lineCap = "round";
   // Shackle first, so the body covers where it meets the case.
