@@ -349,14 +349,20 @@ export function drawNodeHighlight(
   ctx.restore();
 
   if (locked) {
-    // Top-left of the outline, kept inside the viewport (and clear of the
-    // rulers) so a locked background bigger than the screen still shows it.
+    // Centred on the node, which is where the eye already is — but on the
+    // centre of the *visible* part, so a locked background larger than the
+    // screen still shows the badge, and shows it near where the pointer is
+    // rather than off in a corner.
     const inset = 9;
+    const left = Math.max(b.x, rulerInset) + inset;
+    const top = Math.max(b.y, rulerInset) + inset;
+    const right = Math.min(b.x + b.width, size.width) - inset;
+    const bottom = Math.min(b.y + b.height, size.height) - inset;
     drawLockBadge(
       ctx,
       {
-        x: Math.min(Math.max(b.x + inset, rulerInset + inset), size.width - inset),
-        y: Math.min(Math.max(b.y + inset, rulerInset + inset), size.height - inset),
+        x: left <= right ? (left + right) / 2 : (b.x + b.width / 2),
+        y: top <= bottom ? (top + bottom) / 2 : (b.y + b.height / 2),
       },
       accent
     );
