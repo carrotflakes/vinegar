@@ -1,7 +1,8 @@
 import { nodeWorldBounds, unionNodeWorldBounds } from "@/model/geometry/bounds";
 import {
   fitBoundsInViewport,
-  flipAt,
+  flipHorizontallyAt,
+  flipVerticallyAt,
   initialViewport,
   rotateAt,
   zoomAt,
@@ -84,7 +85,14 @@ export const VIEW_COMMANDS: Command[] = [
     group: "View",
     keys: [{ key: "F", shift: true }],
     run: (state) =>
-      state.setViewport(flipAt(state.viewport, canvasCenter())),
+      state.setViewport(flipHorizontallyAt(state.viewport, canvasCenter())),
+  },
+  {
+    id: "view.flipVertical",
+    label: "Flip view vertically",
+    group: "View",
+    run: (state) =>
+      state.setViewport(flipVerticallyAt(state.viewport, canvasCenter())),
   },
   {
     id: "view.fitSelection",

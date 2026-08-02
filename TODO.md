@@ -194,7 +194,6 @@ additional effects, or other feature expansion.
 - [ ] テキストってインプレイス編集しかない？
 - [x] Taperのバグ（端点でCatmull-Romハンドルが行き過ぎてフックしていた。`catmullRomHandles`で各ハンドルを隣接アンカーの弦長1/3にクランプ）
 - [ ] pencil 直線モード（描画中に修飾キーで直線セグメント）
-- [ ] ノード編集でctrl+A
 - [ ] generator図形、丸角四角（四方制御）
 - [ ] 各ツールについての使い勝手向上
   - [ ] ペン: 別の開いたパスの端点で描き終えて 2 本を 1 本に連結する（今は単一
@@ -244,3 +243,5 @@ additional effects, or other feature expansion.
   - [ ] brush: マウス/タッチは pressure=1 固定なので強弱が taper しかない。
     速度→幅シミュレーション
 - [ ] PWA
+- [ ] modifier部分焼き込み
+- [x] viewの上下反転

@@ -8,6 +8,8 @@ let worldToScreen;
 let screenToWorld;
 let zoomAt;
 let rotateAt;
+let flipHorizontallyAt;
+let flipVerticallyAt;
 let snapAngleToQuarter;
 
 const near = (a, b, eps = 1e-9) =>
@@ -25,6 +27,8 @@ before(async () => {
     screenToWorld,
     zoomAt,
     rotateAt,
+    flipHorizontallyAt,
+    flipVerticallyAt,
     snapAngleToQuarter,
   } = await server.ssrLoadModule("/src/model/geometry/viewport.ts"));
 });
@@ -88,6 +92,44 @@ test("zoomAt preserves rotation and pins the anchor", () => {
   near(zoomed.rotation, vp.rotation);
   near(zoomed.scale, 2);
   nearPoint(worldToScreen(zoomed, screenToWorld(vp, anchor)), anchor, 1e-8);
+});
+
+test("flipping the view mirrors the screen image about the anchor", () => {
+  const vp = { scale: 1.7, rotation: 0.4, offset: { x: 25, y: -12 } };
+  const anchor = { x: 320, y: 240 };
+  const world = { x: -18, y: 47 };
+  const before = worldToScreen(vp, world);
+
+  const h = worldToScreen(flipHorizontallyAt(vp, anchor), world);
+  nearPoint(h, { x: 2 * anchor.x - before.x, y: before.y }, 1e-8);
+
+  const v = worldToScreen(flipVerticallyAt(vp, anchor), world);
+  nearPoint(v, { x: before.x, y: 2 * anchor.y - before.y }, 1e-8);
+});
+
+test("flipping the view twice restores the original mapping", () => {
+  const vp = { scale: 0.8, rotation: -1.1, offset: { x: 60, y: 90 }, flipX: true };
+  const anchor = { x: 150, y: 100 };
+  const world = { x: 33, y: -21 };
+  for (const flip of [flipHorizontallyAt, flipVerticallyAt]) {
+    const back = flip(flip(vp, anchor), anchor);
+    nearPoint(worldToScreen(back, world), worldToScreen(vp, world), 1e-8);
+    // Scale is never consumed by the mirror, and the flag returns to where it was.
+    near(back.scale, vp.scale);
+    assert.equal(!!back.flipX, !!vp.flipX);
+  }
+});
+
+test("a vertical flip equals a horizontal flip plus a half turn", () => {
+  const vp = { scale: 1.25, rotation: 0.9, offset: { x: -40, y: 70 } };
+  const anchor = { x: 200, y: 200 };
+  const world = { x: 5, y: 12 };
+  const composed = rotateAt(flipHorizontallyAt(vp, anchor), anchor, Math.PI);
+  nearPoint(
+    worldToScreen(flipVerticallyAt(vp, anchor), world),
+    worldToScreen(composed, world),
+    1e-8
+  );
 });
 
 test("snapAngleToQuarter snaps near quarter turns and passes through the rest", () => {

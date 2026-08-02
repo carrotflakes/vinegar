@@ -6,8 +6,10 @@ import type { Matrix, Bounds, Vec2 } from "../types";
  *   screen = R(rotation) * scale * F * world + offset
  * `offset` is in screen pixels, `scale` is uniform zoom and `rotation` is the
  * canvas orientation in radians (clockwise, since screen y points down).
- * `flipX` mirrors the view horizontally (F = diag(-1, 1)) without touching the
- * document — a display-only left/right flip.
+ * `flipX` mirrors the view (F = diag(-1, 1)) without touching the document — a
+ * display-only flip. It is the only mirror flag needed: a vertical flip is the
+ * same reflection composed with a half turn, so it is stored as `flipX` plus a
+ * rotation (see `flipVerticallyAt`).
  */
 export interface Viewport {
   scale: number;
@@ -77,12 +79,27 @@ export function zoomAt(v: Viewport, anchor: Vec2, factor: number): Viewport {
  * the rotation and reflecting `offset.x`, so it stays exact under any canvas
  * rotation.
  */
-export function flipAt(v: Viewport, anchor: Vec2): Viewport {
+export function flipHorizontallyAt(v: Viewport, anchor: Vec2): Viewport {
   return {
     scale: v.scale,
     rotation: -v.rotation,
     flipX: !v.flipX,
     offset: { x: 2 * anchor.x - v.offset.x, y: v.offset.y },
+  };
+}
+
+/**
+ * Mirror the displayed image up/down around a horizontal screen line through
+ * `anchor` (which stays fixed). The vertical mirror is the horizontal one
+ * composed with a half turn, so it toggles `flipX`, maps the rotation to
+ * `π - rotation` and reflects `offset.y`.
+ */
+export function flipVerticallyAt(v: Viewport, anchor: Vec2): Viewport {
+  return {
+    scale: v.scale,
+    rotation: Math.PI - v.rotation,
+    flipX: !v.flipX,
+    offset: { x: v.offset.x, y: 2 * anchor.y - v.offset.y },
   };
 }
 

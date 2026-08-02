@@ -18,6 +18,7 @@ import "./menus.css";
 const ITEMS = [
   "view.reset",
   "view.flipHorizontal",
+  "view.flipVertical",
   "view.fitSelection",
   "view.fitAll",
   "view.fitFrame",
