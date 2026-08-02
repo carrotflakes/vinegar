@@ -31,6 +31,22 @@ export const HANDLE_SIZE = 9;
  */
 export const PARAM_KNOB_SIZE = 8;
 
+/**
+ * The handles worth showing for a box: a selection with no extent on an axis
+ * (a straight line, a single point) can never be resized along it — a scale of
+ * zero has no way back — and drawing eight handles on top of each other only
+ * makes the two that do work unpickable. Rendering and hit-testing share this,
+ * so an unseen handle is never grabbed by accident.
+ */
+export function usableHandleIds(b: Bounds): HandleId[] {
+  const flatX = Math.abs(b.width) < 1e-6;
+  const flatY = Math.abs(b.height) < 1e-6;
+  if (flatX && flatY) return [];
+  if (flatX) return ["n", "s"];
+  if (flatY) return ["e", "w"];
+  return HANDLE_IDS;
+}
+
 /** World-space anchor point for each handle on a bounds rect. */
 export function handlePoint(b: Bounds, id: HandleId): Vec2 {
   const { x, y, width: w, height: h } = b;

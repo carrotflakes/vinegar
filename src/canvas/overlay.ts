@@ -3,7 +3,7 @@ import { applyMatrix } from "@/model/geometry/matrix";
 import { effectiveAnchorType } from "@/model/path/anchorType";
 import type { Bounds, PathShape, Matrix, Vec2 } from "../model/types";
 import { worldToScreen, type Viewport } from "@/model/geometry/viewport";
-import { HANDLE_IDS, HANDLE_SIZE, PARAM_KNOB_SIZE } from "./handles";
+import { HANDLE_SIZE, PARAM_KNOB_SIZE, usableHandleIds } from "./handles";
 import {
   frameCorners,
   frameHandlePoint,
@@ -119,7 +119,7 @@ export function drawOverlay(
       // Resize handles.
       const half = handleSize / 2;
       ctx.fillStyle = "#ffffff";
-      for (const id of HANDLE_IDS) {
+      for (const id of usableHandleIds(frame.bounds)) {
         const sp = toS(frameHandlePoint(frame, id));
         ctx.beginPath();
         ctx.rect(

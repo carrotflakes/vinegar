@@ -11,6 +11,7 @@ let onSelectDown;
 let onSelectMove;
 let resolveSelectHover;
 let finishToolInteraction;
+let usableHandleIds;
 
 let ctx;
 
@@ -76,6 +77,7 @@ before(async () => {
   ));
   ({ onSelectMove } = await server.ssrLoadModule("/src/canvas/tools/selectDrag.ts"));
   ({ finishToolInteraction } = await server.ssrLoadModule("/src/canvas/toolDispatch.ts"));
+  ({ usableHandleIds } = await server.ssrLoadModule("/src/canvas/handles.ts"));
 });
 
 beforeEach(() => {
@@ -173,6 +175,14 @@ test("shift locks the drag to the leading axis", () => {
   move(90, 55, { shift: true });
   up(90, 55);
   assert.deepEqual(offsetOf("a"), { x: 40, y: 0 });
+});
+
+test("a flat selection only offers the handles that can resize it", () => {
+  const box = (width, height) => ({ x: 0, y: 0, width, height });
+  assert.equal(usableHandleIds(box(100, 80)).length, 8);
+  assert.deepEqual(usableHandleIds(box(100, 0)), ["e", "w"]);
+  assert.deepEqual(usableHandleIds(box(0, 100)), ["n", "s"]);
+  assert.deepEqual(usableHandleIds(box(0, 0)), []);
 });
 
 test("the hover resolves to what a click would select", () => {

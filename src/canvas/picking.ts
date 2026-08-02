@@ -37,7 +37,7 @@ import {
   selectedSelectionLeaves,
   selectionFrameForSelection,
 } from "@/model/geometry/selectionFrame";
-import { HANDLE_IDS, HANDLE_SIZE, PARAM_KNOB_SIZE } from "./handles";
+import { HANDLE_SIZE, PARAM_KNOB_SIZE, usableHandleIds } from "./handles";
 import { cornerRadiusControl } from "./cornerRadiusHandle";
 import { generatorControls, pickGeneratorControl } from "./generatorHandles";
 import type { FrameHit, ToolContext } from "./interaction";
@@ -178,7 +178,7 @@ export function hitFrameHandle(ctx: ToolContext, screen: Vec2): FrameHit {
     )
       return { type: "rotate" };
   }
-  for (const id of HANDLE_IDS) {
+  for (const id of usableHandleIds(frame.bounds)) {
     const sp = worldToScreen(viewport, frameHandlePoint(frame, id));
     if (
       Math.abs(sp.x - screen.x) <= tol &&
