@@ -523,6 +523,87 @@ export function onSelectDoubleClick(
   return true;
 }
 
+/** What a press at a given point would take, resolved once per hover move. */
+export interface SelectHover {
+  /**
+   * The node a click would select — the enclosing group rather than the leaf
+   * when the pointer is not drilled into it, or a frame grabbed by its border.
+   * Null over empty space, or over a locked leaf that can only be moved.
+   */
+  targetId: string | null;
+  /** A locked leaf sits on top *and* is already selected, so a drag moves it. */
+  lockedMovable: boolean;
+}
+
+/** A resolved hover, tagged with the point it was resolved for. */
+export interface CachedSelectHover extends SelectHover {
+  at: Vec2;
+}
+
+const NO_HOVER: SelectHover = { targetId: null, lockedMovable: false };
+
+/**
+ * Resolve what the select tool is hovering. The cursor and the hover outline
+ * both read this, so the two can never disagree about what a click would take —
+ * and the scene is hit-tested once per pointer move rather than once per
+ * consumer.
+ */
+export function resolveSelectHover(
+  ctx: ToolContext,
+  world: Vec2
+): SelectHover {
+  const state = useEditor.getState();
+  const focusRoot = currentFocusRoot(state);
+  const activeGroup =
+    state.activeGroupId && isGroup(state.doc.nodes[state.activeGroupId])
+      ? state.activeGroupId
+      : null;
+  // Only worth asking when something is selected: a locked leaf that isn't
+  // already selected behaves like any other unpickable node.
+  if (state.selection.length) {
+    const lockedHit = pickLockedShape(ctx, world);
+    if (
+      lockedHit &&
+      expandToGroups(state.doc, [lockedHit], focusRoot).some((id) =>
+        state.selection.includes(id)
+      )
+    ) {
+      return { targetId: null, lockedMovable: true };
+    }
+  }
+  const hitId = pickShape(ctx, world);
+  if (hitId) {
+    const insideActive =
+      activeGroup != null && isWithinGroup(state.doc, hitId, activeGroup);
+    const scopeRoot = insideActive ? activeGroup : focusRoot;
+    return {
+      targetId: expandToGroups(state.doc, [hitId], scopeRoot)[0] ?? hitId,
+      lockedMovable: false,
+    };
+  }
+  const borderTol =
+    ((HANDLE_SIZE / 2 + 3) * ctx.hitScale()) / state.viewport.scale;
+  const borderFrame = pickFrameBorder(state.doc, world, borderTol);
+  return borderFrame
+    ? { targetId: borderFrame, lockedMovable: false }
+    : NO_HOVER;
+}
+
+/** Resolve the hover at `world` and cache it for this pointer position. */
+export function updateSelectHover(ctx: ToolContext, world: Vec2): SelectHover {
+  const hover = resolveSelectHover(ctx, world);
+  ctx.selectHover.current = { ...hover, at: world };
+  return hover;
+}
+
+/** The cached hover when it belongs to this point, else a fresh one. */
+function cachedSelectHover(ctx: ToolContext, world: Vec2): SelectHover {
+  const cached = ctx.selectHover.current;
+  return cached && cached.at.x === world.x && cached.at.y === world.y
+    ? cached
+    : updateSelectHover(ctx, world);
+}
+
 export function selectCursor(
   ctx: ToolContext,
   screen: Vec2,
@@ -548,19 +629,6 @@ export function selectCursor(
   if (hit?.type === "resize") {
     return frameCursor(hit.id);
   }
-  const lockedHit = pickLockedShape(ctx, world);
-  if (lockedHit) {
-    const scopeRoot = currentFocusRoot(state);
-    if (
-      expandToGroups(state.doc, [lockedHit], scopeRoot).some((id) =>
-        state.selection.includes(id)
-      )
-    )
-      return "move";
-  }
-  if (pickShape(ctx, world)) return "move";
-  const borderTol =
-    ((HANDLE_SIZE / 2 + 3) * ctx.hitScale()) / state.viewport.scale;
-  if (pickFrameBorder(state.doc, world, borderTol)) return "move";
-  return "default";
+  const hover = cachedSelectHover(ctx, world);
+  return hover.targetId || hover.lockedMovable ? "move" : "default";
 }

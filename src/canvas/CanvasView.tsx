@@ -10,6 +10,7 @@ import { usePreferences } from "../store/preferencesStore";
 import "./CanvasView.css";
 import { readCanvasTheme, type CanvasTheme } from "./canvasTheme";
 import { highlightPulse } from "./highlight";
+import type { CachedSelectHover } from "./tools/selectTool";
 import { paintCanvas } from "./paint";
 import { useCanvasGestures } from "./hooks/useCanvasGestures";
 import { useCanvasKeyboard } from "./hooks/useCanvasKeyboard";
@@ -47,6 +48,7 @@ export default function CanvasView() {
   const lastInsertRef = useRef<LastInsert | null>(null);
   const hoverRef = useRef<PenHover | null>(null);
   const brushHoverRef = useRef<{ p: Vec2; radius: number } | null>(null);
+  const selectHoverRef = useRef<CachedSelectHover | null>(null);
   const endpointHintRef = useRef<Vec2 | null>(null);
   const closeHintRef = useRef<Vec2 | null>(null);
   const guidesRef = useRef<Guide[]>([]);
@@ -83,6 +85,7 @@ export default function CanvasView() {
       penDraft: penDraftRef.current,
       hover: hoverRef.current,
       brushHover: brushHoverRef.current,
+      selectHover: selectHoverRef.current,
       endpointHint: endpointHintRef.current,
       closeHint: closeHintRef.current,
       guides: guidesRef.current,
@@ -127,6 +130,7 @@ export default function CanvasView() {
       lastInsert: lastInsertRef,
       hover: hoverRef,
       brushHover: brushHoverRef,
+      selectHover: selectHoverRef,
       endpointHint: endpointHintRef,
       closeHint: closeHintRef,
       guides: guidesRef,
@@ -231,6 +235,7 @@ export default function CanvasView() {
         onPointerLeave={() => {
           setPointer(null);
           brushHoverRef.current = null;
+          selectHoverRef.current = null;
           endpointHintRef.current = null;
           scheduleDraw();
         }}

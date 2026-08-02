@@ -9,6 +9,7 @@ import type {
   Vec2,
 } from "../model/types";
 import type { HandleId } from "./handles";
+import type { CachedSelectHover } from "./tools/selectTool";
 import type { CornerRadiusControl } from "./cornerRadiusHandle";
 import type { GeneratorControl } from "./generatorHandles";
 
@@ -243,6 +244,13 @@ export interface ToolContext {
   hover: { current: PenHover | null };
   /** Brush/eraser tip preview under a hovering pen (world units), if any. */
   brushHover: { current: { p: Vec2; radius: number } | null };
+  /**
+   * What the select tool is hovering — the node a click would take, and
+   * whether a locked-but-selected leaf is under the pointer. Resolved once per
+   * pointer move and read by both the cursor and the hover outline, so the two
+   * always agree. Null when nothing is hovered or another tool is active.
+   */
+  selectHover: { current: CachedSelectHover | null };
   /**
    * World position of the open path's endpoint the active tool would continue
    * if drawing started now, highlighted as an affordance — the pencil needs the

@@ -9,6 +9,7 @@ let server;
 let useEditor;
 let onSelectDown;
 let onSelectMove;
+let resolveSelectHover;
 let finishToolInteraction;
 
 let ctx;
@@ -70,7 +71,9 @@ const offsetOf = (id) => {
 before(async () => {
   server = await createServer({ server: { middlewareMode: true } });
   ({ useEditor } = await server.ssrLoadModule("/src/store/editorStore.ts"));
-  ({ onSelectDown } = await server.ssrLoadModule("/src/canvas/tools/selectTool.ts"));
+  ({ onSelectDown, resolveSelectHover } = await server.ssrLoadModule(
+    "/src/canvas/tools/selectTool.ts"
+  ));
   ({ onSelectMove } = await server.ssrLoadModule("/src/canvas/tools/selectDrag.ts"));
   ({ finishToolInteraction } = await server.ssrLoadModule("/src/canvas/toolDispatch.ts"));
 });
@@ -82,6 +85,7 @@ beforeEach(() => {
   ctx = {
     interaction: { current: { kind: "none" } },
     marquee: { current: null },
+    selectHover: { current: null },
     guides: { current: [] },
     spacings: { current: [] },
     hitScale: () => 1,
@@ -169,6 +173,35 @@ test("shift locks the drag to the leading axis", () => {
   move(90, 55, { shift: true });
   up(90, 55);
   assert.deepEqual(offsetOf("a"), { x: 40, y: 0 });
+});
+
+test("the hover resolves to what a click would select", () => {
+  useEditor.getState().addShape(rect("a"), false);
+  assert.equal(resolveSelectHover(ctx, at(50, 50)).targetId, "a");
+  assert.equal(resolveSelectHover(ctx, at(500, 500)).targetId, null);
+});
+
+test("the hover resolves a grouped shape to its group", () => {
+  useEditor.getState().addShape(rect("a"), false);
+  useEditor.getState().addShape(rect("b", { x: 200 }), false);
+  useEditor.getState().setSelection(["a", "b"]);
+  useEditor.getState().groupSelected();
+  const groupId = useEditor.getState().selection[0];
+  useEditor.getState().clearSelection();
+  assert.equal(resolveSelectHover(ctx, at(50, 50)).targetId, groupId);
+});
+
+test("the hover reports an already-selected locked shape as movable", () => {
+  useEditor.getState().addShape(rect("a", { locked: true }), false);
+  assert.deepEqual(resolveSelectHover(ctx, at(50, 50)), {
+    targetId: null,
+    lockedMovable: false,
+  });
+  useEditor.getState().setSelection(["a"]);
+  assert.deepEqual(resolveSelectHover(ctx, at(50, 50)), {
+    targetId: null,
+    lockedMovable: true,
+  });
 });
 
 test("alt-dragging leaves the original behind and moves a copy", () => {

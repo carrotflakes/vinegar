@@ -43,7 +43,10 @@ import { drawDocumentGuides } from "./guides";
 import { drawNodeHighlight } from "./highlight";
 import { drawRulers, RULER_SIZE } from "./rulers";
 import { selectedNodeShapes, selectedShapes } from "./picking";
-import { frameDropTarget } from "./tools/selectTool";
+import {
+  frameDropTarget,
+  type CachedSelectHover,
+} from "./tools/selectTool";
 import { renderScene } from "./render/scene";
 
 /** Everything the canvas painter reads: a store snapshot plus transient refs. */
@@ -61,6 +64,8 @@ export interface PaintInput {
   hover: PenHover | null;
   /** Hovering pen tip for the brush/eraser, with its radius in world units. */
   brushHover: { p: Vec2; radius: number } | null;
+  /** What the select tool is hovering, outlined to say what a click would take. */
+  selectHover: CachedSelectHover | null;
   /** World position of the open-path endpoint the pencil or pen would continue. */
   endpointHint: Vec2 | null;
   /** Start point of the live freehand stroke while releasing would close it. */
@@ -88,6 +93,7 @@ export function paintCanvas(input: PaintInput): void {
     penDraft,
     hover,
     brushHover,
+    selectHover,
     endpointHint,
     closeHint,
     guides,
@@ -247,6 +253,28 @@ export function paintCanvas(input: PaintInput): void {
   if (interaction.kind === "text-create") {
     drawTextDraft(ctx2d, dpr, viewport, interaction.start, interaction.current);
   }
+  // What a click would select, outlined under the pointer. Drawn with the same
+  // accent as the Layers-panel hover — it means the same thing — and skipped
+  // for anything already selected, whose selection frame says it louder.
+  const hoverId = selectHover?.targetId ?? null;
+  if (
+    hoverId &&
+    interaction.kind === "none" &&
+    doc.nodes[hoverId] &&
+    hoverId !== highlight?.nodeId &&
+    !selection.includes(hoverId)
+  ) {
+    drawNodeHighlight(ctx2d, {
+      dpr,
+      size: { width, height },
+      viewport,
+      doc,
+      nodeId: hoverId,
+      pulse: 0,
+      rulerInset: state.rulersVisible ? RULER_SIZE : 0,
+    });
+  }
+
   // Layers-panel hover outline: above the art and the selection frame, below
   // the snapping chrome and the rulers.
   if (highlight && doc.nodes[highlight.nodeId]) {

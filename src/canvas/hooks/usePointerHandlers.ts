@@ -21,7 +21,7 @@ import { onGuideDown } from "../tools/guideTool";
 import { onNodeDoubleClick } from "../tools/nodeTool";
 import { commitPenDraft, onPenHoverMove, undoPenAnchor } from "../tools/penTool";
 import { endpointWorld, pickOpenEndpoint } from "../tools/openPathPickup";
-import { onSelectDoubleClick } from "../tools/selectTool";
+import { onSelectDoubleClick, updateSelectHover } from "../tools/selectTool";
 import {
   dispatchToolMove,
   finishToolInteraction,
@@ -151,6 +151,22 @@ export function usePointerHandlers(deps: PointerHandlerDeps): PointerHandlers {
   };
 
   /**
+   * Resolve what the select tool is hovering, so the canvas can outline the
+   * node a click would take. Kept in one place with the cursor: both read the
+   * same answer, and the scene is hit-tested once per move rather than twice.
+   */
+  const updateSelectHoverTarget = (tool: string, world: Vec2) => {
+    const previous = ctx.selectHover.current?.targetId ?? null;
+    if (tool !== "select") {
+      ctx.selectHover.current = null;
+      if (previous !== null) ctx.scheduleDraw();
+      return;
+    }
+    const hover = updateSelectHover(ctx, world);
+    if (hover.targetId !== previous) ctx.scheduleDraw();
+  };
+
+  /**
    * Highlight the endpoint of an open path the pencil or pen would continue if
    * drawing started here, so extending is discoverable rather than hidden.
    * Unlike the brush tip this works for mouse too — both tools extend with any
@@ -266,6 +282,9 @@ export function usePointerHandlers(deps: PointerHandlerDeps): PointerHandlers {
       sizeRef.current
     );
 
+    // Touch cannot hover, so a contact must not leave a hover outline behind.
+    if (isTouch) ctx.selectHover.current = null;
+
     if (e.button === 1 || spaceRef.current) {
       ctx.interaction.current = {
         kind: "pan",
@@ -342,6 +361,8 @@ export function usePointerHandlers(deps: PointerHandlerDeps): PointerHandlers {
       }
       updateBrushHover(state.tool, world);
       updateEndpointHint(state.tool, screen);
+      // Before the cursor: resolving the hover is what the cursor reads.
+      updateSelectHoverTarget(state.tool, world);
       updateHoverCursor(screen, world);
       return;
     }
