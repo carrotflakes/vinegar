@@ -10,13 +10,12 @@ export default defineConfig({
     vanillaExtractPlugin(),
     VitePWA({
       // "prompt", not "autoUpdate": an editor must never reload itself out from
-      // under a drawing in progress. A waiting worker takes over the next time
-      // every Vinegar window is closed. See docs/pwa.md.
+      // under a drawing in progress. A new build waits until the user accepts
+      // the update toast (or every Vinegar window is closed). See docs/pwa.md.
       registerType: "prompt",
-      // A plain generated registerSW.js, deferred from index.html — it keeps
-      // workbox-window out of the app bundle, and there is no prompt UI to
-      // drive from application code.
-      injectRegister: "script-defer",
+      // The app registers the worker itself (src/pwa.ts) so it can raise the
+      // update toast; nothing may be injected into index.html on top of that.
+      injectRegister: null,
       includeAssets: [
         "favicon.ico",
         "favicon-32x32.png",

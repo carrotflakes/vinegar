@@ -30,10 +30,9 @@ additional effects, or other feature expansion.
 ## Backlog / ideas
 
 ### Feature follow-ups on shipped work
-- [ ] PWA follow-ups (docs/pwa.md) — an "a new version is available / reload"
-  toast (needs `workbox-window`), since a waiting worker currently only takes
-  over once every window is closed; file handlers so `.vinegar.json` can be
-  opened from the OS; shortcuts and screenshots in the manifest
+- [ ] PWA follow-ups (docs/pwa.md) — file handlers so `.vinegar.json` can be
+  opened from the OS (`launchQueue`, Chromium desktop only); shortcuts and
+  screenshots in the manifest
 - [ ] Clipping masks — alpha / luminance masks (soft, gradient & image masks),
   multi-object masks, mask a raw shape without a wrapping group, anti-aliased
   clip via offscreen `destination-in`

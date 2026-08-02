@@ -7,6 +7,7 @@ import {
   restoreRecoveryAtStartup,
 } from "./io/recovery";
 import { startPreferenceEffects } from "./preferences/apply";
+import { registerServiceWorker } from "./pwa";
 import { usePreferences } from "./store/preferencesStore";
 import "./styles/index";
 
@@ -31,6 +32,8 @@ async function main() {
       <App />
     </React.StrictMode>
   );
+  // After the first render: caching the shell must never delay startup.
+  registerServiceWorker();
 }
 
 void main();

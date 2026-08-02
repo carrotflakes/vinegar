@@ -26,6 +26,17 @@ export default function Toasts() {
           >
             <Icon className={css.icon({ kind: t.kind })} aria-hidden size={16} />
             <span className={css.message}>{t.message}</span>
+            {t.action && (
+              <button
+                className={css.action}
+                onClick={() => {
+                  dismiss(t.id);
+                  t.action?.run();
+                }}
+              >
+                {t.action.label}
+              </button>
+            )}
             <button
               className={css.close}
               onClick={() => dismiss(t.id)}

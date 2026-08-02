@@ -9,10 +9,17 @@ import { create } from "zustand";
 
 export type ToastKind = "error" | "success" | "info";
 
+/** Optional single button inside a toast, e.g. "Reload" on a pending update. */
+export interface ToastAction {
+  label: string;
+  run: () => void;
+}
+
 export interface Toast {
   id: string;
   kind: ToastKind;
   message: string;
+  action?: ToastAction;
 }
 
 /** Default lifetime per kind (ms). Errors linger until dismissed by hand. */
@@ -25,7 +32,12 @@ const DEFAULT_TIMEOUT: Record<ToastKind, number | null> = {
 interface ToastState {
   toasts: Toast[];
   /** Add a toast; returns its id. Auto-dismisses unless timeout is null. */
-  push: (kind: ToastKind, message: string, timeout?: number | null) => string;
+  push: (
+    kind: ToastKind,
+    message: string,
+    timeout?: number | null,
+    action?: ToastAction
+  ) => string;
   dismiss: (id: string) => void;
 }
 
@@ -33,9 +45,10 @@ let seq = 0;
 
 export const useToasts = create<ToastState>((set, get) => ({
   toasts: [],
-  push: (kind, message, timeout) => {
+  push: (kind, message, timeout, action) => {
     const id = `toast-${++seq}`;
-    set((s) => ({ toasts: [...s.toasts, { id, kind, message }] }));
+    const toast: Toast = { id, kind, message, ...(action ? { action } : {}) };
+    set((s) => ({ toasts: [...s.toasts, toast] }));
     const ms = timeout === undefined ? DEFAULT_TIMEOUT[kind] : timeout;
     if (ms != null) {
       const timer = globalThis.setTimeout(() => get().dismiss(id), ms);
@@ -49,12 +62,12 @@ export const useToasts = create<ToastState>((set, get) => ({
 
 /** Convenience entry points callable from anywhere, React or not. */
 export const notify = {
-  error: (message: string, timeout?: number | null) =>
-    useToasts.getState().push("error", message, timeout),
-  success: (message: string, timeout?: number | null) =>
-    useToasts.getState().push("success", message, timeout),
-  info: (message: string, timeout?: number | null) =>
-    useToasts.getState().push("info", message, timeout),
+  error: (message: string, timeout?: number | null, action?: ToastAction) =>
+    useToasts.getState().push("error", message, timeout, action),
+  success: (message: string, timeout?: number | null, action?: ToastAction) =>
+    useToasts.getState().push("success", message, timeout, action),
+  info: (message: string, timeout?: number | null, action?: ToastAction) =>
+    useToasts.getState().push("info", message, timeout, action),
 };
 
 /** Report a completed conversion that could not carry node effects forward. */

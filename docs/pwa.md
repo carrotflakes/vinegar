@@ -18,24 +18,37 @@ a hand-written `public/manifest.webmanifest` alongside it.
 
 ## Update policy: "prompt" without a prompt
 
-`registerType: "prompt"` with `injectRegister: "script-defer"`. A new build is
-downloaded in the background and then **waits**: it takes over the next time
-every Vinegar window is closed. This is deliberate. `autoUpdate` reloads the
-page as soon as the new worker activates, which in a drawing editor can wipe out
-an in-progress stroke or an unsaved selection state; a version that lags by one
-session is the cheaper failure.
+`registerType: "prompt"`, and the app registers the worker itself in
+`src/pwa.ts` (`injectRegister: null`, so nothing is injected into `index.html`
+on top of that). A new build is downloaded in the background and then **waits**;
+`onNeedRefresh` raises a toast — "A new version of Vinegar is available." /
+**Reload** — and only that button (`updateSW(true)`) lets it take over.
 
-The cost is that a user who never closes the app stays on the old build. The
-fix, when we want it, is a toast — "A new version is available / Reload" —
-driven by `registerSW`'s `onNeedRefresh` from `virtual:pwa-register`. That
-requires adding `workbox-window` as a dependency (it is a peer of the virtual
-module and pnpm will not resolve it otherwise) and switching `injectRegister`
-back to the default.
+This is deliberate. `autoUpdate` reloads the page as soon as the new worker
+activates, which in a drawing editor can wipe out an in-progress stroke; the
+user picks the moment instead.
+
+Two things follow from how service workers update, and both surprise people:
+
+- **A plain reload does not pick up a new build.** The precached shell is served
+  cache-first, and a reload never releases a waiting worker (the old and new
+  page overlap), so without the toast the update would only land after every
+  Vinegar window is closed. A hard reload bypasses the worker entirely.
+- The toast is the whole update UI. If it is ever dropped, say so here — a
+  long-lived tab would then silently sit on an old build.
+
+`workbox-window` backs `registerSW`; it is a peer of `virtual:pwa-register`
+that pnpm will not resolve unless it is declared, and Vite splits it into its
+own lazily-imported chunk.
+
+The toast's **Reload** button is the only `ToastAction` in the app today
+(`src/store/toastStore.ts`, rendered by `src/ui/Toasts.tsx`); the update notice
+is pushed with a `null` timeout so it cannot vanish mid-drawing.
 
 ## Caching
 
 Everything is precached: the JS/CSS shell, both web workers
-(`scriptWorker`, `generatorWorker`), icons and the manifest — around 1.6 MiB.
+(`scriptWorker`, `generatorWorker`), icons and the manifest — around 2 MiB.
 `maximumFileSizeToCacheInBytes` is raised to 6 MiB because the main chunk is
 already past Workbox's 2 MiB default; if a build ever silently drops a chunk
 from the precache, check that number first. `navigateFallback: "index.html"`

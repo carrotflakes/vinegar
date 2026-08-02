@@ -69,6 +69,21 @@ export const message = style({
   cursor: "text",
 });
 
+export const action = style({
+  flex: "none",
+  padding: "5px 10px",
+  border: `1px solid ${vars.border}`,
+  borderRadius: 6,
+  background: vars.panel2,
+  color: vars.text,
+  font: "inherit",
+  fontWeight: 600,
+  cursor: "pointer",
+  selectors: {
+    "&:hover": { background: vars.field, borderColor: vars.accent },
+  },
+});
+
 export const close = style({
   flex: "none",
   display: "inline-flex",
