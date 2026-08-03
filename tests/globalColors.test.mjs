@@ -115,7 +115,7 @@ test("a document with a gradient variable validates and round-trips", () => {
   const doc = docWithGradientSwatch();
   assert.equal(hasValidVars(doc), true);
   const text = serializeDocument(doc);
-  assert.equal(JSON.parse(text).version, 34);
+  assert.equal(JSON.parse(text).version, 35);
   const parsed = parseDocument(text);
   assert.deepEqual(parsed.vars.g.value.value, GRADIENT());
 });

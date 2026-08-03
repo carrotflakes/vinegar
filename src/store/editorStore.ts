@@ -69,6 +69,7 @@ export const useEditor = create<EditorState>((set, get) => {
     scriptsTrusted: true,
     scriptMeta: {},
     selectedGuideId: null,
+    operandPick: null,
     clipboard: null,
     _interaction: null,
     ...initialPrefs(),

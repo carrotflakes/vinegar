@@ -2,7 +2,9 @@
 
 Status: **implemented** (2026-08-02). File version: **v31** (additive shape
 field, but Vinegar's strict current-only file policy requires a version bump;
-absent `modifiers` still means no change). Related: extends the generator concept
+absent `modifiers` still means no change). The **boolean** stage — the one
+deferred below for needing a second operand — landed in **v35** as phase 3 of
+[parameters.md](parameters.md); see *The boolean stage* at the end. Related: extends the generator concept
 ([document-model.md](document-model.md)); modeled on `effects`; overlaps
 [path-unification.md](path-unification.md) (v21) and
 [compound-path-nodes.md](compound-path-nodes.md) (v22).
@@ -54,7 +56,9 @@ type Modifier =
   | { type: "outline"; width: number; cap: "butt" | "round" | "square";
       join: "miter" | "round" | "bevel" }
   | { type: "smooth" }
-  | { type: "reverse" };
+  | { type: "reverse" }
+  // v35, see below
+  | { type: "boolean"; op: BoolOp; operandId: string };
 // each modifier optionally: { enabled?: boolean } to toggle without removing
 ```
 
@@ -67,7 +71,7 @@ type Modifier =
 
 Deliberately **not** part of v1: modifiers on `rect`/`ellipse`/`brush`/`text`
 (they'd first convert to path), boolean-as-modifier (needs a second operand —
-harder; deferred), per-fill/stroke modifiers.
+harder; deferred, and shipped later in v35), per-fill/stroke modifiers.
 
 ## Evaluation & caching
 
@@ -141,7 +145,8 @@ top" model, and mirrors how `effects` already leaves `subpaths` untouched.
 - Offset of open paths is a two-sided closed outline in v1. The sign is ignored
   for open contours; signed inward/outward offsets remain meaningful for closed
   contours. One-sided offset is deferred.
-- Boolean-as-modifier (needs a second operand reference) — deferred.
+- ~~Boolean-as-modifier (needs a second operand reference) — deferred.~~
+  Shipped in v35; see *The boolean stage*.
 - Modifiers on non-path shapes (auto-convert-on-add?) — deferred.
 - Interaction with `brush` width profile and `compoundPath` children — v1 scopes
   to plain `path` nodes only.
@@ -165,3 +170,62 @@ top" model, and mirrors how `effects` already leaves `subpaths` untouched.
 v21 path-unification and v22 compound-path nodes are both **done**. Path
 modifiers operate on plain path leaves; compound containers consume each
 child's resolved geometry through the shared readers.
+
+## The boolean stage (v35)
+
+`{ type: "boolean"; op: "union" | "subtract" | "intersect" | "xor"; operandId }`
+combines the stage's input with **another scene node's** geometry, live. It is
+phase 3 of [parameters.md](parameters.md) — the first edge in the document that
+runs node → node — and it is Illustrator's compound shape minus the modal
+shape-builder: the operand stays an ordinary node, so it remains selectable,
+movable and editable, and the result re-resolves as it moves.
+
+**What it cost, and why it was its own commit.** `resolvedSubpaths(shape)`
+became `resolvedSubpaths(shape, doc?)`: a stage that reads another node is no
+longer a pure function of the node. Every reader on the render / hit-test /
+bounds / export path threads the document it already had, including the
+predicates layered on top (`effectiveStrokeAlignment`, `strokeOutset`,
+`isAreal`, `isCompoundChild`, `flattenPath`, …). A caller with no document in
+hand degrades to skipping the stage — the un-combined geometry, never an empty
+shape.
+
+**Caching.** The identity memo could no longer key on the node alone: *moving
+the operand leaves the target node object untouched*. `resolvedSubpaths` now
+stores the operand nodes it read alongside the result and revalidates them by
+identity — the same shape as the compound-path component check in
+`render/path.ts`, which the Path2D cache also grew for the same reason. Both
+degenerate to a null/empty dependency list for documents that use no boolean
+stage, so nothing else pays for it.
+
+**Cycles.** Operand edges must form a DAG. `hasAcyclicModifierOperands`
+(`sceneValidation.ts`) is part of what `transact` requires and what the parser
+rejects; the graph includes a compound path's components, since its outline
+reads them the same way. Because a rejected transaction is a *silent* no-op,
+`setModifierOperand` checks `wouldCycleThroughOperand` first and reports the
+refusal — that is where the user is. The evaluator additionally guards with a
+visiting set, so a hand-written cyclic file is an odd picture rather than a
+frozen tab.
+
+**Scope.** A symbol definition's content has no single world placement — each
+instance places it differently — so an operand on the other side of a symbol
+boundary has no well-defined offset from its consumer. Operands must share the
+enclosing symbol (or both be outside one); a cross-boundary reference disables
+the stage with that as its reason, and the picker refuses to create one.
+
+**Copying** a combined pair rewires the copy to *its* copy (`remapPayload`
+remaps `operandId` when the operand travelled in the same payload). An operand
+left behind keeps its id, which still resolves in the same document and dangles
+across documents — the documented degradation.
+
+**A missing operand disables the stage** and the panel row says why
+(`booleanOperandError`), matching how `enabled: false` already reads. There is
+no `last` to fall back on: geometry is too big to duplicate onto every consumer.
+
+**UI.** The modifier row has an operation select, the operand's name, and a
+target button that arms canvas picking — the next click anywhere picks the
+operand (Escape cancels), which is why `toolDispatch` intercepts before the
+active tool. The usual entry point is *Combine (live)* (`path.combineLive`):
+with a multi-selection it converts the bottom-most shape to a path if needed,
+appends one boolean stage per other shape, and hides those operands. *Apply
+modifiers* bakes the result, and the destructive Pathfinder commands
+(`path.union`, …) are unchanged.

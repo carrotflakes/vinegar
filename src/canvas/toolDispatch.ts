@@ -57,6 +57,15 @@ export function startToolInteraction(
   state: EditorState,
   { screen, world, shift, pressure, beginTextEdit }: ToolDownInput
 ): void {
+  // Picking a boolean modifier's operand takes over the next click, whatever
+  // the active tool is: the target button armed it, so the click belongs to it.
+  if (state.operandPick) {
+    const hitId = pickShape(ctx, world);
+    const { nodeId, index } = state.operandPick;
+    state.beginOperandPick(null);
+    if (hitId) state.setModifierOperand(nodeId, index, hitId);
+    return;
+  }
   switch (state.tool) {
     case "select":
       onSelectDown(ctx, state, screen, world, shift);

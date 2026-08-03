@@ -118,16 +118,18 @@ function appendPath(target: PathTarget, shape: Shape, doc?: Document): void {
   }
 }
 
-const pathCache = new WeakMap<Shape, Path2D>();
+const pathCache = new WeakMap<Shape, { path: Path2D; resolved: unknown }>();
 const compoundPathCache = new WeakMap<
   Shape,
   { path: Path2D; components: Shape[] }
 >();
 
 /**
- * Immutable shape references make Path2D entries self-invalidating. Compound
- * paths additionally validate their component references because editing a
- * child does not replace the compound container.
+ * Immutable shape references make Path2D entries self-invalidating — except
+ * where the geometry depends on *another* node: a compound path validates its
+ * component references, and a path validates the array `resolvedSubpaths`
+ * returned, since a boolean modifier's operand can move without the path node
+ * itself being replaced.
  */
 export function cachedShapePath(
   shape: Shape,
@@ -139,11 +141,14 @@ export function cachedShapePath(
   if (shape === preview || renderCachesDisabled) return null;
   if (typeof Path2D === "undefined") return null;
   if (shape.type !== "compoundPath") {
+    // Only a path's geometry can depend on another node; everything else has
+    // no dependency to validate, so `null` compares equal every time.
+    const resolved = shape.type === "path" ? resolvedSubpaths(shape, doc) : null;
     const cached = pathCache.get(shape);
-    if (cached) return cached;
+    if (cached && cached.resolved === resolved) return cached.path;
     const path = new Path2D();
     appendPath(path, shape, doc);
-    pathCache.set(shape, path);
+    pathCache.set(shape, { path, resolved });
     return path;
   }
   if (

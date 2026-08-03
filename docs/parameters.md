@@ -1,9 +1,9 @@
 # Parameters and references
 
-Status: **phases 1 and 2a implemented** (phase 1 on 2026-08-03, phase 2a on
-2026-08-04 — the `vars` merge, symbol parameters and per-instance paint
-overrides, file format v34). Phase 2b remains deferred behind phase 3, which
-with phase 4 is still a proposal.
+Status: **phases 1, 2a and 3 implemented** (phase 1 on 2026-08-03; phase 2a and
+phase 3 on 2026-08-04 — the `vars` merge and symbol parameters in v34, the
+boolean modifier in v35). Phase 2b is now unblocked but not done; phase 4 is
+still a proposal and still optional.
 Related:
 [path-modifiers.md](path-modifiers.md) (the stage pipeline this feeds),
 [global-colors.md](global-colors.md) (the existing reference edge this copies),
@@ -398,7 +398,7 @@ last and why 2a is separable from it.
 
 File version: **v35**, shared with phase 3 if they land together.
 
-## Phase 3 — a node-to-node edge: non-destructive boolean
+## Phase 3 — a node-to-node edge: non-destructive boolean (implemented, v35)
 
 `docs/path-modifiers.md` defers boolean-as-modifier precisely because it "needs
 a second operand reference". That is the first genuine node → node edge, and it
@@ -415,23 +415,32 @@ The operand stays a normal scene node (typically hidden), so it remains
 selectable, movable and editable, and the result updates live — Illustrator's
 compound shape, minus the modal shape-builder.
 
-What this phase actually costs:
+What this phase actually cost — each point held:
 
-- **`resolvedSubpaths(node)` becomes `resolvedSubpaths(node, doc)`.** Today it
-  is pure in the node alone and memoized on node identity. With an operand it
-  must key on `(node identity, resolved operand)`; the memo entry is invalidated
-  when either object identity changes. Every read site listed in
-  path-modifiers.md's blast radius already has the document in hand, but this is
-  a wide, mechanical signature change and should be its own commit.
-- **Cycle detection.** `sceneValidation.ts` gains a check that operand edges
-  form a DAG, so `transact` rejects a cycle the same way it rejects a malformed
-  tree. Evaluation is depth-first with a visiting set; there is no separate
-  scheduler.
-- **Dangling operands.** Unlike parameters there is no `last` to fall back on
-  (geometry is too big to duplicate). A missing operand disables the modifier
-  and shows an error row, matching how `enabled: false` already reads.
+- **`resolvedSubpaths(node)` became `resolvedSubpaths(node, doc?)`**, its own
+  commit, and every read site did already have the document in hand. It stayed
+  optional so a caller without one degrades to skipping the stage rather than to
+  an empty shape.
+- **The memo keys on `(node identity, operand nodes)`.** Moving an operand
+  leaves the target node object untouched, so identity alone was not enough —
+  and the same correction was needed one layer up, in `render/path.ts`'s Path2D
+  cache, which now revalidates the resolved array the way it already
+  revalidated compound-path components.
+- **Cycle detection.** `hasAcyclicModifierOperands` is part of what `transact`
+  requires and what the parser rejects; the graph counts a compound path's
+  components too. Evaluation is depth-first with a visiting set, so even an
+  invalid document terminates.
+- **Dangling operands** disable the stage and show an error row
+  (`booleanOperandError`), as planned.
+- **The silent-rejection risk was real**, and is handled where the *Risks*
+  section said it had to be: `setModifierOperand` refuses a cycle itself, with a
+  toast, instead of letting `transact` swallow the transaction.
+- **Entry point.** *Combine (live)* takes a multi-selection, converts the
+  bottom-most shape to a path if needed, appends one stage per other shape and
+  hides those operands — the feature people actually want, rather than "add a
+  modifier, then pick".
 
-File version: **v35**.
+File version: **v35** (additive: a v34 file simply has no boolean stage).
 
 ## Phase 4 — expressions (optional, decide later)
 
@@ -582,16 +591,17 @@ phase 1's `ParamRef`/`bindings` and on work already shipped (symbols v1, global
 colours v33, path modifiers v31). None of them should precede the 1.0 release
 gates in TODO.md (SVG import, clipboard, save workflow, export fidelity).
 
-The one hard ordering constraint inside the remainder is **2b after 3**: both
+The one hard ordering constraint inside the remainder was **2b after 3**: both
 need geometry resolution to become context-aware and memoized, and doing 2b
-first pays for that whole signature change to buy the narrower half of one
-feature. Everything else is free order — 2a stands alone, 3 stands alone, and
-stopping after 2a is a valid outcome.
+first would have paid for that whole signature change to buy the narrower half
+of one feature. Phase 3 has landed, so 2b is unblocked — and stopping here is
+still a valid outcome.
 
 The cheap "panel and vocabulary first" step was skipped: 2a landed the merge
 whole, since the typed schema is what makes a symbol parameter able to be a
 colour, and doing the rename twice would have cost more than it saved.
 
-**Remaining, in order:** phase 3 (non-destructive boolean, the first node → node
-edge and the context-aware geometry read), then phase 2b on top of it, then
-phase 4 only if `scale` demonstrably is not enough.
+**Remaining:** phase 2b (numeric symbol overrides), whose prerequisite — a
+geometry read that takes a context and memoizes on it — phase 3 has now paid
+for; the shape of the change is the same, with the instance scope in place of
+the operand. Phase 4 only if `scale` demonstrably is not enough.

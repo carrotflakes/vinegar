@@ -8,6 +8,7 @@ import {
 import { matrixScale, nodeWorldMatrix, transformBounds } from "@/model/geometry/matrix";
 import { screenToWorld, type Viewport } from "@/model/geometry/viewport";
 import { compoundChildren } from "@/model/path/compoundPath";
+import { resolvedSubpaths } from "@/model/path/pathModifiers";
 import { clippingContentIds, clippingMask } from "@/model/clippingMask";
 import { effectsMargin } from "@/model/effects";
 import { isFrame, isGroup, isInstance, isShape } from "@/model/scene";
@@ -172,18 +173,23 @@ export function nodeLocalContentBounds(
 
 const cullingShapeBoundsCache = new WeakMap<
   Shape,
-  { bounds: Bounds; components?: Shape[] }
+  { bounds: Bounds; components?: Shape[]; resolved?: unknown }
 >();
 
 /** Bounds caching is deliberately scoped to persisted document shapes.
- * Transient pen/pencil previews are mutable and must never enter this cache. */
+ * Transient pen/pencil previews are mutable and must never enter this cache.
+ * Like the Path2D cache, an entry keyed on shape identity alone is not enough
+ * where the geometry depends on another node: a compound path validates its
+ * components, and a path validates its resolved subpaths, since a boolean
+ * modifier's operand can move without replacing this shape. */
 function cachedCullingShapeBounds(shape: Shape, doc: Document): Bounds {
   if (renderCachesDisabled) return shapeBounds(shape, doc);
   const cached = cullingShapeBoundsCache.get(shape);
   if (shape.type !== "compoundPath") {
-    if (cached) return cached.bounds;
+    const resolved = shape.type === "path" ? resolvedSubpaths(shape, doc) : null;
+    if (cached && cached.resolved === resolved) return cached.bounds;
     const bounds = shapeBounds(shape, doc);
-    cullingShapeBoundsCache.set(shape, { bounds });
+    cullingShapeBoundsCache.set(shape, { bounds, resolved });
     return bounds;
   }
   const components = compoundChildren(doc, shape);

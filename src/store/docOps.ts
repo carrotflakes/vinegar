@@ -267,6 +267,20 @@ export function remapPayload(payload: NodePayload, offset = 0): NodePayload {
     if (isContainer(next)) {
       next = { ...next, childIds: next.childIds.map((child) => ids.get(child)!) };
     }
+    // A boolean modifier's operand is remapped when the operand travelled in
+    // the same payload — copying a combined pair has to yield a combined pair,
+    // not two shapes cutting the original. An operand left behind keeps its id,
+    // which still resolves here and dangles (stage disabled) elsewhere.
+    if (next.type === "path" && next.modifiers?.length) {
+      next = {
+        ...next,
+        modifiers: next.modifiers.map((modifier) =>
+          modifier.type === "boolean" && ids.has(modifier.operandId)
+            ? { ...modifier, operandId: ids.get(modifier.operandId)! }
+            : modifier
+        ),
+      };
+    }
     if (offset && roots.has(oldId)) next = { ...next, transform: multiply(translationMatrix(offset, offset), next.transform) };
     nodes[id] = next;
   }

@@ -115,7 +115,14 @@ active tool, selection, viewport and undo history does not belong in the file.
   per instance. Numeric symbol parameters are declarable but not yet honoured
   (phase 2b). See [parameters.md](parameters.md).
 
-The current file version is v34; loading also accepts v31–v33 files, which are
+- A path's modifier stack may hold a `boolean` stage, which combines the
+  stage's input with another node's geometry (`operandId`). It is the only
+  reference a node holds to another node's *geometry*; those edges must form a
+  DAG (`hasAcyclicModifierOperands`), and a missing operand disables the stage.
+  See [path-modifiers.md](path-modifiers.md).
+
+The current file version is v35; loading also accepts v34 (which simply has no
+boolean stage) and v31–v33 files, which are
 transformed on read: their `swatches` and `params` fold into one `vars` table
 (ids unchanged), `swatch` paints become `var` paints, symbols gain an empty
 parameter list and instances empty args. Persisted model changes require a

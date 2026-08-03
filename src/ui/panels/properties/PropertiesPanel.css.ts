@@ -129,6 +129,21 @@ globalStyle(".effect-card .geo-field > span", {
   minWidth: "12px",
 });
 
+/** The armed operand-picker button: the next canvas click is claimed. */
+globalStyle(".ghost-btn.icon-btn.active", {
+  background: vars.accentSoft,
+  color: vars.accent,
+});
+
+/** Why a boolean stage is contributing nothing (missing/invalid operand). */
+globalStyle(".modifier-error", {
+  display: "flex",
+  alignItems: "center",
+  gap: "6px",
+  fontSize: "11.5px",
+  color: vars.danger,
+});
+
 globalStyle(".instance-symbol-name", {
   fontSize: "12.5px",
 });

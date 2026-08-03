@@ -14,10 +14,22 @@ import {
   scaleBrushAnchorWidths,
   setBrushAnchorWidths,
 } from "@/model/brush/brushWidth";
-import { hasValidSceneContainers } from "../model/sceneValidation";
-import { isShape, selectionRoots } from "../model/scene";
+import {
+  hasValidSceneContainers,
+  wouldCycleThroughOperand,
+} from "../model/sceneValidation";
+import { canConvertShapeToPath, convertShapeToPath } from "@/model/path/convertToPath";
+import { isAreal } from "@/model/path/boolean";
+import {
+  childIdsOf,
+  enclosingSymbolId,
+  isShape,
+  parentIdOf,
+  selectionRoots,
+} from "../model/scene";
 import type { AnchorType, PathModifier } from "../model/types";
 import { removeRoots } from "./docOps";
+import { notify } from "./toastStore";
 import {
   groupEditNodesByShape,
   type EditNode,
@@ -285,6 +297,88 @@ export function createPathEditActions({ set, get, transact }: StoreCtx): PathEdi
         { label: "Edit path modifiers", coalesceKey: "modifiers:" + id }
       );
     },
+    combineSelectedLive: (op) => {
+      const doc = get().doc;
+      const roots = selectionRoots(doc, get().selection);
+      if (roots.length < 2) return;
+      const parent = parentIdOf(doc, roots[0]);
+      if (!roots.every((id) => parentIdOf(doc, id) === parent)) return;
+      const selected = new Set(roots);
+      // Paint order decides which shape survives, matching `booleanSelected`:
+      // the bottom-most is the one the others are combined into.
+      const ordered = childIdsOf(doc, parent).filter((id) => selected.has(id));
+      const [targetId, ...operandIds] = ordered;
+      const target = doc.nodes[targetId];
+      if (!isShape(target)) return;
+      if (!operandIds.every((id) => {
+        const operand = doc.nodes[id];
+        return isShape(operand) && isAreal(operand, doc);
+      })) return;
+      // Modifiers live on path nodes, so a rect/ellipse/compound target is
+      // converted first — it keeps its id, style and place in the stack.
+      const base = target.type === "path"
+        ? target
+        : canConvertShapeToPath(target)
+          ? convertShapeToPath(target, doc)
+          : null;
+      if (!base) return;
+      const nodes = { ...doc.nodes };
+      nodes[targetId] = {
+        ...base,
+        modifiers: [
+          ...(base.modifiers ?? []),
+          ...operandIds.map((operandId) => ({
+            type: "boolean" as const,
+            op,
+            operandId,
+          })),
+        ],
+      };
+      // The operands stay in the scene — selectable, movable, editable — but
+      // hidden, since their contribution is now the combined outline.
+      for (const id of operandIds) {
+        const operand = nodes[id];
+        if (operand) nodes[id] = { ...operand, hidden: true };
+      }
+      const next = { ...doc, nodes };
+      if (!hasValidSceneContainers(next)) return;
+      transact(next, { label: `Combine ${op}` });
+      set({ selection: [targetId] });
+    },
+    setModifierOperand: (nodeId, index, operandId) => {
+      const doc = get().doc;
+      const shape = doc.nodes[nodeId];
+      if (!isShape(shape) || shape.type !== "path") return;
+      const modifier = shape.modifiers?.[index];
+      if (modifier?.type !== "boolean") return;
+      if (operandId) {
+        if (operandId === nodeId) {
+          notify.error("A shape cannot be combined with itself.");
+          return;
+        }
+        if (!doc.nodes[operandId]) return;
+        if (
+          enclosingSymbolId(doc, nodeId) !== enclosingSymbolId(doc, operandId)
+        ) {
+          notify.error("Both shapes must be inside the same symbol.");
+          return;
+        }
+        // `transact` can only reject a cyclic document silently, so the cycle
+        // is caught here, where there is someone to tell.
+        if (wouldCycleThroughOperand(doc, nodeId, operandId)) {
+          notify.error("That shape already depends on this one.");
+          return;
+        }
+      }
+      const modifiers = shape.modifiers!.map((entry, i) =>
+        i === index ? { ...modifier, operandId: operandId ?? "" } : entry
+      );
+      transact(
+        { ...doc, nodes: { ...doc.nodes, [nodeId]: { ...shape, modifiers } } },
+        { label: "Set boolean operand" }
+      );
+    },
+    beginOperandPick: (target) => set({ operandPick: target }),
     addPathModifierSelected: (type: PathModifier["type"]) => {
       const doc = get().doc;
       const nodes = { ...doc.nodes };

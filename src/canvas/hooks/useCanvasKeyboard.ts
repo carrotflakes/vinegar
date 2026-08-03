@@ -1,4 +1,5 @@
 import { useEffect, type RefObject } from "react";
+import { useEditor } from "../../store/editorStore";
 import { useInput } from "../../store/inputStore";
 import { type ToolContext } from "../interaction";
 import { cancelActiveInteraction } from "../interactionLifecycle";
@@ -19,6 +20,14 @@ export function useCanvasKeyboard(
       if (e.code === "Space") {
         spaceRef.current = true;
         if (canvasRef.current) canvasRef.current.style.cursor = "grab";
+        return;
+      }
+      // Escape leaves operand-picking mode, like cancelling any other armed
+      // interaction; the modifier keeps whatever operand it had.
+      if (e.key === "Escape" && useEditor.getState().operandPick) {
+        e.preventDefault();
+        e.stopImmediatePropagation();
+        useEditor.getState().beginOperandPick(null);
         return;
       }
       if (ctx.penDraft.current) {

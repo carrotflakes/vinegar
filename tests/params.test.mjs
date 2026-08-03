@@ -200,7 +200,7 @@ test("variables and bindings round-trip through the file format", () => {
     [param("w", 2, { min: 0, max: 20, step: 0.5 })]
   );
   const text = serializeDocument(doc);
-  assert.equal(JSON.parse(text).version, 34);
+  assert.equal(JSON.parse(text).version, 35);
   const parsed = parseDocument(text);
   assert.deepEqual(parsed.vars, doc.vars);
   assert.deepEqual(parsed.varOrder, ["w"]);

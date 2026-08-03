@@ -483,6 +483,13 @@ export const COMMANDS: Command[] = [
     run: (s) => s.addPathModifierSelected("smooth"),
   },
   {
+    id: "path.addBooleanModifier",
+    label: "Add Boolean modifier",
+    group: "Path",
+    enabled: (s) => sel(s).canPathOp,
+    run: (s) => s.addPathModifierSelected("boolean"),
+  },
+  {
     id: "path.addReverseModifier",
     label: "Add Reverse modifier",
     group: "Path",
@@ -659,6 +666,13 @@ export const COMMANDS: Command[] = [
     group: "Boolean",
     enabled: (s) => sel(s).canBoolean,
     run: (s) => s.booleanSelected("xor"),
+  },
+  {
+    id: "path.combineLive",
+    label: "Combine (live)",
+    group: "Boolean",
+    enabled: (s) => sel(s).canBoolean,
+    run: (s) => s.combineSelectedLive("subtract"),
   },
   {
     id: "path.divide",

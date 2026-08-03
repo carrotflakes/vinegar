@@ -364,6 +364,10 @@ interface PathModifierBase {
   enabled?: boolean;
 }
 
+/** The four boolean combinations, shared with the bake-once Pathfinder ops. */
+export const BOOL_OPS = ["union", "subtract", "intersect", "xor"] as const;
+export type BoolOp = (typeof BOOL_OPS)[number];
+
 export type PathModifier = PathModifierBase & (
   | { type: "simplify"; tolerance: number }
   | { type: "flatten"; tolerance: number }
@@ -371,6 +375,15 @@ export type PathModifier = PathModifierBase & (
   | { type: "outline"; width: number; cap: StrokeCap; join: StrokeJoin }
   | { type: "smooth" }
   | { type: "reverse" }
+  /**
+   * Combine the stage's input with another scene node, live. `operandId` is
+   * the only reference a node holds to another node's *geometry*; the operand
+   * stays an ordinary (usually hidden) scene node, so it remains selectable,
+   * movable and editable. Operand edges must form a DAG — `sceneValidation`
+   * rejects a cycle the way it rejects a malformed tree. A missing operand
+   * disables the stage. See docs/parameters.md (phase 3).
+   */
+  | { type: "boolean"; op: BoolOp; operandId: string }
 );
 
 export const PATH_MODIFIER_TYPES = [
@@ -380,6 +393,7 @@ export const PATH_MODIFIER_TYPES = [
   "outline",
   "smooth",
   "reverse",
+  "boolean",
 ] as const;
 
 /**

@@ -1,6 +1,7 @@
-import { LuChevronDown, LuChevronUp, LuX } from "react-icons/lu";
-import type { PathModifier, PathShape } from "@/model/types";
+import { LuChevronDown, LuChevronUp, LuCrosshair, LuTriangleAlert, LuX } from "react-icons/lu";
+import { BOOL_OPS, type BoolOp, type PathModifier, type PathShape } from "@/model/types";
 import { useEditor } from "@/store/editorStore";
+import { booleanOperandError } from "@/model/path/pathModifiers";
 import { modifierParamPath, remapModifierBindings } from "@/model/params";
 import BindableNumber from "@/ui/controls/BindableNumber";
 import Section from "../Section";
@@ -13,11 +14,23 @@ function modifierLabel(type: PathModifier["type"]): string {
     case "outline": return "Outline";
     case "smooth": return "Smooth";
     case "reverse": return "Reverse";
+    case "boolean": return "Boolean";
   }
 }
 
+const BOOL_OP_LABEL: Record<BoolOp, string> = {
+  union: "Unite",
+  subtract: "Subtract",
+  intersect: "Intersect",
+  xor: "Exclude",
+};
+
 export default function ModifiersSection({ shape }: { shape: PathShape }) {
+  const doc = useEditor((state) => state.doc);
   const setPathModifiers = useEditor((state) => state.setPathModifiers);
+  const setModifierOperand = useEditor((state) => state.setModifierOperand);
+  const beginOperandPick = useEditor((state) => state.beginOperandPick);
+  const operandPick = useEditor((state) => state.operandPick);
   const addPathModifierSelected = useEditor((state) => state.addPathModifierSelected);
   const applyPathModifiersSelected = useEditor((state) => state.applyPathModifiersSelected);
   const modifiers = shape.modifiers ?? [];
@@ -145,6 +158,66 @@ export default function ModifiersSection({ shape }: { shape: PathShape }) {
                 </select>
               </label>
             </>
+          ) : modifier.type === "boolean" ? (
+            <>
+              <label className="field-inline">
+                <span>Operation</span>
+                <select
+                  className="blend-select"
+                  value={modifier.op}
+                  onChange={(event) => replace(index, {
+                    ...modifier,
+                    op: event.target.value as BoolOp,
+                  })}
+                >
+                  {BOOL_OPS.map((op) => (
+                    <option key={op} value={op}>{BOOL_OP_LABEL[op]}</option>
+                  ))}
+                </select>
+              </label>
+              <label className="field-inline">
+                <span>With</span>
+                <div className="field-row">
+                  <span className="readout">
+                    {doc.nodes[modifier.operandId]?.name ?? "None"}
+                  </span>
+                  {/* Picking is a canvas act: the operand is a shape, and the
+                      canvas is where shapes are identified. */}
+                  <button
+                    className={
+                      "ghost-btn icon-btn" +
+                      (operandPick?.nodeId === shape.id && operandPick.index === index
+                        ? " active"
+                        : "")
+                    }
+                    title="Pick the other shape on the canvas"
+                    onClick={() =>
+                      beginOperandPick(
+                        operandPick?.nodeId === shape.id && operandPick.index === index
+                          ? null
+                          : { nodeId: shape.id, index }
+                      )
+                    }
+                  >
+                    <LuCrosshair aria-hidden />
+                  </button>
+                  <button
+                    className="ghost-btn icon-btn"
+                    title="Clear the other shape"
+                    disabled={!modifier.operandId}
+                    onClick={() => setModifierOperand(shape.id, index, null)}
+                  >
+                    <LuX aria-hidden />
+                  </button>
+                </div>
+              </label>
+              {booleanOperandError(shape, index, doc) && (
+                <div className="modifier-error">
+                  <LuTriangleAlert aria-hidden />
+                  <span>{booleanOperandError(shape, index, doc)}</span>
+                </div>
+              )}
+            </>
           ) : modifier.type === "outline" ? (
             <>
               <div className="geometry-grid">
@@ -203,6 +276,7 @@ export default function ModifiersSection({ shape }: { shape: PathShape }) {
           <option value="outline">Outline</option>
           <option value="smooth">Smooth</option>
           <option value="reverse">Reverse</option>
+          <option value="boolean">Boolean…</option>
         </select>
       </div>
       {modifiers.length > 0 && (

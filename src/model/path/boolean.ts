@@ -5,20 +5,23 @@ const paper: typeof paperNs =
   (paperNs as { default?: typeof paperNs }).default ?? paperNs;
 import { compoundChildren } from "./compoundPath";
 import { ellipseSubpath } from "../ellipse";
-import { IDENTITY } from "@/model/geometry/matrix";
+import { IDENTITY, invertMatrix, nodeWorldMatrix } from "@/model/geometry/matrix";
 import { roundedRectSubpath } from "../roundedRect";
 import { strokeDetailFields } from "../stroke";
 import { resolvedSubpaths } from "./pathModifiers";
+import { multiply } from "@/model/geometry/matrix";
 import {
   baseNodeDefaults,
   makeId,
+  type BoolOp,
+  type Matrix,
   type PathShape,
   type PathSubpath,
   type Shape,
   type Document,
 } from "../types";
 
-export type BoolOp = "union" | "subtract" | "intersect" | "xor";
+export type { BoolOp } from "../types";
 
 /** Paper.js needs a project before any path can be built; set one up lazily. */
 let paperReady = false;
@@ -215,6 +218,74 @@ export function booleanShapes(
     blendMode: base.blendMode,
     transform: [...IDENTITY],
   };
+}
+
+/**
+ * Combine one stage's subpaths with an operand shape — the boolean *modifier*'s
+ * evaluation step (docs/parameters.md, phase 3). `subpaths` are in the target's
+ * local space and `intoLocal` maps the operand's parent space into it, so the
+ * result stays in the space the rest of the stack works in.
+ *
+ * Returns `subpaths` untouched when the operand contributes no area, so a
+ * degenerate operand reads as "no change" rather than as an empty shape.
+ */
+export function booleanWithOperand(
+  subpaths: PathSubpath[],
+  fillRule: PathShape["fillRule"],
+  operand: Shape,
+  op: BoolOp,
+  intoLocal: Matrix,
+  doc?: Document
+): PathSubpath[] {
+  ensurePaper();
+  const target = compound(
+    subpaths
+      .filter((sp) => sp.anchors.length >= 2)
+      .map((sp) => {
+        // Force the implicit fill close paper.js needs to see an area.
+        const path = subpathToPath(sp);
+        path.closed = true;
+        return path;
+      })
+  );
+  if (!target) return subpaths;
+  target.fillRule = fillRule ?? "nonzero";
+  const other = shapeToGeom(operand, doc);
+  if (!other) return subpaths;
+  other.transform(toPaperMatrix(intoLocal));
+  let result: paper.PathItem;
+  switch (op) {
+    case "union": result = target.unite(other, { insert: false }); break;
+    case "intersect": result = target.intersect(other, { insert: false }); break;
+    case "xor": result = target.exclude(other, { insert: false }); break;
+    case "subtract": result = target.subtract(other, { insert: false }); break;
+  }
+  return geomToSubpaths(result);
+}
+
+/**
+ * The matrix mapping `operand`'s parent space into `target`'s local space, or
+ * null when the target's chain is not invertible. Both sides come from the
+ * shared world-matrix helper, so a boolean follows either node being moved,
+ * grouped or reparented.
+ */
+export function operandIntoLocal(
+  doc: Document,
+  targetId: string,
+  operandId: string
+): Matrix | null {
+  const operand = doc.nodes[operandId];
+  if (!operand) return null;
+  const intoTarget = invertMatrix(nodeWorldMatrix(doc, targetId));
+  if (!intoTarget) return null;
+  // nodeWorldMatrix includes the operand's own transform, which shapeToGeom
+  // already applies; back it out so it is not counted twice.
+  const operandOwn = invertMatrix(operand.transform);
+  if (!operandOwn) return null;
+  return multiply(
+    intoTarget,
+    multiply(nodeWorldMatrix(doc, operandId), operandOwn)
+  );
 }
 
 // Faces smaller than this (in parent-space units²) are numeric slivers along

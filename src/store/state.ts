@@ -150,6 +150,11 @@ export interface EditorData {
   rulersVisible: boolean;
   /** The one selected guide, if any. Guides never enter `selection`. */
   selectedGuideId: string | null;
+  /**
+   * The boolean modifier waiting for its operand to be clicked on canvas, or
+   * null. Session-only: picking is an interaction, not document state.
+   */
+  operandPick: { nodeId: string; index: number } | null;
   recentColors: string[];
   savedSwatches: string[];
   clipboard: ClipboardPayload | null;
@@ -335,8 +340,27 @@ export interface PathEditActions {
   ) => void;
   /** Append a default modifier to every selected path. */
   addPathModifierSelected: (type: PathModifier["type"]) => void;
+  /**
+   * Point one boolean stage at another node's geometry. Refuses (and toasts)
+   * an operand that would close a cycle, since `transact` can only reject such
+   * a document silently. `null` clears the operand.
+   */
+  setModifierOperand: (
+    nodeId: string,
+    index: number,
+    operandId: string | null
+  ) => void;
+  /** Arm canvas picking for a boolean stage's operand; null cancels it. */
+  beginOperandPick: (target: { nodeId: string; index: number } | null) => void;
   /** Bake the selected paths' stacks into their editable base geometry. */
   applyPathModifiersSelected: () => void;
+  /**
+   * Combine the selection *non-destructively*: the bottom-most shape gains a
+   * boolean modifier pointing at each of the others, which stay in the scene
+   * (hidden) and remain editable — Illustrator's compound shape. The
+   * destructive counterpart is `booleanSelected`.
+   */
+  combineSelectedLive: (op: BoolOp) => void;
 }
 
 /** Parametric generators and the document's generator scripts. */

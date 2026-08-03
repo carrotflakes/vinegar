@@ -2,8 +2,10 @@ import { clippingMask } from "../model/clippingMask";
 import { hasValidVars } from "../model/vars";
 import { isCompoundChild } from "@/model/path/compoundPath";
 import { referencedAssetIds } from "../model/scene";
+import { hasAcyclicModifierOperands } from "../model/sceneValidation";
 import {
   BLEND_MODES,
+  BOOL_OPS,
   EFFECT_TYPES,
   PATH_MODIFIER_TYPES,
   STROKE_ALIGNMENTS,
@@ -13,12 +15,13 @@ import {
   type ShapeType,
 } from "../model/types";
 
-export const CURRENT_FILE_VERSION = 34 as const;
+export const CURRENT_FILE_VERSION = 35 as const;
 /** Older schemas accepted after a read-time transform (see {@link migrateToV34}).
  *  v34 merged `swatches`+`params` into one `vars` table and gave symbols
  *  parameters, so v31–v33 need their two tables folded into one — ids carry
- *  over unchanged, which makes the transform total and lossless. */
-const SUPPORTED_FILE_VERSIONS = [31, 32, 33, CURRENT_FILE_VERSION] as const;
+ *  over unchanged, which makes the transform total and lossless. v35 added the
+ *  `boolean` path modifier, which is additive: a v34 file simply has none. */
+const SUPPORTED_FILE_VERSIONS = [31, 32, 33, 34, CURRENT_FILE_VERSION] as const;
 
 export interface VinegarFile {
   app: "vinegar";
@@ -128,6 +131,12 @@ const isPathModifier = (value: unknown): boolean => {
     return isNumber(value.width) && value.width >= 0 &&
       STROKE_CAPS.includes(value.cap as never) &&
       STROKE_JOINS.includes(value.join as never);
+  }
+  if (value.type === "boolean") {
+    // A dangling/empty operand is tolerated: the stage disables itself and the
+    // panel says so, the same fallback render and export already take.
+    return typeof value.operandId === "string" &&
+      BOOL_OPS.includes(value.op as never);
   }
   return value.type === "smooth" || value.type === "reverse";
 };
@@ -272,7 +281,7 @@ export function parseDocument(text: string): Document {
     throw new Error(`Unsupported Vinegar file version: ${String(data.version)}.`);
   }
   const raw =
-    data.version === CURRENT_FILE_VERSION
+    (data.version as number) >= 34
       ? structuredClone(data.document)
       : migrateToV34(structuredClone(data.document));
   if (!isCurrentDocument(raw)) {
@@ -456,6 +465,11 @@ function validateTree(doc: Document): void {
   // keeps its last value, both of which the UI surfaces.
   if (!hasValidVars(doc)) {
     throw new Error("Variable order does not match the variable registry.");
+  }
+  // Boolean modifiers point at another node's geometry; those edges must form
+  // a DAG or resolution would never terminate.
+  if (!hasAcyclicModifierOperands(doc)) {
+    throw new Error("Boolean modifiers reference each other cyclically.");
   }
   for (const id of doc.rootIds) visit(id);
   for (const def of Object.values(doc.symbols)) {

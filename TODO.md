@@ -67,11 +67,11 @@ additional effects, or other feature expansion.
   numbers drive `strokeWidth`, path-modifier params and built-in generator args
   through `node.bindings`, paints are referenced by `var` fills/strokes, and a
   symbol definition's declared params let each instance override a colour.
-  Remaining phases: non-destructive boolean as a node→node operand (v35), then
-  2b numeric symbol overrides on top of it (numeric symbol params are already
-  declarable but read-only), then expressions (optional). Only hard ordering: 2b
-  after the boolean phase, since both need geometry resolution to become
-  context-aware and memoized. Not before the 1.0 gates above.
+  Phase 3 shipped too: the boolean path modifier (v35) is the first node→node
+  edge, and it made geometry resolution take `(node, doc)` and memoize on the
+  operand. Remaining: 2b numeric symbol overrides (now unblocked — numeric
+  symbol params are declarable but read-only), then expressions (optional). Not
+  before the 1.0 gates above.
   Standing gap: document-script generators are not bindable (their geometry only
   rebuilds through the worker, which the pure resolution step cannot await).
 - [x] Swatches saved in the document — global colors (v23), holding any concrete

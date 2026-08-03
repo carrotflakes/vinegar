@@ -31,6 +31,7 @@ const MODIFIER_NUM_KEYS: Record<PathModifier["type"], readonly string[]> = {
   outline: ["width"],
   smooth: [],
   reverse: [],
+  boolean: [],
 };
 
 /** Field paths whose value may never go negative (the model rejects it). */
