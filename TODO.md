@@ -62,16 +62,16 @@ additional effects, or other feature expansion.
   `systemClipboard.ts` degrade to plain SVG
 
 ### New ideas
-- [ ] **Parameters and references** (docs/parameters.md) — phases 1 and 2a
-  shipped: document variables (`doc.vars`, v34) hold named numbers *and* paints;
-  numbers drive `strokeWidth`, path-modifier params and built-in generator args
-  through `node.bindings`, paints are referenced by `var` fills/strokes, and a
-  symbol definition's declared params let each instance override a colour.
-  Phase 3 shipped too: the boolean path modifier (v35) is the first node→node
-  edge, and it made geometry resolution take `(node, doc)` and memoize on the
-  operand. Remaining: 2b numeric symbol overrides (now unblocked — numeric
-  symbol params are declarable but read-only), then expressions (optional). Not
-  before the 1.0 gates above.
+- [ ] **Parameters and references** (docs/parameters.md) — phases 1, 2a, 2b and
+  3 shipped: document variables (`doc.vars`, v34) hold named numbers *and*
+  paints; numbers drive `strokeWidth`, path-modifier params and built-in
+  generator args through `node.bindings`, paints are referenced by `var`
+  fills/strokes, and a symbol definition's declared params let each instance
+  override a colour *or* a number — the numeric reading being derived per
+  instance (`scopedNode`) rather than stored. Phase 3's boolean path modifier
+  (v35) is the first node→node edge. Remaining: expressions (phase 4,
+  optional, only if `scale` proves not to be enough). Not before the 1.0 gates
+  above.
   Standing gap: document-script generators are not bindable (their geometry only
   rebuilds through the worker, which the pure resolution step cannot await).
 - [x] Swatches saved in the document — global colors (v23), holding any concrete

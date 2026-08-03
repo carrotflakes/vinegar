@@ -112,8 +112,11 @@ active tool, selection, viewport and undo history does not belong in the file.
   an **instance** overrides them in `args`, keyed by the same key. A `var` paint
   inside a definition resolves against the instance's args, then the
   definition's defaults, then `doc.vars` — so one definition paints differently
-  per instance. Numeric symbol parameters are declarable but not yet honoured
-  (phase 2b). See [parameters.md](parameters.md).
+  per instance. A *numeric* parameter works the same way through a binding: the
+  definition's node stores the number its own defaults resolve to, and each
+  instance's reading is derived (never stored) by `scopedNode`, so one
+  definition can also draw different geometry per instance. See
+  [parameters.md](parameters.md).
 
 - A path's modifier stack may hold a `boolean` stage, which combines the
   stage's input with another node's geometry (`operandId`). It is the only

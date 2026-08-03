@@ -576,7 +576,27 @@ export interface SymbolActions {
     target: "fill" | "stroke",
     label?: string
   ) => string | null;
+  /**
+   * The numeric counterpart: bind one bindable field inside a definition to a
+   * new parameter of that symbol, seeded with the number the field holds now.
+   * The binding is an ordinary `node.bindings` entry whose variable happens to
+   * live in the symbol's frame, so an instance's override retunes it per
+   * instance (phase 2b). Returns the new key, or null when the field is not
+   * inside a definition or is not bindable.
+   */
+  promoteNumberToSymbolParam: (
+    nodeId: string,
+    path: string,
+    label?: string
+  ) => string | null;
   renameSymbolParam: (symbolId: string, key: string, label: string) => void;
+  /** Retune a parameter's default — what instances that do not override it
+   *  show, and what the definition's own bound fields resolve to. */
+  setSymbolParamDefault: (
+    symbolId: string,
+    key: string,
+    value: VarValue
+  ) => void;
   /** Drop a parameter, baking every reference to it back to its default. */
   removeSymbolParam: (symbolId: string, key: string) => void;
   /** Override one instance parameter; `null` falls back to the definition's

@@ -1,9 +1,9 @@
 # Parameters and references
 
-Status: **phases 1, 2a and 3 implemented** (phase 1 on 2026-08-03; phase 2a and
-phase 3 on 2026-08-04 — the `vars` merge and symbol parameters in v34, the
-boolean modifier in v35). Phase 2b is now unblocked but not done; phase 4 is
-still a proposal and still optional.
+Status: **phases 1, 2a, 2b and 3 implemented** (phase 1 on 2026-08-03; phases
+2a, 3 and 2b on 2026-08-04 — the `vars` merge and symbol parameters in v34, the
+boolean modifier in v35, numeric symbol overrides with no format change).
+Phase 4 is still a proposal and still optional.
 Related:
 [path-modifiers.md](path-modifiers.md) (the stage pipeline this feeds),
 [global-colors.md](global-colors.md) (the existing reference edge this copies),
@@ -27,8 +27,7 @@ asymmetry — **not** about building a node-graph editor (see *Non-goals*).
 The end state is a small dependency graph over the document: parameters are
 sources, node fields are sinks, and a few edges run node → node. It is
 introduced in four phases, each independently shippable, each useful on its own.
-Phases 3 and 4 are explicitly optional; so is phase 2b, and stopping after
-phase 2a is a valid outcome.
+Phase 4 is explicitly optional; phases 1–3 have all landed.
 
 ## Non-goals
 
@@ -175,8 +174,8 @@ has.
 
 ## Phase 2 — parametric symbols
 
-*(2a implemented; 2b deferred behind phase 3. What shipped is recorded inline
-below and summarised in "What 2a actually shipped".)*
+*(2a and 2b both implemented, in that order. What shipped is recorded inline
+below and summarised in "What 2a actually shipped" / phase 2b.)*
 
 The roadmap's symbol v2, and where the feature starts paying for itself in
 icon/UI-kit documents. Two things have to be settled before any schema: **what a
@@ -285,11 +284,10 @@ against the instance's args, then the definition's defaults, then the document.
 `SymbolParam` is otherwise `GeneratorParam` (`model/generators/generators.ts`)
 with its min/max/step/integer moved inside `VarValue`'s number arm, so a symbol's
 parameter row can still be the generator row's editor and scrubber for the
-numeric case. A **numeric symbol parameter is declarable but not yet honoured in
-2a**: the evaluator ignores it and the UI disables the row with that as its
-tooltip — the same discipline phase 1 used for document-script generators, and
-for the same reason (shipping a link that silently does not update would be
-worse than not offering it).
+numeric case. A numeric symbol parameter was declarable but *not honoured* in
+2a — the evaluator ignored it and the UI disabled the row with that as its
+tooltip, the same discipline phase 1 used for document-script generators. Phase
+2b honours it and the row is now a live editor; the schema never changed.
 
 Resolution grew a scope where it already resolved:
 
@@ -371,32 +369,68 @@ carry over unchanged, so the transform is total and lossless and those versions
 can stay in `SUPPORTED_FILE_VERSIONS` — the same shape as the v31 backfill the
 parser already does, one step up in size.
 
-### Phase 2b — numeric overrides (not implemented)
+### Phase 2b — numeric overrides (implemented)
 
-The prerequisite is the one phase 3 already names: geometry resolution has to
-move from "a literal baked at commit" to "derived from (node, context) and
-memoized". Phase 3 states it for a single operand — `resolvedSubpaths(node)`
-becoming `resolvedSubpaths(node, doc)` — and 2b is the same change with the
-instance scope in the context.
-
-**So 2b should not precede phase 3.** Alone it pays for the entire wide signature
-change to buy a narrower feature; landed with (or after) phase 3, the signature
-change is spent once. Sequenced that way, 2b is mostly the scope plumbing 2a
-already built, extended to the numeric sinks:
+The split this phase was sequenced around held exactly as written:
 
 - `syncParamBindings`'s commit-time write stays for bindings **outside** any
   symbol definition, where one node really does have one value.
-- Inside a definition, a bound field's stored literal degrades to what it means
-  everywhere else in this design: the last resolved value, correct for the
-  definition's own defaults, and the value any reader that ignores scopes will
-  show. The per-instance value comes from the memoized derived layer.
+- Inside a definition, a bound field's stored literal is the last value
+  resolved *against that definition's own defaults* — the value any reader that
+  ignores scopes shows, including an older build. The per-instance value comes
+  from a memoized derived layer.
 
-That split is the honest version of the cost, and it is worth stating plainly:
-2b is the first place where a node's stored field is not, on its own, the truth.
-Everything phase 1 avoided about that lands here, which is precisely why it is
-last and why 2a is separable from it.
+**The derived layer is one function, not a signature change.** The predicted
+cost was making ~55 pure geometry helpers instance-aware. They are not: instead
+of scoping every *read*, 2b scopes the *node*.
 
-File version: **v35**, shared with phase 3 if they land together.
+```ts
+// model/params.ts
+export function scopedNode<T extends SceneNode>(node: T, scope: VarScope): T;
+```
+
+It returns a copy with the bound fields re-derived (and a built-in generator
+rebuilt from them), which `resolvedSubpaths`, `shapeBounds`, `hitTestShape`,
+`strokeOutset` and every other helper then read as the plain node they have
+always taken. Nothing below it knows a scope exists.
+
+What *did* have to change is the handful of traversals that descend through an
+instance, and only internally — each builds the instance frame itself as it
+descends (`instanceScope`), so **no caller of any of them changed**:
+
+| traversal | where the frame is pushed |
+|---|---|
+| `render/scene.ts` `paintNodeInternal` | already had the scope (2a) |
+| `render/bounds.ts` `visualNodeWorldBounds`, `nodeLocalContentBounds` | the instance branch |
+| `geometry/bounds.ts` `instanceWorldBounds`, `leafLocalBounds` | takes the instance, so it builds the frame |
+| `geometry/hitTest.ts` `hitTestNode`, `marqueeHitNode` | the instance branch |
+| `bucketFill.ts` `collectObstacles` | the instance branch |
+| `io/exportSvg.ts` `nodeToSvg` | already had the scope (2a) |
+
+**Nothing is paid where the feature is not used.** A scope carries a
+`numberKey` that identifies its *numeric* content, and only where that content
+departs from the definition's defaults — an instance that overrides nothing, or
+overrides only a colour, keeps its parent's key. An empty key means "the stored
+literals are already right", so `scopedNode` is the identity function after one
+string check, the memo is never populated, and the id-keyed bounds caches keep
+their old keys. An instance that *does* override shares one memoized node per
+distinct override set, so `resolvedSubpaths`, the Path2D cache and the culling
+bounds all still hit across frames.
+
+Two honest limits:
+
+- **A node's stored field is no longer, on its own, the truth** inside a
+  definition. Everything phase 1 avoided about that lands here — which is
+  precisely why it is last and why 2a was separable from it.
+- **An instance's `args` hold values, not references**, so a nested instance
+  cannot forward an outer symbol's parameter to an inner one. It resolves
+  against its own definition's defaults instead. Wanting that is a reason to
+  look at phase 4, not to grow `SymbolInstance.args`.
+
+File version: **unchanged (v35)**. 2a already persisted the whole schema —
+numeric `SymbolParam` defaults and numeric `args` round-tripped from the start;
+what changed is only that they are now honoured. A v35 file written before 2b
+opens identically.
 
 ## Phase 3 — a node-to-node edge: non-destructive boolean (implemented, v35)
 
@@ -498,9 +532,15 @@ by the parameter that owns it. The UI never offers that write — see below.
 **Phase 2a spent this budget where predicted**: the two traversals that paint
 took a scope argument where `doc.swatches` used to be passed, and nothing that
 computes geometry changed — bounds, picking, snapping and export geometry never
-read paint. Phase 2b and phase 3 are the ones that make geometry reads
-context-aware, which is why they share a prerequisite and why 2b is sequenced
-behind 3.
+read paint.
+
+**Phase 2b spent less than predicted.** Phase 3 made geometry resolution take a
+context (`resolvedSubpaths(node, doc)`); 2b did *not* have to repeat that for
+the scope, because it scopes the node rather than the read (`scopedNode`). The
+six traversals that descend through an instance push the frame internally, so
+no read site and no caller of theirs changed signature — and where no numeric
+parameter is overridden, the scoped node *is* the stored node, so the caches
+below are untouched.
 
 ## UI
 
@@ -533,14 +573,28 @@ Phase 2a added two surfaces and merged one:
   either old tab follows to the new one.
 - **Instance parameter rows** — selecting an instance shows its symbol's params
   in the properties panel, each row an override editor over the definition's
-  default. The numeric rows are visible but read-only until 2b, with the reason
-  in the tooltip. Overriding never moves anything; clearing a row falls back to
-  the definition default rather than baking it in.
+  default. Overriding never moves anything; clearing a row falls back to the
+  definition default rather than baking it in.
 - **Defining a symbol parameter** — inside symbol-edit focus, a paint field's
   popover gains *Promote to symbol parameter*, which is the only authoring path
   that creates one. There is no separate schema editor: a symbol's parameter
   list is the set of promotions, in promotion order, listed under the definition
   in the Symbols panel for rename/remove.
+
+Phase 2b made the numeric half live, in the surfaces that already existed:
+
+- **Instance numeric rows** are scrubbers, not readouts. An override carries
+  the *definition's* min/max/step/integer hints — it retunes the number, it does
+  not redefine the parameter.
+- **`BindableNumber` inside a definition** offers that symbol's numeric
+  parameters alongside the document's variables (one id space, so `bindField`
+  resolves the target through the node's scope), plus *New symbol parameter from
+  this value*. Bound to a parameter, scrubbing the field edits the definition's
+  **default** — the analogue of "scrubbing a bound field edits the variable" —
+  while each instance keeps its own override.
+- **Removing a parameter** drops the bindings that named it. The bound fields
+  already hold the default, so removal bakes without moving anything, exactly
+  as the paint case does.
 
 ## Export & serialization
 
@@ -578,11 +632,14 @@ Phase 2a added two surfaces and merged one:
   format bump for a rename. It is worth doing only as part of 2a, where the
   typed schema is load-bearing (a symbol parameter has to be able to be a
   colour); before that, do the panel/vocabulary version instead.
-- **2a ships an authoring surface for a half-honoured schema.** Numeric symbol
-  parameters are declarable and visibly disabled until 2b. That is deliberate —
-  it is the same trade phase 1 made for script generators — but if 2b never
-  lands, those disabled rows are permanent dead UI, and removing the numeric arm
-  from `SymbolParam` is the right correction rather than leaving them.
+- **~~2a ships an authoring surface for a half-honoured schema.~~** Resolved by
+  2b: the numeric rows are live editors, so the disabled-row risk is gone.
+- **Two truths for one field.** Inside a definition the stored number is the
+  default's reading, not any instance's. Anything that reads a definition node
+  without a scope — a new panel, a script, a future exporter — shows the default
+  and is *not* wrong, but it is not the whole picture either. The rule is: if it
+  descends through an instance, it must push the frame (`instanceScope`); the
+  six traversals that do are listed under phase 2b.
 
 ## Sequencing
 
@@ -594,14 +651,12 @@ gates in TODO.md (SVG import, clipboard, save workflow, export fidelity).
 The one hard ordering constraint inside the remainder was **2b after 3**: both
 need geometry resolution to become context-aware and memoized, and doing 2b
 first would have paid for that whole signature change to buy the narrower half
-of one feature. Phase 3 has landed, so 2b is unblocked — and stopping here is
-still a valid outcome.
+of one feature. Landing 3 first was the right call — 2b then needed no signature
+change of its own at all.
 
 The cheap "panel and vocabulary first" step was skipped: 2a landed the merge
 whole, since the typed schema is what makes a symbol parameter able to be a
 colour, and doing the rename twice would have cost more than it saved.
 
-**Remaining:** phase 2b (numeric symbol overrides), whose prerequisite — a
-geometry read that takes a context and memoizes on it — phase 3 has now paid
-for; the shape of the change is the same, with the instance scope in place of
-the operand. Phase 4 only if `scale` demonstrably is not enough.
+**Remaining:** phase 4 only, and only if `scale` demonstrably is not enough.
+Phases 1–3 are done, and stopping here is a valid outcome.

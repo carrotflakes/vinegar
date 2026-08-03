@@ -18,7 +18,9 @@ import { isShape, selectionRoots } from "../model/scene";
 import {
   bakePaintRefs,
   documentScope,
+  lookupVar,
   resolvePaint,
+  scopeForNode,
   type PaintTarget,
 } from "../model/vars";
 import {
@@ -204,7 +206,10 @@ export function createVarActions({ set, get, transact }: StoreCtx): VarActions {
 
     bindField: (nodeId, path, varId, scale) => {
       const doc = get().doc;
-      const value = doc.vars[varId]?.value;
+      // Resolved through the node's own scope, so a field inside a symbol
+      // definition can bind that symbol's numeric parameters as well as the
+      // document's variables (docs/parameters.md, phase 2b).
+      const value = lookupVar(scopeForNode(doc, nodeId), varId);
       const node = doc.nodes[nodeId] && materializeBindable(doc.nodes[nodeId], path);
       if (!value || value.kind !== "number" || !node) return;
       const current = readNumField(node, path);

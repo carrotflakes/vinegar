@@ -6,16 +6,26 @@
 // bound field itself keeps the last resolved number. Every consumer therefore
 // keeps reading a plain `number`, and a dangling reference degrades to the
 // literal it was showing rather than to no value at all. `syncParamBindings`
-// re-derives every bound field from `doc.vars`; the store runs it on every
-// committed document, so the two can never drift apart.
+// re-derives every bound field from the scope the node lives in — the document's
+// variables, or a symbol definition's parameter defaults; the store runs it on
+// every committed document, so the two can never drift apart.
+//
+// One node, one stored value — which is not enough for a symbol instance that
+// overrides a numeric parameter. That reading is *derived* rather than stored,
+// by `scopedNode`, at the traversals that already descend through an instance.
 //
 // See docs/parameters.md.
 // ===========================================================================
 
 import { GENERATORS, defaultArgs } from "./generators/generators";
-import { isShape } from "./scene";
+import { enclosingSymbolId, isShape } from "./scene";
+import {
+  documentScope,
+  lookupVar,
+  symbolDefScope,
+  type VarScope,
+} from "./vars";
 import type {
-  DocVar,
   Document,
   ParamRef,
   PathModifier,
@@ -126,14 +136,16 @@ export function writeNumField(
 }
 
 /**
- * The value a reference resolves to, or null when the variable is gone (or is
- * not a number — a binding never follows a paint variable).
+ * The value a reference resolves to in `scope`, or null when nothing defines
+ * it (or it names a paint — a binding never follows a paint variable). The
+ * scope is what makes the same binding resolve differently per symbol
+ * instance; outside any instance it is just the document's variables.
  */
 export function resolveParamRef(
   ref: ParamRef,
-  vars: Record<string, DocVar>
+  scope: VarScope | null
 ): number | null {
-  const entry = vars[ref.varId]?.value;
+  const entry = lookupVar(scope, ref.varId);
   if (!entry || entry.kind !== "number") return null;
   const value = entry.value * ref.scale;
   if (!Number.isFinite(value)) return null;
@@ -193,7 +205,8 @@ export function materializeBindable(node: SceneNode, path: string): SceneNode {
  */
 export function syncNodeBindings(
   node: SceneNode,
-  vars: Record<string, DocVar>
+  scope: VarScope | null,
+  { prune = true }: { prune?: boolean } = {}
 ): SceneNode {
   const entries = Object.entries(node.bindings);
   if (!entries.length) return node;
@@ -203,10 +216,10 @@ export function syncNodeBindings(
   for (const [path, ref] of entries) {
     const current = readNumField(next, path);
     if (current === null) {
-      (stale ??= []).push(path);
+      if (prune) (stale ??= []).push(path);
       continue;
     }
-    const value = resolveParamRef(ref, vars);
+    const value = resolveParamRef(ref, scope);
     if (value === null || value === current) continue;
     const written = writeNumField(next, path, value);
     if (!written) continue;
@@ -226,12 +239,33 @@ export function syncNodeBindings(
  * Re-derive every bound field in the document. Returns the same document when
  * nothing changed, so callers can skip a no-op commit. Nodes that bind nothing
  * cost one property read each.
+ *
+ * A node inside a symbol definition is resolved against that definition's own
+ * parameter defaults (over the document's variables), which is the value every
+ * reader that ignores scopes will show — including an older build. What an
+ * instance's overrides make of it is derived later and never stored; see
+ * {@link scopedNode}.
  */
 export function syncParamBindings(doc: Document): Document {
   let nodes = doc.nodes;
   let changed = false;
+  const scopes = new Map<string | null, VarScope>();
+  // Only a document with symbols needs the scene index to tell which
+  // definition a node belongs to; without them every node is in scene scope.
+  const hasSymbols = Object.keys(doc.symbols).length > 0;
+  const scopeOf = (nodeId: string): VarScope => {
+    const symbolId = hasSymbols ? enclosingSymbolId(doc, nodeId) : null;
+    let scope = scopes.get(symbolId);
+    if (!scope) {
+      const def = symbolId ? doc.symbols[symbolId] : null;
+      scope = def ? symbolDefScope(doc, def) : documentScope(doc);
+      scopes.set(symbolId, scope);
+    }
+    return scope;
+  };
   for (const [id, node] of Object.entries(doc.nodes)) {
-    const next = syncNodeBindings(node, doc.vars);
+    if (!Object.keys(node.bindings).length) continue;
+    const next = syncNodeBindings(node, scopeOf(id));
     if (next === node) continue;
     if (!changed) {
       nodes = { ...doc.nodes };
@@ -240,6 +274,43 @@ export function syncParamBindings(doc: Document): Document {
     nodes[id] = next;
   }
   return changed ? { ...doc, nodes } : doc;
+}
+
+/**
+ * The node as it reads under `scope` — phase 2b's derived layer.
+ *
+ * Outside a symbol instance a bound field already holds its resolved number,
+ * so this is the identity function and the whole mechanism costs one string
+ * check (`scope.numberKey`). Inside an instance that overrides a numeric
+ * parameter it returns a copy with the bound fields re-derived (and a built-in
+ * generator rebuilt from them), which every geometry helper then reads as the
+ * plain node it has always taken. This is the one place in the design where a
+ * node's stored field is not, on its own, the truth: it stays correct for the
+ * definition's own defaults, and the per-instance reading is derived here.
+ *
+ * Results are memoized per (node, scope key), so a scoped node keeps a stable
+ * identity across frames and the caches downstream of it — `resolvedSubpaths`,
+ * the Path2D cache, culling bounds — keep hitting. Stale binding paths are
+ * *not* pruned here: that is a document edit, and this layer never writes one.
+ */
+const scopedCache = new WeakMap<SceneNode, Map<string, SceneNode>>();
+
+export function scopedNode<T extends SceneNode>(
+  node: T,
+  scope: VarScope | null | undefined
+): T {
+  if (!scope?.numberKey) return node;
+  if (!Object.keys(node.bindings).length) return node;
+  let byKey = scopedCache.get(node);
+  const cached = byKey?.get(scope.numberKey);
+  if (cached) return cached as T;
+  const resolved = syncNodeBindings(node, scope, { prune: false }) as T;
+  if (!byKey) {
+    byKey = new Map();
+    scopedCache.set(node, byKey);
+  }
+  byKey.set(scope.numberKey, resolved);
+  return resolved;
 }
 
 /** A node with `path` bound to `ref`, or unbound when `ref` is null. */

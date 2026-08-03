@@ -12,6 +12,8 @@ import { resolvedSubpaths } from "@/model/path/pathModifiers";
 import { clippingContentIds, clippingMask } from "@/model/clippingMask";
 import { effectsMargin } from "@/model/effects";
 import { isFrame, isGroup, isInstance, isShape } from "@/model/scene";
+import { scopedNode } from "@/model/params";
+import { instanceScope, type VarScope } from "@/model/vars";
 import { effectiveStrokeAlignment, STROKE_MITER_LIMIT } from "@/model/stroke";
 import type { Bounds, Document, Matrix, Shape } from "@/model/types";
 import { renderCachesDisabled } from "@/debug/renderFlags";
@@ -75,6 +77,15 @@ function localEffectScale(transform: Matrix): number {
   return det > 1e-12 ? matrixScale(transform) / Math.sqrt(det) : 1;
 }
 
+/**
+ * Bounds caches are keyed by node id, but a definition's content measures
+ * differently under each instance that overrides a numeric parameter, so the
+ * scope's numeric identity joins the key. It is empty everywhere phase 2b is
+ * not in play, which leaves the key — and the hit rate — exactly as before.
+ */
+const boundsKey = (scope: VarScope | undefined, nodeId: string): string =>
+  scope?.numberKey ? `${scope.numberKey} ${nodeId}` : nodeId;
+
 /** A child's contribution to its parent's local bounds: the child's content,
  *  widened by the child's own effect halo, then placed by its transform. */
 function childLocalVisualBounds(
@@ -82,10 +93,11 @@ function childLocalVisualBounds(
   childId: string,
   preview: Shape | null | undefined,
   cache: Map<string, Bounds | null> | undefined,
-  visiting: Set<string>
+  visiting: Set<string>,
+  scope?: VarScope
 ): Bounds | null {
   const child = doc.nodes[childId];
-  const content = nodeLocalContentBounds(doc, childId, preview, cache, visiting);
+  const content = nodeLocalContentBounds(doc, childId, preview, cache, visiting, scope);
   if (!child || !content) return null;
   return transformBounds(
     expandBounds(
@@ -109,21 +121,23 @@ export function nodeLocalContentBounds(
   nodeId: string,
   preview?: Shape | null,
   cache?: Map<string, Bounds | null>,
-  visiting: Set<string> = new Set()
+  visiting: Set<string> = new Set(),
+  scope?: VarScope
 ): Bounds | null {
-  if (cache?.has(nodeId)) return cache.get(nodeId) ?? null;
+  const key = boundsKey(scope, nodeId);
+  if (cache?.has(key)) return cache.get(key) ?? null;
   if (visiting.has(nodeId)) return null;
   const stored = doc.nodes[nodeId];
   if (!stored || stored.hidden) {
-    cache?.set(nodeId, null);
+    cache?.set(key, null);
     return null;
   }
   visiting.add(nodeId);
 
   let bounds: Bounds | null = null;
   if (isShape(stored)) {
-    const shape = preview?.id === stored.id ? preview : stored;
-    bounds = shapePaintBounds(shape, doc, shape === stored);
+    const shape = preview?.id === stored.id ? preview : scopedNode(stored, scope);
+    bounds = shapePaintBounds(shape, doc, shape !== preview);
   } else if (isFrame(stored)) {
     const frameBounds = frameLocalBounds(stored);
     bounds = stored.clipsContent
@@ -131,24 +145,25 @@ export function nodeLocalContentBounds(
       : unionBounds([
           frameBounds,
           ...stored.childIds.map((id) =>
-            childLocalVisualBounds(doc, id, preview, cache, visiting)
+            childLocalVisualBounds(doc, id, preview, cache, visiting, scope)
           ),
         ]);
   } else if (isGroup(stored)) {
     bounds = unionBounds(
       clippingContentIds(doc, stored).map((id) =>
-        childLocalVisualBounds(doc, id, preview, cache, visiting)
+        childLocalVisualBounds(doc, id, preview, cache, visiting, scope)
       )
     );
     const mask = clippingMask(doc, stored);
     if (bounds && mask) {
-      const geometry = preview?.id === mask.id ? preview : mask;
+      const geometry =
+        preview?.id === mask.id ? preview : scopedNode(mask, scope);
       bounds = intersectBounds(
         bounds,
         transformBounds(
-          geometry === mask
-            ? cachedCullingShapeBounds(geometry, doc)
-            : shapeBounds(geometry, doc),
+          geometry === preview
+            ? shapeBounds(geometry, doc)
+            : cachedCullingShapeBounds(geometry, doc),
           geometry.transform
         )
       );
@@ -161,13 +176,14 @@ export function nodeLocalContentBounds(
         definition.rootNodeId,
         preview,
         cache,
-        visiting
+        visiting,
+        instanceScope(doc, stored, scope)
       );
     }
   }
 
   visiting.delete(nodeId);
-  cache?.set(nodeId, bounds);
+  cache?.set(key, bounds);
   return bounds;
 }
 
@@ -212,15 +228,18 @@ export function visualNodeWorldBounds(
   doc: Document,
   nodeId: string,
   cache: Map<string, Bounds | null>,
-  visiting: Set<string> = new Set()
+  visiting: Set<string> = new Set(),
+  scope?: VarScope
 ): Bounds | null {
-  if (cache.has(nodeId)) return cache.get(nodeId) ?? null;
+  const key = boundsKey(scope, nodeId);
+  if (cache.has(key)) return cache.get(key) ?? null;
   if (visiting.has(nodeId)) return null;
-  const node = doc.nodes[nodeId];
-  if (!node || node.hidden) {
-    cache.set(nodeId, null);
+  const stored = doc.nodes[nodeId];
+  if (!stored || stored.hidden) {
+    cache.set(key, null);
     return null;
   }
+  const node = scopedNode(stored, scope);
   visiting.add(nodeId);
 
   let bounds: Bounds | null;
@@ -234,7 +253,13 @@ export function visualNodeWorldBounds(
   } else if (isInstance(node)) {
     const definition = doc.symbols[node.symbolId];
     const content = definition
-      ? visualNodeWorldBounds(doc, definition.rootNodeId, cache, visiting)
+      ? visualNodeWorldBounds(
+          doc,
+          definition.rootNodeId,
+          cache,
+          visiting,
+          instanceScope(doc, node, scope)
+        )
       : null;
     bounds = content
       ? transformBounds(content, nodeWorldMatrix(doc, node.id))
@@ -255,7 +280,7 @@ export function visualNodeWorldBounds(
       : unionBounds([
           frameBounds,
           ...node.childIds.map((id) =>
-            visualNodeWorldBounds(doc, id, cache, visiting)
+            visualNodeWorldBounds(doc, id, cache, visiting, scope)
           ),
         ]) ?? frameBounds;
     bounds = expandBounds(
@@ -265,13 +290,13 @@ export function visualNodeWorldBounds(
   } else if (isGroup(node)) {
     const children = unionBounds(
       clippingContentIds(doc, node).map((id) =>
-        visualNodeWorldBounds(doc, id, cache, visiting)
+        visualNodeWorldBounds(doc, id, cache, visiting, scope)
       )
     );
     const mask = clippingMask(doc, node);
     bounds =
       children && mask
-        ? intersectBounds(children, worldShapeBounds(doc, mask))
+        ? intersectBounds(children, worldShapeBounds(doc, scopedNode(mask, scope)))
         : children;
     if (bounds) {
       bounds = expandBounds(
@@ -284,7 +309,7 @@ export function visualNodeWorldBounds(
   }
 
   visiting.delete(nodeId);
-  cache.set(nodeId, bounds);
+  cache.set(key, bounds);
   return bounds;
 }
 

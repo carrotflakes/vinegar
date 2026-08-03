@@ -27,6 +27,7 @@ import {
   type VarScope,
 } from "../model/vars";
 import { isGroup, isShape } from "../model/scene";
+import { scopedNode } from "../model/params";
 import { effectiveRectCornerRadius, roundedRectSubpath } from "../model/roundedRect";
 import { ellipseSubpath } from "../model/ellipse";
 import {
@@ -642,7 +643,11 @@ function nodeToSvg(
   scope: VarScope = documentScope(doc)
 ): string[] {
   if (isShape(node)) {
-    return node.hidden ? [] : [indent + shapeToSvg(doc, node, defs, scope)];
+    // The instance's numeric overrides reach geometry the same way the canvas
+    // applies them: the node reads through the scope before it is serialized.
+    return node.hidden
+      ? []
+      : [indent + shapeToSvg(doc, scopedNode(node, scope), defs, scope)];
   }
   if (node.hidden) return [];
   let childIds: string[];
@@ -652,7 +657,7 @@ function nodeToSvg(
     const mask = clippingMask(doc, node);
     if (mask) {
       childIds = clippingContentIds(doc, node);
-      clipId = defs.clipPath(mask);
+      clipId = defs.clipPath(scopedNode(mask, scope));
     } else {
       childIds = node.childIds;
     }

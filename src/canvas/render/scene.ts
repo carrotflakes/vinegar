@@ -16,6 +16,7 @@ import {
   type VarScope,
 } from "@/model/vars";
 import { ancestorIds, isFrame, isGroup, isInstance, isShape } from "@/model/scene";
+import { scopedNode } from "@/model/params";
 import { effectiveStrokeAlignment, STROKE_MITER_LIMIT } from "@/model/stroke";
 import type {
   Bounds,
@@ -89,7 +90,9 @@ function paintNodeInternal(
     const bounds = visualNodeWorldBounds(
       doc,
       nodeId,
-      traversal.visualBounds
+      traversal.visualBounds,
+      undefined,
+      scope
     );
     if (!bounds || !intersectBounds(bounds, traversal.visibleWorldBounds)) {
       traversal.stats.culledNodes += 1;
@@ -99,7 +102,9 @@ function paintNodeInternal(
   if (traversal) traversal.stats.paintedNodes += 1;
   if (isShape(node)) {
     if (node.hidden || node.id === hiddenShapeId) return;
-    const shape = preview?.id === node.id ? preview : node;
+    // Inside an instance that overrides a numeric parameter, the node reads
+    // through the scope; everywhere else this is the stored node itself.
+    const shape = preview?.id === node.id ? preview : scopedNode(node, scope);
     if (!hasEffects(shape.effects)) {
       paintShape(ctx, shape, doc.assets, doc, preview, shape, scope);
       return;
@@ -121,7 +126,9 @@ function paintNodeInternal(
       doc,
       nodeId,
       preview,
-      traversal?.layerBounds
+      traversal?.layerBounds,
+      undefined,
+      scope
     );
     const acq = acquireLayer(
       ctx,
@@ -203,7 +210,7 @@ function paintNodeInternal(
       }
     }
     if (!mask) return;
-    const geometry = preview?.id === mask.id ? preview : mask;
+    const geometry = preview?.id === mask.id ? preview : scopedNode(mask, scope);
     const path = cachedShapePath(geometry, doc, preview);
     if (
       path &&
@@ -253,7 +260,9 @@ function paintNodeInternal(
     doc,
     nodeId,
     preview,
-    traversal?.layerBounds
+    traversal?.layerBounds,
+    undefined,
+    scope
   );
   const acq = acquireLayer(
     ctx,

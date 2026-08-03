@@ -19,6 +19,8 @@ import {
 } from "../clippingMask";
 import { invertMatrix, matrixScale, nodeWorldMatrix, shapeWorldMatrix, transformBounds } from "./matrix";
 import { isInstance, isShape, symbolLeafIds } from "../scene";
+import { scopedNode } from "../params";
+import { instanceScope, type VarScope } from "../vars";
 import { pointInRoundedRect, roundedRectPolyline } from "../roundedRect";
 import { effectiveStrokeAlignment, strokeOutset } from "../stroke";
 import type { Bounds, Document, Shape, SymbolInstance, Vec2 } from "../types";
@@ -347,9 +349,12 @@ export function hitTestNode(
   p: Vec2,
   tol: number,
   clipBoundaryId?: string,
-  seen: Set<string> = new Set()
+  seen: Set<string> = new Set(),
+  scope?: VarScope
 ): boolean {
-  if (isShape(node)) return hitTestShape(doc, node, p, tol, clipBoundaryId);
+  if (isShape(node)) {
+    return hitTestShape(doc, scopedNode(node, scope), p, tol, clipBoundaryId);
+  }
   if (!pointPassesAncestorMasks(doc, node.id, p, clipBoundaryId)) return false;
   if (seen.has(node.symbolId)) return false;
   const world = nodeWorldMatrix(doc, node.id);
@@ -358,6 +363,7 @@ export function hitTestNode(
   const local = applyMatrix(inverse, p);
   const localTol = tol / matrixScale(world);
   seen.add(node.symbolId);
+  const inner = instanceScope(doc, node, scope);
   const leaves = symbolLeafIds(doc, node.symbolId);
   let hit = false;
   for (let i = leaves.length - 1; i >= 0; i--) {
@@ -366,7 +372,7 @@ export function hitTestNode(
     if (!isNodeVisibleForHitTesting(doc, leaf.id)) continue;
     // Leaf world matrices inside a definition are symbol-local, matching
     // the transformed point.
-    if (hitTestNode(doc, leaf, local, localTol, undefined, seen)) {
+    if (hitTestNode(doc, leaf, local, localTol, undefined, seen, inner)) {
       hit = true;
       break;
     }
@@ -385,9 +391,12 @@ export function marqueeHitNode(
   node: Shape | SymbolInstance,
   region: Bounds,
   clipBoundaryId?: string,
-  seen: Set<string> = new Set()
+  seen: Set<string> = new Set(),
+  scope?: VarScope
 ): boolean {
-  if (isShape(node)) return marqueeHitShape(doc, node, region, clipBoundaryId);
+  if (isShape(node)) {
+    return marqueeHitShape(doc, scopedNode(node, scope), region, clipBoundaryId);
+  }
   const clippedRegion = marqueeRegionInsideAncestorMasks(
     doc,
     node.id,
@@ -396,18 +405,19 @@ export function marqueeHitNode(
   );
   if (!clippedRegion) return false;
   if (seen.has(node.symbolId)) return false;
-  const bounds = instanceWorldBounds(doc, node);
+  const bounds = instanceWorldBounds(doc, node, new Set(), scope);
   if (!bounds || !rectsIntersect(bounds, clippedRegion)) return false;
   const world = nodeWorldMatrix(doc, node.id);
   const inverse = invertMatrix(world);
   if (!inverse) return false;
   const localRegion = transformBounds(clippedRegion, inverse);
   seen.add(node.symbolId);
+  const inner = instanceScope(doc, node, scope);
   const hit = symbolLeafIds(doc, node.symbolId).some((id) => {
     const leaf = doc.nodes[id];
     if (!isShape(leaf) && !isInstance(leaf)) return false;
     if (!isNodeVisibleForHitTesting(doc, leaf.id)) return false;
-    return marqueeHitNode(doc, leaf, localRegion, undefined, seen);
+    return marqueeHitNode(doc, leaf, localRegion, undefined, seen, inner);
   });
   seen.delete(node.symbolId);
   return hit;

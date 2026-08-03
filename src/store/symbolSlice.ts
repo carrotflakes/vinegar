@@ -6,6 +6,12 @@
 import { symbolContentBounds } from "@/model/geometry/bounds";
 import { isVarRef, tintPaint, varRef } from "@/model/paint";
 import { resolvePaint, symbolDefScope } from "@/model/vars";
+import {
+  materializeBindable,
+  readNumField,
+  syncParamBindings,
+  withBinding,
+} from "@/model/params";
 import { hasValidSceneContainers } from "../model/sceneValidation";
 import { IDENTITY, translation as translationMatrix } from "@/model/geometry/matrix";
 import {
@@ -29,6 +35,7 @@ import {
 import {
   baseNodeDefaults,
   makeId,
+  numberValue,
   paintValue,
   type Document,
   type Group,
@@ -215,6 +222,44 @@ export function createSymbolActions({ set, get, transact }: StoreCtx): SymbolAct
       );
       return key;
     },
+    promoteNumberToSymbolParam: (nodeId, path, label) => {
+      const doc = get().doc;
+      const stored = doc.nodes[nodeId];
+      if (!stored) return null;
+      const symbolId = enclosingSymbolId(doc, nodeId);
+      const def = symbolId ? doc.symbols[symbolId] : null;
+      if (!def) return null;
+      // Already driven by a parameter of this symbol: promoting again would
+      // only shadow it.
+      const existing = stored.bindings[path];
+      if (existing && def.params.some((p) => p.key === existing.varId)) return null;
+      const node = materializeBindable(stored, path);
+      const value = readNumField(node, path);
+      if (value === null) return null;
+      const key = makeId("var");
+      const params = [
+        ...def.params,
+        {
+          key,
+          label: label?.trim() || `Value ${def.params.length + 1}`,
+          // The default is the number the field holds now, so promotion — like
+          // binding — never changes the picture.
+          default: numberValue(value, { integer: Number.isInteger(value) }),
+        },
+      ];
+      transact(
+        {
+          ...doc,
+          nodes: {
+            ...doc.nodes,
+            [nodeId]: withBinding(node, path, { varId: key, scale: 1 }),
+          },
+          symbols: { ...doc.symbols, [symbolId!]: { ...def, params } },
+        },
+        { label: "Promote to symbol parameter" }
+      );
+      return key;
+    },
     renameSymbolParam: (symbolId, key, label) => {
       const doc = get().doc;
       const def = doc.symbols[symbolId];
@@ -223,6 +268,39 @@ export function createSymbolActions({ set, get, transact }: StoreCtx): SymbolAct
       transact(
         { ...doc, symbols: { ...doc.symbols, [symbolId]: { ...def, params } } },
         { label: "Rename symbol parameter" }
+      );
+    },
+    setSymbolParamDefault: (symbolId, key, value) => {
+      const doc = get().doc;
+      const def = doc.symbols[symbolId];
+      const param = def?.params.find((p) => p.key === key);
+      // A parameter's type is fixed by its default, like a document variable's.
+      if (!def || !param || value.kind !== param.default.kind) return;
+      const next: Document = {
+        ...doc,
+        symbols: {
+          ...doc.symbols,
+          [symbolId]: {
+            ...def,
+            params: def.params.map((p) =>
+              p.key === key ? { ...p, default: value } : p
+            ),
+          },
+        },
+      };
+      // Retuning a numeric default rewrites every bound field in the
+      // definition, so a scrub batches through the interaction pattern rather
+      // than by coalescing per-frame transactions — as variable edits do.
+      if (get()._interaction) {
+        get().setDoc(syncParamBindings(next));
+        return;
+      }
+      transact(
+        next,
+        {
+          label: "Edit symbol parameter",
+          coalesceKey: `symbolParam:${symbolId}:${key}`,
+        }
       );
     },
     removeSymbolParam: (symbolId, key) => {
@@ -236,8 +314,15 @@ export function createSymbolActions({ set, get, transact }: StoreCtx): SymbolAct
       const nodes = { ...doc.nodes };
       for (const id of [def.rootNodeId, ...descendantNodeIds(doc, def.rootNodeId)]) {
         const node = nodes[id];
+        if (!node) continue;
+        // A numeric parameter is referenced through a binding, and the bound
+        // field already holds the default (that is what `syncParamBindings`
+        // writes inside a definition), so dropping the binding is the bake.
+        for (const [path, ref] of Object.entries(node.bindings)) {
+          if (ref.varId === key) nodes[id] = withBinding(nodes[id], path, null);
+        }
         if (!isShape(node)) continue;
-        let next = node;
+        let next = nodes[id] as Shape;
         for (const target of ["fill", "stroke"] as const) {
           const paint = next[target];
           if (isVarRef(paint) && paint.varId === key) {

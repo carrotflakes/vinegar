@@ -23,12 +23,29 @@ let parseDocument;
 let serializeDocument;
 let exportSvg;
 let useEditor;
+let syncParamBindings;
+let scopedNode;
+let instanceScope;
+let visualNodeWorldBounds;
+let hitTestNode;
 
 before(async () => {
   server = await createServer({ server: { middlewareMode: true } });
   ({ varRef, solid } = await server.ssrLoadModule("/src/model/paint.ts"));
-  ({ documentScope, symbolScope, symbolDefScope, resolvePaint, scopeForNode } =
-    await server.ssrLoadModule("/src/model/vars.ts"));
+  ({
+    documentScope,
+    symbolScope,
+    symbolDefScope,
+    resolvePaint,
+    scopeForNode,
+    instanceScope,
+  } = await server.ssrLoadModule("/src/model/vars.ts"));
+  ({ syncParamBindings, scopedNode } =
+    await server.ssrLoadModule("/src/model/params.ts"));
+  ({ visualNodeWorldBounds } =
+    await server.ssrLoadModule("/src/canvas/render/bounds.ts"));
+  ({ hitTestNode } =
+    await server.ssrLoadModule("/src/model/geometry/hitTest.ts"));
   ({ createEmptyDocument, paintValue, numberValue } =
     await server.ssrLoadModule("/src/model/types.ts"));
   ({ parseDocument, serializeDocument } =
@@ -241,4 +258,161 @@ test("promotion outside a symbol definition is refused", () => {
   doc.rootIds = ["loose"];
   editor.loadDocument(doc);
   assert.equal(useEditor.getState().promoteToSymbolParam("loose", "fill"), null);
+});
+
+// ---------------------------------------------------------------------------
+// Phase 2b: numeric parameters. A binding inside a definition resolves through
+// the instance being evaluated, so one definition draws different *geometry*
+// per instance while its stored numbers stay the definition's defaults.
+// ---------------------------------------------------------------------------
+
+/**
+ * One symbol whose leaf binds its stroke width to the parameter `w`
+ * (default 4), placed twice: `i1` takes the default, `i2` overrides it with 20.
+ */
+function docWithNumericSymbol(patch = {}) {
+  const leaf = rect("leaf", {
+    stroke: solid("#000000"),
+    strokeWidth: 4,
+    bindings: { strokeWidth: { varId: "w", scale: 1 } },
+    ...patch,
+  });
+  return {
+    ...createEmptyDocument(),
+    nodes: {
+      leaf,
+      defRoot: group("defRoot", ["leaf"]),
+      i1: instance("i1", "sym"),
+      i2: instance("i2", "sym", { w: numberValue(20) }),
+    },
+    rootIds: ["i1", "i2"],
+    symbols: {
+      sym: {
+        id: "sym",
+        name: "Sym",
+        rootNodeId: "defRoot",
+        params: [{ key: "w", label: "Weight", default: numberValue(4) }],
+      },
+    },
+  };
+}
+
+test("the definition stores the default; the instance's value is derived", () => {
+  const doc = syncParamBindings(docWithNumericSymbol());
+  // Committing resolves the definition's own fields against its defaults, so
+  // any reader that ignores scopes still sees a correct drawing.
+  assert.equal(doc.nodes.leaf.strokeWidth, 4);
+
+  const at = (id) =>
+    scopedNode(doc.nodes.leaf, instanceScope(doc, doc.nodes[id])).strokeWidth;
+  assert.equal(at("i1"), 4, "no override: the definition's default");
+  assert.equal(at("i2"), 20, "the instance's own value wins");
+  // The scoped node is memoized, so the caches downstream of it keep hitting.
+  assert.equal(
+    scopedNode(doc.nodes.leaf, instanceScope(doc, doc.nodes.i2)),
+    scopedNode(doc.nodes.leaf, instanceScope(doc, doc.nodes.i2))
+  );
+  // An instance that overrides nothing reads the stored node itself, so it
+  // shares every geometry cache with the definition.
+  assert.equal(
+    scopedNode(doc.nodes.leaf, instanceScope(doc, doc.nodes.i1)),
+    doc.nodes.leaf
+  );
+});
+
+test("a numeric override retunes geometry, not just a number", () => {
+  // The parameter drives a generator arg, whose geometry is rebuilt per scope.
+  const doc = syncParamBindings({
+    ...docWithNumericSymbol(),
+    nodes: {
+      ...docWithNumericSymbol().nodes,
+      leaf: {
+        ...rect("leaf"),
+        type: "path",
+        subpaths: [],
+        fillRule: "nonzero",
+        generator: {
+          scriptId: "star",
+          args: { points: 5, radius: 10, innerRatio: 0.5 },
+        },
+        bindings: { "generator.args.radius": { varId: "w", scale: 1 } },
+      },
+    },
+  });
+  const reach = (id) => {
+    const node = scopedNode(doc.nodes.leaf, instanceScope(doc, doc.nodes[id]));
+    return Math.max(...node.subpaths[0].anchors.map((a) => Math.hypot(a.p.x, a.p.y)));
+  };
+  assert.ok(Math.abs(reach("i1") - 4) < 1e-6);
+  assert.ok(Math.abs(reach("i2") - 20) < 1e-6);
+});
+
+test("bounds and hit-testing follow the instance's own numbers", () => {
+  const doc = syncParamBindings(docWithNumericSymbol());
+  // Stroke width widens the painted bounds, which is what culling and the
+  // selection frame measure.
+  const cache = new Map();
+  const b1 = visualNodeWorldBounds(doc, "i1", cache);
+  const b2 = visualNodeWorldBounds(doc, "i2", cache);
+  assert.ok(b2.width > b1.width, "the heavier instance paints wider");
+
+  // A point just outside the shape lands on the thick instance's stroke only.
+  const outside = { x: -6, y: 5 };
+  assert.equal(hitTestNode(doc, doc.nodes.i1, outside, 0), false);
+  assert.equal(hitTestNode(doc, doc.nodes.i2, outside, 0), true);
+});
+
+test("SVG export bakes each instance's own numeric overrides", () => {
+  const svg = exportSvg(syncParamBindings(docWithNumericSymbol()));
+  assert.equal((svg.match(/stroke-width="4"/g) ?? []).length, 1);
+  assert.equal((svg.match(/stroke-width="20"/g) ?? []).length, 1);
+});
+
+test("promoting a number declares a parameter without changing the picture", () => {
+  const editor = useEditor.getState();
+  editor.newDocument();
+  const doc = createEmptyDocument();
+  doc.nodes = {
+    leaf: rect("leaf", { stroke: solid("#000000"), strokeWidth: 6 }),
+    defRoot: group("defRoot", ["leaf"]),
+    i1: instance("i1", "sym"),
+  };
+  doc.rootIds = ["i1"];
+  doc.symbols.sym = { id: "sym", name: "Sym", rootNodeId: "defRoot", params: [] };
+  editor.loadDocument(doc);
+
+  const key = useEditor
+    .getState()
+    .promoteNumberToSymbolParam("leaf", "strokeWidth", "Weight");
+  assert.ok(key, "the field is inside a definition");
+  let after = useEditor.getState().doc;
+  assert.deepEqual(after.symbols.sym.params, [
+    { key, label: "Weight", default: numberValue(6, { integer: true }) },
+  ]);
+  assert.deepEqual(after.nodes.leaf.bindings, {
+    strokeWidth: { varId: key, scale: 1 },
+  });
+  assert.equal(after.nodes.leaf.strokeWidth, 6, "nothing moved");
+
+  // Overriding is per instance and never writes the definition's node.
+  useEditor.getState().setInstanceArg("i1", key, numberValue(9));
+  after = useEditor.getState().doc;
+  assert.equal(after.nodes.leaf.strokeWidth, 6);
+  assert.equal(
+    scopedNode(after.nodes.leaf, instanceScope(after, after.nodes.i1)).strokeWidth,
+    9
+  );
+
+  // Retuning the default moves every instance that has no override.
+  useEditor.getState().setInstanceArg("i1", key, null);
+  useEditor.getState().setSymbolParamDefault("sym", key, numberValue(2));
+  after = useEditor.getState().doc;
+  assert.equal(after.nodes.leaf.strokeWidth, 2);
+
+  // Removing the parameter leaves the field on the number it was showing.
+  useEditor.getState().removeSymbolParam("sym", key);
+  after = useEditor.getState().doc;
+  assert.deepEqual(after.symbols.sym.params, []);
+  assert.deepEqual(after.nodes.leaf.bindings, {});
+  assert.equal(after.nodes.leaf.strokeWidth, 2);
 });

@@ -4,6 +4,8 @@ import { clippingMask } from "../clippingMask";
 import { compoundChildren } from "@/model/path/compoundPath";
 import { nodeWorldMatrix, shapeWorldMatrix, transformBounds } from "./matrix";
 import { isFrame, isGroup, isInstance, isShape } from "../scene";
+import { scopedNode } from "../params";
+import { instanceScope, type VarScope } from "../vars";
 import type { Bounds, Document, FrameNode, Shape, SymbolInstance, Vec2 } from "../types";
 
 function pointsBounds(points: Vec2[]): Bounds {
@@ -89,18 +91,21 @@ function unionOf(bounds: (Bounds | null)[]): Bounds | null {
 
 /**
  * Bounds of a symbol's content in symbol-local space. `seen` guards against
- * (invalid) cyclic symbol references.
+ * (invalid) cyclic symbol references. `scope` is the variable scope *inside*
+ * the definition — an instance's own args, when the content is being measured
+ * for one; see {@link instanceWorldBounds}.
  */
 export function symbolContentBounds(
   doc: Document,
   symbolId: string,
-  seen: Set<string> = new Set()
+  seen: Set<string> = new Set(),
+  scope?: VarScope
 ): Bounds | null {
   if (seen.has(symbolId)) return null;
   const definition = doc.symbols[symbolId];
   if (!definition) return null;
   seen.add(symbolId);
-  const bounds = nodeWorldBounds(doc, definition.rootNodeId, seen);
+  const bounds = nodeWorldBounds(doc, definition.rootNodeId, seen, scope);
   seen.delete(symbolId);
   return bounds;
 }
@@ -109,9 +114,15 @@ export function symbolContentBounds(
 export function instanceWorldBounds(
   doc: Document,
   instance: SymbolInstance,
-  seen: Set<string> = new Set()
+  seen: Set<string> = new Set(),
+  scope?: VarScope
 ): Bounds | null {
-  const content = symbolContentBounds(doc, instance.symbolId, seen);
+  const content = symbolContentBounds(
+    doc,
+    instance.symbolId,
+    seen,
+    instanceScope(doc, instance, scope)
+  );
   return content
     ? transformBounds(content, nodeWorldMatrix(doc, instance.id))
     : null;
@@ -124,12 +135,20 @@ export function instanceWorldBounds(
  */
 export function leafLocalBounds(
   doc: Document,
-  leaf: Shape | SymbolInstance
+  leaf: Shape | SymbolInstance,
+  scope?: VarScope
 ): Bounds {
   if (isInstance(leaf)) {
-    return symbolContentBounds(doc, leaf.symbolId) ?? { x: 0, y: 0, width: 0, height: 0 };
+    return (
+      symbolContentBounds(
+        doc,
+        leaf.symbolId,
+        new Set(),
+        instanceScope(doc, leaf, scope)
+      ) ?? { x: 0, y: 0, width: 0, height: 0 }
+    );
   }
-  return shapeBounds(leaf, doc);
+  return shapeBounds(scopedNode(leaf, scope), doc);
 }
 
 /** A frame's content box in its own local space (origin at 0,0). */
@@ -140,20 +159,23 @@ export function frameLocalBounds(frame: FrameNode): Bounds {
 export function nodeWorldBounds(
   doc: Document,
   nodeId: string,
-  seen: Set<string> = new Set()
+  seen: Set<string> = new Set(),
+  scope?: VarScope
 ): Bounds | null {
   const node = doc.nodes[nodeId];
   if (!node) return null;
-  if (isShape(node)) return worldShapeBounds(doc, node);
-  if (isInstance(node)) return instanceWorldBounds(doc, node, seen);
+  if (isShape(node)) return worldShapeBounds(doc, scopedNode(node, scope));
+  if (isInstance(node)) return instanceWorldBounds(doc, node, seen, scope);
   // A frame's bounds are its content box, not the union of its children.
   if (isFrame(node)) {
     return transformBounds(frameLocalBounds(node), nodeWorldMatrix(doc, nodeId));
   }
   if (isGroup(node)) {
     const mask = clippingMask(doc, node);
-    if (mask) return worldShapeBounds(doc, mask);
-    return unionOf(node.childIds.map((id) => nodeWorldBounds(doc, id, seen)));
+    if (mask) return worldShapeBounds(doc, scopedNode(mask, scope));
+    return unionOf(
+      node.childIds.map((id) => nodeWorldBounds(doc, id, seen, scope))
+    );
   }
   return null;
 }

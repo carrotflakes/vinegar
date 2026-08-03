@@ -34,6 +34,8 @@ const doc = (shapes) => ({
   rootIds: shapes.map((s) => s.id),
   symbols: {},
   scripts: {},
+  vars: {},
+  varOrder: [],
   settings: { unit: "px", dpi: 96, gridSize: 50 },
   metadata: { createdAt: "", modifiedAt: "" },
   assets: {},

@@ -33,10 +33,20 @@ export type PaintTarget = "fill" | "stroke";
 /**
  * A lookup chain, innermost first. Every frame is a flat id -> value map; the
  * document's own variables are the outermost frame.
+ *
+ * `numberKey` identifies the chain's *numeric* content, and only where that
+ * content departs from what the document stores. A bound field already holds
+ * the number it resolves to outside any instance (`syncParamBindings`), so an
+ * empty key means "the stored literals are already right" — the state every
+ * scope has until an instance overrides a numeric parameter. Geometry caches
+ * key on it, and scoped resolution skips its work entirely when it is empty,
+ * so phase 2b costs nothing in documents that do not use it.
+ * See docs/parameters.md.
  */
 export interface VarScope {
   readonly values: Record<string, VarValue>;
   readonly parent: VarScope | null;
+  readonly numberKey: string;
 }
 
 const docScopes = new WeakMap<Record<string, DocVar>, VarScope>();
@@ -47,10 +57,17 @@ export function documentScope(doc: Document): VarScope {
   if (cached) return cached;
   const values: Record<string, VarValue> = {};
   for (const [id, entry] of Object.entries(doc.vars)) values[id] = entry.value;
-  const scope: VarScope = { values, parent: null };
+  const scope: VarScope = { values, parent: null, numberKey: "" };
   docScopes.set(doc.vars, scope);
   return scope;
 }
+
+/** How a numeric value reads in a scope key. `integer` participates because
+ *  resolution rounds through it. */
+const numberKeyPart = (key: string, value: VarValue): string =>
+  value.kind === "number"
+    ? `${key}=${value.value}${value.integer ? "i" : ""}`
+    : "";
 
 /**
  * The scope inside `instance`'s definition: the instance's args over the
@@ -64,13 +81,44 @@ export function symbolScope(
 ): VarScope {
   if (!def.params.length) return parent;
   const values: Record<string, VarValue> = {};
+  const overrides: string[] = [];
   for (const param of def.params) {
     // An override of the wrong type is ignored: `default` fixes the type.
     const arg = instance.args[param.key];
-    values[param.key] =
-      arg && arg.kind === param.default.kind ? arg : param.default;
+    const value = arg && arg.kind === param.default.kind ? arg : param.default;
+    values[param.key] = value;
+    // Only a numeric value that *differs* from the default earns a key: an
+    // instance that takes the defaults reads the same geometry — and shares the
+    // same caches — as the definition itself.
+    if (value !== param.default && value.kind === "number") {
+      const part = numberKeyPart(param.key, value);
+      if (part !== numberKeyPart(param.key, param.default)) overrides.push(part);
+    }
   }
-  return { values, parent };
+  return {
+    values,
+    parent,
+    numberKey: overrides.length
+      ? `${parent.numberKey}|${def.id}:${overrides.join(",")}`
+      : parent.numberKey,
+  };
+}
+
+/**
+ * The scope inside `instance`'s definition, given the scope the instance sits
+ * in (the document's own, when omitted). Every traversal that descends through
+ * an instance — painting, hit-testing, bounds, export — pushes this frame, so
+ * both paint references and numeric bindings below it read the instance's own
+ * arguments.
+ */
+export function instanceScope(
+  doc: Document,
+  instance: SymbolInstance,
+  outer?: VarScope
+): VarScope {
+  const def = doc.symbols[instance.symbolId];
+  const parent = outer ?? documentScope(doc);
+  return def ? symbolScope(parent, def, instance) : parent;
 }
 
 /**
@@ -84,7 +132,9 @@ export function symbolDefScope(doc: Document, def: SymbolDef): VarScope {
   if (!def.params.length) return parent;
   const values: Record<string, VarValue> = {};
   for (const param of def.params) values[param.key] = param.default;
-  return { values, parent };
+  // The defaults are what `syncParamBindings` has already written into the
+  // definition's bound fields, so this frame changes no number: empty key.
+  return { values, parent, numberKey: parent.numberKey };
 }
 
 /**

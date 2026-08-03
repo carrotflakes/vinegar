@@ -26,6 +26,8 @@ import { applyMatrix, IDENTITY, multiply } from "@/model/geometry/matrix";
 import { strokeOutline } from "@/model/path/outlineStroke";
 import { roundedRectPolyline } from "./roundedRect";
 import { isGroup, isInstance, isShape, scopeRootIds } from "./scene";
+import { scopedNode } from "./params";
+import { instanceScope, scopeForNode, type VarScope } from "./vars";
 import type { Document, Matrix, Shape, Vec2 } from "./types";
 
 export type BucketFillResult =
@@ -187,8 +189,10 @@ function addShapeObstacles(
   pt: IntPoint,
   entries: InkEntry[],
   allowCovers: boolean,
-  strokeCenterline: boolean
+  strokeCenterline: boolean,
+  varScope?: VarScope
 ): void {
+  shape = scopedNode(shape, varScope);
   const world = multiply(parentWorld, shape.transform);
   // Centerline mode: a brush blocks along its centerline, not its envelope.
   // Lone dots (fewer than 2 samples) keep their envelope below.
@@ -276,7 +280,9 @@ function collectObstacles(
   pt: IntPoint,
   entries: InkEntry[],
   allowCovers: boolean,
-  strokeCenterline: boolean
+  strokeCenterline: boolean,
+  /** Variable scope of these nodes; an instance pushes its own args below. */
+  varScope?: VarScope
 ): void {
   for (const id of ids) {
     const node = doc.nodes[id];
@@ -294,10 +300,11 @@ function collectObstacles(
           pt,
           inner,
           false,
-          strokeCenterline
+          strokeCenterline,
+          varScope
         );
         const content = inner.flatMap((e) => e.contours);
-        const geom = fillGeometry(mask, doc);
+        const geom = fillGeometry(scopedNode(mask, varScope), doc);
         if (!content.length || !geom) continue;
         const maskWorld = multiply(world, mask.transform);
         const maskPaths = worldRings(geom.rings, maskWorld)
@@ -323,7 +330,8 @@ function collectObstacles(
           pt,
           entries,
           allowCovers,
-          strokeCenterline
+          strokeCenterline,
+          varScope
         );
       }
     } else if (isInstance(node)) {
@@ -337,11 +345,21 @@ function collectObstacles(
           pt,
           entries,
           false,
-          strokeCenterline
+          strokeCenterline,
+          instanceScope(doc, node, varScope)
         );
       }
     } else if (isShape(node)) {
-      addShapeObstacles(doc, node, parentWorld, pt, entries, allowCovers, strokeCenterline);
+      addShapeObstacles(
+        doc,
+        node,
+        parentWorld,
+        pt,
+        entries,
+        allowCovers,
+        strokeCenterline,
+        varScope
+      );
     }
   }
 }
@@ -458,7 +476,8 @@ export function computeBucketFill(
     pt,
     entries,
     true,
-    strokeCenterline
+    strokeCenterline,
+    scopeForNode(doc, scope)
   );
   let coverIdx = -1;
   for (let i = 0; i < entries.length; i++) {
