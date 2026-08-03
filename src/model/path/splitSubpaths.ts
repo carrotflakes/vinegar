@@ -2,6 +2,7 @@ import { IDENTITY } from "@/model/geometry/matrix";
 import {
   baseNodeDefaults,
   makeId,
+  type Document,
   type Group,
   type PathShape,
   type SceneNode,
@@ -16,9 +17,10 @@ import { resolvedSubpaths } from "./pathModifiers";
  * or `structure.makeCompound` is the way back.
  */
 export function canSplitSubpaths(
-  node: SceneNode | undefined
+  node: SceneNode | undefined,
+  doc?: Document
 ): node is PathShape {
-  return !!node && node.type === "path" && resolvedSubpaths(node).length > 1;
+  return !!node && node.type === "path" && resolvedSubpaths(node, doc).length > 1;
 }
 
 export interface SplitSubpathsResult {
@@ -69,8 +71,11 @@ export function flattenSplitPieces(result: SplitSubpathsResult): PathShape[] {
   }));
 }
 
-export function splitSubpaths(shape: PathShape): SplitSubpathsResult | null {
-  const subpaths = resolvedSubpaths(shape);
+export function splitSubpaths(
+  shape: PathShape,
+  doc?: Document
+): SplitSubpathsResult | null {
+  const subpaths = resolvedSubpaths(shape, doc);
   if (subpaths.length < 2) return null;
   const pieces = subpaths.map((sp, i) => ({
     ...structuredClone(shape),

@@ -78,7 +78,7 @@ function fillGeometry(
       return { rings: [pts], fillType: evenOdd };
     }
     case "path":
-      const rings = resolvedSubpaths(shape)
+      const rings = resolvedSubpaths(shape, doc)
         .filter((sp) => sp.anchors.length >= 2)
         .map((sp) => flattenSubpath(sp));
       return rings.length

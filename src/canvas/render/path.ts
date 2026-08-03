@@ -19,7 +19,7 @@ type PathTarget = Pick<
 >;
 
 /** Append non-compound geometry to either a live canvas path or a Path2D. */
-function appendPath(target: PathTarget, shape: Shape): void {
+function appendPath(target: PathTarget, shape: Shape, doc?: Document): void {
   switch (shape.type) {
     case "rect": {
       const b = shapeBounds(shape);
@@ -67,7 +67,7 @@ function appendPath(target: PathTarget, shape: Shape): void {
       break;
     }
     case "path": {
-      for (const sp of resolvedSubpaths(shape)) {
+      for (const sp of resolvedSubpaths(shape, doc)) {
         const segs = subpathSegments(sp);
         if (segs.length === 0) {
           if (sp.anchors[0]) {
@@ -142,7 +142,7 @@ export function cachedShapePath(
     const cached = pathCache.get(shape);
     if (cached) return cached;
     const path = new Path2D();
-    appendPath(path, shape);
+    appendPath(path, shape, doc);
     pathCache.set(shape, path);
     return path;
   }
@@ -157,7 +157,7 @@ export function cachedShapePath(
     const stored = doc.nodes[id];
     const component = preview?.id === id ? preview : stored;
     return isShape(component) &&
-      isCompoundChild(component) &&
+      isCompoundChild(component, doc) &&
       !component.hidden
       ? [component]
       : [];
@@ -199,7 +199,7 @@ export function tracePath(
     const component = preview?.id === id ? preview : stored;
     if (
       !isShape(component) ||
-      !isCompoundChild(component) ||
+      !isCompoundChild(component, doc) ||
       component.hidden
     ) {
       continue;

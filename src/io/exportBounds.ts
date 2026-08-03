@@ -93,7 +93,7 @@ function leavesBounds(
     if (isShape(node)) {
       b = worldShapeBounds(doc, node);
       half = !masks.has(id)
-        ? strokeOutset(node) * matrixScale(shapeWorldMatrix(doc, node))
+        ? strokeOutset(node, doc) * matrixScale(shapeWorldMatrix(doc, node))
         : 0;
     } else {
       b = nodeWorldBounds(doc, id);

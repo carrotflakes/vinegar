@@ -56,7 +56,7 @@ export function canCombineSelection(doc: Document, selection: string[]): boolean
  * mapped into that space instead. A non-invertible base transform is the one
  * case that falls back to baking into the parent space.
  */
-export function combineShapes(shapes: PathShape[]): PathShape | null {
+export function combineShapes(shapes: PathShape[], doc?: Document): PathShape | null {
   if (shapes.length < 2) return null;
   const base = shapes[0];
   const intoBase = invertMatrix(base.transform);
@@ -69,7 +69,7 @@ export function combineShapes(shapes: PathShape[]): PathShape | null {
       // Base-space contours pass through untouched; the rest are re-expressed
       // in it (parent space when the base transform cannot be inverted).
       const m = intoBase ? multiply(intoBase, shape.transform) : shape.transform;
-      const subpaths = resolvedSubpaths(shape);
+      const subpaths = resolvedSubpaths(shape, doc);
       return isIdentity(m)
         ? subpaths.map((sp) => structuredClone(sp))
         : subpaths.map((sp) => transformSubpath(m, sp));

@@ -43,7 +43,7 @@ export function isClippingMaskCandidate(
         (!doc || node.childIds.every((id) => isClippingMaskCandidate(doc.nodes[id], doc)))
       );
     case "path":
-      const subpaths = resolvedSubpaths(node);
+      const subpaths = resolvedSubpaths(node, doc);
       return (
         subpaths.length > 0 &&
         subpaths.every((subpath) => subpath.anchors.length >= 2)

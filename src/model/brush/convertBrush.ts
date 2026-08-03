@@ -14,6 +14,7 @@ import {
   makeId,
   type BrushAnchor,
   type BrushShape,
+  type Document,
   type Group,
   type PathAnchor,
   type PathShape,
@@ -35,10 +36,12 @@ function hasBrushableCenterline(subpath: PathSubpath): boolean {
  * centerline can become a brush stroke.
  */
 export function canConvertPathToBrush(
-  node: SceneNode | undefined
+  node: SceneNode | undefined,
+  doc?: Document
 ): node is PathShape {
   return (
-    node?.type === "path" && resolvedSubpaths(node).some(hasBrushableCenterline)
+    node?.type === "path" &&
+    resolvedSubpaths(node, doc).some(hasBrushableCenterline)
   );
 }
 
@@ -92,9 +95,10 @@ export interface ConvertPathToBrushResult {
  * Returns null when no contour has a drawable centerline.
  */
 export function convertPathToBrush(
-  shape: PathShape
+  shape: PathShape,
+  doc?: Document
 ): ConvertPathToBrushResult | null {
-  const subpaths = resolvedSubpaths(shape).filter(hasBrushableCenterline);
+  const subpaths = resolvedSubpaths(shape, doc).filter(hasBrushableCenterline);
   if (!subpaths.length) return null;
   const appearance = brushAppearance(shape);
   const detail = strokeDetailFields(shape);

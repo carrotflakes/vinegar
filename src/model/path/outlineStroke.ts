@@ -57,7 +57,7 @@ function centerlines(shape: Shape, doc?: Document): Polyline[] {
       return [{ points: pts, closed: true }];
     }
     case "path":
-      return resolvedSubpaths(shape).map((sp) => ({
+      return resolvedSubpaths(shape, doc).map((sp) => ({
         points: flattenSubpath(sp),
         closed: sp.closed,
       }));
@@ -181,7 +181,7 @@ function alignOutline(
   strokeTree: PolyNode,
   doc?: Document
 ): PolyNode {
-  const alignment = effectiveStrokeAlignment(shape);
+  const alignment = effectiveStrokeAlignment(shape, doc);
   if (alignment === "center") return strokeTree;
   const silhouette = centerlines(shape, doc)
     .filter((line) => line.closed && line.points.length >= 3)
@@ -219,7 +219,7 @@ export function strokeOutline(
   doc?: Document
 ): Vec2[][][] | null {
   if (shape.stroke === null || shape.strokeWidth <= 0) return null;
-  const alignment = effectiveStrokeAlignment(shape);
+  const alignment = effectiveStrokeAlignment(shape, doc);
   const half =
     halfWidthOverride ??
     (alignment === "center" ? shape.strokeWidth / 2 : shape.strokeWidth);

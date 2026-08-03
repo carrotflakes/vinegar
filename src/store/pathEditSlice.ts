@@ -261,7 +261,7 @@ export function createPathEditActions({ set, get, transact }: StoreCtx): PathEdi
       for (const id of selectionRoots(doc, get().selection)) {
         const shape = nodes[id];
         if (!isShape(shape) || shape.type !== "path") continue;
-        const baked = applyPathModifiers(shape);
+        const baked = applyPathModifiers(shape, doc);
         const result = pathOpShape(baked, op);
         if (result) {
           nodes[id] = result;
@@ -310,7 +310,7 @@ export function createPathEditActions({ set, get, transact }: StoreCtx): PathEdi
       for (const id of selectionRoots(doc, get().selection)) {
         const shape = nodes[id];
         if (!isShape(shape) || shape.type !== "path" || !shape.modifiers?.length) continue;
-        nodes[id] = applyPathModifiers(shape);
+        nodes[id] = applyPathModifiers(shape, doc);
         changed = true;
       }
       if (changed) transact(

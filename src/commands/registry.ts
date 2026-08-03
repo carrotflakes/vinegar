@@ -103,15 +103,15 @@ function sel(s: EditorState) {
       shapeRoots.every((sh) => sh.type === "path") &&
       parents.size === 1 &&
       shapeRoots.reduce(
-        (n, sh) => n + (sh.type === "path" ? joinableSubpathCount(sh) : 0),
+        (n, sh) => n + (sh.type === "path" ? joinableSubpathCount(sh, s.doc) : 0),
         0
       ) >= 2,
-    canSplitSubpaths: roots.some((id) => canSplitSubpaths(s.doc.nodes[id])),
+    canSplitSubpaths: roots.some((id) => canSplitSubpaths(s.doc.nodes[id], s.doc)),
     canBoolean:
       shapeRoots.length === roots.length &&
       roots.length >= 2 &&
       parents.size === 1 &&
-      shapeRoots.every(isAreal),
+      shapeRoots.every((shape) => isAreal(shape, s.doc)),
     canOutline: shapeRoots.some(
       (sh) =>
         sh.type !== "text" &&

@@ -81,10 +81,10 @@ function traceLeaf(
  * closes it, which paints a face a curve never had, so those get the outline
  * alone. Compound-path components are always closed.
  */
-function fillable(shape: Shape): boolean {
+function fillable(shape: Shape, doc: Document): boolean {
   if (shape.type === "line") return false;
   if (shape.type === "path") {
-    const subpaths = resolvedSubpaths(shape);
+    const subpaths = resolvedSubpaths(shape, doc);
     return subpaths.length > 0 && subpaths.every((sp) => sp.closed);
   }
   return true;
@@ -109,7 +109,7 @@ function outlineShape(
   const path = traceLeaf(ctx, doc, shape);
   const stroke = () => (path ? ctx.stroke(path) : ctx.stroke());
 
-  if (pulse > 0 && fillable(shape)) {
+  if (pulse > 0 && fillable(shape, doc)) {
     ctx.fillStyle = accent;
     ctx.globalAlpha = PULSE_WASH * pulse;
     if (path) ctx.fill(path, "evenodd");

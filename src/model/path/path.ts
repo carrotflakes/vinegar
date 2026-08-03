@@ -1,5 +1,12 @@
 import { applyMatrix } from "@/model/geometry/matrix";
-import type { Matrix, PathAnchor, PathShape, PathSubpath, Vec2 } from "../types";
+import type {
+  Document,
+  Matrix,
+  PathAnchor,
+  PathShape,
+  PathSubpath,
+  Vec2,
+} from "../types";
 import { setAnchorType } from "./anchorType";
 import { resolvedSubpaths } from "./pathModifiers";
 
@@ -144,8 +151,14 @@ export function flattenSubpathAdaptive(
 }
 
 /** Every defining point of a path shape, across all subpaths (flattened). */
-export function flattenPath(shape: PathShape, perSegment = 18): Vec2[] {
-  return resolvedSubpaths(shape).flatMap((sp) => flattenSubpath(sp, perSegment));
+export function flattenPath(
+  shape: PathShape,
+  doc?: Document,
+  perSegment = 18
+): Vec2[] {
+  return resolvedSubpaths(shape, doc).flatMap((sp) =>
+    flattenSubpath(sp, perSegment)
+  );
 }
 
 function lerp(a: Vec2, b: Vec2, t: number): Vec2 {

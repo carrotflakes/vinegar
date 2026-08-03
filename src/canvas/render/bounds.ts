@@ -36,11 +36,11 @@ function unionBounds(bounds: Array<Bounds | null>): Bounds | null {
   return { x, y, width: right - x, height: bottom - y };
 }
 
-function shapeStrokeMargin(shape: Shape): number {
+function shapeStrokeMargin(shape: Shape, doc: Document): number {
   if (shape.type === "brush" || !shape.stroke || shape.strokeWidth <= 0) {
     return 0;
   }
-  const alignment = effectiveStrokeAlignment(shape);
+  const alignment = effectiveStrokeAlignment(shape, doc);
   return alignment === "outside"
     ? shape.strokeWidth * STROKE_MITER_LIMIT
     : alignment === "center"
@@ -55,7 +55,7 @@ function shapePaintBounds(
 ): Bounds {
   return expandBounds(
     cacheable ? cachedCullingShapeBounds(shape, doc) : shapeBounds(shape, doc),
-    shapeStrokeMargin(shape)
+    shapeStrokeMargin(shape, doc)
   );
 }
 
@@ -221,7 +221,7 @@ export function visualNodeWorldBounds(
   if (isShape(node)) {
     let local = expandBounds(
       cachedCullingShapeBounds(node, doc),
-      shapeStrokeMargin(node)
+      shapeStrokeMargin(node, doc)
     );
     local = expandBounds(local, effectsMargin(node.effects));
     bounds = transformBounds(local, nodeWorldMatrix(doc, node.id));

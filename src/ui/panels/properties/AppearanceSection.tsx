@@ -33,6 +33,7 @@ export default function AppearanceSection({
 }: {
   selected: Shape[];
 }) {
+  const doc = useEditor((state) => state.doc);
   const style = useEditor((state) => state.style);
   const updateSelectedStyle = useEditor(
     (state) => state.updateSelectedStyle
@@ -55,7 +56,7 @@ export default function AppearanceSection({
         dashOffset: first.strokeDashOffset ?? 0,
         cap: first.strokeCap,
         join: first.strokeJoin,
-        alignment: effectiveStrokeAlignment(first),
+        alignment: effectiveStrokeAlignment(first, doc),
       }
     : {
         dash: normalizeStrokeDash(style.strokeDash),
@@ -68,7 +69,7 @@ export default function AppearanceSection({
     !hasSelection ||
     selected
       .filter((shape) => shape.type !== "image")
-      .every(supportsStrokeAlignment);
+      .every((shape) => supportsStrokeAlignment(shape, doc));
   const opacity = hasSelection ? first.opacity : 1;
   // The rule only changes anything once a path has several subpaths, so it stays
   // hidden until one does rather than sitting unused above the stroke controls.
@@ -77,7 +78,7 @@ export default function AppearanceSection({
   );
   const showFillRule =
     paths.length === selected.length &&
-    paths.some((path) => resolvedSubpaths(path).length > 1);
+    paths.some((path) => resolvedSubpaths(path, doc).length > 1);
   const fillRule = paths.every((path) => path.fillRule === paths[0]?.fillRule)
     ? paths[0]?.fillRule ?? null
     : null;

@@ -111,8 +111,8 @@ export function createShapeOpsActions({ set, get, transact }: StoreCtx): ShapeOp
       const selected: string[] = [];
       for (const id of roots) {
         const shape = doc.nodes[id];
-        if (!canConvertPathToBrush(shape)) continue;
-        const result = convertPathToBrush(shape);
+        if (!canConvertPathToBrush(shape, doc)) continue;
+        const result = convertPathToBrush(shape, doc);
         if (!result) continue;
         const parent = parentIdOf(doc, id);
         const siblings = childIdsOf(doc, parent);
@@ -168,11 +168,11 @@ export function createShapeOpsActions({ set, get, transact }: StoreCtx): ShapeOp
         // A filled areal shape keeps its fill by wrapping the outline in a group,
         // which would replace a clipping mask with a non-mask container and leave
         // the clip group without a valid mask (see maskMultiNodeError).
-        if (isAreal(shape) && shape.fill && isClippingMaskNode(doc, id)) { maskSkipped = true; continue; }
+        if (isAreal(shape, doc) && shape.fill && isClippingMaskNode(doc, id)) { maskSkipped = true; continue; }
         const polys = strokeOutline(shape, undefined, doc); if (!polys?.length) continue;
         const outline: Shape = { id: makeId("path"), name: "Outline", type: "path", fillRule: "evenodd", subpaths: ringsToSubpaths(polys.flat()), ...baseShapeDefaults(), fill: shape.stroke, ...baseNodeDefaults(), opacity: shape.opacity, blendMode: shape.blendMode, transform: [...IDENTITY] };
         const parent = parentIdOf(doc, id); const siblings = childIdsOf(doc, parent); const at = siblings.indexOf(id); const nodes = { ...doc.nodes };
-        if (isAreal(shape) && shape.fill) { const gid = makeId("group"); nodes[id] = { ...shape, stroke: null }; nodes[outline.id] = outline; nodes[gid] = groupNode(gid, [id, outline.id]); const order = [...siblings]; order.splice(at, 1, gid); doc = replaceChildren({ ...doc, nodes }, parent, order); selected.push(gid); }
+        if (isAreal(shape, doc) && shape.fill) { const gid = makeId("group"); nodes[id] = { ...shape, stroke: null }; nodes[outline.id] = outline; nodes[gid] = groupNode(gid, [id, outline.id]); const order = [...siblings]; order.splice(at, 1, gid); doc = replaceChildren({ ...doc, nodes }, parent, order); selected.push(gid); }
         else { effectsRemoved ||= shape.effects.length > 0; for (const removed of [id, ...descendantNodeIds(doc, id)]) delete nodes[removed]; nodes[outline.id] = outline; const order = [...siblings]; order.splice(at, 1, outline.id); doc = replaceChildren({ ...doc, nodes }, parent, order); selected.push(outline.id); }
       }
       if (selected.length && hasValidSceneContainers(doc)) { transact(doc, { label: "Outline stroke" }); set({ selection: selected, ...clearTransient }); if (effectsRemoved) notifyEffectsRemoved(); }
@@ -210,7 +210,7 @@ export function createShapeOpsActions({ set, get, transact }: StoreCtx): ShapeOp
         roots.length < 2 ||
         !roots.every((id) => {
           const node = doc.nodes[id];
-          return isShape(node) && isAreal(node);
+          return isShape(node) && isAreal(node, doc);
         })
       )
         return;
@@ -319,14 +319,14 @@ export function createShapeOpsActions({ set, get, transact }: StoreCtx): ShapeOp
       let maskSkipped = false;
       for (const id of roots) {
         const shape = doc.nodes[id];
-        if (!canSplitSubpaths(shape)) continue;
+        if (!canSplitSubpaths(shape, doc)) continue;
         // Splitting always yields several nodes, so a mask can never be split
         // (see maskMultiNodeError).
         if (isClippingMaskNode(doc, id)) {
           maskSkipped = true;
           continue;
         }
-        const result = splitSubpaths(shape);
+        const result = splitSubpaths(shape, doc);
         if (!result) continue;
         const parent = parentIdOf(doc, id);
         const siblings = childIdsOf(doc, parent);

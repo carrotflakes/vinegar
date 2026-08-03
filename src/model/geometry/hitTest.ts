@@ -124,7 +124,7 @@ function containsGeometry(
     }
     case "path":
       return containsRings(
-        resolvedSubpaths(shape)
+        resolvedSubpaths(shape, doc)
           .filter((subpath) => subpath.anchors.length >= 2)
           // Wrap the call: `.map(flattenSubpath)` would leak the array index
           // into `perSegment`, collapsing the first ring to a single point.
@@ -227,7 +227,7 @@ export function hitTestShape(
   const worldMatrix = shapeWorldMatrix(doc, shape);
   tol /= matrixScale(worldMatrix);
   const hasFill = shape.fill !== null;
-  const alignment = effectiveStrokeAlignment(shape);
+  const alignment = effectiveStrokeAlignment(shape, doc);
   const strokeReach = shape.stroke
     ? (alignment === "center" ? shape.strokeWidth / 2 : shape.strokeWidth)
     : 0;
@@ -296,7 +296,7 @@ export function hitTestShape(
       );
     }
     case "path": {
-      const subpaths = resolvedSubpaths(shape);
+      const subpaths = resolvedSubpaths(shape, doc);
       const rings = subpaths
         .filter((subpath) => subpath.anchors.length >= 2)
         .map((subpath) => flattenSubpath(subpath));
@@ -496,14 +496,14 @@ export function marqueeHitShape(
   const matrix = shapeWorldMatrix(doc, shape);
   const visualBounds = expandBounds(
     worldShapeBounds(doc, shape),
-    strokeOutset(shape) * matrixScale(matrix)
+    strokeOutset(shape, doc) * matrixScale(matrix)
   );
   if (!rectsIntersect(visualBounds, region)) return false;
   const lines = localPolylines(shape, doc).map((line) => ({
     ...line,
     points: line.points.map((point) => applyMatrix(matrix, point)),
   }));
-  const alignment = effectiveStrokeAlignment(shape);
+  const alignment = effectiveStrokeAlignment(shape, doc);
   const stroke = shape.stroke
     ? (alignment === "center" ? shape.strokeWidth / 2 : shape.strokeWidth) * matrixScale(matrix)
     : 0;
@@ -605,7 +605,7 @@ function localPolylines(shape: Shape, doc?: Document): WorldPolyline[] {
         closed: false,
       }];
     case "path":
-      return resolvedSubpaths(shape).map((sp) => ({
+      return resolvedSubpaths(shape, doc).map((sp) => ({
         points: flattenSubpath(sp),
         closed: sp.closed,
       }));

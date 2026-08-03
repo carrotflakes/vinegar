@@ -1,5 +1,6 @@
 import type {
   BaseShape,
+  Document,
   Shape,
   StrokeAlignment,
   StrokeCap,
@@ -19,7 +20,7 @@ export function normalizeStrokeDash(dash: readonly number[]): number[] {
 }
 
 /** Inside/outside is well-defined only for closed geometry and live text. */
-export function supportsStrokeAlignment(shape: Shape): boolean {
+export function supportsStrokeAlignment(shape: Shape, doc?: Document): boolean {
   switch (shape.type) {
     case "rect":
     case "ellipse":
@@ -27,7 +28,7 @@ export function supportsStrokeAlignment(shape: Shape): boolean {
     case "text":
       return true;
     case "path":
-      const subpaths = resolvedSubpaths(shape);
+      const subpaths = resolvedSubpaths(shape, doc);
       return subpaths.length > 0 && subpaths.every((subpath) => subpath.closed);
     case "line":
     case "image":
@@ -36,8 +37,11 @@ export function supportsStrokeAlignment(shape: Shape): boolean {
   }
 }
 
-export function effectiveStrokeAlignment(shape: Shape): StrokeAlignment {
-  return supportsStrokeAlignment(shape) ? shape.strokeAlignment : "center";
+export function effectiveStrokeAlignment(
+  shape: Shape,
+  doc?: Document
+): StrokeAlignment {
+  return supportsStrokeAlignment(shape, doc) ? shape.strokeAlignment : "center";
 }
 
 /**
@@ -45,12 +49,12 @@ export function effectiveStrokeAlignment(shape: Shape): StrokeAlignment {
  * joins receive a deliberately conservative multiplier so exports do not crop
  * sharp corners.
  */
-export function strokeOutset(shape: Shape): number {
+export function strokeOutset(shape: Shape, doc?: Document): number {
   // Brush strokes bake their width into the envelope geometry, so bounds are
   // already outset; a second stroke reach would double-count.
   if (shape.type === "brush") return 0;
   if (!shape.stroke || shape.strokeWidth <= 0) return 0;
-  const alignment = effectiveStrokeAlignment(shape);
+  const alignment = effectiveStrokeAlignment(shape, doc);
   let outset = alignment === "inside"
     ? 0
     : alignment === "outside"

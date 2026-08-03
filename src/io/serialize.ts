@@ -424,7 +424,7 @@ function validateTree(doc: Document): void {
       }
       for (const childId of node.childIds) {
         const child = doc.nodes[childId];
-        if (!isCompoundChild(child)) {
+        if (!isCompoundChild(child, doc)) {
           throw new Error(`Compound path has invalid child: ${childId}.`);
         }
       }

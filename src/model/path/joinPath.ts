@@ -5,6 +5,7 @@ import { resolvedSubpaths } from "./pathModifiers";
 import {
   makeId,
   baseNodeDefaults,
+  type Document,
   type PathAnchor,
   type PathShape,
   type PathSubpath,
@@ -32,8 +33,8 @@ function reverseAnchors(anchors: PathAnchor[]): PathAnchor[] {
 }
 
 /** Whether a path shape carries any open subpath that could be joined. */
-export function joinableSubpathCount(shape: PathShape): number {
-  return resolvedSubpaths(shape).filter(
+export function joinableSubpathCount(shape: PathShape, doc?: Document): number {
+  return resolvedSubpaths(shape, doc).filter(
     (sp) => !sp.closed && sp.anchors.length >= 2
   ).length;
 }
@@ -49,14 +50,15 @@ export function joinableSubpathCount(shape: PathShape): number {
  */
 export function joinShapes(
   shapes: PathShape[],
-  tolerance = JOIN_TOLERANCE
+  tolerance = JOIN_TOLERANCE,
+  doc?: Document
 ): PathShape | null {
   // Open contours (anchor runs) to weld, plus untouched closed subpaths.
   const open: PathAnchor[][] = [];
   const passthrough: PathSubpath[] = [];
   for (const shape of shapes) {
     const m = shape.transform;
-    for (const sp of resolvedSubpaths(shape)) {
+    for (const sp of resolvedSubpaths(shape, doc)) {
       const anchors = sp.anchors.map((a) => transformAnchor(m, a));
       if (sp.closed || anchors.length < 2) {
         passthrough.push({ anchors, closed: sp.closed });

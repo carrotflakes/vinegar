@@ -3,6 +3,7 @@ import { flattenSubpathAdaptive, ringsToSubpaths } from "./path";
 import { contours, intPath, SCALE, treeToPolys } from "./clipperPaths";
 import { applyPathOpSubpaths } from "./pathOps";
 import type {
+  Document,
   PathModifier,
   PathShape,
   PathSubpath,
@@ -134,8 +135,18 @@ function applyModifier(
 
 const resolvedCache = new WeakMap<PathShape, PathSubpath[]>();
 
-/** Evaluate a path's immutable base geometry through its modifier stack. */
-export function resolvedSubpaths(shape: PathShape): PathSubpath[] {
+/**
+ * Evaluate a path's immutable base geometry through its modifier stack.
+ *
+ * `doc` is what lets a stage reach outside the node itself; every stage today
+ * is a pure function of the node, so it is optional, but callers on the
+ * render / hit-test / bounds / export path must pass it so all of them agree.
+ */
+export function resolvedSubpaths(
+  shape: PathShape,
+  doc?: Document
+): PathSubpath[] {
+  void doc;
   const modifiers = shape.modifiers ?? [];
   if (!modifiers.some((modifier) => modifier.enabled !== false)) {
     return shape.subpaths;
@@ -152,11 +163,11 @@ export function resolvedSubpaths(shape: PathShape): PathSubpath[] {
 }
 
 /** Bake the evaluated stack into editable base geometry. */
-export function applyPathModifiers(shape: PathShape): PathShape {
+export function applyPathModifiers(shape: PathShape, doc?: Document): PathShape {
   if (!(shape.modifiers?.length)) return shape;
   return {
     ...shape,
-    subpaths: resolvedSubpaths(shape),
+    subpaths: resolvedSubpaths(shape, doc),
     modifiers: [],
     generator: null,
   };

@@ -52,7 +52,7 @@ export function shapeBounds(shape: Shape, doc?: Document): Bounds {
         shape.y2 - shape.y1
       );
     case "path":
-      return pointsBounds(flattenPath(shape));
+      return pointsBounds(flattenPath(shape, doc));
     case "brush":
       // The envelope already includes the stroke width and end caps.
       return pointsBounds(cachedBrushEnvelope(shape));

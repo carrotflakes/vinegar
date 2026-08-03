@@ -436,7 +436,7 @@ function shapeToSvg(doc: Document, shape: Shape, defs: Defs, scope: VarScope): s
     if (fx) parts.push(fx);
     return shapeGeometryToSvg(doc, shape, parts.join(" "));
   }
-  const alignment = effectiveStrokeAlignment(shape);
+  const alignment = effectiveStrokeAlignment(shape, doc);
   if (!shape.stroke || shape.strokeWidth <= 0 || alignment === "center") {
     return shapeGeometryToSvg(doc, shape, commonAttrs(doc, shape, defs, scope));
   }
@@ -504,7 +504,7 @@ function shapeGeometryToSvg(doc: Document, shape: Shape, attrs: string): string 
       )}" y2="${num(shape.y2)}" ${attrs} />`;
     case "path": {
       const rule = shape.fillRule ? ` fill-rule="${shape.fillRule}"` : "";
-      return `<path d="${pathData(shape)}"${rule} ${attrs} />`;
+      return `<path d="${pathData(shape, doc)}"${rule} ${attrs} />`;
     }
     case "brush": {
       const ring = cachedBrushEnvelope(shape);
@@ -515,14 +515,18 @@ function shapeGeometryToSvg(doc: Document, shape: Shape, attrs: string): string 
     }
     case "compoundPath":
       return `<path d="${compoundChildren(doc, shape)
-        .map((component) => primitivePathData(component, component.transform))
+        .map((component) => primitivePathData(component, component.transform, doc))
         .join(" ")}" fill-rule="evenodd" ${attrs} />`;
     case "image":
       return "";
   }
 }
 
-function primitivePathData(shape: PrimitiveShape, matrix: Matrix): string {
+function primitivePathData(
+  shape: PrimitiveShape,
+  matrix: Matrix,
+  doc?: Document
+): string {
   const point = (p: { x: number; y: number }) => {
     const out = applyMatrix(matrix, p);
     return `${num(out.x)} ${num(out.y)}`;
@@ -563,7 +567,7 @@ function primitivePathData(shape: PrimitiveShape, matrix: Matrix): string {
     case "line":
       return `M ${point({ x: shape.x1, y: shape.y1 })} L ${point({ x: shape.x2, y: shape.y2 })}`;
     case "path":
-      return resolvedSubpaths(shape).map((sp) => {
+      return resolvedSubpaths(shape, doc).map((sp) => {
         if (!sp.anchors.length) return "";
         let d = `M ${point(sp.anchors[0].p)}`;
         for (const segment of subpathSegments(sp)) {
@@ -574,9 +578,9 @@ function primitivePathData(shape: PrimitiveShape, matrix: Matrix): string {
   }
 }
 
-function pathData(shape: PathShape): string {
+function pathData(shape: PathShape, doc?: Document): string {
   const parts: string[] = [];
-  for (const sp of resolvedSubpaths(shape)) {
+  for (const sp of resolvedSubpaths(shape, doc)) {
     const segs = subpathSegments(sp);
     if (sp.anchors.length === 0) continue;
     const start = sp.anchors[0].p;
@@ -603,11 +607,11 @@ function maskShapeToSvg(doc: Document, shape: ClippingMaskShape): string {
     case "rect":
     case "ellipse":
     case "path":
-      d = primitivePathData(shape, [1, 0, 0, 1, 0, 0]);
+      d = primitivePathData(shape, [1, 0, 0, 1, 0, 0], doc);
       break;
     case "compoundPath":
       d = compoundChildren(doc, shape)
-        .map((component) => primitivePathData(component, component.transform))
+        .map((component) => primitivePathData(component, component.transform, doc))
         .join(" ");
       break;
   }

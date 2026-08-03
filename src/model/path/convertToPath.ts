@@ -45,7 +45,7 @@ function lineSubpath(shape: LineShape): PathSubpath {
   };
 }
 
-function primitiveSubpaths(shape: PrimitiveShape): PathSubpath[] {
+function primitiveSubpaths(shape: PrimitiveShape, doc?: Document): PathSubpath[] {
   switch (shape.type) {
     case "rect":
       return [roundedRectSubpath(shape)];
@@ -54,7 +54,7 @@ function primitiveSubpaths(shape: PrimitiveShape): PathSubpath[] {
     case "line":
       return [lineSubpath(shape)];
     case "path":
-      return resolvedSubpaths(shape);
+      return resolvedSubpaths(shape, doc);
   }
 }
 

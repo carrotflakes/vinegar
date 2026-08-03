@@ -384,7 +384,7 @@ export function createStructureActions({ set, get, transact }: StoreCtx): Struct
           notify.error("Frames must stay at the top level.");
           return;
         }
-        if (isCompoundPath(target) && (!isShape(node) || !canCompoundShape(node) ||
+        if (isCompoundPath(target) && (!isShape(node) || !canCompoundShape(node, doc) ||
             node.type === "compoundPath")) {
           notify.error(
             "Compound paths only accept rectangles, ellipses, and closed paths."

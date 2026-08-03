@@ -81,7 +81,7 @@ function shapeToGeom(shape: Shape, doc?: Document): paper.PathItem | null {
     }
     case "path":
       item = compound(
-        resolvedSubpaths(shape)
+        resolvedSubpaths(shape, doc)
           .filter((sp) => sp.anchors.length >= 2)
           .map((sp) => {
             // Force the implicit fill close paper.js needs to see an area.
@@ -111,14 +111,14 @@ function shapeToGeom(shape: Shape, doc?: Document): paper.PathItem | null {
 }
 
 /** Whether a shape encloses an area and can take part in boolean operations. */
-export function isAreal(shape: Shape): boolean {
+export function isAreal(shape: Shape, doc?: Document): boolean {
   switch (shape.type) {
     case "rect":
     case "ellipse":
     case "compoundPath":
       return true;
     case "path":
-      return resolvedSubpaths(shape).some((sp) => sp.anchors.length >= 2);
+      return resolvedSubpaths(shape, doc).some((sp) => sp.anchors.length >= 2);
     case "line":
     case "image":
     case "text":

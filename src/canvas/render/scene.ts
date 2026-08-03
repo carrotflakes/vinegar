@@ -458,7 +458,7 @@ function paintVectorStroke(
   preview?: Shape | null
 ): void {
   if (!shape.stroke) return;
-  const alignment = effectiveStrokeAlignment(shape);
+  const alignment = effectiveStrokeAlignment(shape, doc);
   if (alignment === "outside") {
     const strokeBounds = expandBounds(
       bounds,
@@ -523,10 +523,11 @@ function paintTextStroke(
   shape: Extract<Shape, { type: "text" }>,
   lines: ReturnType<typeof layoutTextWithCanvas>["lines"],
   bounds: Bounds,
-  assets: Record<string, DocumentAsset>
+  assets: Record<string, DocumentAsset>,
+  doc?: Document
 ): void {
   if (!shape.stroke) return;
-  const alignment = effectiveStrokeAlignment(shape);
+  const alignment = effectiveStrokeAlignment(shape, doc);
   if (alignment === "center") {
     const style = resolveStyle(ctx, shape.stroke, bounds, assets);
     if (!style) return;

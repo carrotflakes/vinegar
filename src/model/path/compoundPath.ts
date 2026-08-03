@@ -18,13 +18,15 @@ import {
 import { resolvedSubpaths } from "./pathModifiers";
 
 export function isCompoundChild(
-  node: SceneNode | undefined
+  node: SceneNode | undefined,
+  doc?: Document
 ): node is PrimitiveShape {
   if (!node || (node.type !== "rect" && node.type !== "ellipse" && node.type !== "path")) {
     return false;
   }
-  return node.type !== "path" ||
-    (resolvedSubpaths(node).length > 0 && resolvedSubpaths(node).every((sp) => sp.closed));
+  if (node.type !== "path") return true;
+  const subpaths = resolvedSubpaths(node, doc);
+  return subpaths.length > 0 && subpaths.every((sp) => sp.closed);
 }
 
 /** Real child shapes whose outlines currently participate in the compound. */
@@ -35,18 +37,18 @@ export function compoundChildren(
 ): PrimitiveShape[] {
   return compound.childIds.flatMap((id) => {
     const node = doc.nodes[id];
-    return isCompoundChild(node) && (includeHidden || !node.hidden)
+    return isCompoundChild(node, doc) && (includeHidden || !node.hidden)
       ? [node]
       : [];
   });
 }
 
 /** Compound paths only accept fully closed, area-bearing geometry. */
-export function canCompoundShape(shape: Shape): boolean {
+export function canCompoundShape(shape: Shape, doc?: Document): boolean {
   if (shape.type === "compoundPath") return shape.childIds.length > 0;
-  if (!isAreal(shape)) return false;
+  if (!isAreal(shape, doc)) return false;
   if (shape.type === "path") {
-    const subpaths = resolvedSubpaths(shape);
+    const subpaths = resolvedSubpaths(shape, doc);
     return subpaths.length > 0 && subpaths.every((sp) => sp.closed);
   }
   return true;
@@ -68,8 +70,13 @@ export function canReleaseCompoundPathSelection(doc: Document, selection: string
 }
 
 /** Create a compound container in the inputs' parent space. */
-export function makeCompoundPath(shapes: Shape[]): CompoundPathNode | null {
-  if (shapes.length < 2 || !shapes.every(canCompoundShape)) return null;
+export function makeCompoundPath(
+  shapes: Shape[],
+  doc?: Document
+): CompoundPathNode | null {
+  if (shapes.length < 2 || !shapes.every((shape) => canCompoundShape(shape, doc))) {
+    return null;
+  }
   const base = shapes[0];
   return {
     id: makeId("compound"),
