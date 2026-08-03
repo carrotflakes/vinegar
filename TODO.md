@@ -65,8 +65,11 @@ additional effects, or other feature expansion.
 - [ ] **Parameters and references** (docs/parameters.md) — phase 1 shipped:
   document parameters (v32) drive `strokeWidth`, path-modifier params and
   built-in generator args through `node.bindings`. Remaining phases: parametric
-  symbols (v34) → non-destructive boolean as a node→node operand (v35) →
-  expressions (optional). Each ships alone; not before the 1.0 gates above.
+  symbols — 2a paint overrides + the `swatches`/`params` → typed `vars` merge
+  (v34), 2b numeric overrides (v35) — and non-destructive boolean as a node→node
+  operand (v35), then expressions (optional). Only hard ordering: 2b after the
+  boolean phase, since both need geometry resolution to become context-aware and
+  memoized. Not before the 1.0 gates above.
   Phase-1 gap: document-script generators are not bindable (their geometry only
   rebuilds through the worker, which the pure resolution step cannot await).
 - [x] Swatches saved in the document — global colors (v23), holding any concrete

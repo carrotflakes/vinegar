@@ -219,6 +219,9 @@ In [`sceneValidation.ts`](../src/model/sceneValidation.ts):
 - Gradient stops that point at a global color (per-stop resolution — a gradient
   *as* a global color is supported, a gradient *of* global colors is not).
 - Color groups / harmonies, `.ase` palette import/export.
+- Merging `swatches` with `params` into one typed `vars` table, and per-instance
+  colour overrides on symbols — both are phase 2a in
+  [parameters.md](parameters.md), which is where the schema is load-bearing.
 - Exposing swatch refs to the scripting DSL and generators — comes for free
   once `resolvePaintRef` is the single resolution point; only the authoring API
   needs surfacing.

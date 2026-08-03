@@ -1,6 +1,8 @@
 # Parameters and references
 
 Status: **phase 1 implemented** (2026-08-03); phases 2–4 remain a proposal.
+Phase 2 was rewritten (2026-08-04) around typed document variables after global
+colours widened to any concrete paint in v33 — see *Document variables* below.
 Related:
 [path-modifiers.md](path-modifiers.md) (the stage pipeline this feeds),
 [global-colors.md](global-colors.md) (the existing reference edge this copies),
@@ -8,10 +10,10 @@ Related:
 
 ## Problem / motivation
 
-Colours can already be *references*: a `swatch` paint points at
-`doc.swatches[id]`, and editing the swatch re-tints every use live
-(`resolvePaintRef`, docs/global-colors.md). Numbers cannot. Every numeric
-parameter in the document is a literal:
+Paint can already be a *reference*: a `swatch` fill points at
+`doc.swatches[id]`, and editing that swatch — solid, gradient or pattern since
+v33 — repaints every use live (`resolvePaintRef`, docs/global-colors.md).
+Numbers cannot. Every numeric parameter in the document is a literal:
 
 - `GeneratorRef.args: Record<string, number>`
 - `Modifier` params (`tolerance`, `distance`, `width`, …)
@@ -24,8 +26,8 @@ asymmetry — **not** about building a node-graph editor (see *Non-goals*).
 The end state is a small dependency graph over the document: parameters are
 sources, node fields are sinks, and a few edges run node → node. It is
 introduced in four phases, each independently shippable, each useful on its own.
-Phases 3 and 4 are explicitly optional; stopping after phase 2 is a valid
-outcome.
+Phases 3 and 4 are explicitly optional; so is phase 2b, and stopping after
+phase 2a is a valid outcome.
 
 ## Non-goals
 
@@ -165,47 +167,184 @@ has.
 
 ## Phase 2 — parametric symbols
 
-Symbol definitions gain a parameter schema, instances bind values into it:
+The roadmap's symbol v2, and where the feature starts paying for itself in
+icon/UI-kit documents. Two things have to be settled before any schema: **what a
+parameter can be** (numbers only, or paint too), and **how a per-instance value
+reaches a subtree that every instance shares**. The second is where the cost is,
+and it splits this phase in two.
+
+### Document variables: one table, two mechanisms
+
+Phase 1 built `DocParam` as a deliberate mirror of `Swatch` — the same
+id/name/order shape and bijection invariant, the same usage-count and baking
+helpers, and a `ParamRef.scale` explicitly precedented by `SwatchRefPaint.alpha`.
+They are one concept ("a named value the document shares"), reached from two
+directions. Phase 2 is where keeping them apart starts to cost something: a
+symbol whose instances can override a number but not a colour has exactly the
+arbitrary hole global colours had before v33, and the fix would be a second
+schema, a second scope chain and a second panel.
+
+So a symbol parameter — and a document one — is a **typed variable**:
 
 ```ts
+type VarValue =
+  | { kind: "number"; value: number;
+      min: number | null; max: number | null; step: number | null; integer: boolean }
+  | { kind: "paint"; value: ConcretePaint };
+
+interface DocVar { id: string; name: string; value: VarValue }
+
+// Document (replacing swatches/swatchOrder and params/paramOrder):
+vars: Record<string, DocVar>;
+varOrder: string[];
+```
+
+**The table merges; the reference edges stay split, and that is not a
+compromise.** The two mechanisms exist because their sinks differ, and phase 1
+already documented why (see *Bindings live beside the field, not in it*):
+
+| | paint sink | number sink |
+|---|---|---|
+| Reference lives | **in** the field (`fill` is a `swatch` Paint) | **beside** the field (`node.bindings`, field holds the last resolved number) |
+| Resolved | at paint time, `resolvePaintRef` | at commit time, `syncParamBindings` |
+| Why | only three sites paint, and a dangling ref has a neutral value (`null` → no paint) | ~55 pure geometry helpers read these, and "no stroke width" is not a picture |
+
+Forcing either mechanism onto the other type would undo one of those two
+results. What merging the table buys is everything above the mechanism: one
+panel, one set of commands, one clipboard reattach path, one delete-bakes-first
+rule — and, the point of this phase, **one scope chain that covers both types**.
+
+### Why per-instance overrides are not one feature
+
+`SymbolInstance` holds a `symbolId` and nothing else. Rendering an instance
+descends into `doc.symbols[symbolId].rootNodeId` in the *shared* `doc.nodes` map,
+and so does everything else that reads through an instance — `paintNode`,
+`instanceWorldBounds`, `symbolLeafIds`, `hitTestShape`, picking, bucket fill,
+`exportSvg`. Two instances with different override values need two different
+readings of the same nodes.
+
+That collides head-on with phase 1's cost containment: a bound field holds its
+**last resolved literal**, written once per commit. One node, one value. It
+cannot express "8 here, 12 there".
+
+How much the collision costs depends entirely on what is being overridden:
+
+- **Paint does not feed geometry.** Bounds, hit-testing, picking, snapping and
+  layout never read `fill`/`stroke`. Paint is already resolved *late*, at exactly
+  the three sites that paint, and the two traversals that matter
+  (`render/scene.ts`, `exportSvg.ts`) already carry a recursive descent through
+  instances — `paintNode` threads an `activeSymbols` set through it today.
+  Giving that descent a scope is a local change. The third site,
+  `TextEditor.tsx`, resolves one node's fill while editing it, which happens in
+  symbol-edit focus where the scope is just the definition's defaults.
+- **Numbers feed geometry.** `strokeWidth`, generator args and modifier params
+  all land in `resolvedSubpaths`/`strokeOutset`/`brushEnvelope`, read by pure
+  helpers that take a node and nothing else. Per-instance numbers make those
+  reads instance-aware — the wide signature change phase 1 exists to avoid.
+
+Hence 2a and 2b, in that order. They share one schema; they do not share a cost.
+
+### Phase 2a — paint overrides
+
+The schema lands whole here:
+
+```ts
+interface SymbolParam {
+  key: string;
+  label: string;
+  /** Default when an instance does not override it. Fixes the param's type. */
+  default: VarValue;
+}
+
 interface SymbolDef {
   // …
-  params: GeneratorParam[];   // reuse the generator schema verbatim
+  params: SymbolParam[];
 }
 
 interface SymbolInstance extends BaseNode {
   // …
-  args: Record<string, NumValue>;
+  /** Per-instance overrides, keyed by SymbolParam.key. */
+  args: Record<string, VarValue>;
 }
 ```
 
-Reusing `GeneratorParam` (`model/generators/generators.ts`) is the point: the
-label/min/max/step/integer schema, its editor UI, and its scrubbing behaviour
-already exist, and a symbol's parameter row should be indistinguishable from a
-generator's.
+`SymbolParam` is `GeneratorParam` (`model/generators/generators.ts`) with its
+min/max/step/integer moved inside `VarValue`'s number arm, so a symbol's
+parameter row can still be the generator row's editor and scrubber for the
+numeric case. A **numeric symbol parameter is declarable but not yet honoured in
+2a**: the evaluator ignores it and the UI disables the row with that as its
+tooltip — the same discipline phase 1 used for document-script generators, and
+for the same reason (shipping a link that silently does not update would be
+worse than not offering it).
 
-**Scoping rule** (the load-bearing decision): a `param` reference inside a
-symbol definition resolves against, in order,
+Resolution grows a scope where it already resolves:
+
+```ts
+resolvePaintRef(paint, doc.swatches)   // today
+resolvePaint(paint, scope)             // 2a
+```
+
+**Scoping rule** (the load-bearing decision, unchanged from the original
+proposal and now typed): a reference inside a symbol definition resolves against,
+in order,
 
 1. the args of the instance currently being evaluated,
 2. the definition's own parameter defaults,
-3. the document parameters.
+3. the document variables.
 
-So the same definition renders differently per instance, while a definition that
-references a document parameter (say a global stroke width) still tracks it.
-Evaluation therefore carries a **scope**, not just `doc.params`:
+So the same definition paints differently per instance, while a definition that
+references a document variable (a brand colour, say) still tracks it. Nested
+instances stack scopes and the innermost wins; depth is already bounded by the
+existing no-recursive-symbols check. Outside any instance the scope is just
+`doc.vars`, which is what `resolvePaintRef` is today — so the change is additive
+at every existing call site.
 
-```ts
-resolveNum(v, scope)   // scope = instance args ⊕ definition defaults ⊕ doc.params
-```
+What this does *not* disturb:
 
-Nested instances stack scopes; the innermost instance wins. Depth is already
-bounded by the existing no-recursive-symbols check.
+- **Render caches.** `pathCache` is a `WeakMap` on shape identity holding a
+  `Path2D` — geometry only, and geometry is what paint overrides do not touch.
+  Effect layers come from a pool of blank canvases re-rendered every frame
+  (`layers.ts`), not a content cache, so there are no baked pixels to invalidate
+  per scope.
+- **Everything that is not painting.** Bounds, picking, snapping, export
+  geometry: untouched, because they never read paint.
 
-This is the roadmap's symbol v2 (parametrization), and it is where the feature
-starts paying for itself for icon/UI-kit style documents.
+File version: **v34** — the same bump carries the `swatches`+`params` → `vars`
+merge, since both rewrite the document's top-level shape and there is no reason
+to spend two versions on one idea. Unlike v33, this is not a pure widening:
+v31–v33 need a real read-time transform (`swatches` entries become
+`kind: "paint"` vars, `params` entries `kind: "number"`, `varOrder` the
+concatenation, and `SwatchRefPaint.swatchId` is re-pointed at the var id). Ids
+carry over unchanged, so the transform is total and lossless and those versions
+can stay in `SUPPORTED_FILE_VERSIONS` — the same shape as the v31 backfill the
+parser already does, one step up in size.
 
-File version: **v34**.
+### Phase 2b — numeric overrides
+
+The prerequisite is the one phase 3 already names: geometry resolution has to
+move from "a literal baked at commit" to "derived from (node, context) and
+memoized". Phase 3 states it for a single operand — `resolvedSubpaths(node)`
+becoming `resolvedSubpaths(node, doc)` — and 2b is the same change with the
+instance scope in the context.
+
+**So 2b should not precede phase 3.** Alone it pays for the entire wide signature
+change to buy a narrower feature; landed with (or after) phase 3, the signature
+change is spent once. Sequenced that way, 2b is mostly the scope plumbing 2a
+already built, extended to the numeric sinks:
+
+- `syncParamBindings`'s commit-time write stays for bindings **outside** any
+  symbol definition, where one node really does have one value.
+- Inside a definition, a bound field's stored literal degrades to what it means
+  everywhere else in this design: the last resolved value, correct for the
+  definition's own defaults, and the value any reader that ignores scopes will
+  show. The per-instance value comes from the memoized derived layer.
+
+That split is the honest version of the cost, and it is worth stating plainly:
+2b is the first place where a node's stored field is not, on its own, the truth.
+Everything phase 1 avoided about that lands here, which is precisely why it is
+last and why 2a is separable from it.
+
+File version: **v35**, shared with phase 3 if they land together.
 
 ## Phase 3 — a node-to-node edge: non-destructive boolean
 
@@ -282,7 +421,7 @@ contain parameters worth relating to each other.
 
 ## Read-site impact
 
-**None.** That is the point of keeping the reference beside the field rather
+**None in phase 1.** That is the point of keeping the reference beside the field rather
 than in it: bound fields stay plain numbers, so rendering, hit-testing, bounds,
 brush width, path modifiers and SVG/raster export were not touched at all. The
 one discipline that replaces the base/resolved split is that **every path that
@@ -292,6 +431,12 @@ document load — so no consumer can ever observe a stale bound field.
 Write paths do need care, and they get it in one place: writing a literal into a
 bound field is not silently dropped, it is simply overwritten on the next commit
 by the parameter that owns it. The UI never offers that write — see below.
+
+Later phases spend this budget deliberately, and unevenly: phase 2a touches only
+the two traversals that paint (a scope argument where `doc.swatches` is passed
+today) and nothing that computes geometry; phase 2b and phase 3 are the ones
+that make geometry reads context-aware, which is why they share a prerequisite
+and why 2b is sequenced behind 3.
 
 ## UI
 
@@ -316,6 +461,23 @@ by the parameter that owns it. The UI never offers that write — see below.
 - Commands in `commands/registry.ts`: `param.create`, `param.unbindSelection`,
   `param.bakeAll`.
 
+Phase 2 adds two surfaces and merges one:
+
+- **Document variables panel** — the Parameters and Global colors panels become
+  sections of one panel once `vars` merges them (v34). The row is the same in
+  both: name, value editor (scrubber or `ColorField`), usage count, delete that
+  bakes first. Doing this as pure UI/vocabulary *before* v34 is the cheap step
+  named in *Sequencing*.
+- **Instance parameter rows** — selecting an instance shows its symbol's params
+  in the properties panel, each row an override editor over the definition's
+  default. The numeric rows are visible but disabled until 2b, with the reason
+  in the tooltip. Overriding never moves anything; clearing a row falls back to
+  the definition default rather than baking it in.
+- **Defining a symbol parameter** — inside symbol-edit focus, a bound field's
+  menu gains *Promote to symbol parameter*, which is the only authoring path
+  that creates one. There is no separate schema editor: a symbol's parameter
+  list is the set of promotions, in promotion order.
+
 ## Export & serialization
 
 - **SVG/PNG**: parameters are resolved and baked at export; there is no SVG
@@ -331,7 +493,8 @@ by the parameter that owns it. The UI never offers that write — see below.
   `reattachPayloadResources`). Merging is by id, matching how scripts, assets
   and swatches already reattach: the destination's own definition wins. Without
   the merge the picture would still be right — the field keeps its number — but
-  the link would be lost.
+  the link would be lost. Once `vars` merges the two tables (v34) this becomes
+  one reattach path instead of the two that exist today.
 - **Script API**: parameters should be readable and writable from scripts before
   phase 4, since "set a parameter, re-run" is the cheapest possible version of
   the parametric-generation wish in TODO.md.
@@ -348,16 +511,30 @@ by the parameter that owns it. The UI never offers that write — see below.
 - **Cycles reaching `transact`.** Mitigated by validation, but a rejected
   transaction is a silent no-op today; parameter/operand edits need an actual
   error surface, not a swallowed rejection.
+- **The `vars` merge buys naming, not capability.** Done on its own it is a
+  format bump for a rename. It is worth doing only as part of 2a, where the
+  typed schema is load-bearing (a symbol parameter has to be able to be a
+  colour); before that, do the panel/vocabulary version instead.
+- **2a ships an authoring surface for a half-honoured schema.** Numeric symbol
+  parameters are declarable and visibly disabled until 2b. That is deliberate —
+  it is the same trade phase 1 made for script generators — but if 2b never
+  lands, those disabled rows are permanent dead UI, and removing the numeric arm
+  from `SymbolParam` is the right correction rather than leaving them.
 
 ## Sequencing
 
-Phase 1 shipped independently of everything else in flight. Phases 2 and 3 build
-on phase 1's `ParamRef`/`bindings` and on work already shipped (symbols v1, path
-modifiers v31). None of the remaining phases should precede the 1.0 release
+Phase 1 shipped independently of everything else in flight. The rest build on
+phase 1's `ParamRef`/`bindings` and on work already shipped (symbols v1, global
+colours v33, path modifiers v31). None of them should precede the 1.0 release
 gates in TODO.md (SVG import, clipboard, save workflow, export fidelity).
 
-Phase 2 note: `SymbolInstance.args` was proposed as `Record<string, NumValue>`.
-With bindings beside the field it becomes `Record<string, number>` plus the
-instance's own `bindings` entries under `args.<key>`, and the scope chain
-(instance args ⊕ definition defaults ⊕ document parameters) moves into
-`syncParamBindings` rather than into a `resolveNum(v, scope)` signature.
+The one hard ordering constraint inside the remainder is **2b after 3**: both
+need geometry resolution to become context-aware and memoized, and doing 2b
+first pays for that whole signature change to buy the narrower half of one
+feature. Everything else is free order — 2a stands alone, 3 stands alone, and
+stopping after 2a is a valid outcome.
+
+A cheap step that needs none of this: unify the *panel and vocabulary* for
+global colours and parameters ("document variables") while `swatches` and
+`params` stay separate in the model. It gets most of the conceptual win with no
+format change, and it makes the v34 merge a rename rather than a new idea.
