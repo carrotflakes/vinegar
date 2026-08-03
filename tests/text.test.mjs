@@ -7,6 +7,7 @@ let server;
 let layoutText;
 let layoutTextWithCanvas;
 let clearTextLayoutMetricsCache;
+let remeasureDocumentText;
 let createEmptyDocument;
 let serializeDocument;
 let parseDocument;
@@ -22,6 +23,7 @@ before(async () => {
     layoutText,
     layoutTextWithCanvas,
     clearTextLayoutMetricsCache,
+    remeasureDocumentText,
   } = await server.ssrLoadModule("/src/canvas/textLayout.ts"));
   ({ createEmptyDocument } = await server.ssrLoadModule("/src/model/types.ts"));
   ({ serializeDocument, parseDocument } = await server.ssrLoadModule("/src/io/serialize.ts"));
@@ -186,6 +188,34 @@ test("Canvas and SVG render laid-out text with font styling and escaping", () =>
   assert.match(svg, /font-style="italic"/);
   assert.match(svg, /<tspan[^>]*>A&lt;&amp;<\/tspan>/);
   assert.equal((svg.match(/<tspan/g) ?? []).length, 2);
+});
+
+test("opening a document heals text bounds a foreign writer could only estimate", () => {
+  // A file written without font metrics: the bounds are a guess, the text is not.
+  const doc = createEmptyDocument();
+  doc.nodes.text1 = textShape({ text: "Hello", fontSize: 20, width: 999, height: 1 });
+  doc.nodes.text2 = textShape({ id: "text2", text: "Hello", fontSize: 20, width: 50, height: 24 });
+  doc.rootIds = ["text1", "text2"];
+
+  const measured = remeasureDocumentText(doc, (shape) => ({
+    ...shape,
+    width: measure(shape.text),
+    height: shape.fontSize * shape.lineHeight,
+  }));
+  assert.equal(measured.nodes.text1.width, 50);
+  assert.equal(measured.nodes.text1.height, 24);
+  // Untouched nodes keep their identity, and a document already correct is not copied.
+  assert.equal(measured.nodes.text2, doc.nodes.text2);
+  assert.equal(remeasureDocumentText(measured, (shape) => ({ ...shape })), measured);
+});
+
+test("a headless load leaves text bounds alone rather than guessing them", () => {
+  const doc = createEmptyDocument();
+  doc.nodes.text1 = textShape({ width: 999, height: 1 });
+  doc.rootIds = ["text1"];
+  useEditor.getState().loadDocument(doc);
+  assert.equal(useEditor.getState().doc.nodes.text1.width, 999);
+  assert.equal(useEditor.getState().savedDoc, useEditor.getState().doc);
 });
 
 test("the Text tool is exposed through the T command", () => {

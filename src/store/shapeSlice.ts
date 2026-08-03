@@ -11,7 +11,7 @@ import { childIdsOf, descendantShapeIds, isGroup, isInstance, isNodeHidden, isNo
 import { clampRectCornerRadius } from "../model/roundedRect";
 import { resizeShapeToBounds, translateShape } from "@/model/geometry/transforms";
 import { makeId, type Bounds, type SceneNode, type Shape, type Vec2 } from "../model/types";
-import { measureTextShape } from "../canvas/textLayout";
+import { measureTextShape, remeasureDocumentText } from "../canvas/textLayout";
 import { appendToScope, groupNode } from "./docOps";
 import {
   clearTransient,
@@ -188,15 +188,9 @@ export function createShapeActions({ set, get, transact, replaceDocumentWithoutH
       );
     },
     remeasureTextShapes: () => {
-      const doc = get().doc; const nodes = { ...doc.nodes }; let changed = false;
-      for (const [id, node] of Object.entries(nodes)) {
-        if (!isShape(node) || node.type !== "text") continue;
-        const next = measureTextShape(node);
-        if (next.width !== node.width || next.height !== node.height) {
-          nodes[id] = next; changed = true;
-        }
-      }
-      if (changed) replaceDocumentWithoutHistory({ ...doc, nodes });
+      const doc = get().doc;
+      const next = remeasureDocumentText(doc);
+      if (next !== doc) replaceDocumentWithoutHistory(next);
     },
     updateSelectedStyle: (patch) => {
       const doc = get().doc; const nodes = { ...doc.nodes }; let changed = false;

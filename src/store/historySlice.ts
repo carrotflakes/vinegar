@@ -4,6 +4,7 @@
 
 import { createEmptyDocument, type Document } from "../model/types";
 import { syncParamBindings } from "../model/params";
+import { canMeasureText, remeasureDocumentText } from "../canvas/textLayout";
 import { hasValidSceneContainers } from "../model/sceneValidation";
 import {
   isGroup,
@@ -28,6 +29,16 @@ import {
 
 let revisionCounter = 0;
 const nextRevision = () => ++revisionCounter;
+
+/**
+ * Normalise a document arriving from outside the running editor. The healed
+ * document is also the saved baseline, so repairing estimated text bounds
+ * never presents an untouched file as unsaved; the fix lands on the next save.
+ */
+const openedDocument = (input: Document): Document => {
+  const doc = syncParamBindings(input);
+  return canMeasureText() ? remeasureDocumentText(doc) : doc;
+};
 
 let epochCounter = 0;
 /** See `_docEpoch`: identifies one loaded document, not one of its states. */
@@ -259,10 +270,11 @@ export function createHistory(set: StoreSet, get: StoreGet): HistorySlice {
 
   const actions: HistoryActions = {
     newDocument: () => { resetCoalesce(); const doc = createEmptyDocument(); set({ ...documentReset(doc, true), savedDoc: doc }); },
-    // An opened document may come from an older build or a hand edit, so its
-    // bound fields are resolved once before it becomes the current document.
-    loadDocument: (input) => { resetCoalesce(); const doc = syncParamBindings(input); set({ ...documentReset(doc, true), savedDoc: doc }); },
-    recoverDocument: (input) => { resetCoalesce(); const doc = syncParamBindings(input); set({ ...documentReset(doc, false), savedDoc: doc }); },
+    // An opened document may come from an older build, another tool or a hand
+    // edit, so its bound fields are resolved and its text bounds remeasured
+    // against real font metrics before it becomes the current document.
+    loadDocument: (input) => { resetCoalesce(); const doc = openedDocument(input); set({ ...documentReset(doc, true), savedDoc: doc }); },
+    recoverDocument: (input) => { resetCoalesce(); const doc = openedDocument(input); set({ ...documentReset(doc, false), savedDoc: doc }); },
     markSaved: () => { resetCoalesce(); finishInteraction(); const state = get(); set({ savedDoc: state.doc, _savedRevision: state._revision }); },
     beginInteraction: (label) => {
       const state = get();

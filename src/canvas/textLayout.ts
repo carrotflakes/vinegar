@@ -1,4 +1,5 @@
-import type { TextShape } from "../model/types";
+import type { Document, TextShape } from "../model/types";
+import { isShape } from "../model/scene";
 import { fontStack } from "../fonts";
 import { renderCachesDisabled } from "@/debug/renderFlags";
 
@@ -231,6 +232,36 @@ export function layoutTextWithCanvas(
 export function measureTextShape(shape: TextShape): TextShape {
   const layout = layoutTextInBrowser(shape);
   return { ...shape, width: layout.width, height: layout.height };
+}
+
+/** True when real font metrics are available (a DOM to measure against). */
+export function canMeasureText(): boolean {
+  return typeof document !== "undefined" && !!document.body;
+}
+
+/**
+ * Re-derive the persisted bounds of every text node in a document. Documents
+ * written outside the editor — scripts, other tools, hand edits — can only
+ * estimate width/height because they have no font metrics, which leaves
+ * selection, hit testing and export disagreeing with what is painted. Applying
+ * this on load heals them. Returns the same document when nothing moved.
+ *
+ * Callers that may run without font metrics must gate on `canMeasureText`
+ * first, or the fallback estimate replaces bounds that were already right.
+ */
+export function remeasureDocumentText(
+  doc: Document,
+  measureShape: (shape: TextShape) => TextShape = measureTextShape
+): Document {
+  let nodes = doc.nodes;
+  for (const [id, node] of Object.entries(doc.nodes)) {
+    if (!isShape(node) || node.type !== "text") continue;
+    const next = measureShape(node);
+    if (next.width === node.width && next.height === node.height) continue;
+    if (nodes === doc.nodes) nodes = { ...doc.nodes };
+    nodes[id] = next;
+  }
+  return nodes === doc.nodes ? doc : { ...doc, nodes };
 }
 
 export function layoutTextInBrowser(shape: TextShape): TextLayout {

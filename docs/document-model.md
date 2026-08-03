@@ -83,6 +83,15 @@ active tool, selection, viewport and undo history does not belong in the file.
   measured auto-height so bounds and hit-testing never need a live font.
   Typography is one style per node (`fontFamily`, size, weight, italic,
   line-height and alignment); line layout is derived from the text at render.
+  Those stored bounds are a cache of a measurement, not authored data: a writer
+  without font metrics (a script, another tool, a hand edit) can only estimate
+  them. Opening a document therefore remeasures every text node against the real
+  font and, when they differ, silently corrects them — no undo entry, and the
+  repaired document is the saved baseline, so a file is never reported dirty just
+  for being healed. The same pass runs again whenever the browser reports that
+  available fonts changed. `remeasureDocumentText` in `src/canvas/textLayout.ts`
+  is the single implementation; it needs a DOM, so callers that might run
+  headless gate on `canMeasureText()` rather than writing a guess.
 
 - A number field can be driven by a *document parameter* (`doc.params` /
   `doc.paramOrder`, a bijection like swatches). The reference lives beside the
