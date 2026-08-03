@@ -5,10 +5,17 @@
 
 import { symbolContentBounds } from "@/model/geometry/bounds";
 import { isVarRef, tintPaint, varRef } from "@/model/paint";
-import { resolvePaint, symbolDefScope } from "@/model/vars";
+import {
+  instanceScope,
+  resolvePaint,
+  scopeForNode,
+  symbolDefScope,
+  type VarScope,
+} from "@/model/vars";
 import {
   materializeBindable,
   readNumField,
+  scopedNode,
   syncParamBindings,
   withBinding,
 } from "@/model/params";
@@ -57,6 +64,32 @@ import {
   type SymbolActions,
 } from "./state";
 import { notifyEffectsRemoved } from "./toastStore";
+
+/**
+ * One node as it reads in `scope`, with every reference to a parameter in
+ * `keys` replaced by the value it resolves to there — numbers written into
+ * their fields (and the binding dropped), paints baked to concrete paint.
+ * Used when content leaves the definition those parameters belong to.
+ */
+function bakeSymbolParams(
+  node: SceneNode,
+  keys: ReadonlySet<string>,
+  scope: VarScope
+): SceneNode {
+  // Resolves the bound fields and rebuilds a built-in generator from them.
+  let next: SceneNode = scopedNode(node, scope);
+  for (const [path, ref] of Object.entries(next.bindings)) {
+    if (keys.has(ref.varId)) next = withBinding(next, path, null);
+  }
+  if (!isShape(next)) return next;
+  for (const target of ["fill", "stroke"] as const) {
+    const paint = next[target];
+    if (isVarRef(paint) && keys.has(paint.varId)) {
+      next = { ...next, [target]: resolvePaint(paint, scope) } as Shape;
+    }
+  }
+  return next;
+}
 
 export function createSymbolActions({ set, get, transact }: StoreCtx): SymbolActions {
   return {
@@ -120,8 +153,20 @@ export function createSymbolActions({ set, get, transact }: StoreCtx): SymbolAct
         effectsRemoved ||= inst.effects.length > 0 || !!doc.nodes[def.rootNodeId]?.effects.length;
         const contentIds = childIdsOf(doc, def.rootNodeId);
         const all = contentIds.flatMap((cid) => [cid, ...descendantNodeIds(doc, cid)]);
+        // The copies leave the definition, and with it the frame its parameters
+        // live in, so this instance's reading of them has to be baked in — or a
+        // detached colour would dangle to "no paint" and a detached number
+        // would snap back to the default. References to the *document's*
+        // variables (or to an enclosing definition's parameters, when the
+        // instance sits inside one) stay live: only these keys go out of scope.
+        const scope = instanceScope(doc, inst, scopeForNode(doc, id));
+        const keys = new Set(def.params.map((param) => param.key));
         const payloadNodes: Record<string, SceneNode> = {};
-        for (const nid of all) payloadNodes[nid] = structuredClone(doc.nodes[nid]);
+        for (const nid of all) {
+          payloadNodes[nid] = structuredClone(
+            bakeSymbolParams(doc.nodes[nid], keys, scope)
+          );
+        }
         const dup = remapPayload({ nodes: payloadNodes, rootIds: contentIds });
         const gid = makeId("group");
         const group: Group = {

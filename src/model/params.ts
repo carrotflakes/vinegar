@@ -292,8 +292,16 @@ export function syncParamBindings(doc: Document): Document {
  * identity across frames and the caches downstream of it — `resolvedSubpaths`,
  * the Path2D cache, culling bounds — keep hitting. Stale binding paths are
  * *not* pruned here: that is a document edit, and this layer never writes one.
+ *
+ * The memo is an LRU per node, because scrubbing an instance's override mints
+ * a fresh key every frame while the *definition's* node object stays the same
+ * one — without a bound, one drag would leave hundreds of resolved copies
+ * (with rebuilt generator geometry) alive until that node is next edited.
+ * Recency is refreshed on a hit, so the instances actually on screen — which
+ * every frame reads — outlive a scrub's discarded intermediates.
  */
 const scopedCache = new WeakMap<SceneNode, Map<string, SceneNode>>();
+const SCOPED_MEMO_LIMIT = 32;
 
 export function scopedNode<T extends SceneNode>(
   node: T,
@@ -301,15 +309,26 @@ export function scopedNode<T extends SceneNode>(
 ): T {
   if (!scope?.numberKey) return node;
   if (!Object.keys(node.bindings).length) return node;
+  const key = scope.numberKey;
   let byKey = scopedCache.get(node);
-  const cached = byKey?.get(scope.numberKey);
-  if (cached) return cached as T;
+  const cached = byKey?.get(key);
+  if (cached) {
+    // Re-insert to make this the most recently used entry.
+    byKey!.delete(key);
+    byKey!.set(key, cached);
+    return cached as T;
+  }
   const resolved = syncNodeBindings(node, scope, { prune: false }) as T;
   if (!byKey) {
     byKey = new Map();
     scopedCache.set(node, byKey);
   }
-  byKey.set(scope.numberKey, resolved);
+  byKey.set(key, resolved);
+  if (byKey.size > SCOPED_MEMO_LIMIT) {
+    // Map iterates in insertion order, so the first key is the oldest use.
+    const oldest = byKey.keys().next().value;
+    if (oldest !== undefined) byKey.delete(oldest);
+  }
   return resolved;
 }
 

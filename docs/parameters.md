@@ -407,6 +407,16 @@ descends (`instanceScope`), so **no caller of any of them changed**:
 | `bucketFill.ts` `collectObstacles` | the instance branch |
 | `io/exportSvg.ts` `nodeToSvg` | already had the scope (2a) |
 
+**Leaving the frame bakes.** Detaching an instance copies the definition's
+content out of the frame its parameters live in, so `detachSelectedInstances`
+resolves this instance's reading into the copies first — the colour it was
+showing, the numbers it was showing — and drops the now-meaningless references.
+Without that a detached colour dangles to *no paint* and a detached number
+snaps back to the default. References to the document's variables (or to an
+enclosing definition's parameters, when the instance sits inside one) are left
+alone: those are still in scope afterwards. This was already the right rule for
+2a's paint overrides, and it was wrong there until 2b fixed it.
+
 **Nothing is paid where the feature is not used.** A scope carries a
 `numberKey` that identifies its *numeric* content, and only where that content
 departs from the definition's defaults — an instance that overrides nothing, or
@@ -415,7 +425,12 @@ literals are already right", so `scopedNode` is the identity function after one
 string check, the memo is never populated, and the id-keyed bounds caches keep
 their old keys. An instance that *does* override shares one memoized node per
 distinct override set, so `resolvedSubpaths`, the Path2D cache and the culling
-bounds all still hit across frames.
+bounds all still hit across frames. That memo is an LRU (32 per node): scrubbing
+an override mints a fresh key every frame while the *definition's* node object
+stays the same one, so an unbounded memo would keep every intermediate — with
+its rebuilt generator geometry — alive until that node is next edited. Recency
+refreshes on a hit, so the instances actually on screen outlive a scrub's
+discarded values.
 
 Two honest limits:
 

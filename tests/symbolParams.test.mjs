@@ -416,3 +416,71 @@ test("promoting a number declares a parameter without changing the picture", () 
   assert.deepEqual(after.nodes.leaf.bindings, {});
   assert.equal(after.nodes.leaf.strokeWidth, 2);
 });
+
+test("detaching an instance bakes the overrides it was showing", () => {
+  const editor = useEditor.getState();
+  editor.newDocument();
+  const doc = createEmptyDocument();
+  doc.nodes = {
+    leaf: rect("leaf", {
+      fill: varRef("c"),
+      stroke: solid("#000000"),
+      strokeWidth: 4,
+      bindings: { strokeWidth: { varId: "w", scale: 1 } },
+    }),
+    defRoot: group("defRoot", ["leaf"]),
+    i2: instance("i2", "sym", { c: paintValue(BLUE()), w: numberValue(20) }),
+  };
+  doc.rootIds = ["i2"];
+  doc.symbols.sym = {
+    id: "sym",
+    name: "Sym",
+    rootNodeId: "defRoot",
+    params: [
+      { key: "c", label: "Color", default: paintValue(RED()) },
+      { key: "w", label: "Weight", default: numberValue(4) },
+    ],
+  };
+  editor.loadDocument(doc);
+  useEditor.setState({ selection: ["i2"] });
+  useEditor.getState().detachSelectedInstances();
+
+  const after = useEditor.getState().doc;
+  // The definition itself is untouched; the copy is what left the scope.
+  assert.deepEqual(after.nodes.leaf.fill, varRef("c"));
+  const copy = Object.values(after.nodes).find(
+    (node) => node.type === "rect" && node.id !== "leaf"
+  );
+  assert.ok(copy, "the instance became a group of copies");
+  // Both references left the frame their parameter lives in, so both are baked
+  // to what this instance was showing — not to the definition's defaults, and
+  // not to a dangling reference (which would paint nothing).
+  assert.deepEqual(copy.fill, BLUE());
+  assert.equal(copy.strokeWidth, 20);
+  assert.deepEqual(copy.bindings, {});
+});
+
+test("detaching keeps references to document variables live", () => {
+  const editor = useEditor.getState();
+  editor.newDocument();
+  const doc = createEmptyDocument();
+  doc.vars = { brand: { id: "brand", name: "Brand", value: paintValue(BLUE()) } };
+  doc.varOrder = ["brand"];
+  doc.nodes = {
+    leaf: rect("leaf", { fill: varRef("brand") }),
+    defRoot: group("defRoot", ["leaf"]),
+    i1: instance("i1", "sym"),
+  };
+  doc.rootIds = ["i1"];
+  doc.symbols.sym = { id: "sym", name: "Sym", rootNodeId: "defRoot", params: [] };
+  editor.loadDocument(doc);
+  useEditor.setState({ selection: ["i1"] });
+  useEditor.getState().detachSelectedInstances();
+
+  const after = useEditor.getState().doc;
+  const copy = Object.values(after.nodes).find(
+    (node) => node.type === "rect" && node.id !== "leaf"
+  );
+  // A document variable is still in scope after detaching, so the link stays.
+  assert.deepEqual(copy.fill, varRef("brand"));
+});
