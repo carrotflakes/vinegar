@@ -1,5 +1,6 @@
-// Global colours ("document colours"): named solid paints stored on the
-// document (doc.swatches/swatchOrder). Nodes reference them by id through a
+// Global colours ("document colours"): named concrete paints stored on the
+// document (doc.swatches/swatchOrder) — solid, gradient or pattern, but never
+// another reference. Nodes reference them by id through a
 // `swatch` Paint variant, so editing a swatch re-tints every use live. All
 // mutations route through history so they undo like any document edit.
 // See docs/global-colors.md.
@@ -8,7 +9,7 @@ import {
   resolvePaintRef,
   solid,
   swatchRef,
-  type SolidPaint,
+  type ConcretePaint,
 } from "../model/paint";
 import { isShape, selectionRoots } from "../model/scene";
 import { bakeSwatchRefs, type PaintTarget } from "../model/swatches";
@@ -19,19 +20,20 @@ import {
   type SwatchActions,
 } from "./state";
 
-/** The first solid paint on the selection and which slot it came from,
+/** The first concrete paint on the selection and which slot it came from,
  *  preferring `fill` over `stroke` and resolving any existing swatch reference.
- *  Null when the selection has no solid paint. */
-function selectionSolid(
+ *  Null when the selection paints nothing. Gradients and patterns qualify: a
+ *  swatch stores any concrete paint. */
+function selectionPaint(
   doc: Document,
   selection: string[]
-): { paint: SolidPaint; target: PaintTarget } | null {
+): { paint: ConcretePaint; target: PaintTarget } | null {
   for (const id of selectionRoots(doc, selection)) {
     const node = doc.nodes[id];
     if (!isShape(node)) continue;
     for (const target of ["fill", "stroke"] as PaintTarget[]) {
       const resolved = resolvePaintRef(node[target], doc.swatches);
-      if (resolved?.type === "solid") return { paint: resolved, target };
+      if (resolved) return { paint: resolved, target };
     }
   }
   return null;
@@ -79,7 +81,7 @@ export function createSwatchActions({ set, get, transact }: StoreCtx): SwatchAct
       const doc = s.doc;
       // Seed the swatch from the selection's fill (fallback: stroke), then apply
       // the reference back to that same slot.
-      const found = selectionSolid(doc, s.selection);
+      const found = selectionPaint(doc, s.selection);
       const id = makeId("swatch");
       const name = `Color ${doc.swatchOrder.length + 1}`;
       const added = withSwatch(doc, { id, name, paint: found?.paint ?? solid("#888888") });

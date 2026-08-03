@@ -24,13 +24,14 @@ export function hasValidSceneContainers(doc: Document): boolean {
 
 /**
  * Global colours' structural invariants: `swatchOrder` and `swatches` are a
- * bijection, and no swatch stores a reference (v1 keeps them concrete/solid, so
- * there are no chains or cycles to resolve). Reference *targets* are not checked
- * here — a dangling `swatch` fill is tolerated (render/export skip it).
+ * bijection. A swatch holds concrete paint — solid, gradient or pattern, never
+ * another reference — so there are no chains or cycles to resolve; that one is
+ * enforced by `Swatch.paint`'s type here and by `isConcretePaint` at the file
+ * boundary, so it needs no runtime check. Reference *targets* are not checked
+ * either — a dangling `swatch` fill is tolerated (render/export skip it).
  */
 export function hasValidSwatches(doc: Document): boolean {
   const ids = Object.keys(doc.swatches);
   if (ids.length !== doc.swatchOrder.length) return false;
-  if (doc.swatchOrder.some((id) => !doc.swatches[id])) return false;
-  return Object.values(doc.swatches).every((sw) => sw.paint.type === "solid");
+  return !doc.swatchOrder.some((id) => !doc.swatches[id]);
 }

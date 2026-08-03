@@ -205,7 +205,7 @@ bounded by the existing no-recursive-symbols check.
 This is the roadmap's symbol v2 (parametrization), and it is where the feature
 starts paying for itself for icon/UI-kit style documents.
 
-File version: **v33**.
+File version: **v34**.
 
 ## Phase 3 — a node-to-node edge: non-destructive boolean
 
@@ -240,7 +240,7 @@ What this phase actually costs:
   (geometry is too big to duplicate). A missing operand disables the modifier
   and shows an error row, matching how `enabled: false` already reads.
 
-File version: **v34**.
+File version: **v35**.
 
 ## Phase 4 — expressions (optional, decide later)
 

@@ -65,11 +65,13 @@ additional effects, or other feature expansion.
 - [ ] **Parameters and references** (docs/parameters.md) — phase 1 shipped:
   document parameters (v32) drive `strokeWidth`, path-modifier params and
   built-in generator args through `node.bindings`. Remaining phases: parametric
-  symbols (v33) → non-destructive boolean as a node→node operand (v34) →
+  symbols (v34) → non-destructive boolean as a node→node operand (v35) →
   expressions (optional). Each ships alone; not before the 1.0 gates above.
   Phase-1 gap: document-script generators are not bindable (their geometry only
   rebuilds through the worker, which the pure resolution step cannot await).
-- [ ] Swatches saved in the document (currently localStorage, color-only)
+- [x] Swatches saved in the document — global colors (v23), holding any concrete
+  paint since v33 (solid, gradient or pattern). Personal localStorage swatches
+  stay as the cross-document palette.
 - [ ] Distribution: match an existing gap (not just centering)
 - [ ] Status bar: color swatch under the cursor (eyedropper-style; watch getImageData cost)
 
@@ -252,3 +254,5 @@ additional effects, or other feature expansion.
 - [ ] modifier部分焼き込み
 - [x] viewの上下反転
 - [ ] 自由変形
+- [ ] 移動ツール
+- [ ] ColorFieldの位置が悪い

@@ -5,7 +5,7 @@ import {
   shift,
   useFloating,
 } from "@floating-ui/react-dom";
-import { useRef, useState } from "react";
+import { useRef, useState, type CSSProperties } from "react";
 import { createPortal } from "react-dom";
 import { LuLink2Off, LuPlus } from "react-icons/lu";
 import {
@@ -19,11 +19,13 @@ import {
   solid,
   stopsToCssBar,
   swatchRef,
+  type ConcretePaint,
   type GradientStop,
   type Paint,
   type PatternMode,
   type PatternPaint,
 } from "@/model/paint";
+import type { DocumentAsset } from "@/model/types";
 import { pickImageFiles } from "@/io/importImage";
 import ColorInput from "./ColorInput";
 import ColorPicker from "./ColorPicker";
@@ -44,13 +46,33 @@ const PATTERN_MODE_HINTS: Record<PatternMode, string> = {
 /** Round to one decimal for the offset number inputs. */
 const round1 = (n: number) => Math.round(n * 10) / 10;
 
+/** CSS for a paint preview chip. `paintToCss` covers solid and gradients; a
+ *  pattern needs the decoded asset, which only document-aware callers have. */
+function swatchChipStyle(
+  paint: ConcretePaint,
+  assets: Record<string, DocumentAsset>
+): CSSProperties {
+  if (paint.type !== "pattern") return { background: paintToCss(paint) };
+  const url = assets[paint.assetId]?.source.data;
+  return url
+    ? { backgroundImage: `url(${url})`, backgroundSize: "cover" }
+    : { background: paintToCss(paint) };
+}
+
 interface Props {
   label: string;
   value: Paint | null;
   onChange: (v: Paint | null) => void;
+  /**
+   * `field` (default) is a labelled property row that may hold "none" and may
+   * link to a global colour. `swatch` edits a global colour *itself*: no label
+   * or caption (the panel row supplies the name), no "None" (a swatch always
+   * has a paint) and no global-colours section (swatches never chain).
+   */
+  variant?: "field" | "swatch";
 }
 
-export default function ColorField({ label, value, onChange }: Props) {
+export default function ColorField({ label, value, onChange, variant = "field" }: Props) {
   const addRecentColor = useEditor((s) => s.addRecentColor);
   const assets = useEditor((s) => s.doc.assets);
   const addPatternImage = useEditor((s) => s.addPatternImage);
@@ -78,18 +100,22 @@ export default function ColorField({ label, value, onChange }: Props) {
         ? gradient.stops[0]?.color ?? "#888888"
         : "#888888";
   const alpha = concrete && concrete.type === "solid" ? concrete.alpha : 1;
-  // While linked, colour/alpha edits update the global swatch (re-tinting every
-  // use); otherwise they set this field's own paint.
-  const setColor = (hex: string) =>
+  /**
+   * The single write path for every paint edit in this popover. While linked,
+   * an edit updates the global swatch (re-tinting every use) instead of this
+   * field, whatever the paint type — so switching a linked colour to a gradient
+   * or restacking its stops edits the global rather than silently detaching.
+   * Unlinked, it just sets this field's own paint.
+   */
+  const commit = (paint: ConcretePaint) =>
     ref && linkedSwatch
-      ? updateSwatch(ref.swatchId, { paint: solid(hex, alpha) })
-      : onChange(solid(hex, alpha));
-  const setAlpha = (a: number) =>
-    ref && linkedSwatch
-      ? updateSwatch(ref.swatchId, { paint: solid(color, a) })
-      : onChange(solid(color, a));
-  // Save the current concrete colour as a new document colour and link to it.
-  const createDocColor = () => onChange(swatchRef(createSwatch("", solid(color, alpha))));
+      ? updateSwatch(ref.swatchId, { paint })
+      : onChange(paint);
+  const setColor = (hex: string) => commit(solid(hex, alpha));
+  const setAlpha = (a: number) => commit(solid(color, a));
+  // Save the current concrete paint as a new document colour and link to it.
+  const createDocColor = () =>
+    concrete && onChange(swatchRef(createSwatch("", concrete)));
   // Detach: bake the reference back to its concrete paint on this field only.
   const unlink = () => onChange(concrete);
 
@@ -102,7 +128,7 @@ export default function ColorField({ label, value, onChange }: Props) {
       ];
   const angle = concrete && concrete.type === "linear" ? concrete.angle : 0;
   const setStops = (next: GradientStop[]) =>
-    onChange(kind === "radial" ? radialGradient(next) : linearGradient(next, angle));
+    commit(kind === "radial" ? radialGradient(next) : linearGradient(next, angle));
   const updateStop = (i: number, patch: Partial<GradientStop>) =>
     setStops(stops.map((s, j) => (j === i ? { ...s, ...patch } : s)));
   const addStop = () =>
@@ -120,11 +146,11 @@ export default function ColorField({ label, value, onChange }: Props) {
   // Existing document images are the primary source; import adds a new one.
   const imageAssets = Object.values(assets);
   const updatePattern = (patch: Partial<PatternPaint>) =>
-    patternPaint && onChange({ ...patternPaint, ...patch });
+    patternPaint && commit({ ...patternPaint, ...patch });
   const pMode = patternPaint ? patternPaint.mode : "tile";
   // Point the pattern at an existing asset, keeping its other settings.
   const chooseAsset = (assetId: string) =>
-    onChange(pattern(assetId, patternPaint ?? lastPattern.current ?? undefined));
+    commit(pattern(assetId, patternPaint ?? lastPattern.current ?? undefined));
   const importPattern = async () => {
     const [file] = await pickImageFiles();
     if (!file) return;
@@ -132,16 +158,18 @@ export default function ColorField({ label, value, onChange }: Props) {
     if (id) chooseAsset(id);
   };
 
+  // Switching type goes through `commit`, so a linked field retypes the global
+  // colour and stays linked. "None" is the one exception: it is a property of
+  // the field, not of a colour, so it drops the link instead.
   const setKind = (next: "none" | "solid" | "linear" | "radial" | "pattern") => {
     if (next === "none") return onChange(null);
-    // Keep an existing document-colour link when "Solid" is (re)selected.
-    if (next === "solid") return ref && linkedSwatch ? undefined : onChange(solid(color, alpha));
-    if (next === "linear") return onChange(linearGradient(stops, angle));
-    if (next === "radial") return onChange(radialGradient(stops));
+    if (next === "solid") return commit(solid(color, alpha));
+    if (next === "linear") return commit(linearGradient(stops, angle));
+    if (next === "radial") return commit(radialGradient(stops));
     // Pattern: reuse a remembered image, else the first existing asset, else
     // import one now.
     const memo = patternPaint ?? lastPattern.current;
-    if (memo) return onChange(memo);
+    if (memo) return commit(memo);
     if (imageAssets[0]) return chooseAsset(imageAssets[0].id);
     return void importPattern();
   };
@@ -157,7 +185,7 @@ export default function ColorField({ label, value, onChange }: Props) {
   const close = () => {
     setOpen(false);
     // Patterns have no meaningful colour; don't push the gray fallback.
-    if (enabled && value?.type !== "pattern") addRecentColor(color);
+    if (enabled && concrete?.type !== "pattern") addRecentColor(color);
   };
 
   usePopoverDismiss(
@@ -171,27 +199,26 @@ export default function ColorField({ label, value, onChange }: Props) {
     close
   );
 
+  const isSwatchEditor = variant === "swatch";
+
   return (
-    <div className="field color-field" ref={rootRef}>
-      <label>{label}</label>
+    <div
+      className={"field color-field" + (isSwatchEditor ? " color-field-bare" : "")}
+      ref={rootRef}
+    >
+      {!isSwatchEditor && <label>{label}</label>}
       <div className="field-row">
         <button
           ref={refs.setReference}
           className={"color-swatch" + (enabled ? "" : " is-none")}
           onClick={() => (open ? close() : setOpen(true))}
-          title="Edit color"
+          title={isSwatchEditor ? label : "Edit color"}
         >
           {concrete && (
-            <span
-              className="swatch-fill"
-              style={
-                patternPaint && patternUrl
-                  ? { backgroundImage: `url(${patternUrl})`, backgroundSize: "cover" }
-                  : { background: paintToCss(concrete) }
-              }
-            />
+            <span className="swatch-fill" style={swatchChipStyle(concrete, assets)} />
           )}
         </button>
+        {!isSwatchEditor && (
         <span className="swatch-text">
           {ref
             ? linkedSwatch?.name ?? "Missing color"
@@ -207,6 +234,7 @@ export default function ColorField({ label, value, onChange }: Props) {
                     ? "Radial"
                     : "Image"}
         </span>
+        )}
       </div>
 
       {open &&
@@ -217,7 +245,10 @@ export default function ColorField({ label, value, onChange }: Props) {
             style={floatingStyles}
           >
           <div className="paint-type-row">
-            {(["none", "solid", "linear", "radial", "pattern"] as const).map((t) => (
+            {(isSwatchEditor
+              ? (["solid", "linear", "radial", "pattern"] as const)
+              : (["none", "solid", "linear", "radial", "pattern"] as const)
+            ).map((t) => (
               <button
                 key={t}
                 className={"paint-type-btn" + (kind === t ? " active" : "")}
@@ -251,48 +282,13 @@ export default function ColorField({ label, value, onChange }: Props) {
           )}
 
           {kind === "solid" && (
-            <>
-              <ColorPicker
-                value={color}
-                onChange={setColor}
-                alpha={alpha}
-                onAlphaChange={setAlpha}
-                showAlphaValue
-              />
-
-              <div className="color-pop-label">
-                Global colors
-                {!ref && (
-                  <button
-                    className="swatch-add"
-                    title="Save as a document color and link"
-                    onClick={createDocColor}
-                  >
-                    +
-                  </button>
-                )}
-              </div>
-              <div className="swatch-grid">
-                {swatchOrder.length === 0 && (
-                  <span className="swatch-hint">Shared colors that update every use</span>
-                )}
-                {swatchOrder.map((id) => {
-                  const sw = docSwatches[id];
-                  if (!sw) return null;
-                  return (
-                    <button
-                      key={id}
-                      className={
-                        "mini-swatch" + (ref?.swatchId === id ? " selected" : "")
-                      }
-                      style={{ background: paintToCss(sw.paint) }}
-                      title={sw.name}
-                      onClick={() => onChange(swatchRef(id))}
-                    />
-                  );
-                })}
-              </div>
-            </>
+            <ColorPicker
+              value={color}
+              onChange={setColor}
+              alpha={alpha}
+              onAlphaChange={setAlpha}
+              showAlphaValue
+            />
           )}
 
           {gradient && (
@@ -310,7 +306,7 @@ export default function ColorField({ label, value, onChange }: Props) {
                     max={360}
                     value={Math.round((angle * 180) / Math.PI)}
                     onChange={(e) =>
-                      onChange(
+                      commit(
                         linearGradient(
                           stops,
                           (Number(e.target.value) * Math.PI) / 180
@@ -496,6 +492,45 @@ export default function ColorField({ label, value, onChange }: Props) {
                 <span className="alpha-value">
                   {Math.round(patternPaint.alpha * 100)}%
                 </span>
+              </div>
+            </>
+          )}
+
+          {/* Global colours apply to every paint type, not just solid: a
+              gradient or pattern can be a document colour too. */}
+          {!isSwatchEditor && (
+            <>
+              <div className="color-pop-label">
+                Global colors
+                {!ref && concrete && (
+                  <button
+                    className="swatch-add"
+                    title="Save as a document color and link"
+                    onClick={createDocColor}
+                  >
+                    +
+                  </button>
+                )}
+              </div>
+              <div className="swatch-grid">
+                {swatchOrder.length === 0 && (
+                  <span className="swatch-hint">Shared paints that update every use</span>
+                )}
+                {swatchOrder.map((id) => {
+                  const sw = docSwatches[id];
+                  if (!sw) return null;
+                  return (
+                    <button
+                      key={id}
+                      className={
+                        "mini-swatch" + (ref?.swatchId === id ? " selected" : "")
+                      }
+                      style={swatchChipStyle(sw.paint, assets)}
+                      title={sw.name}
+                      onClick={() => onChange(swatchRef(id))}
+                    />
+                  );
+                })}
               </div>
             </>
           )}

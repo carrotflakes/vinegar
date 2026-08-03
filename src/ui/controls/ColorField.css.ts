@@ -26,6 +26,14 @@ globalStyle(".swatch-fill", {
   inset: "0",
 });
 
+// `variant="swatch"`: no label and no caption, so the field itself carries no
+// layout — its row participates directly in the host's (the swatch panel row).
+// Doubled class so the rule beats `.field`'s own `display` regardless of
+// stylesheet order.
+globalStyle(".color-field.color-field-bare", {
+  display: "contents",
+});
+
 globalStyle(".color-swatch.is-none", {
   background: `linear-gradient(45deg, transparent 45%, ${vars.danger} 45%, ${vars.danger} 55%, transparent 55%),
     #ffffff`,

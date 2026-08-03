@@ -3,15 +3,16 @@ import { LuPaintBucket, LuPlus, LuSquarePen, LuTrash2 } from "react-icons/lu";
 import { solid } from "../../../model/paint";
 import { swatchUsageCounts } from "../../../model/swatches";
 import { useEditor } from "../../../store/editorStore";
-import ColorInput from "../../controls/ColorInput";
+import ColorField from "../../controls/ColorField";
 import "../../Panel.css";
 import "../PanelList.css";
 import "./SwatchesPanel.css";
 
 /**
- * The document's global colours ("document colours"): named solid paints that
- * nodes reference by id, so editing one re-tints every use live. Rows show a
- * colour chip (edit live), an editable name and a usage count; the apply
+ * The document's global colours ("document colours"): named concrete paints —
+ * solid, gradient or pattern — that nodes reference by id, so editing one
+ * re-tints every use live. Rows show a paint chip (edit live, the full
+ * ColorField popover), an editable name and a usage count; the apply
  * buttons link the selection's fill/stroke to the swatch. Deleting bakes every
  * reference to its concrete colour first, so nothing dangles.
  */
@@ -34,7 +35,10 @@ export default function SwatchesPanel() {
   const addColor = () =>
     hasSelection
       ? createSwatchFromSelection()
-      : createSwatch("", styleFill?.type === "solid" ? styleFill : solid("#4f8cff"));
+      : createSwatch(
+          "",
+          styleFill && styleFill.type !== "swatch" ? styleFill : solid("#4f8cff")
+        );
 
   const remove = (id: string, name: string, count: number) => {
     if (count > 0 && !window.confirm(
@@ -65,16 +69,13 @@ export default function SwatchesPanel() {
             const count = counts.get(id) ?? 0;
             return (
               <div key={id} className="swatch-row">
-                <ColorInput
-                  className="swatch-chip"
-                  title="Edit color"
-                  value={sw.paint.color}
-                  alpha={sw.paint.alpha}
-                  onChange={(hex) =>
-                    updateSwatch(id, { paint: solid(hex, sw.paint.alpha) })
-                  }
-                  onAlphaChange={(a) =>
-                    updateSwatch(id, { paint: solid(sw.paint.color, a) })
+                <ColorField
+                  variant="swatch"
+                  label={`Edit “${sw.name}”`}
+                  value={sw.paint}
+                  onChange={(paint) =>
+                    // The swatch editor never yields null or a reference.
+                    paint && paint.type !== "swatch" && updateSwatch(id, { paint })
                   }
                 />
                 {editing === id ? (

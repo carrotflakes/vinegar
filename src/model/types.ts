@@ -3,7 +3,7 @@
 // transform into its parent coordinate space.
 // ===========================================================================
 
-import type { Paint, SolidPaint } from "./paint";
+import type { ConcretePaint, Paint } from "./paint";
 
 export type Vec2 = { x: number; y: number };
 
@@ -193,8 +193,9 @@ export function baseNodeDefaults(): Pick<
 export interface Swatch {
   id: string;
   name: string;
-  /** Concrete paint. v1: SolidPaint. Never a swatch reference (no chains). */
-  paint: SolidPaint;
+  /** Concrete paint — solid, gradient or pattern. Never a swatch reference
+   *  (no chains), so resolution is always single-hop. */
+  paint: ConcretePaint;
 }
 
 /**

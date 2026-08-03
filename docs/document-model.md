@@ -33,8 +33,10 @@ active tool, selection, viewport and undo history does not belong in the file.
   `pattern` (an image asset mapped onto the shape by an explicit `mode` —
   tile / fill / fit / stretch — plus `scale`/`rotation`/`offset`), or a
   `swatch` reference (`swatchId` plus a per-use `alpha`, `1` = the swatch's
-  own alpha unchanged). A pattern that references a decoding/missing asset
-  simply paints nothing that frame.
+  own alpha unchanged; on a gradient swatch the tint scales every stop). A
+  swatch stores any *concrete* paint — solid, gradient or pattern — but never
+  another reference, so resolution is single-hop. A pattern that references a
+  decoding/missing asset simply paints nothing that frame.
 - Stroke appearance is stored directly on each shape: width, dash array/offset,
   cap, join and alignment. An empty dash array means a solid stroke.
   Inside/outside alignment is effective only for closed vector geometry and
@@ -103,8 +105,9 @@ active tool, selection, viewport and undo history does not belong in the file.
   document, and a binding whose field path no longer addresses anything is
   pruned there. See [parameters.md](parameters.md).
 
-The current file version is v32; loading also accepts compatible v31 files
-(their absent `params`/`paramOrder`/`bindings` fill in as empty). Persisted
+The current file version is v33; loading also accepts compatible v31/v32 files
+(their absent `params`/`paramOrder`/`bindings` fill in as empty, and their
+solid-only swatches are already valid concrete paint). Persisted
 model changes require a version review and, when incompatible, a migration.
 
 ## Coordinate policy

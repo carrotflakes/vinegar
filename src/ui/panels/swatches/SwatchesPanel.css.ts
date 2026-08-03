@@ -17,15 +17,12 @@ globalStyle(".swatch-row .layer-name", {
   flex: "1",
 });
 
-// Overrides ColorInput's default swatch size; kept specific so the rule wins
+// Overrides ColorField's default swatch size; kept specific so the rule wins
 // regardless of stylesheet order.
-globalStyle(".swatch-row .swatch-chip", {
-  position: "relative",
+globalStyle(".swatch-row .color-swatch", {
   width: "20px",
   height: "20px",
   flex: "0 0 auto",
-  overflow: "hidden",
-  border: `1px solid ${vars.border}`,
   borderRadius: "5px",
   cursor: "pointer",
 });

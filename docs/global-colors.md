@@ -1,9 +1,10 @@
 # Global colors (document swatches) — design
 
-Status: implemented (v1, file format v23). The two open questions below were
-resolved per their "leaning": one swatch with `applySwatch(id, target)` for
-fill vs. stroke, and plain references first (no per-use tint UI yet — the
-`alpha` field exists on `SwatchRefPaint` and resolves, but nothing authors it).
+Status: implemented (v1 in file format v23; widened to any concrete paint in
+v33). The two open questions below were resolved per their "leaning": one swatch
+with `applySwatch(id, target)` for fill vs. stroke, and plain references first
+(no per-use tint UI yet — the `alpha` field exists on `SwatchRefPaint` and
+resolves, but nothing authors it).
 
 A **global color** is a named color stored on the document. Any number of nodes
 reference it by id instead of holding their own color; editing the global color
@@ -28,15 +29,23 @@ This is distinct from the existing personal **saved swatches** in
 - **Swatches store concrete paint only — no chains.** `Swatch.paint` is a
   solid/gradient/pattern, never itself a `swatch` ref. That removes cycle and
   multi-hop resolution concerns; validation enforces it.
-- **v1 is solid-only.** A global color holds a `SolidPaint`. Gradients that
-  reference globals per-stop, and pattern-of-global, are future work (they need
-  reference resolution *inside* stops). The data model below does not preclude
-  them.
+- **A swatch holds any concrete paint** — solid, gradient or pattern
+  (`ConcretePaint`). v1 shipped solid-only; v33 widened it, because the "edit
+  once, update everywhere" promise was arbitrarily missing for exactly the paint
+  most worth sharing across a document. Nothing downstream needed changing:
+  `resolvePaintRef` already returned `ConcretePaint`, and every consumer already
+  switched on the resolved paint's type.
+  Still *not* supported, and still future work: a gradient **stop** or a
+  pattern's own fields referencing a global (that needs reference resolution
+  *inside* a paint, which would break the single-hop rule below).
 - **Optional per-use tint.** A `swatch` reference may carry `alpha` (0..1) to
   tint that one usage on top of the swatch's own alpha, matching Illustrator's
-  global-color tint. Absent = 1 (use as-is).
+  global-color tint. Absent = 1 (use as-is). Solid and pattern have one alpha to
+  scale; a gradient's opacity lives per stop, so the tint scales every stop.
+  A tint of exactly 1 returns the swatch's paint object untouched, so the
+  common case allocates nothing per resolution.
 - **Deleting a global color detaches, never silently breaks.** On delete, every
-  reference is first resolved to a concrete solid paint (baked in place), then
+  reference is first resolved to a concrete paint (baked in place), then
   the swatch is removed. No dangling ids survive a delete.
 
 ### Global colors vs. the existing saved swatches
@@ -83,11 +92,9 @@ export function resolvePaintRef(
   if (paint.type !== "swatch") return paint;
   const s = swatches[paint.swatchId];
   if (!s) return null; // dangling — treat as no paint
-  const base = s.paint;
-  if (paint.alpha != null && base.type === "solid") {
-    return { ...base, alpha: clamp01(base.alpha * paint.alpha) };
-  }
-  return base;
+  // tintPaint: scales `alpha` on solid/pattern and every stop's alpha on a
+  // gradient; a tint of 1 returns `s.paint` itself.
+  return tintPaint(s.paint, paint.alpha);
 }
 ```
 
@@ -97,8 +104,8 @@ Add to [`types.ts`](../src/model/types.ts) `Document`:
 export interface Swatch {
   id: string;
   name: string;
-  /** Concrete paint. v1: SolidPaint. Never a SwatchRefPaint. */
-  paint: SolidPaint;
+  /** Concrete paint — solid, gradient or pattern. Never a SwatchRefPaint. */
+  paint: ConcretePaint;
 }
 
 // Document:
@@ -159,16 +166,26 @@ nodes carry the same `fill`/`stroke` fields, so one walk covers all.
 ## UI
 
 - **Global colors panel** — a dockable panel like the Assets panel
-  ([`src/ui/panels/`](../src/ui/panels/)). Rows: color chip, editable name,
-  usage count. `+` creates from the current selection/fill. Double-click the
-  chip opens the color popover and edits the global live. Drag a row onto the
-  canvas / a selection applies it as a reference. Delete asks to confirm when
-  usage count > 0 ("N objects will keep their current color").
-- **ColorField** ([`ColorField.tsx`](../src/ui/ColorField.tsx)) — add a
-  "Global colors" section to the popover listing `doc.swatches`; picking one
-  sets a *reference*. When the current paint is a reference, show a link badge +
-  the swatch name and an "unlink" action. Editing color while linked edits the
-  global (with an affordance to unlink first if the user wants a one-off).
+  ([`src/ui/panels/`](../src/ui/panels/)). Rows: paint chip, editable name,
+  usage count. `+` creates from the current selection/fill. The chip is
+  `ColorField` in its `variant="swatch"` form, so a global color is edited with
+  exactly the control that edits any other paint — including switching it to a
+  gradient. That variant drops what does not apply to a swatch: the label and
+  caption (the row supplies the name), "None" (a swatch always has a paint) and
+  the "Global colors" section (swatches never chain). Delete asks to confirm
+  when usage count > 0 ("N objects will keep their current color").
+- **ColorField** ([`ColorField.tsx`](../src/ui/controls/ColorField.tsx)) — a
+  "Global colors" section in the popover lists `doc.swatches`; picking one sets
+  a *reference*. It sits outside the per-type editors, since a global color can
+  be any paint type. When the current paint is a reference, a link badge shows
+  the swatch name and offers "unlink".
+- **Every paint edit in the popover goes through one `commit(paint)`**, which
+  writes to the linked swatch when the field is linked and to the field itself
+  otherwise. That is what makes editing a *gradient* global behave like editing
+  a solid one: restacking stops, dragging the angle or switching the paint type
+  all retune the global and stay linked, rather than silently detaching. The one
+  exception is "None", which is a property of the field, not of a color, so it
+  drops the link.
 
 ## Persistence & migration
 
@@ -178,20 +195,29 @@ backfill `swatches: {}` and `swatchOrder: []`. Add 22 to `MIGRATABLE_VERSIONS`
 and extend the header comment. No node-level migration — `swatch` references
 only appear in files authored after this ships.
 
+Widening `Swatch.paint` to `ConcretePaint` bumps 32 → **v33**. It is a pure
+widening, so v31/v32 files stay directly loadable (their swatches are all solid,
+which is still valid) and both remain in `SUPPORTED_FILE_VERSIONS`. Only the
+other direction breaks: a v33 file containing a gradient swatch is rejected by
+an older build, which is exactly what the version bump is for.
+
 ## Validation
 
 In [`sceneValidation.ts`](../src/model/sceneValidation.ts):
 
 - Every `swatchOrder` id exists in `swatches` and vice versa (bijection).
-- No `Swatch.paint` is a `swatch` reference (no chains/cycles).
+- No `Swatch.paint` is a `swatch` reference (no chains/cycles). This one needs
+  no runtime check in the scene validator: `ConcretePaint` excludes references
+  at the type level, and `isConcretePaint` in `serialize.ts` enforces it at the
+  only boundary untyped data crosses.
 - A soft check (not a hard error) for `swatch` references whose `swatchId` is
   missing — render/export already tolerate these via the `null` fallback, but
   flagging them helps catch bad imports.
 
 ## Out of scope for v1 / future
 
-- Gradient stops and pattern references that point at a global color (per-stop
-  resolution).
+- Gradient stops that point at a global color (per-stop resolution — a gradient
+  *as* a global color is supported, a gradient *of* global colors is not).
 - Color groups / harmonies, `.ase` palette import/export.
 - Exposing swatch refs to the scripting DSL and generators — comes for free
   once `resolvePaintRef` is the single resolution point; only the authoring API

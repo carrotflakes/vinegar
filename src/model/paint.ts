@@ -115,7 +115,8 @@ export interface SwatchRefPaint {
   type: "swatch";
   /** Id of a Swatch in doc.swatches. */
   swatchId: string;
-  /** Per-use tint 0..1, multiplied onto the swatch's own alpha (1 = as stored). */
+  /** Per-use tint 0..1, multiplied onto the swatch's own alpha — every stop's
+   *  alpha for a gradient swatch (1 = as stored). */
   alpha: number;
 }
 
@@ -148,11 +149,21 @@ export function resolvePaintRef(
   if (paint.type !== "swatch") return paint;
   const s = swatches[paint.swatchId];
   if (!s) return null; // dangling — treat as no paint
-  const base = s.paint;
-  if (base.type === "solid") {
-    return { ...base, alpha: clamp01(base.alpha * paint.alpha) };
+  return tintPaint(s.paint, paint.alpha);
+}
+
+/** Multiply a per-use tint (0..1) onto a concrete paint's own opacity. Solid
+ *  and pattern carry one alpha; a gradient's opacity lives per stop, so the
+ *  tint scales every stop. `1` returns the paint untouched (identity). */
+function tintPaint(base: ConcretePaint, tint: number): ConcretePaint {
+  if (tint === 1) return base;
+  if (base.type === "solid" || base.type === "pattern") {
+    return { ...base, alpha: clamp01(base.alpha * tint) };
   }
-  return base;
+  return {
+    ...base,
+    stops: base.stops.map((s) => ({ ...s, alpha: clamp01(s.alpha * tint) })),
+  };
 }
 
 export function solid(color: string, alpha = 1): SolidPaint {

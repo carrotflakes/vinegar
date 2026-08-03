@@ -7,7 +7,7 @@
 import type { BoolOp } from "@/model/path/boolean";
 import type { PathOp } from "@/model/path/pathOps";
 import type { ScriptMeta } from "@/model/generators/generators";
-import type { Paint, SolidPaint } from "../model/paint";
+import type { ConcretePaint, Paint } from "../model/paint";
 import type {
   BaseNode,
   AnchorType,
@@ -480,8 +480,9 @@ export interface ClipboardActions {
 
 /** Global colours ("document colours"): named swatches referenced by nodes. */
 export interface SwatchActions {
-  /** Create a swatch from a concrete paint; resolves its new id. */
-  createSwatch: (name: string, paint: SolidPaint) => string;
+  /** Create a swatch from a concrete paint (solid, gradient or pattern);
+   *  resolves its new id. */
+  createSwatch: (name: string, paint: ConcretePaint) => string;
   /** Create a swatch from the selection's current fill (fallback: stroke) and
    *  replace that paint with a reference in one undoable step. */
   createSwatchFromSelection: () => void;

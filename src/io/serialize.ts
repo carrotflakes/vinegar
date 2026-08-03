@@ -13,9 +13,11 @@ import {
   type ShapeType,
 } from "../model/types";
 
-export const CURRENT_FILE_VERSION = 32 as const;
-/** Older schemas accepted directly by the current document validator. */
-const SUPPORTED_FILE_VERSIONS = [31, CURRENT_FILE_VERSION] as const;
+export const CURRENT_FILE_VERSION = 33 as const;
+/** Older schemas accepted directly by the current document validator. v33
+ *  widened `Swatch.paint` from solid-only to any concrete paint, so v31/v32
+ *  documents remain valid as-is (their swatches are all solid). */
+const SUPPORTED_FILE_VERSIONS = [31, 32, CURRENT_FILE_VERSION] as const;
 
 export interface VinegarFile {
   app: "vinegar";
@@ -85,10 +87,9 @@ const isPaint = (value: unknown): boolean => {
   }
   return false;
 };
-/** A concrete solid paint (a Swatch's stored value; never a reference). */
-const isSolidPaint = (value: unknown): boolean =>
-  isObject(value) && value.type === "solid" && typeof value.color === "string" &&
-  isNumber(value.alpha) && value.alpha >= 0 && value.alpha <= 1;
+/** A concrete paint (a Swatch's stored value; never a reference — no chains). */
+const isConcretePaint = (value: unknown): boolean =>
+  isPaint(value) && isObject(value) && value.type !== "swatch";
 const isPaintOrNull = (value: unknown): boolean => value === null || isPaint(value);
 const isEffect = (value: unknown): boolean => {
   if (!isObject(value) || !EFFECT_TYPES.includes(value.type as never)) return false;
@@ -296,7 +297,7 @@ function isCurrentDocument(value: unknown): value is Document {
     isObject(value.swatches) &&
     Object.entries(value.swatches).every(([id, sw]) =>
       isObject(sw) && sw.id === id &&
-      typeof sw.name === "string" && isSolidPaint(sw.paint)) &&
+      typeof sw.name === "string" && isConcretePaint(sw.paint)) &&
     Array.isArray(value.swatchOrder) &&
     value.swatchOrder.every((id) => typeof id === "string") &&
     // Absent params/paramOrder is the v31 form: the document has none.
