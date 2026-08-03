@@ -10,22 +10,23 @@ import { createPortal } from "react-dom";
 import { LuLink2Off, LuPlus } from "react-icons/lu";
 import {
   isGradient,
-  isSwatchRef,
+  isVarRef,
   linearGradient,
   paintToCss,
   pattern,
   radialGradient,
-  resolvePaintRef,
   solid,
   stopsToCssBar,
-  swatchRef,
+  varRef,
   type ConcretePaint,
   type GradientStop,
   type Paint,
   type PatternMode,
   type PatternPaint,
 } from "@/model/paint";
-import type { DocumentAsset } from "@/model/types";
+import { paintVars, resolvePaint, scopeForNode } from "@/model/vars";
+import { paintValue, type DocumentAsset } from "@/model/types";
+import { enclosingSymbolId } from "@/model/scene";
 import { pickImageFiles } from "@/io/importImage";
 import ColorInput from "./ColorInput";
 import ColorPicker from "./ColorPicker";
@@ -65,30 +66,51 @@ interface Props {
   onChange: (v: Paint | null) => void;
   /**
    * `field` (default) is a labelled property row that may hold "none" and may
-   * link to a global colour. `swatch` edits a global colour *itself*: no label
-   * or caption (the panel row supplies the name), no "None" (a swatch always
-   * has a paint) and no global-colours section (swatches never chain).
+   * link to a colour variable. `swatch` edits a variable *itself*: no label or
+   * caption (the panel row supplies the name), no "None" (a variable always has
+   * a paint) and no variables section (a variable never chains).
    */
   variant?: "field" | "swatch";
+  /** The node and slot this field edits, when it has one. Promoting the paint
+   *  to a symbol parameter needs to know which field to rewrite. */
+  nodeId?: string;
+  target?: "fill" | "stroke";
 }
 
-export default function ColorField({ label, value, onChange, variant = "field" }: Props) {
+export default function ColorField({
+  label,
+  value,
+  onChange,
+  variant = "field",
+  nodeId,
+  target,
+}: Props) {
   const addRecentColor = useEditor((s) => s.addRecentColor);
   const assets = useEditor((s) => s.doc.assets);
   const addPatternImage = useEditor((s) => s.addPatternImage);
-  // Document colours (global swatches) referenced by the current paint.
-  const docSwatches = useEditor((s) => s.doc.swatches);
-  const swatchOrder = useEditor((s) => s.doc.swatchOrder);
-  const createSwatch = useEditor((s) => s.createSwatch);
-  const updateSwatch = useEditor((s) => s.updateSwatch);
+  // Colour variables referenced by the current paint. Inside symbol-edit focus
+  // the chain also carries the definition's own parameter defaults, so a field
+  // bound to a symbol parameter previews the colour it actually paints.
+  const doc = useEditor((s) => s.doc);
+  const focusRoot = useEditor((s) => s.focusStack[s.focusStack.length - 1] ?? null);
+  const createVar = useEditor((s) => s.createVar);
+  const updateVar = useEditor((s) => s.updateVar);
+  const promoteToSymbolParam = useEditor((s) => s.promoteToSymbolParam);
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
   const enabled = value !== null;
-  // A `swatch` reference resolves to the document swatch's concrete paint; the
+  // A `var` reference resolves to the variable's concrete paint; the
   // whole field then behaves as that paint, but edits flow to the global.
-  const ref = isSwatchRef(value) ? value : null;
-  const linkedSwatch = ref ? docSwatches[ref.swatchId] : null;
-  const concrete = resolvePaintRef(value, docSwatches);
+  const ref = isVarRef(value) ? value : null;
+  const scope = scopeForNode(doc, focusRoot);
+  const linkedVar = ref ? doc.vars[ref.varId] : null;
+  const colorVars = paintVars(doc);
+  // A symbol definition's own parameters are promotions, not document
+  // variables, so the field names one only while its symbol is open.
+  const symbolParams =
+    doc.symbols[enclosingSymbolId(doc, focusRoot) ?? ""]?.params ?? [];
+  const linkedParam = ref ? symbolParams.find((p) => p.key === ref.varId) : null;
+  const concrete = resolvePaint(value, scope);
   const kind = value === null ? "none" : concrete?.type ?? "solid"; // none|solid|linear|radial|pattern
   // Colour and alpha are edited independently; a paint keeps its alpha when the
   // colour changes (and vice-versa). Swatches/recents/palette store colours.
@@ -102,20 +124,20 @@ export default function ColorField({ label, value, onChange, variant = "field" }
   const alpha = concrete && concrete.type === "solid" ? concrete.alpha : 1;
   /**
    * The single write path for every paint edit in this popover. While linked,
-   * an edit updates the global swatch (re-tinting every use) instead of this
+   * an edit updates the variable (re-tinting every use) instead of this
    * field, whatever the paint type — so switching a linked colour to a gradient
    * or restacking its stops edits the global rather than silently detaching.
    * Unlinked, it just sets this field's own paint.
    */
   const commit = (paint: ConcretePaint) =>
-    ref && linkedSwatch
-      ? updateSwatch(ref.swatchId, { paint })
+    ref && linkedVar
+      ? updateVar(ref.varId, { value: paintValue(paint) })
       : onChange(paint);
   const setColor = (hex: string) => commit(solid(hex, alpha));
   const setAlpha = (a: number) => commit(solid(color, a));
-  // Save the current concrete paint as a new document colour and link to it.
+  // Save the current concrete paint as a new colour variable and link to it.
   const createDocColor = () =>
-    concrete && onChange(swatchRef(createSwatch("", concrete)));
+    concrete && onChange(varRef(createVar(paintValue(concrete))));
   // Detach: bake the reference back to its concrete paint on this field only.
   const unlink = () => onChange(concrete);
 
@@ -221,7 +243,7 @@ export default function ColorField({ label, value, onChange, variant = "field" }
         {!isSwatchEditor && (
         <span className="swatch-text">
           {ref
-            ? linkedSwatch?.name ?? "Missing color"
+            ? linkedParam?.label ?? linkedVar?.name ?? "Missing color"
             : kind === "none"
               ? "none"
               : kind === "solid"
@@ -271,9 +293,11 @@ export default function ColorField({ label, value, onChange, variant = "field" }
             <div className="swatch-link-badge">
               <LuLink2Off aria-hidden />
               <span className="swatch-link-name">
-                {linkedSwatch
-                  ? `Linked to “${linkedSwatch.name}”`
-                  : "Linked color is missing"}
+                {linkedParam
+                  ? `Symbol parameter “${linkedParam.label}”`
+                  : linkedVar
+                    ? `Linked to “${linkedVar.name}”`
+                    : "Linked color is missing"}
               </span>
               <button className="swatch-unlink" title="Unlink" onClick={unlink}>
                 Unlink
@@ -496,12 +520,26 @@ export default function ColorField({ label, value, onChange, variant = "field" }
             </>
           )}
 
-          {/* Global colours apply to every paint type, not just solid: a
+          {/* Colour variables apply to every paint type, not just solid: a
               gradient or pattern can be a document colour too. */}
           {!isSwatchEditor && (
             <>
+              {nodeId && target && enclosingSymbolId(doc, nodeId) && !linkedParam && (
+                <div className="btn-row">
+                  <button
+                    className="ghost-btn"
+                    title="Instances of this symbol can override this color"
+                    onClick={() => {
+                      promoteToSymbolParam(nodeId, target, label);
+                      setOpen(false);
+                    }}
+                  >
+                    Promote to symbol parameter
+                  </button>
+                </div>
+              )}
               <div className="color-pop-label">
-                Global colors
+                Colors
                 {!ref && concrete && (
                   <button
                     className="swatch-add"
@@ -513,24 +551,20 @@ export default function ColorField({ label, value, onChange, variant = "field" }
                 )}
               </div>
               <div className="swatch-grid">
-                {swatchOrder.length === 0 && (
+                {colorVars.length === 0 && (
                   <span className="swatch-hint">Shared paints that update every use</span>
                 )}
-                {swatchOrder.map((id) => {
-                  const sw = docSwatches[id];
-                  if (!sw) return null;
-                  return (
+                {colorVars.map((entry) =>
+                  entry.value.kind === "paint" ? (
                     <button
-                      key={id}
-                      className={
-                        "mini-swatch" + (ref?.swatchId === id ? " selected" : "")
-                      }
-                      style={swatchChipStyle(sw.paint, assets)}
-                      title={sw.name}
-                      onClick={() => onChange(swatchRef(id))}
+                      key={entry.id}
+                      className={"mini-swatch" + (ref?.varId === entry.id ? " selected" : "")}
+                      style={swatchChipStyle(entry.value.value, assets)}
+                      title={entry.name}
+                      onClick={() => onChange(varRef(entry.id))}
                     />
-                  );
-                })}
+                  ) : null
+                )}
               </div>
             </>
           )}

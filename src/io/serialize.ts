@@ -1,5 +1,5 @@
 import { clippingMask } from "../model/clippingMask";
-import { hasValidParams } from "../model/params";
+import { hasValidVars } from "../model/vars";
 import { isCompoundChild } from "@/model/path/compoundPath";
 import { referencedAssetIds } from "../model/scene";
 import {
@@ -13,11 +13,12 @@ import {
   type ShapeType,
 } from "../model/types";
 
-export const CURRENT_FILE_VERSION = 33 as const;
-/** Older schemas accepted directly by the current document validator. v33
- *  widened `Swatch.paint` from solid-only to any concrete paint, so v31/v32
- *  documents remain valid as-is (their swatches are all solid). */
-const SUPPORTED_FILE_VERSIONS = [31, 32, CURRENT_FILE_VERSION] as const;
+export const CURRENT_FILE_VERSION = 34 as const;
+/** Older schemas accepted after a read-time transform (see {@link migrateToV34}).
+ *  v34 merged `swatches`+`params` into one `vars` table and gave symbols
+ *  parameters, so v31–v33 need their two tables folded into one — ids carry
+ *  over unchanged, which makes the transform total and lossless. */
+const SUPPORTED_FILE_VERSIONS = [31, 32, 33, CURRENT_FILE_VERSION] as const;
 
 export interface VinegarFile {
   app: "vinegar";
@@ -81,15 +82,15 @@ const isPaint = (value: unknown): boolean => {
       isNumber(value.scale) && isNumber(value.rotation) && isPoint(value.offset) &&
       isNumber(value.alpha) && value.alpha >= 0 && value.alpha <= 1;
   }
-  if (value.type === "swatch") {
-    return typeof value.swatchId === "string" &&
+  if (value.type === "var") {
+    return typeof value.varId === "string" &&
       isNumber(value.alpha) && value.alpha >= 0 && value.alpha <= 1;
   }
   return false;
 };
-/** A concrete paint (a Swatch's stored value; never a reference — no chains). */
+/** A concrete paint (a variable's stored value; never a reference — no chains). */
 const isConcretePaint = (value: unknown): boolean =>
-  isPaint(value) && isObject(value) && value.type !== "swatch";
+  isPaint(value) && isObject(value) && value.type !== "var";
 const isPaintOrNull = (value: unknown): boolean => value === null || isPaint(value);
 const isEffect = (value: unknown): boolean => {
   if (!isObject(value) || !EFFECT_TYPES.includes(value.type as never)) return false;
@@ -139,21 +140,32 @@ const isGeneratorOrNull = (value: unknown): boolean => {
   if (!isObject(value) || typeof value.scriptId !== "string" || !isObject(value.args)) return false;
   return Object.values(value.args).every(isNumber);
 };
-/** A node's parameter bindings. Absent is the v31 form: no bindings. */
-const isBindingsOrAbsent = (value: unknown): boolean =>
-  value === undefined ||
-  (isObject(value) &&
-    Object.values(value).every(
-      (ref) => isObject(ref) && typeof ref.paramId === "string" && isNumber(ref.scale)
-    ));
-/** A named document number. `min`/`max`/`step` are scrubber hints or null. */
-const isParam = (id: string, value: unknown): boolean =>
+/** A node's numeric bindings, keyed by field path. */
+const isBindings = (value: unknown): boolean =>
+  isObject(value) &&
+  Object.values(value).every(
+    (ref) => isObject(ref) && typeof ref.varId === "string" && isNumber(ref.scale)
+  );
+/** A variable's value: a number (with scrubber hints) or a concrete paint. */
+const isVarValue = (value: unknown): boolean => {
+  if (!isObject(value)) return false;
+  if (value.kind === "number") {
+    return isNumber(value.value) &&
+      (value.min === null || isNumber(value.min)) &&
+      (value.max === null || isNumber(value.max)) &&
+      (value.step === null || isNumber(value.step)) &&
+      typeof value.integer === "boolean";
+  }
+  return value.kind === "paint" && isConcretePaint(value.value);
+};
+/** A named document variable. */
+const isVar = (id: string, value: unknown): boolean =>
   isObject(value) && value.id === id && typeof value.name === "string" &&
-  isNumber(value.value) &&
-  (value.min === null || isNumber(value.min)) &&
-  (value.max === null || isNumber(value.max)) &&
-  (value.step === null || isNumber(value.step)) &&
-  typeof value.integer === "boolean";
+  isVarValue(value.value);
+/** One declared symbol parameter; `default` fixes its type. */
+const isSymbolParam = (value: unknown): boolean =>
+  isObject(value) && typeof value.key === "string" &&
+  typeof value.label === "string" && isVarValue(value.default);
 // Shared node fields are all required: `undefined` is not a legal value for any
 // of them, so a file that omits one is rejected rather than silently defaulted.
 const isNode = (id: string, node: unknown): boolean => {
@@ -164,7 +176,7 @@ const isNode = (id: string, node: unknown): boolean => {
       !BLEND_MODES.includes(node.blendMode as never) ||
       !isEffects(node.effects) ||
       !isGeneratorOrNull(node.generator) ||
-      !isBindingsOrAbsent(node.bindings) ||
+      !isBindings(node.bindings) ||
       typeof node.hidden !== "boolean" ||
       typeof node.locked !== "boolean") return false;
   if (node.type === "group") {
@@ -181,7 +193,8 @@ const isNode = (id: string, node: unknown): boolean => {
       node.childIds.every((child) => typeof child === "string");
   }
   if (node.type === "instance") {
-    return typeof node.symbolId === "string";
+    return typeof node.symbolId === "string" &&
+      isObject(node.args) && Object.values(node.args).every(isVarValue);
   }
   if (!(isPaintOrNull(node.fill) && isPaintOrNull(node.stroke) &&
       isNumber(node.strokeWidth) && node.strokeWidth >= 0 &&
@@ -258,30 +271,87 @@ export function parseDocument(text: string): Document {
   if (!SUPPORTED_FILE_VERSIONS.includes(data.version as never)) {
     throw new Error(`Unsupported Vinegar file version: ${String(data.version)}.`);
   }
-  if (!isCurrentDocument(data.document)) {
+  const raw =
+    data.version === CURRENT_FILE_VERSION
+      ? structuredClone(data.document)
+      : migrateToV34(structuredClone(data.document));
+  if (!isCurrentDocument(raw)) {
     throw new Error("Document data is missing or malformed.");
   }
-  const doc = withParamDefaults(structuredClone(data.document));
-  validateTree(doc);
-  return doc;
+  validateTree(raw);
+  return raw;
 }
 
 /**
- * Fill in the parameter fields a v31 file predates. The model has no optional
- * fields, so "the document has no parameters" is an empty registry and an empty
- * binding map on every node, not an absent key.
+ * Fold a v31–v33 document into the v34 shape. `swatches` and `params` become
+ * one `vars` table (ids carry over, so every reference stays valid), the
+ * `swatch` paint variant becomes `var`, a binding's `paramId` becomes `varId`,
+ * symbols gain an empty parameter list and instances empty args. v31 also
+ * predates bindings entirely, which is the empty map rather than an absent key.
  */
-function withParamDefaults(doc: Document): Document {
-  const nodes: Document["nodes"] = {};
-  for (const [id, node] of Object.entries(doc.nodes)) {
-    nodes[id] = node.bindings ? node : { ...node, bindings: {} };
+function migrateToV34(input: unknown): unknown {
+  if (!isObject(input)) return input;
+  const doc = input as Record<string, unknown>;
+  const vars: Record<string, unknown> = {};
+  const varOrder: string[] = [];
+  if (isObject(doc.swatches)) {
+    for (const [id, sw] of Object.entries(doc.swatches)) {
+      if (!isObject(sw)) continue;
+      vars[id] = { id, name: sw.name, value: { kind: "paint", value: sw.paint } };
+    }
   }
-  return {
-    ...doc,
-    nodes,
-    params: doc.params ?? {},
-    paramOrder: doc.paramOrder ?? [],
-  };
+  if (isObject(doc.params)) {
+    for (const [id, param] of Object.entries(doc.params)) {
+      if (!isObject(param)) continue;
+      const { id: _id, name, ...rest } = param;
+      vars[id] = { id, name, value: { kind: "number", ...rest } };
+    }
+  }
+  for (const list of [doc.swatchOrder, doc.paramOrder]) {
+    if (Array.isArray(list)) {
+      for (const id of list) if (typeof id === "string" && vars[id]) varOrder.push(id);
+    }
+  }
+  const nodes: Record<string, unknown> = {};
+  if (isObject(doc.nodes)) {
+    for (const [id, value] of Object.entries(doc.nodes)) {
+      if (!isObject(value)) {
+        nodes[id] = value;
+        continue;
+      }
+      const node = { ...value } as Record<string, unknown>;
+      node.bindings = isObject(node.bindings)
+        ? Object.fromEntries(
+            Object.entries(node.bindings).map(([path, ref]) => [
+              path,
+              isObject(ref) ? { varId: ref.paramId, scale: ref.scale } : ref,
+            ])
+          )
+        : {};
+      for (const target of ["fill", "stroke"] as const) {
+        const paint = node[target];
+        if (isObject(paint) && paint.type === "swatch") {
+          node[target] = { type: "var", varId: paint.swatchId, alpha: paint.alpha };
+        }
+      }
+      if (node.type === "instance") node.args = {};
+      nodes[id] = node;
+    }
+  }
+  const symbols: Record<string, unknown> = {};
+  if (isObject(doc.symbols)) {
+    for (const [id, def] of Object.entries(doc.symbols)) {
+      symbols[id] = isObject(def) ? { ...def, params: [] } : def;
+    }
+  }
+  const {
+    swatches: _swatches,
+    swatchOrder: _swatchOrder,
+    params: _params,
+    paramOrder: _paramOrder,
+    ...rest
+  } = doc;
+  return { ...rest, nodes, symbols, vars, varOrder };
 }
 
 function isCurrentDocument(value: unknown): value is Document {
@@ -293,20 +363,12 @@ function isCurrentDocument(value: unknown): value is Document {
     isObject(value.symbols) &&
     Object.entries(value.symbols).every(([id, def]) =>
       isObject(def) && def.id === id &&
-      typeof def.name === "string" && typeof def.rootNodeId === "string") &&
-    isObject(value.swatches) &&
-    Object.entries(value.swatches).every(([id, sw]) =>
-      isObject(sw) && sw.id === id &&
-      typeof sw.name === "string" && isConcretePaint(sw.paint)) &&
-    Array.isArray(value.swatchOrder) &&
-    value.swatchOrder.every((id) => typeof id === "string") &&
-    // Absent params/paramOrder is the v31 form: the document has none.
-    (value.params === undefined ||
-      (isObject(value.params) &&
-        Object.entries(value.params).every(([id, param]) => isParam(id, param)))) &&
-    (value.paramOrder === undefined ||
-      (Array.isArray(value.paramOrder) &&
-        value.paramOrder.every((id) => typeof id === "string"))) &&
+      typeof def.name === "string" && typeof def.rootNodeId === "string" &&
+      Array.isArray(def.params) && def.params.every(isSymbolParam)) &&
+    isObject(value.vars) &&
+    Object.entries(value.vars).every(([id, entry]) => isVar(id, entry)) &&
+    Array.isArray(value.varOrder) &&
+    value.varOrder.every((id) => typeof id === "string") &&
     isObject(value.scripts) &&
     Object.entries(value.scripts).every(([id, def]) =>
       isObject(def) && def.id === id &&
@@ -389,15 +451,11 @@ function validateTree(doc: Document): void {
   if (new Set(doc.guides.map((g) => g.id)).size !== doc.guides.length) {
     throw new Error("Document guides contain duplicate ids.");
   }
-  // Global colours: `swatchOrder` and `swatches` must be a bijection.
-  if (doc.swatchOrder.length !== Object.keys(doc.swatches).length ||
-      doc.swatchOrder.some((id) => !doc.swatches[id])) {
-    throw new Error("Global colors order does not match the swatch registry.");
-  }
-  // Parameters: `paramOrder` and `params` must be a bijection. A binding whose
-  // parameter is missing is tolerated — the bound field keeps its last value.
-  if (!hasValidParams(doc)) {
-    throw new Error("Parameter order does not match the parameter registry.");
+  // Document variables: `varOrder` and `vars` must be a bijection. A dangling
+  // *reference* is tolerated — a `var` paint paints nothing and a bound field
+  // keeps its last value, both of which the UI surfaces.
+  if (!hasValidVars(doc)) {
+    throw new Error("Variable order does not match the variable registry.");
   }
   for (const id of doc.rootIds) visit(id);
   for (const def of Object.values(doc.symbols)) {

@@ -62,19 +62,22 @@ additional effects, or other feature expansion.
   `systemClipboard.ts` degrade to plain SVG
 
 ### New ideas
-- [ ] **Parameters and references** (docs/parameters.md) — phase 1 shipped:
-  document parameters (v32) drive `strokeWidth`, path-modifier params and
-  built-in generator args through `node.bindings`. Remaining phases: parametric
-  symbols — 2a paint overrides + the `swatches`/`params` → typed `vars` merge
-  (v34), 2b numeric overrides (v35) — and non-destructive boolean as a node→node
-  operand (v35), then expressions (optional). Only hard ordering: 2b after the
-  boolean phase, since both need geometry resolution to become context-aware and
-  memoized. Not before the 1.0 gates above.
-  Phase-1 gap: document-script generators are not bindable (their geometry only
+- [ ] **Parameters and references** (docs/parameters.md) — phases 1 and 2a
+  shipped: document variables (`doc.vars`, v34) hold named numbers *and* paints;
+  numbers drive `strokeWidth`, path-modifier params and built-in generator args
+  through `node.bindings`, paints are referenced by `var` fills/strokes, and a
+  symbol definition's declared params let each instance override a colour.
+  Remaining phases: non-destructive boolean as a node→node operand (v35), then
+  2b numeric symbol overrides on top of it (numeric symbol params are already
+  declarable but read-only), then expressions (optional). Only hard ordering: 2b
+  after the boolean phase, since both need geometry resolution to become
+  context-aware and memoized. Not before the 1.0 gates above.
+  Standing gap: document-script generators are not bindable (their geometry only
   rebuilds through the worker, which the pure resolution step cannot await).
 - [x] Swatches saved in the document — global colors (v23), holding any concrete
-  paint since v33 (solid, gradient or pattern). Personal localStorage swatches
-  stay as the cross-document palette.
+  paint since v33 (solid, gradient or pattern) and merged into the document
+  variables table in v34. Personal localStorage swatches stay as the
+  cross-document palette.
 - [ ] Distribution: match an existing gap (not just centering)
 - [ ] Status bar: color swatch under the cursor (eyedropper-style; watch getImageData cost)
 

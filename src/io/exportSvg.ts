@@ -17,10 +17,15 @@ import {
   hexToRgb,
   paintToSvgAttrs,
   patternPlacement,
-  resolvePaintRef,
   type Paint,
   type PatternPaint,
 } from "../model/paint";
+import {
+  documentScope,
+  resolvePaint,
+  symbolScope,
+  type VarScope,
+} from "../model/vars";
 import { isGroup, isShape } from "../model/scene";
 import { effectiveRectCornerRadius, roundedRectSubpath } from "../model/roundedRect";
 import { ellipseSubpath } from "../model/ellipse";
@@ -69,7 +74,9 @@ interface Defs {
   paintAttrs(
     paint: Paint,
     kind: "fill" | "stroke",
-    bounds: Bounds
+    bounds: Bounds,
+    /** Variable lookup chain; instances push their args onto it. */
+    scope: VarScope
   ): string[];
   clipPath(shape: ClippingMaskShape): string;
   strokeClip(markup: string): string;
@@ -176,10 +183,10 @@ function makeDefs(doc: Document): Defs {
   return {
     items,
     nextId,
-    paintAttrs(paint, kind, bounds) {
-      // Bake `swatch` references to concrete paint; a dangling ref emits
+    paintAttrs(paint, kind, bounds, scope) {
+      // Bake `var` references to concrete paint; a dangling ref emits
       // `${kind}="none"` (harmless for stroke; suppresses the default black fill).
-      const resolved = resolvePaintRef(paint, doc.swatches);
+      const resolved = resolvePaint(paint, scope);
       if (!resolved) return [`${kind}="none"`];
       paint = resolved;
       if (paint.type === "solid") return paintToSvgAttrs(paint, kind);
@@ -337,19 +344,19 @@ function filterAttr(node: SceneNode, defs: Defs): string {
   return hasEffects(node.effects) ? `filter="url(#${defs.filter(node.effects)})"` : "";
 }
 
-function commonAttrs(doc: Document, shape: Shape, defs: Defs): string {
+function commonAttrs(doc: Document, shape: Shape, defs: Defs, scope: VarScope): string {
   const parts: string[] = [];
   const bounds = shapeBounds(shape, doc);
   // SVG fills open subpaths by implicitly closing them while leaving their
   // stroke geometry open.
   const fillable = shape.type !== "line";
   if (fillable && shape.fill) {
-    parts.push(...defs.paintAttrs(shape.fill, "fill", bounds));
+    parts.push(...defs.paintAttrs(shape.fill, "fill", bounds, scope));
   } else {
     parts.push(`fill="none"`);
   }
   if (shape.stroke && shape.strokeWidth > 0) {
-    parts.push(...strokeSvgAttrs(shape, defs, shape.strokeWidth, doc));
+    parts.push(...strokeSvgAttrs(shape, defs, shape.strokeWidth, scope, doc));
   }
   parts.push(...baseAttrs(shape));
   const fx = filterAttr(shape, defs);
@@ -361,11 +368,12 @@ function strokeSvgAttrs(
   shape: Shape,
   defs: Defs,
   width: number,
+  scope: VarScope,
   doc?: Document
 ): string[] {
   if (!shape.stroke) return [];
   const parts = [
-    ...defs.paintAttrs(shape.stroke, "stroke", shapeBounds(shape, doc)),
+    ...defs.paintAttrs(shape.stroke, "stroke", shapeBounds(shape, doc), scope),
     `stroke-width="${num(width)}"`,
     `stroke-linecap="${shape.strokeCap}"`,
     `stroke-linejoin="${shape.strokeJoin}"`,
@@ -381,10 +389,15 @@ function strokeSvgAttrs(
   return parts;
 }
 
-function fillSvgAttrs(doc: Document, shape: Shape, defs: Defs): string[] {
+function fillSvgAttrs(
+  doc: Document,
+  shape: Shape,
+  defs: Defs,
+  scope: VarScope
+): string[] {
   const fillable = shape.type !== "line";
   return fillable && shape.fill
-    ? defs.paintAttrs(shape.fill, "fill", shapeBounds(shape, doc))
+    ? defs.paintAttrs(shape.fill, "fill", shapeBounds(shape, doc), scope)
     : [`fill="none"`];
 }
 
@@ -397,7 +410,7 @@ function expandedBounds(bounds: Bounds, amount: number): Bounds {
   };
 }
 
-function shapeToSvg(doc: Document, shape: Shape, defs: Defs): string {
+function shapeToSvg(doc: Document, shape: Shape, defs: Defs, scope: VarScope): string {
   if (shape.type === "image") {
     const asset = doc.assets[shape.assetId];
     if (!asset) return "";
@@ -414,7 +427,7 @@ function shapeToSvg(doc: Document, shape: Shape, defs: Defs): string {
     // there is no SVG stroke to position, so bypass the alignment machinery.
     const parts: string[] = [];
     if (shape.stroke) {
-      parts.push(...defs.paintAttrs(shape.stroke, "fill", shapeBounds(shape)));
+      parts.push(...defs.paintAttrs(shape.stroke, "fill", shapeBounds(shape), scope));
     } else {
       parts.push(`fill="none"`);
     }
@@ -425,16 +438,16 @@ function shapeToSvg(doc: Document, shape: Shape, defs: Defs): string {
   }
   const alignment = effectiveStrokeAlignment(shape);
   if (!shape.stroke || shape.strokeWidth <= 0 || alignment === "center") {
-    return shapeGeometryToSvg(doc, shape, commonAttrs(doc, shape, defs));
+    return shapeGeometryToSvg(doc, shape, commonAttrs(doc, shape, defs, scope));
   }
 
   // SVG has no interoperable inside/outside stroke positioning. Paint fill
   // and stroke separately, double the stroke width, then clip/mask the latter.
-  const fill = shapeGeometryToSvg(doc, shape, [...fillSvgAttrs(doc, shape, defs), `stroke="none"`].join(" "));
+  const fill = shapeGeometryToSvg(doc, shape, [...fillSvgAttrs(doc, shape, defs, scope), `stroke="none"`].join(" "));
   const stroke = shapeGeometryToSvg(
     doc,
     shape,
-    [`fill="none"`, ...strokeSvgAttrs(shape, defs, shape.strokeWidth * 2, doc)].join(" ")
+    [`fill="none"`, ...strokeSvgAttrs(shape, defs, shape.strokeWidth * 2, scope, doc)].join(" ")
   );
   const silhouette = shapeGeometryToSvg(
     doc,
@@ -621,10 +634,11 @@ function nodeToSvg(
   node: SceneNode,
   indent: string,
   defs: Defs,
-  activeSymbols: Set<string> = new Set()
+  activeSymbols: Set<string> = new Set(),
+  scope: VarScope = documentScope(doc)
 ): string[] {
   if (isShape(node)) {
-    return node.hidden ? [] : [indent + shapeToSvg(doc, node, defs)];
+    return node.hidden ? [] : [indent + shapeToSvg(doc, node, defs, scope)];
   }
   if (node.hidden) return [];
   let childIds: string[];
@@ -644,6 +658,8 @@ function nodeToSvg(
     if (!def) return [];
     childIds = [def.rootNodeId];
     symbolId = node.symbolId;
+    // Per-instance parameter overrides, exactly as the canvas resolves them.
+    scope = symbolScope(scope, def, node);
   } else {
     return [];
   }
@@ -662,7 +678,9 @@ function nodeToSvg(
   if (symbolId) activeSymbols.add(symbolId);
   const body = childIds.flatMap((id) => {
     const child = doc.nodes[id];
-    return child ? nodeToSvg(doc, child, indent + "  ", defs, activeSymbols) : [];
+    return child
+      ? nodeToSvg(doc, child, indent + "  ", defs, activeSymbols, scope)
+      : [];
   });
   if (symbolId) activeSymbols.delete(symbolId);
   return [

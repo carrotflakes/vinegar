@@ -36,7 +36,7 @@ export function defaultLayout(): DockLayout {
     { id: newGroupId(), tabs: ["properties"], active: "properties", flex: 1.3 },
     {
       id: newGroupId(),
-      tabs: ["layers", "symbols", "swatches", "params", "generators"],
+      tabs: ["layers", "symbols", "vars", "generators"],
       active: "layers",
       flex: 1,
     },
@@ -161,12 +161,20 @@ export function hiddenPanels(layout: DockLayout, allIds: string[]): string[] {
   return allIds.filter((id) => !shown.has(id));
 }
 
+/** Panels that were merged into another one; saved layouts still name them. */
+const RENAMED_PANELS: Record<string, string> = {
+  swatches: "vars",
+  params: "vars",
+};
+
 /**
- * Load a saved layout, discarding tabs whose panels no longer exist. Falls back
- * to the default when nothing valid remains.
+ * Load a saved layout, discarding tabs whose panels no longer exist (and
+ * following the ones that were merged elsewhere). Falls back to the default
+ * when nothing valid remains.
  */
 export function loadLayout(validIds: string[]): DockLayout {
   const valid = new Set(validIds);
+  const seen = new Set<string>();
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return defaultLayout();
@@ -175,10 +183,19 @@ export function loadLayout(validIds: string[]): DockLayout {
     const groups: DockLayout = [];
     for (const g of parsed) {
       const tabs = Array.isArray(g?.tabs)
-        ? g.tabs.filter((t: unknown) => typeof t === "string" && valid.has(t))
+        ? g.tabs
+            .map((t: unknown) =>
+              typeof t === "string" ? RENAMED_PANELS[t] ?? t : t
+            )
+            // A merge can leave the same panel twice in one group.
+            .filter((t: unknown): t is string =>
+              typeof t === "string" && valid.has(t) && !seen.has(t) && !!seen.add(t)
+            )
         : [];
       if (tabs.length === 0) continue;
-      const active = tabs.includes(g.active) ? g.active : tabs[0];
+      const active = tabs.includes(RENAMED_PANELS[g.active] ?? g.active)
+        ? RENAMED_PANELS[g.active] ?? g.active
+        : tabs[0];
       const flex = typeof g.flex === "number" && g.flex > 0 ? g.flex : 1;
       groups.push({ id: typeof g.id === "string" ? g.id : newGroupId(), tabs, active, flex });
     }

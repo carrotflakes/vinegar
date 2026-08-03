@@ -4,6 +4,8 @@
 // root group while a symbol is open. See docs/focus.md.
 
 import { symbolContentBounds } from "@/model/geometry/bounds";
+import { isVarRef, tintPaint, varRef } from "@/model/paint";
+import { resolvePaint, symbolDefScope } from "@/model/vars";
 import { hasValidSceneContainers } from "../model/sceneValidation";
 import { IDENTITY, translation as translationMatrix } from "@/model/geometry/matrix";
 import {
@@ -18,6 +20,7 @@ import {
   isNodeHidden,
   isNodeInScope,
   isNodeLocked,
+  isShape,
   parentIdOf,
   selectionRoots,
   validFocusPrefix,
@@ -26,9 +29,11 @@ import {
 import {
   baseNodeDefaults,
   makeId,
+  paintValue,
   type Document,
   type Group,
   type Matrix,
+  type Shape,
   type SceneNode,
 } from "../model/types";
 import {
@@ -73,7 +78,10 @@ export function createSymbolActions({ set, get, transact }: StoreCtx): SymbolAct
           [rootId]: { ...groupNode(rootId, members), name },
           [instId]: instanceNode(instId, symbolId, [...IDENTITY]),
         },
-        symbols: { ...doc.symbols, [symbolId]: { id: symbolId, name, rootNodeId: rootId } },
+        symbols: {
+          ...doc.symbols,
+          [symbolId]: { id: symbolId, name, rootNodeId: rootId, params: [] },
+        },
       };
       next = replaceChildren(next, parent, rest);
       if (!hasValidSceneContainers(next)) return;
@@ -173,6 +181,113 @@ export function createSymbolActions({ set, get, transact }: StoreCtx): SymbolAct
       delete symbols[symbolId];
       transact({ ...doc, nodes, symbols }, { label: "Delete symbol" });
       set({ selection: get().selection.filter((id) => !remove.has(id)), ...clearTransient });
+    },
+    promoteToSymbolParam: (nodeId, target, label) => {
+      const doc = get().doc;
+      const node = doc.nodes[nodeId];
+      if (!isShape(node)) return null;
+      const symbolId = enclosingSymbolId(doc, nodeId);
+      const def = symbolId ? doc.symbols[symbolId] : null;
+      if (!def) return null;
+      const paint = node[target];
+      // Already a parameter of this symbol: promoting again would only shadow it.
+      if (isVarRef(paint) && def.params.some((p) => p.key === paint.varId)) return null;
+      // The default is what the field paints *now*, resolved through the scope
+      // it lives in, so promotion never changes the picture.
+      const concrete = resolvePaint(paint, symbolDefScope(doc, def));
+      if (!concrete) return null;
+      const key = makeId("var");
+      const params = [
+        ...def.params,
+        {
+          key,
+          label: label?.trim() || `Color ${def.params.length + 1}`,
+          default: paintValue(concrete),
+        },
+      ];
+      transact(
+        {
+          ...doc,
+          nodes: { ...doc.nodes, [nodeId]: { ...node, [target]: varRef(key) } as SceneNode },
+          symbols: { ...doc.symbols, [symbolId!]: { ...def, params } },
+        },
+        { label: "Promote to symbol parameter" }
+      );
+      return key;
+    },
+    renameSymbolParam: (symbolId, key, label) => {
+      const doc = get().doc;
+      const def = doc.symbols[symbolId];
+      if (!def || !def.params.some((p) => p.key === key)) return;
+      const params = def.params.map((p) => (p.key === key ? { ...p, label } : p));
+      transact(
+        { ...doc, symbols: { ...doc.symbols, [symbolId]: { ...def, params } } },
+        { label: "Rename symbol parameter" }
+      );
+    },
+    removeSymbolParam: (symbolId, key) => {
+      const doc = get().doc;
+      const def = doc.symbols[symbolId];
+      const param = def?.params.find((p) => p.key === key);
+      if (!def || !param) return;
+      // Bake every reference inside the definition back to the default, so the
+      // drawing is unchanged, then drop the overrides that no longer address
+      // anything.
+      const nodes = { ...doc.nodes };
+      for (const id of [def.rootNodeId, ...descendantNodeIds(doc, def.rootNodeId)]) {
+        const node = nodes[id];
+        if (!isShape(node)) continue;
+        let next = node;
+        for (const target of ["fill", "stroke"] as const) {
+          const paint = next[target];
+          if (isVarRef(paint) && paint.varId === key) {
+            next = {
+              ...next,
+              [target]: param.default.kind === "paint"
+                ? tintPaint(param.default.value, paint.alpha)
+                : null,
+            } as Shape;
+          }
+        }
+        if (next !== node) nodes[id] = next;
+      }
+      for (const node of Object.values(nodes)) {
+        if (!isInstance(node) || node.symbolId !== symbolId || !(key in node.args)) continue;
+        const args = { ...node.args };
+        delete args[key];
+        nodes[node.id] = { ...node, args };
+      }
+      transact(
+        {
+          ...doc,
+          nodes,
+          symbols: {
+            ...doc.symbols,
+            [symbolId]: { ...def, params: def.params.filter((p) => p.key !== key) },
+          },
+        },
+        { label: "Remove symbol parameter" }
+      );
+    },
+    setInstanceArg: (instanceId, key, value) => {
+      const doc = get().doc;
+      const instance = doc.nodes[instanceId];
+      if (!isInstance(instance)) return;
+      const param = doc.symbols[instance.symbolId]?.params.find((p) => p.key === key);
+      // An override of the wrong type would be ignored at resolution time, so
+      // it is refused at the edge instead.
+      if (!param || (value && value.kind !== param.default.kind)) return;
+      if (!value && !(key in instance.args)) return;
+      const args = { ...instance.args };
+      if (value) args[key] = value;
+      else delete args[key];
+      transact(
+        { ...doc, nodes: { ...doc.nodes, [instanceId]: { ...instance, args } } },
+        {
+          label: "Override symbol parameter",
+          coalesceKey: `instanceArg:${instanceId}:${key}`,
+        }
+      );
     },
   };
 }

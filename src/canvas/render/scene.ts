@@ -7,7 +7,14 @@ import { isIdentity, transformBounds } from "@/model/geometry/matrix";
 import { cachedBrushEnvelope } from "@/model/brush/brushOutline";
 import { clippingContentIds, clippingMask, shapeFillRule } from "@/model/clippingMask";
 import { effectsMargin, hasEffects } from "@/model/effects";
-import { isSwatchRef, resolvePaintRef } from "@/model/paint";
+import { isVarRef } from "@/model/paint";
+import {
+  documentScope,
+  resolvePaint,
+  scopeForNode,
+  symbolScope,
+  type VarScope,
+} from "@/model/vars";
 import { ancestorIds, isFrame, isGroup, isInstance, isShape } from "@/model/scene";
 import { effectiveStrokeAlignment, STROKE_MITER_LIMIT } from "@/model/stroke";
 import type {
@@ -68,7 +75,9 @@ function paintNodeInternal(
   /** Draw editor-only chrome (e.g. a transparent frame's checkerboard). Off for
    *  export so a transparent frame exports as actual transparency. */
   editorChrome = false,
-  traversal?: PaintTraversal
+  traversal?: PaintTraversal,
+  /** Variable lookup chain for `var` paints; instances push a frame onto it. */
+  scope: VarScope = documentScope(doc)
 ): void {
   const node = doc.nodes[nodeId];
   if (!node) return;
@@ -92,7 +101,7 @@ function paintNodeInternal(
     if (node.hidden || node.id === hiddenShapeId) return;
     const shape = preview?.id === node.id ? preview : node;
     if (!hasEffects(shape.effects)) {
-      paintShape(ctx, shape, doc.assets, doc, preview);
+      paintShape(ctx, shape, doc.assets, doc, preview, shape, scope);
       return;
     }
     // Effects need the shape composited as a layer, so its own opacity/blend is
@@ -133,7 +142,8 @@ function paintNodeInternal(
       doc.assets,
       doc,
       preview,
-      shape
+      shape,
+      scope
     );
     compositeEffects(
       ctx,
@@ -161,6 +171,9 @@ function paintNodeInternal(
     if (!def) return;
     childIds = [def.rootNodeId];
     symbolId = node.symbolId;
+    // The instance's args over the definition's defaults, for everything the
+    // descent paints below here. See docs/parameters.md.
+    scope = symbolScope(scope, def, node);
   } else {
     return;
   }
@@ -227,7 +240,8 @@ function paintNodeInternal(
         hiddenShapeId,
         activeSymbols,
         editorChrome,
-        childTraversal
+        childTraversal,
+        scope
       );
     }
     ctx.restore();
@@ -273,7 +287,8 @@ function paintNodeInternal(
       hiddenShapeId,
       activeSymbols,
       editorChrome,
-      childTraversal
+      childTraversal,
+      scope
     );
   }
   lctx.restore();
@@ -299,7 +314,9 @@ export function paintNode(
     preview,
     hiddenShapeId,
     activeSymbols,
-    editorChrome
+    editorChrome,
+    undefined,
+    scopeForNode(doc, nodeId)
   );
 }
 
@@ -310,17 +327,19 @@ export function paintShape(
   assets: Record<string, DocumentAsset> = {},
   doc?: Document,
   preview?: Shape | null,
-  geometrySource: Shape = input
+  geometrySource: Shape = input,
+  scope?: VarScope
 ): void {
-  // Resolve `swatch` fill/stroke references to concrete paint at the boundary,
-  // so everything downstream stays reference-blind. A dangling ref becomes null
+  // Resolve `var` fill/stroke references to concrete paint at the boundary, so
+  // everything downstream stays reference-blind. A dangling ref becomes null
   // (no paint), matching the "skip" fallback. Only clone when a ref is present.
+  const lookup = scope ?? (doc ? documentScope(doc) : null);
   const shape =
-    doc && (isSwatchRef(input.fill) || isSwatchRef(input.stroke))
+    lookup && (isVarRef(input.fill) || isVarRef(input.stroke))
       ? ({
           ...input,
-          fill: resolvePaintRef(input.fill, doc.swatches),
-          stroke: resolvePaintRef(input.stroke, doc.swatches),
+          fill: resolvePaint(input.fill, lookup),
+          stroke: resolvePaint(input.stroke, lookup),
         } as Shape)
       : input;
   ctx.save();
@@ -621,6 +640,11 @@ export function renderScene(
       : 0;
 
   const base = opts.rootBaseMatrix;
+  // Focus can stand inside a symbol definition, where a `var` paint may name
+  // one of that symbol's parameters; painting the roots directly (no instance)
+  // resolves those against the definition's own defaults.
+  const roots = opts.rootIds ?? doc.rootIds;
+  const rootScope = scopeForNode(doc, roots[0] ?? null);
   const paintRoots = () => {
     // Roots carry only a parent-relative transform, so painting a focused
     // container starts from its parent's world matrix. Everything else in the
@@ -630,7 +654,7 @@ export function renderScene(
       ctx.save();
       ctx.transform(base[0], base[1], base[2], base[3], base[4], base[5]);
     }
-    for (const nodeId of opts.rootIds ?? doc.rootIds) {
+    for (const nodeId of roots) {
       paintNodeInternal(
         ctx,
         doc,
@@ -639,7 +663,8 @@ export function renderScene(
         opts.hiddenShapeId,
         undefined,
         opts.editorChrome,
-        traversal
+        traversal,
+        rootScope
       );
     }
     if (base) ctx.restore();
@@ -648,7 +673,7 @@ export function renderScene(
     // with no document node is a shape being drawn, whose geometry the tools
     // build in world space — so it is painted outside `base`.
     if (opts.preview && !doc.nodes[opts.preview.id]) {
-      paintShape(ctx, opts.preview, doc.assets, doc, opts.preview);
+      paintShape(ctx, opts.preview, doc.assets, doc, opts.preview, opts.preview, rootScope);
     }
   };
   if (collectPerformance) withLayerStats(layerCounter, paintRoots);

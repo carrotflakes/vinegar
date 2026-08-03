@@ -186,44 +186,72 @@ export function baseNodeDefaults(): Pick<
 }
 
 /**
- * A named global colour ("document colour") stored on the document. Nodes
- * reference it by id through a `swatch` Paint variant; editing the swatch once
- * re-tints every referencing fill/stroke live. See docs/global-colors.md.
+ * The value of a document variable: a number (with its scrubber hints) or a
+ * concrete paint. One typed union so a variable — and a symbol parameter —
+ * can be either without a second schema. See docs/parameters.md.
  */
-export interface Swatch {
+export type VarValue =
+  | {
+      kind: "number";
+      value: number;
+      /** UI hints for the scrubber; not enforced on bound values. */
+      min: number | null;
+      max: number | null;
+      step: number | null;
+      /** Round the value to a whole number when resolving bound fields. */
+      integer: boolean;
+    }
+  | {
+      kind: "paint";
+      /** Concrete paint — solid, gradient or pattern. Never a variable
+       *  reference (no chains), so resolution is always single-hop. */
+      value: ConcretePaint;
+    };
+
+/**
+ * A named value stored on the document ("document variable"). A `paint`
+ * variable is referenced *in* the field by a `var` Paint variant; a `number`
+ * variable is referenced *beside* the field through {@link BaseNode.bindings}.
+ * Either way editing the variable once retunes every use.
+ * See docs/parameters.md and docs/global-colors.md.
+ */
+export interface DocVar {
   id: string;
   name: string;
-  /** Concrete paint — solid, gradient or pattern. Never a swatch reference
-   *  (no chains), so resolution is always single-hop. */
-  paint: ConcretePaint;
+  value: VarValue;
+}
+
+/** A number variable — the narrowed form the binding machinery reads. */
+export type NumberVarValue = Extract<VarValue, { kind: "number" }>;
+/** A paint variable — the narrowed form paint resolution reads. */
+export type PaintVarValue = Extract<VarValue, { kind: "paint" }>;
+
+export function numberValue(
+  value: number,
+  hints: Partial<Omit<NumberVarValue, "kind" | "value">> = {}
+): NumberVarValue {
+  return {
+    kind: "number",
+    value,
+    min: hints.min ?? null,
+    max: hints.max ?? null,
+    step: hints.step ?? null,
+    integer: hints.integer ?? false,
+  };
+}
+
+export function paintValue(value: ConcretePaint): PaintVarValue {
+  return { kind: "paint", value };
 }
 
 /**
- * A named number stored on the document, the numeric counterpart of a
- * {@link Swatch}. Node fields reference it through {@link BaseNode.bindings},
- * so editing the parameter once retunes every bound field. See
- * docs/parameters.md.
- */
-export interface DocParam {
-  id: string;
-  name: string;
-  value: number;
-  /** UI hints for the scrubber; not enforced on bound values. */
-  min: number | null;
-  max: number | null;
-  step: number | null;
-  /** Round the value to a whole number when resolving bound fields. */
-  integer: boolean;
-}
-
-/**
- * One bound numeric field's link to a document parameter. `scale` is a per-use
- * multiplier (1 = the parameter as stored), precedented by a swatch
+ * One bound numeric field's link to a number variable. `scale` is a per-use
+ * multiplier (1 = the variable as stored), precedented by a paint
  * reference's per-use `alpha`: it covers "half the margin" / "double the
  * stroke" without an expression language.
  */
 export interface ParamRef {
-  paramId: string;
+  varId: string;
   scale: number;
 }
 
@@ -461,16 +489,33 @@ export interface SymbolDef {
   name: string;
   /** Id of the definition's root Group in `doc.nodes`. */
   rootNodeId: string;
+  /** Declared parameters, in promotion order. See docs/parameters.md. */
+  params: SymbolParam[];
+}
+
+/**
+ * One parameter of a symbol definition. `key` is the id references inside the
+ * definition use, so it shares the id space of `doc.vars`: a reference resolves
+ * against the instance's args, then the definition's defaults, then the
+ * document's variables. `default` fixes the parameter's type.
+ */
+export interface SymbolParam {
+  key: string;
+  label: string;
+  default: VarValue;
 }
 
 /**
  * A placed occurrence of a symbol. Instances are atomic in the scene (like
- * compound paths): selectable and transformable as one unit, with no
- * per-instance overrides beyond the BaseNode fields.
+ * compound paths): selectable and transformable as one unit. Their only
+ * per-instance overrides are `args`, which shadow the definition's parameter
+ * defaults while the instance is being evaluated.
  */
 export interface SymbolInstance extends BaseNode {
   type: "instance";
   symbolId: string;
+  /** Per-instance overrides, keyed by {@link SymbolParam.key}. */
+  args: Record<string, VarValue>;
 }
 
 /**
@@ -614,14 +659,11 @@ export interface Document {
   rootIds: string[];
   /** Symbol definitions; their content lives in `nodes` outside `rootIds`. */
   symbols: Record<string, SymbolDef>;
-  /** Named global colours referenced by node `swatch` fills/strokes. */
-  swatches: Record<string, Swatch>;
-  /** Panel display order. Every id here exists in `swatches` and vice versa. */
-  swatchOrder: string[];
-  /** Named global numbers referenced by node `bindings`. */
-  params: Record<string, DocParam>;
-  /** Panel display order. Every id here exists in `params` and vice versa. */
-  paramOrder: string[];
+  /** Named document variables: paints referenced by `var` fills/strokes, and
+   *  numbers referenced by node `bindings`. */
+  vars: Record<string, DocVar>;
+  /** Panel display order. Every id here exists in `vars` and vice versa. */
+  varOrder: string[];
   /** User-authored parametric generators referenced by node `generator` links. */
   scripts: Record<string, ScriptDef>;
   /** Persistent ruler guides (world space); see docs/rulers-and-guides.md. */
@@ -639,10 +681,8 @@ export function createEmptyDocument(): Document {
     nodes: {},
     rootIds: [],
     symbols: {},
-    swatches: {},
-    swatchOrder: [],
-    params: {},
-    paramOrder: [],
+    vars: {},
+    varOrder: [],
     scripts: {},
     guides: [],
     settings: { unit: "px", dpi: 96, gridSize: 50 },

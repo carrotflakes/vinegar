@@ -129,8 +129,20 @@ export default function AppearanceSection({
     >
       {!paintless && (
         <>
-          <ColorField label="Fill" value={fill} onChange={setFill} />
-          <ColorField label="Stroke" value={stroke} onChange={setStroke} />
+          {/* Promoting to a symbol parameter rewrites one node's field, so the
+              affordance needs a single-node selection to address. */}
+          <ColorField
+            label="Fill"
+            value={fill}
+            onChange={setFill}
+            {...(selected.length === 1 ? { nodeId: first.id, target: "fill" as const } : {})}
+          />
+          <ColorField
+            label="Stroke"
+            value={stroke}
+            onChange={setStroke}
+            {...(selected.length === 1 ? { nodeId: first.id, target: "stroke" as const } : {})}
+          />
 
           <div className="field-inline">
             <label>Stroke width</label>

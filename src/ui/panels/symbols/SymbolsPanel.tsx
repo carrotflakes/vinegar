@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { LuComponent, LuPlus, LuPencil, LuTrash2 } from "react-icons/lu";
+import { LuComponent, LuHash, LuPalette, LuPlus, LuPencil, LuTrash2 } from "react-icons/lu";
 import { enclosingSymbolId, instanceCountsBySymbol } from "../../../model/scene";
 import { currentFocusRoot, useEditor } from "../../../store/editorStore";
 import { canvasCenterPlacement } from "../../../canvas/canvasDrag";
@@ -21,6 +21,8 @@ export default function SymbolsPanel() {
   const placeSymbolInstance = useEditor((s) => s.placeSymbolInstance);
   const renameSymbol = useEditor((s) => s.renameSymbol);
   const deleteSymbol = useEditor((s) => s.deleteSymbol);
+  const renameSymbolParam = useEditor((s) => s.renameSymbolParam);
+  const removeSymbolParam = useEditor((s) => s.removeSymbolParam);
   const [editing, setEditing] = useState<string | null>(null);
 
   const startDrag = usePanelCanvasDrag<string>({
@@ -42,8 +44,8 @@ export default function SymbolsPanel() {
           symbols.map((def) => {
             const count = instanceCounts.get(def.id) ?? 0;
             return (
+              <div key={def.id}>
               <div
-                key={def.id}
                 className={"symbol-row" + (editedSymbolId === def.id ? " selected" : "")}
                 onPointerDown={
                   editing === def.id ? undefined : (e) => startDrag(e, def.id)
@@ -101,6 +103,46 @@ export default function SymbolsPanel() {
                 >
                   <LuTrash2 />
                 </button>
+              </div>
+              {/* A symbol's parameters are the fields promoted inside it, so
+                  they are listed with the definition rather than authored here.
+                  See docs/parameters.md. */}
+              {def.params.map((param) => (
+                <div key={param.key} className="symbol-param-row">
+                  {editing === param.key ? (
+                    <input
+                      className="layer-name-input"
+                      autoFocus
+                      defaultValue={param.label}
+                      onBlur={(e) => {
+                        renameSymbolParam(def.id, param.key, e.target.value);
+                        setEditing(null);
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") e.currentTarget.blur();
+                        if (e.key === "Escape") setEditing(null);
+                      }}
+                    />
+                  ) : (
+                    <span
+                      className="layer-name"
+                      onDoubleClick={() => setEditing(param.key)}
+                    >
+                      {param.label}
+                    </span>
+                  )}
+                  <span className="layer-type" aria-hidden>
+                    {param.default.kind === "paint" ? <LuPalette /> : <LuHash />}
+                  </span>
+                  <button
+                    className="layer-icon-btn"
+                    title="Remove parameter (uses keep the default)"
+                    onClick={() => removeSymbolParam(def.id, param.key)}
+                  >
+                    <LuTrash2 />
+                  </button>
+                </div>
+              ))}
               </div>
             );
           })

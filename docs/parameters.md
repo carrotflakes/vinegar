@@ -1,8 +1,9 @@
 # Parameters and references
 
-Status: **phase 1 implemented** (2026-08-03); phases 2–4 remain a proposal.
-Phase 2 was rewritten (2026-08-04) around typed document variables after global
-colours widened to any concrete paint in v33 — see *Document variables* below.
+Status: **phases 1 and 2a implemented** (phase 1 on 2026-08-03, phase 2a on
+2026-08-04 — the `vars` merge, symbol parameters and per-instance paint
+overrides, file format v34). Phase 2b remains deferred behind phase 3, which
+with phase 4 is still a proposal.
 Related:
 [path-modifiers.md](path-modifiers.md) (the stage pipeline this feeds),
 [global-colors.md](global-colors.md) (the existing reference edge this copies),
@@ -42,6 +43,13 @@ phase 2a is a valid outcome.
   They may consume parameters later; they do not motivate this design.
 
 ## Phase 1 — document parameters (implemented)
+
+*This section describes phase 1 as it shipped. Phase 2a then merged `params`
+into `vars` (v34): `DocParam` became a `DocVar` with a `kind: "number"` value,
+`params`/`paramOrder` became `vars`/`varOrder`, `ParamRef.paramId` became
+`varId`, and `paramUsageCounts`/`hasValidParams` moved into `model/vars.ts` as
+`varUsageCounts`/`hasValidVars`. Everything else below still holds verbatim —
+the binding mechanism itself did not change.*
 
 Named numbers on the document, mirroring swatches field-for-field:
 
@@ -167,6 +175,9 @@ has.
 
 ## Phase 2 — parametric symbols
 
+*(2a implemented; 2b deferred behind phase 3. What shipped is recorded inline
+below and summarised in "What 2a actually shipped".)*
+
 The roadmap's symbol v2, and where the feature starts paying for itself in
 icon/UI-kit documents. Two things have to be settled before any schema: **what a
 parameter can be** (numbers only, or paint too), and **how a per-instance value
@@ -244,9 +255,9 @@ How much the collision costs depends entirely on what is being overridden:
 
 Hence 2a and 2b, in that order. They share one schema; they do not share a cost.
 
-### Phase 2a — paint overrides
+### Phase 2a — paint overrides (implemented, v34)
 
-The schema lands whole here:
+The schema landed whole here:
 
 ```ts
 interface SymbolParam {
@@ -268,8 +279,11 @@ interface SymbolInstance extends BaseNode {
 }
 ```
 
-`SymbolParam` is `GeneratorParam` (`model/generators/generators.ts`) with its
-min/max/step/integer moved inside `VarValue`'s number arm, so a symbol's
+`SymbolParam.key` shares the id space of `doc.vars`, which is what lets one
+scope chain cover both: a reference inside a definition is just an id, resolved
+against the instance's args, then the definition's defaults, then the document.
+`SymbolParam` is otherwise `GeneratorParam` (`model/generators/generators.ts`)
+with its min/max/step/integer moved inside `VarValue`'s number arm, so a symbol's
 parameter row can still be the generator row's editor and scrubber for the
 numeric case. A **numeric symbol parameter is declarable but not yet honoured in
 2a**: the evaluator ignores it and the UI disables the row with that as its
@@ -277,12 +291,21 @@ tooltip — the same discipline phase 1 used for document-script generators, and
 for the same reason (shipping a link that silently does not update would be
 worse than not offering it).
 
-Resolution grows a scope where it already resolves:
+Resolution grew a scope where it already resolved:
 
 ```ts
-resolvePaintRef(paint, doc.swatches)   // today
-resolvePaint(paint, scope)             // 2a
+resolvePaintRef(paint, doc.swatches)   // before
+resolvePaint(paint, scope)             // 2a — model/vars.ts
 ```
+
+A `VarScope` is a linked chain of flat `id -> VarValue` frames, innermost first;
+`documentScope(doc)` is memoized on `doc.vars`, `symbolScope(parent, def,
+instance)` pushes one frame per instance, and `symbolDefScope(doc, def)` is the
+frame symbol-edit focus paints with (defaults, no instance). Threading it cost
+one extra argument on `paintNodeInternal`/`paintShape` in
+[`render/scene.ts`](../src/canvas/render/scene.ts) and on `nodeToSvg` →
+`shapeToSvg` → `defs.paintAttrs` in [`exportSvg.ts`](../src/io/exportSvg.ts);
+nothing that computes geometry was touched.
 
 **Scoping rule** (the load-bearing decision, unchanged from the original
 proposal and now typed): a reference inside a symbol definition resolves against,
@@ -309,6 +332,35 @@ What this does *not* disturb:
 - **Everything that is not painting.** Bounds, picking, snapping, export
   geometry: untouched, because they never read paint.
 
+### What 2a actually shipped
+
+- `doc.vars` / `doc.varOrder` replace `swatches`/`swatchOrder` and
+  `params`/`paramOrder`; `SwatchRefPaint` became `VarRefPaint`
+  (`type: "var"`, `varId`) and `ParamRef.paramId` became `varId`. Ids are
+  unchanged, so the read-time transform is total.
+- `model/vars.ts` is the one home for the table: scopes, `resolvePaint`,
+  `varUsageCounts` (paint refs *and* bindings in one scan), `bakePaintRefs`,
+  `referencedVarIds`, `hasValidVars`. `model/swatches.ts` is gone;
+  `model/params.ts` kept only the binding machinery.
+- `store/varSlice.ts` replaced `swatchSlice.ts` + `paramSlice.ts`. Deleting a
+  variable detaches *both* edges before removing it.
+- `SymbolDef.params` + `SymbolInstance.args`, with `promoteToSymbolParam`,
+  `renameSymbolParam`, `removeSymbolParam` and `setInstanceArg` on the symbol
+  slice. Promotion mints a fresh key, seeds the default from the paint the field
+  shows *now* (resolved through its own scope), and repoints that one field —
+  so promoting never changes the picture. Removing a parameter bakes every
+  reference inside the definition back to the default and drops the now-orphaned
+  overrides.
+- UI: one **Variables** panel (Colors + Numbers sections) replaces the Global
+  colors and Parameters panels — saved dock layouts naming the old tabs follow
+  the merge. Instances show their symbol's parameter rows in the properties
+  panel (numeric rows are read-only), the colour popover offers *Promote to
+  symbol parameter* inside symbol-edit focus, and the Symbols panel lists each
+  definition's parameters for rename/remove.
+- One pre-existing bug fixed on the way: `referencedAssetIds` never counted the
+  pattern held by a *variable* (or now a symbol default / instance arg), so
+  saving pruned that asset. It scans all three now.
+
 File version: **v34** — the same bump carries the `swatches`+`params` → `vars`
 merge, since both rewrite the document's top-level shape and there is no reason
 to spend two versions on one idea. Unlike v33, this is not a pure widening:
@@ -319,7 +371,7 @@ carry over unchanged, so the transform is total and lossless and those versions
 can stay in `SUPPORTED_FILE_VERSIONS` — the same shape as the v31 backfill the
 parser already does, one step up in size.
 
-### Phase 2b — numeric overrides
+### Phase 2b — numeric overrides (not implemented)
 
 The prerequisite is the one phase 3 already names: geometry resolution has to
 move from "a literal baked at commit" to "derived from (node, context) and
@@ -413,11 +465,13 @@ contain parameters worth relating to each other.
   20 nodes bind is 20 node rewrites per frame plus 20 generator rebuilds. So
   parameter scrubbing uses the interaction pattern (`beginInteraction` →
   `setDoc` → `endInteraction`), not per-frame `transact` with a `coalesceKey` —
-  the same reason slider drags on shapes do. Both the Parameters panel and a
+  the same reason slider drags on shapes do. Both the Variables panel and a
   bound field in the properties panel go through it.
 - If profiling shows parameter scrubs are the worst case in large documents, the
-  fix is a `paramId → nodeIds` reverse index built on demand (cached per
+  fix is a `varId → nodeIds` reverse index built on demand (cached per
   document revision).
+- Paint resolution added no cache: `documentScope` is memoized on `doc.vars`
+  and an instance frame is one small object per instance per traversal.
 
 ## Read-site impact
 
@@ -432,21 +486,23 @@ Write paths do need care, and they get it in one place: writing a literal into a
 bound field is not silently dropped, it is simply overwritten on the next commit
 by the parameter that owns it. The UI never offers that write — see below.
 
-Later phases spend this budget deliberately, and unevenly: phase 2a touches only
-the two traversals that paint (a scope argument where `doc.swatches` is passed
-today) and nothing that computes geometry; phase 2b and phase 3 are the ones
-that make geometry reads context-aware, which is why they share a prerequisite
-and why 2b is sequenced behind 3.
+**Phase 2a spent this budget where predicted**: the two traversals that paint
+took a scope argument where `doc.swatches` used to be passed, and nothing that
+computes geometry changed — bounds, picking, snapping and export geometry never
+read paint. Phase 2b and phase 3 are the ones that make geometry reads
+context-aware, which is why they share a prerequisite and why 2b is sequenced
+behind 3.
 
 ## UI
 
-- **Parameters panel** (`ui/panels/params/ParamsPanel.tsx`), modeled on the
-  Swatches panel: name, value scrubber, usage count, add/delete, delete
-  detaching every binding first so nothing dangles and nothing moves.
+- **Variables panel** (`ui/panels/vars/VarsPanel.tsx`): one panel with a Colors
+  and a Numbers section — name, value editor (`ColorField` or scrubber), usage
+  count, add/delete, delete detaching every use first so nothing dangles and
+  nothing moves.
 - **Binding a field**: `ui/controls/BindableNumber.tsx` wraps `ScrubbableNumber`
-  with a link button. Unbound, the menu offers *New parameter from this value*
-  and the document's existing parameters. Bound, the field shows the resolved
-  value and scrubbing it edits **the parameter** — every other field bound to it
+  with a link button. Unbound, the menu offers *New variable from this value*
+  and the document's existing number variables. Bound, the field shows the
+  resolved value and scrubbing it edits **the variable** — every field bound to it
   moves too — while the menu offers *Unbind (keep value)*. Binding never moves
   anything: `scale` defaults to whatever keeps the field's current value.
   Getting this wrong (silently unbinding on drag) was called out as the single
@@ -458,25 +514,24 @@ and why 2b is sequenced behind 3.
   (keep value)*.
 - **Picking a reference** (phase 3): a target button on the modifier row, then
   click the operand on canvas — the eyedropper interaction, reused.
-- Commands in `commands/registry.ts`: `param.create`, `param.unbindSelection`,
-  `param.bakeAll`.
+- Commands in `commands/registry.ts`: `var.createNumber`,
+  `var.unbindSelection`, `var.bakeAll`.
 
-Phase 2 adds two surfaces and merges one:
+Phase 2a added two surfaces and merged one:
 
-- **Document variables panel** — the Parameters and Global colors panels become
-  sections of one panel once `vars` merges them (v34). The row is the same in
-  both: name, value editor (scrubber or `ColorField`), usage count, delete that
-  bakes first. Doing this as pure UI/vocabulary *before* v34 is the cheap step
-  named in *Sequencing*.
+- **Variables panel** — the Parameters and Global colors panels became sections
+  of one panel with the `vars` merge (v34), and a saved dock layout naming
+  either old tab follows to the new one.
 - **Instance parameter rows** — selecting an instance shows its symbol's params
   in the properties panel, each row an override editor over the definition's
-  default. The numeric rows are visible but disabled until 2b, with the reason
+  default. The numeric rows are visible but read-only until 2b, with the reason
   in the tooltip. Overriding never moves anything; clearing a row falls back to
   the definition default rather than baking it in.
-- **Defining a symbol parameter** — inside symbol-edit focus, a bound field's
-  menu gains *Promote to symbol parameter*, which is the only authoring path
+- **Defining a symbol parameter** — inside symbol-edit focus, a paint field's
+  popover gains *Promote to symbol parameter*, which is the only authoring path
   that creates one. There is no separate schema editor: a symbol's parameter
-  list is the set of promotions, in promotion order.
+  list is the set of promotions, in promotion order, listed under the definition
+  in the Symbols panel for rename/remove.
 
 ## Export & serialization
 
@@ -487,14 +542,13 @@ Phase 2 adds two surfaces and merges one:
   reader that ignores `bindings`, still sees a correct drawing. Each phase bumps
   `CURRENT_FILE_VERSION` per the no-migration-chain policy in `io/serialize.ts`,
   and updates `docs/document-model.md`.
-- **Clipboard**: copying a bound node carries the referenced `DocParam`s in the
-  payload and merges them on paste, so the binding survives a move between
-  documents (`referencedParamIds` → `copyPayload` →
-  `reattachPayloadResources`). Merging is by id, matching how scripts, assets
-  and swatches already reattach: the destination's own definition wins. Without
-  the merge the picture would still be right — the field keeps its number — but
-  the link would be lost. Once `vars` merges the two tables (v34) this becomes
-  one reattach path instead of the two that exist today.
+- **Clipboard**: copying a node carries the `DocVar`s it references — through a
+  paint or through a binding — in the payload and merges them on paste, so the
+  link survives a move between documents (`referencedVarIds` → `copyPayload` →
+  `reattachPayloadResources`, one path since v34). Merging is by id, matching
+  how scripts and assets already reattach: the destination's own definition
+  wins. Without the merge the picture would still be right — the field keeps its
+  number, the paint bakes — but the link would be lost.
 - **Script API**: parameters should be readable and writable from scripts before
   phase 4, since "set a parameter, re-run" is the cheapest possible version of
   the parametric-generation wish in TODO.md.
@@ -534,7 +588,10 @@ first pays for that whole signature change to buy the narrower half of one
 feature. Everything else is free order — 2a stands alone, 3 stands alone, and
 stopping after 2a is a valid outcome.
 
-A cheap step that needs none of this: unify the *panel and vocabulary* for
-global colours and parameters ("document variables") while `swatches` and
-`params` stay separate in the model. It gets most of the conceptual win with no
-format change, and it makes the v34 merge a rename rather than a new idea.
+The cheap "panel and vocabulary first" step was skipped: 2a landed the merge
+whole, since the typed schema is what makes a symbol parameter able to be a
+colour, and doing the rename twice would have cost more than it saved.
+
+**Remaining, in order:** phase 3 (non-destructive boolean, the first node → node
+edge and the context-aware geometry read), then phase 2b on top of it, then
+phase 4 only if `scale` demonstrably is not enough.

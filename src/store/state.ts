@@ -7,12 +7,12 @@
 import type { BoolOp } from "@/model/path/boolean";
 import type { PathOp } from "@/model/path/pathOps";
 import type { ScriptMeta } from "@/model/generators/generators";
-import type { ConcretePaint, Paint } from "../model/paint";
+import type { Paint } from "../model/paint";
 import type {
   BaseNode,
   AnchorType,
   BlendMode,
-  DocParam,
+  DocVar,
   Document,
   Effect,
   PathModifier,
@@ -22,12 +22,12 @@ import type {
   SceneNode,
   ScriptDef,
   Shape,
-  Swatch,
   StrokeAlignment,
   StrokeCap,
   StrokeJoin,
   TextShape,
   Vec2,
+  VarValue,
 } from "../model/types";
 import type { Viewport } from "@/model/geometry/viewport";
 import type { ImportedSvg } from "../io/importSvg";
@@ -478,48 +478,38 @@ export interface ClipboardActions {
   duplicateSelected: () => void;
 }
 
-/** Global colours ("document colours"): named swatches referenced by nodes. */
-export interface SwatchActions {
-  /** Create a swatch from a concrete paint (solid, gradient or pattern);
-   *  resolves its new id. */
-  createSwatch: (name: string, paint: ConcretePaint) => string;
-  /** Create a swatch from the selection's current fill (fallback: stroke) and
-   *  replace that paint with a reference in one undoable step. */
-  createSwatchFromSelection: () => void;
-  /** Rename or re-colour a swatch; every reference re-tints on next render. */
-  updateSwatch: (id: string, patch: Partial<Pick<Swatch, "name" | "paint">>) => void;
-  /** Set the selected shapes' fill/stroke to a reference to swatch `id`. */
-  applySwatch: (id: string, target: "fill" | "stroke") => void;
-  /** Bake references on the given nodes/target back to concrete paint. */
-  unlinkPaint: (nodeIds: Iterable<string>, target: "fill" | "stroke") => void;
-  /** Bake every reference to concrete paint, then remove the swatch. */
-  deleteSwatch: (id: string) => void;
-  /** Move a swatch to `index` in the panel display order. */
-  reorderSwatch: (id: string, index: number) => void;
-}
-
 /**
- * Document parameters ("global numbers"): named values that drive bound node
- * number fields. Binding is per node and field path; see docs/parameters.md.
+ * Document variables: one named-value table for both reference edges — paints
+ * referenced by a `var` fill/stroke, numbers by a node binding. Binding is per
+ * node and field path; see docs/parameters.md.
  */
-export interface ParamActions {
-  /** Create a parameter and resolve its new id. */
-  createParam: (name?: string, value?: number) => string;
-  /** Rename or retune a parameter; every bound field follows on commit. */
-  updateParam: (id: string, patch: Partial<Omit<DocParam, "id">>) => void;
-  /** Drop every binding to `id` (fields keep their value), then remove it. */
-  deleteParam: (id: string) => void;
-  /** Move a parameter to `index` in the panel display order. */
-  reorderParam: (id: string, index: number) => void;
+export interface VarActions {
+  /** Create a variable from a typed value; resolves its new id. */
+  createVar: (value: VarValue, name?: string) => string;
+  /** Create a colour variable from the selection's current fill (fallback:
+   *  stroke) and replace that paint with a reference in one undoable step. */
+  createColorVarFromSelection: () => void;
+  /** Rename or retune a variable. Its kind is fixed at creation: a patch that
+   *  would change it is ignored. Every use follows on commit. */
+  updateVar: (id: string, patch: Partial<Omit<DocVar, "id">>) => void;
+  /** Detach every use (paint refs bake, bound fields keep their number), then
+   *  remove the variable. */
+  deleteVar: (id: string) => void;
+  /** Move a variable to `index` in the panel display order. */
+  reorderVar: (id: string, index: number) => void;
+  /** Set the selected shapes' fill/stroke to a reference to colour variable `id`. */
+  applyColorVar: (id: string, target: "fill" | "stroke") => void;
+  /** Bake paint references on the given nodes/target back to concrete paint. */
+  unlinkPaint: (nodeIds: Iterable<string>, target: "fill" | "stroke") => void;
   /**
-   * Bind one node field to a parameter. `scale` defaults to whatever keeps the
-   * field's current value, so binding never moves anything on its own.
+   * Bind one node field to a number variable. `scale` defaults to whatever
+   * keeps the field's current value, so binding never moves anything on its own.
    */
-  bindField: (nodeId: string, path: string, paramId: string, scale?: number) => void;
+  bindField: (nodeId: string, path: string, varId: string, scale?: number) => void;
   /** Detach a bound field, keeping the number it currently shows. */
   unbindField: (nodeId: string, path: string) => void;
-  /** Create a parameter seeded from a field's current value and bind it. */
-  bindFieldToNewParam: (nodeId: string, path: string, name: string) => void;
+  /** Create a number variable seeded from a field's current value and bind it. */
+  bindFieldToNewVar: (nodeId: string, path: string, name: string) => void;
   /**
    * Detach every binding on the given nodes (all of them when `nodeIds` is
    * omitted). Bound fields keep the number they show, so nothing moves.
@@ -550,6 +540,28 @@ export interface SymbolActions {
   exitFocusTo: (depth: number) => void;
   renameSymbol: (symbolId: string, name: string) => void;
   deleteSymbol: (symbolId: string) => void;
+  /**
+   * Turn one paint field inside a symbol definition into a parameter of that
+   * symbol: the definition's default is the paint the field shows now, and the
+   * field becomes a reference to the new parameter. Nothing moves and nothing
+   * repaints — instances simply gain an override row. Returns the new key, or
+   * null when the node is not inside a definition. See docs/parameters.md.
+   */
+  promoteToSymbolParam: (
+    nodeId: string,
+    target: "fill" | "stroke",
+    label?: string
+  ) => string | null;
+  renameSymbolParam: (symbolId: string, key: string, label: string) => void;
+  /** Drop a parameter, baking every reference to it back to its default. */
+  removeSymbolParam: (symbolId: string, key: string) => void;
+  /** Override one instance parameter; `null` falls back to the definition's
+   *  default rather than baking it in. */
+  setInstanceArg: (
+    instanceId: string,
+    key: string,
+    value: VarValue | null
+  ) => void;
 }
 
 export type EditorState = EditorData &
@@ -565,8 +577,7 @@ export type EditorState = EditorData &
   FrameActions &
   GuideActions &
   ClipboardActions &
-  SwatchActions &
-  ParamActions &
+  VarActions &
   SymbolActions;
 
 export type StoreSet = (

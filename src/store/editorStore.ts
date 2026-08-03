@@ -27,8 +27,7 @@ import {
 } from "./state";
 import { createStructureActions } from "./structureSlice";
 import { createShapeOpsActions } from "./shapeOpsSlice";
-import { createParamActions } from "./paramSlice";
-import { createSwatchActions } from "./swatchSlice";
+import { createVarActions } from "./varSlice";
 import { createSymbolActions } from "./symbolSlice";
 
 export { currentFocusRoot };
@@ -86,8 +85,7 @@ export const useEditor = create<EditorState>((set, get) => {
     ...createFrameActions(ctx),
     ...createGuideActions(ctx),
     ...createClipboardActions(ctx),
-    ...createSwatchActions(ctx),
-    ...createParamActions(ctx),
+    ...createVarActions(ctx),
     ...createSymbolActions(ctx),
   };
 });

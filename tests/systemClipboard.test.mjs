@@ -102,7 +102,7 @@ test("only the most recent copy is recognised as own", async () => {
 test("copying nothing does not touch the system clipboard", async () => {
   written = undefined;
   const doc = rectDoc();
-  await copySelectionToSystemClipboard(doc, { nodes: {}, rootIds: [], scripts: {}, assets: {}, swatches: {}, scriptsTrusted: true });
+  await copySelectionToSystemClipboard(doc, { nodes: {}, rootIds: [], scripts: {}, assets: {}, vars: {}, scriptsTrusted: true });
 
   assert.equal(written, undefined);
 });
@@ -123,16 +123,16 @@ const PNG_DATA =
 
 const SCRIPT_SOURCE = "return { params: [], build: () => [] };";
 
-/** A document whose single path is generator-driven and swatch-filled. */
+/** A document whose single path is generator-driven and variable-filled. */
 function generatorDoc() {
   const doc = rectDoc();
   doc.scripts.poly = { id: "poly", name: "Poly", source: SCRIPT_SOURCE };
-  doc.swatches.brand = {
+  doc.vars.brand = {
     id: "brand",
     name: "Brand",
-    paint: { type: "solid", color: "#ff0000", alpha: 1 },
+    value: { kind: "paint", value: { type: "solid", color: "#ff0000", alpha: 1 } },
   };
-  doc.swatchOrder = ["brand"];
+  doc.varOrder = ["brand"];
   doc.nodes.gen = {
     ...NODE_BASE,
     ...SHAPE_BASE,
@@ -141,7 +141,7 @@ function generatorDoc() {
     type: "path",
     transform: [1, 0, 0, 1, 0, 0],
     fillRule: "nonzero",
-    fill: { type: "swatch", swatchId: "brand", alpha: 1 },
+    fill: { type: "var", varId: "brand", alpha: 1 },
     subpaths: [
       {
         closed: true,
@@ -171,7 +171,7 @@ test("the copied SVG embeds a payload another tab can restore", async () => {
   assert.equal(payload.nodes.gen.generator.scriptId, "poly");
   assert.deepEqual(payload.nodes.gen.generator.args, { sides: 3 });
   assert.equal(payload.scripts.poly.source, SCRIPT_SOURCE);
-  assert.equal(payload.swatches.brand.name, "Brand");
+  assert.equal(payload.vars.brand.name, "Brand");
   // Code from outside this tab is never trusted, whatever the copy claimed.
   assert.equal(payload.scriptsTrusted, false);
 });
@@ -212,7 +212,7 @@ test("foreign SVG carries no payload", () => {
   assert.equal(payloadFromSvg('<svg><metadata data-vinegar-payload="Zm9v"></metadata></svg>'), null);
 });
 
-test("another tab's payload pastes with its generator link, script and swatch", async () => {
+test("another tab's payload pastes with its generator link, script and variable", async () => {
   await copySelection(generatorDoc(), ["gen"]);
   const payload = payloadFromSvg(await writtenSvg());
 
@@ -225,8 +225,8 @@ test("another tab's payload pastes with its generator link, script and swatch", 
   assert.equal(pasted.generator.scriptId, "poly");
   assert.deepEqual(pasted.generator.args, { sides: 3 });
   assert.equal(state.doc.scripts.poly.source, SCRIPT_SOURCE);
-  assert.equal(state.doc.swatches.brand.name, "Brand");
-  assert.deepEqual(state.doc.swatchOrder, ["brand"]);
+  assert.equal(state.doc.vars.brand.name, "Brand");
+  assert.deepEqual(state.doc.varOrder, ["brand"]);
   // Scripts that arrived from outside await consent before they can run.
   assert.equal(state.scriptsTrusted, false);
 });
@@ -243,12 +243,13 @@ test("a payload this document cannot take is refused, not half-applied", async (
     clipsToMask: false,
     transform: [1, 0, 0, 1, 0, 0],
   };
-  doc.symbols.s1 = { id: "s1", name: "Sym", rootNodeId: "sroot" };
+  doc.symbols.s1 = { id: "s1", name: "Sym", rootNodeId: "sroot", params: [] };
   doc.nodes.inst = {
     ...NODE_BASE,
     id: "inst",
     name: "Instance",
     type: "instance",
+    args: {},
     symbolId: "s1",
     transform: [1, 0, 0, 1, 0, 0],
   };

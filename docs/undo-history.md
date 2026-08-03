@@ -35,7 +35,7 @@ ignored because their interaction boundary is no longer active.
 ## Immutability contract
 
 History entries retain changed values by shared reference. Code must not mutate
-a document, node, symbol, swatch, asset or nested value after it has been put
+a document, node, symbol, variable, asset or nested value after it has been put
 in the editor Store. A change replaces every affected object or array on the
 path to the root while retaining references to unchanged values.
 
@@ -67,8 +67,8 @@ Callers may attach a short semantic `label` when committing a transaction or
 starting a pointer interaction. The History panel uses it when present and
 falls back to deriving a generic label from the patches for unlabeled entries.
 
-Map-like fields (`nodes`, `symbols`, `swatches`, `scripts`, `assets` and
-`extensions`) are patched by key. `rootIds` and `swatchOrder` use a single
+Map-like fields (`nodes`, `symbols`, `vars`, `scripts`, `assets` and
+`extensions`) are patched by key. `rootIds` and `varOrder` use a single
 changed-range splice. Small
 `settings` and `metadata` objects are replaced atomically. Values are retained
 by immutable reference, so unchanged geometry, image data and extension values

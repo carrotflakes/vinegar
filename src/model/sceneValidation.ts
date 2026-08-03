@@ -23,15 +23,11 @@ export function hasValidSceneContainers(doc: Document): boolean {
 }
 
 /**
- * Global colours' structural invariants: `swatchOrder` and `swatches` are a
- * bijection. A swatch holds concrete paint — solid, gradient or pattern, never
- * another reference — so there are no chains or cycles to resolve; that one is
- * enforced by `Swatch.paint`'s type here and by `isConcretePaint` at the file
- * boundary, so it needs no runtime check. Reference *targets* are not checked
- * either — a dangling `swatch` fill is tolerated (render/export skip it).
+ * Document variables' structural invariant lives with the rest of the variable
+ * model; re-exported here so callers keep one validation import. A variable's
+ * paint is concrete — never another reference — so there are no chains or
+ * cycles to resolve; that is enforced by `VarValue`'s type and by
+ * `isConcretePaint` at the file boundary. Reference *targets* are not checked:
+ * a dangling `var` fill is tolerated (render/export skip it).
  */
-export function hasValidSwatches(doc: Document): boolean {
-  const ids = Object.keys(doc.swatches);
-  if (ids.length !== doc.swatchOrder.length) return false;
-  return !doc.swatchOrder.some((id) => !doc.swatches[id]);
-}
+export { hasValidVars } from "./vars";

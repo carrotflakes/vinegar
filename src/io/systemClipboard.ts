@@ -5,7 +5,7 @@
 // the in-memory clipboard instead of round-tripping through SVG.
 //
 // The SVG also carries the native payload — the copied nodes plus the scripts,
-// assets and swatches they reference — inside a <metadata> element, so a paste
+// assets and variables they reference — inside a <metadata> element, so a paste
 // in ANOTHER tab (or after a reload) restores generator links, effects and
 // global colours rather than re-importing flattened geometry. The payload is a
 // regular Vinegar document, so parsing it reuses the file format's validation
@@ -82,10 +82,8 @@ function payloadDocument(doc: Document, payload: ClipboardPayload): Document {
     symbols,
     scripts: payload.scripts,
     assets: payload.assets,
-    swatches: payload.swatches,
-    swatchOrder: Object.keys(payload.swatches),
-    params: payload.params,
-    paramOrder: Object.keys(payload.params),
+    vars: payload.vars,
+    varOrder: Object.keys(payload.vars),
   };
 }
 
@@ -168,8 +166,7 @@ export function payloadFromSvg(svgText: string): ClipboardPayload | null {
     rootIds: doc.rootIds,
     scripts: doc.scripts,
     assets: doc.assets,
-    swatches: doc.swatches,
-    params: doc.params,
+    vars: doc.vars,
     scriptsTrusted: false,
   };
 }

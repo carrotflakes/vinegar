@@ -8,6 +8,7 @@ import type {
   SceneNode,
   Shape,
   SymbolInstance,
+  VarValue,
 } from "./types";
 
 export const isGroup = (node: SceneNode | undefined): node is Group =>
@@ -431,35 +432,52 @@ const paintAssetId = (paint: Paint | null): string | null =>
   paint && paint.type === "pattern" ? paint.assetId : null;
 
 /**
- * All asset ids a document references: `image` nodes plus every pattern
- * fill/stroke (including on compound-path components). Drives export
- * pre-decode and save-time orphan pruning so a texture's asset survives even
- * when no image node uses it.
+ * All asset ids a document references: `image` nodes and every pattern
+ * fill/stroke (including on compound-path components), plus the patterns held
+ * by document variables, symbol parameter defaults and instance args. Drives
+ * export pre-decode and save-time orphan pruning so a texture's asset survives
+ * even when no image node uses it.
  */
 export function referencedAssetIds(doc: Document): Set<string> {
-  return new Set(assetReferenceCounts(doc).keys());
-}
-
-/** The same, for a loose set of nodes (a clipboard payload) rather than a document. */
-export function referencedAssetIdsOf(nodes: Iterable<SceneNode>): Set<string> {
-  const out = new Set<string>();
-  for (const node of nodes) {
-    if (!isShape(node)) continue;
-    if (node.type === "image") out.add(node.assetId);
-    for (const id of [paintAssetId(node.fill), paintAssetId(node.stroke)]) {
+  const out = new Set(assetReferenceCounts(doc).keys());
+  for (const entry of Object.values(doc.vars)) {
+    const id = varValueAssetId(entry.value);
+    if (id) out.add(id);
+  }
+  for (const def of Object.values(doc.symbols)) {
+    for (const param of def.params) {
+      const id = varValueAssetId(param.default);
+      if (id) out.add(id);
+    }
+  }
+  for (const node of Object.values(doc.nodes)) {
+    if (!isInstance(node)) continue;
+    for (const value of Object.values(node.args)) {
+      const id = varValueAssetId(value);
       if (id) out.add(id);
     }
   }
   return out;
 }
 
-/** Global-colour ids referenced by the given nodes' fills/strokes. */
-export function referencedSwatchIds(nodes: Iterable<SceneNode>): Set<string> {
+/** The asset a variable's paint value points at, if any. */
+const varValueAssetId = (value: VarValue): string | null =>
+  value.kind === "paint" ? paintAssetId(value.value) : null;
+
+/** The same, for a loose set of nodes (a clipboard payload) rather than a document. */
+export function referencedAssetIdsOf(nodes: Iterable<SceneNode>): Set<string> {
   const out = new Set<string>();
   for (const node of nodes) {
+    if (isInstance(node)) {
+      for (const value of Object.values(node.args)) {
+        const id = varValueAssetId(value);
+        if (id) out.add(id);
+      }
+    }
     if (!isShape(node)) continue;
-    for (const paint of [node.fill, node.stroke]) {
-      if (paint?.type === "swatch") out.add(paint.swatchId);
+    if (node.type === "image") out.add(node.assetId);
+    for (const id of [paintAssetId(node.fill), paintAssetId(node.stroke)]) {
+      if (id) out.add(id);
     }
   }
   return out;

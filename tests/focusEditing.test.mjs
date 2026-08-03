@@ -61,6 +61,7 @@ const instance = (id, symbolId) => ({
   id,
   name: id,
   type: "instance",
+  args: {},
   symbolId,
   ...NODE_BASE,
   transform: [...IDENTITY],
@@ -217,8 +218,8 @@ test("symbol definitions only extend a focus path through an instance", () => {
     },
     rootIds: ["outer"],
     symbols: {
-      A: { id: "A", name: "A", rootNodeId: "aRoot" },
-      B: { id: "B", name: "B", rootNodeId: "bRoot" },
+      A: { id: "A", name: "A", rootNodeId: "aRoot", params: [] },
+      B: { id: "B", name: "B", rootNodeId: "bRoot", params: [] },
     },
   });
 

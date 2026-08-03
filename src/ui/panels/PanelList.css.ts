@@ -255,3 +255,21 @@ globalStyle(".symbol-row.selected", {
 globalStyle(".symbol-row .layer-name", {
   flex: "1",
 });
+
+/** A promoted parameter, listed under the symbol it belongs to. */
+globalStyle(".symbol-param-row", {
+  display: "flex",
+  alignItems: "center",
+  gap: "4px",
+  padding: "2px 6px 2px 24px",
+  borderRadius: "7px",
+  color: vars.muted,
+});
+
+globalStyle(".symbol-param-row:hover", {
+  background: vars.bg,
+});
+
+globalStyle(".symbol-param-row .layer-name", {
+  flex: "1",
+});

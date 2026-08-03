@@ -61,6 +61,7 @@ const instance = (id, symbolId) => ({
   id,
   name: id,
   type: "instance",
+  args: {},
   symbolId,
   ...NODE_BASE,
   transform: [...IDENTITY],
@@ -100,12 +101,12 @@ function makeDoc() {
       r4: rect("r4"),
     },
     rootIds: ["f", "r3"],
-    symbols: { sym: { id: "sym", name: "Sym", rootNodeId: "defRoot" } },
+    symbols: { sym: { id: "sym", name: "Sym", rootNodeId: "defRoot", params: [] } },
     guides: [],
     scripts: {},
     assets: {},
-    swatches: {},
-    swatchOrder: [],
+    vars: {},
+    varOrder: [],
   };
 }
 

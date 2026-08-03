@@ -43,7 +43,7 @@ test("document patches round-trip every top-level collection", () => {
   const removedAsset = { id: "asset-removed", kind: "image", mimeType: "image/png", source: { type: "data", data: "removed" } };
   before.nodes = { kept: keptNode, removed: removedNode };
   before.rootIds = ["kept", "removed"];
-  before.symbols = { old: { id: "old", name: "Old", rootNodeId: "kept" } };
+  before.symbols = { old: { id: "old", name: "Old", rootNodeId: "kept", params: [] } };
   before.assets = { [keptAsset.id]: keptAsset, [removedAsset.id]: removedAsset };
   before.extensions = { kept: { value: 1 }, removed: true };
 
@@ -54,7 +54,7 @@ test("document patches round-trip every top-level collection", () => {
     ...before,
     nodes: { kept: updatedNode, added: addedNode },
     rootIds: ["added", "kept"],
-    symbols: { fresh: { id: "fresh", name: "Fresh", rootNodeId: "added" } },
+    symbols: { fresh: { id: "fresh", name: "Fresh", rootNodeId: "added", params: [] } },
     settings: { ...before.settings, gridSize: 25 },
     metadata: { ...before.metadata, modifiedAt: "2030-01-01T00:00:00.000Z" },
     assets: { [keptAsset.id]: keptAsset, [addedAsset.id]: addedAsset },

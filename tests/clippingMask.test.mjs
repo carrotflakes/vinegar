@@ -300,11 +300,12 @@ test("a broad marquee does not select content disjoint from its mask", () => {
 test("symbol recursion applies definition masks and an instance's ancestor mask", () => {
   const doc = clippedDocument();
   doc.nodes.defRoot = group("defRoot", ["clip"]);
-  doc.symbols.symbol = { id: "symbol", name: "Symbol", rootNodeId: "defRoot" };
+  doc.symbols.symbol = { id: "symbol", name: "Symbol", rootNodeId: "defRoot", params: [] };
   doc.nodes.instance = {
     id: "instance",
     name: "instance",
     type: "instance",
+    args: {},
     ...NODE_BASE,
     symbolId: "symbol",
     opacity: 1,

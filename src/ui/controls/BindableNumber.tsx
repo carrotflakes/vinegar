@@ -1,5 +1,6 @@
 import { useRef, useState } from "react";
 import { LuLink, LuTriangleAlert, LuUnlink } from "react-icons/lu";
+import { numberVars } from "@/model/vars";
 import { useEditor } from "@/store/editorStore";
 import ScrubbableNumber from "./ScrubbableNumber";
 import { usePopoverDismiss } from "./usePopoverDismiss";
@@ -9,7 +10,7 @@ type Props = {
   /** The node the field belongs to, and its bindable field path. */
   nodeId: string;
   path: string;
-  /** Field name, used as the default name of a parameter created from here. */
+  /** Field name, used as the default name of a variable created from here. */
   label: string;
   value: number;
   onChange: (value: number) => void;
@@ -23,12 +24,13 @@ type Props = {
 };
 
 /**
- * A number field that can be driven by a document parameter. Unbound it is a
+ * A number field that can be driven by a document variable. Unbound it is a
  * plain {@link ScrubbableNumber} plus a link button offering the document's
- * parameters; bound, the same field scrubs *the parameter* — every other field
- * bound to it moves too — and the button unbinds, keeping the current value.
+ * number variables; bound, the same field scrubs *the variable* — every other
+ * field bound to it moves too — and the button unbinds, keeping the current
+ * value.
  *
- * Scrubbing a parameter rewrites every node bound to it, so it batches through
+ * Scrubbing a variable rewrites every node bound to it, so it batches through
  * the interaction pattern rather than by coalescing per-frame transactions.
  * See docs/parameters.md.
  */
@@ -46,15 +48,20 @@ export default function BindableNumber({
   bindDisabled,
 }: Props) {
   const ref = useEditor((s) => s.doc.nodes[nodeId]?.bindings[path]);
-  const params = useEditor((s) => s.doc.params);
-  const paramOrder = useEditor((s) => s.doc.paramOrder);
+  // Narrow selectors: this control is rendered per numeric field, so it should
+  // not re-render on every unrelated document edit.
+  const vars = useEditor((s) => s.doc.vars);
+  const varOrder = useEditor((s) => s.doc.varOrder);
   const bindField = useEditor((s) => s.bindField);
   const unbindField = useEditor((s) => s.unbindField);
-  const bindFieldToNewParam = useEditor((s) => s.bindFieldToNewParam);
-  const updateParam = useEditor((s) => s.updateParam);
+  const bindFieldToNewVar = useEditor((s) => s.bindFieldToNewVar);
+  const updateVar = useEditor((s) => s.updateVar);
   const beginInteraction = useEditor((s) => s.beginInteraction);
   const endInteraction = useEditor((s) => s.endInteraction);
   const cancelInteraction = useEditor((s) => s.cancelInteraction);
+
+  // Only number variables can drive a number field.
+  const numbers = numberVars({ vars, varOrder });
 
   const [open, setOpen] = useState(false);
   const wrapRef = useRef<HTMLDivElement>(null);
@@ -64,22 +71,23 @@ export default function BindableNumber({
     () => setOpen(false)
   );
 
-  const param = ref ? params[ref.paramId] : undefined;
-  const dangling = !!ref && !param;
+  const bound = ref ? vars[ref.varId] : undefined;
+  const number = bound?.value.kind === "number" ? bound.value : null;
+  const dangling = !!ref && !number;
 
-  // Bound: the field drives the parameter behind it, divided back out through
+  // Bound: the field drives the variable behind it, divided back out through
   // the per-use scale so "half of X" stays half of X while being scrubbed.
   const setValue = (next: number) => {
-    if (!ref || !param) return onChange(next);
+    if (!ref || !bound || !number) return onChange(next);
     const scale = ref.scale === 0 ? 1 : ref.scale;
-    updateParam(ref.paramId, { value: next / scale });
+    updateVar(ref.varId, { value: { ...number, value: next / scale } });
   };
 
   const title = dangling
-    ? "Parameter is missing — showing the last value"
-    : ref && param
-      ? `Bound to “${param.name}”${ref.scale === 1 ? "" : ` × ${ref.scale}`}`
-      : bindDisabled ?? "Bind to a parameter";
+    ? "Variable is missing — showing the last value"
+    : ref && bound
+      ? `Bound to “${bound.name}”${ref.scale === 1 ? "" : ` × ${ref.scale}`}`
+      : bindDisabled ?? "Bind to a variable";
 
   return (
     <div className="bindable" ref={wrapRef}>
@@ -92,7 +100,7 @@ export default function BindableNumber({
         {...(defaultValue !== undefined ? { defaultValue } : {})}
         aria-label={label}
         onChange={setValue}
-        onScrubStart={() => beginInteraction(param ? "Edit parameter" : `Edit ${label}`)}
+        onScrubStart={() => beginInteraction(number ? "Edit variable" : `Edit ${label}`)}
         onScrubEnd={endInteraction}
         onScrubCancel={cancelInteraction}
       />
@@ -111,7 +119,7 @@ export default function BindableNumber({
           {ref ? (
             <>
               <div className="bind-menu-head">
-                {param ? param.name : "Missing parameter"}
+                {bound ? bound.name : "Missing variable"}
               </div>
               <button
                 type="button"
@@ -130,31 +138,29 @@ export default function BindableNumber({
                 type="button"
                 className="bind-menu-item"
                 onClick={() => {
-                  bindFieldToNewParam(nodeId, path, label);
+                  bindFieldToNewVar(nodeId, path, label);
                   setOpen(false);
                 }}
               >
-                New parameter from this value
+                New variable from this value
               </button>
-              {paramOrder.length > 0 && <div className="bind-menu-sep" />}
-              {paramOrder.map((id) => {
-                const p = params[id];
-                if (!p) return null;
-                return (
-                  <button
-                    type="button"
-                    key={id}
-                    className="bind-menu-item"
-                    onClick={() => {
-                      bindField(nodeId, path, id);
-                      setOpen(false);
-                    }}
-                  >
-                    <span className="bind-menu-name">{p.name}</span>
-                    <span className="bind-menu-value">{p.value}</span>
-                  </button>
-                );
-              })}
+              {numbers.length > 0 && <div className="bind-menu-sep" />}
+              {numbers.map((entry) => (
+                <button
+                  type="button"
+                  key={entry.id}
+                  className="bind-menu-item"
+                  onClick={() => {
+                    bindField(nodeId, path, entry.id);
+                    setOpen(false);
+                  }}
+                >
+                  <span className="bind-menu-name">{entry.name}</span>
+                  <span className="bind-menu-value">
+                    {entry.value.kind === "number" ? entry.value.value : ""}
+                  </span>
+                </button>
+              ))}
             </>
           )}
         </div>

@@ -1,6 +1,6 @@
 import { useEffect, useRef } from "react";
 import { multiply, shapeWorldMatrix, translation } from "@/model/geometry/matrix";
-import { resolvePaintRef } from "../model/paint";
+import { resolvePaint, scopeForNode } from "../model/vars";
 import type { TextShape } from "../model/types";
 import { viewportMatrix } from "@/model/geometry/viewport";
 import { useEditor } from "../store/editorStore";
@@ -32,8 +32,10 @@ export default function TextEditor({ shape, onChange, onCommit, onCancel }: Prop
     multiply(shapeWorldMatrix(doc, shape), translation(shape.x, shape.y))
   );
 
-  // Resolve a `swatch` fill reference so the overlay matches the painted colour.
-  const fill = resolvePaintRef(shape.fill, doc.swatches);
+  // Resolve a `var` fill reference so the overlay matches the painted colour.
+  // Text is edited where it lives, so the chain is the document's variables
+  // plus — in symbol-edit focus — the definition's own parameter defaults.
+  const fill = resolvePaint(shape.fill, scopeForNode(doc, shape.id));
 
   return (
     <textarea

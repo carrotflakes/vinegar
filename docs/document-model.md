@@ -32,10 +32,10 @@ active tool, selection, viewport and undo history does not belong in the file.
 - `fill`/`stroke` are a `Paint` union: `solid`, linear/radial `gradient`, a
   `pattern` (an image asset mapped onto the shape by an explicit `mode` —
   tile / fill / fit / stretch — plus `scale`/`rotation`/`offset`), or a
-  `swatch` reference (`swatchId` plus a per-use `alpha`, `1` = the swatch's
-  own alpha unchanged; on a gradient swatch the tint scales every stop). A
-  swatch stores any *concrete* paint — solid, gradient or pattern — but never
-  another reference, so resolution is single-hop. A pattern that references a
+  `var` reference (`varId` plus a per-use `alpha`, `1` = the variable's own
+  alpha unchanged; on a gradient the tint scales every stop). A variable stores
+  any *concrete* paint — solid, gradient or pattern — but never another
+  reference, so resolution is single-hop. A pattern that references a
   decoding/missing asset simply paints nothing that frame.
 - Stroke appearance is stored directly on each shape: width, dash array/offset,
   cap, join and alignment. An empty dash array means a solid stroke.
@@ -95,20 +95,31 @@ active tool, selection, viewport and undo history does not belong in the file.
   is the single implementation; it needs a DOM, so callers that might run
   headless gate on `canMeasureText()` rather than writing a guess.
 
-- A number field can be driven by a *document parameter* (`doc.params` /
-  `doc.paramOrder`, a bijection like swatches). The reference lives beside the
-  field, in `node.bindings` keyed by bindable field path (`"strokeWidth"`,
+- **Document variables** (`doc.vars` / `doc.varOrder`, a bijection) are named
+  values the document shares. A variable's `value` is typed: `kind: "number"`
+  (with its scrubber hints) or `kind: "paint"` (a concrete paint). One table,
+  two reference edges — paint points *in* the field (above), numbers *beside*
+  it.
+- A number field can be driven by a number variable. The reference lives in
+  `node.bindings`, keyed by bindable field path (`"strokeWidth"`,
   `"generator.args.<key>"`, `"modifiers.<index>.<key>"`), while the field itself
   holds the last resolved number — so every consumer reads a plain `number` and
   a dangling reference degrades to the value it was showing. Bound fields are
   derived state: `syncParamBindings` re-resolves them on every committed
   document, and a binding whose field path no longer addresses anything is
   pruned there. See [parameters.md](parameters.md).
+- A **symbol definition** may declare `params` (key, label, typed `default`);
+  an **instance** overrides them in `args`, keyed by the same key. A `var` paint
+  inside a definition resolves against the instance's args, then the
+  definition's defaults, then `doc.vars` — so one definition paints differently
+  per instance. Numeric symbol parameters are declarable but not yet honoured
+  (phase 2b). See [parameters.md](parameters.md).
 
-The current file version is v33; loading also accepts compatible v31/v32 files
-(their absent `params`/`paramOrder`/`bindings` fill in as empty, and their
-solid-only swatches are already valid concrete paint). Persisted
-model changes require a version review and, when incompatible, a migration.
+The current file version is v34; loading also accepts v31–v33 files, which are
+transformed on read: their `swatches` and `params` fold into one `vars` table
+(ids unchanged), `swatch` paints become `var` paints, symbols gain an empty
+parameter list and instances empty args. Persisted model changes require a
+version review and, when incompatible, a migration.
 
 ## Coordinate policy
 

@@ -6,7 +6,7 @@
 // means "no paint".
 // ===========================================================================
 
-import type { Bounds, Swatch, Vec2 } from "./types";
+import type { Bounds, Vec2 } from "./types";
 
 export interface SolidPaint {
   type: "solid";
@@ -106,56 +106,41 @@ export function patternPlacement(
 }
 
 /**
- * A reference to a document-level global colour ({@link Swatch}). The concrete
- * paint lives once in `doc.swatches`; every referencing fill/stroke resolves it
- * at paint time (see {@link resolvePaintRef}), so editing the swatch re-tints
- * every use live. Only appears in documents authored after global colours ship.
+ * A reference to a document variable's paint ({@link DocVar}). The concrete
+ * paint lives once in `doc.vars` (or, inside a symbol, in the definition's
+ * parameter defaults / the instance's args); every referencing fill/stroke
+ * resolves it at paint time (see `resolvePaint` in model/vars.ts), so editing
+ * the variable re-tints every use live.
  */
-export interface SwatchRefPaint {
-  type: "swatch";
-  /** Id of a Swatch in doc.swatches. */
-  swatchId: string;
-  /** Per-use tint 0..1, multiplied onto the swatch's own alpha — every stop's
-   *  alpha for a gradient swatch (1 = as stored). */
+export interface VarRefPaint {
+  type: "var";
+  /** Id of a DocVar in doc.vars, or of a SymbolParam in the enclosing scope. */
+  varId: string;
+  /** Per-use tint 0..1, multiplied onto the variable's own alpha — every stop's
+   *  alpha for a gradient (1 = as stored). */
   alpha: number;
 }
 
-export type Paint = SolidPaint | GradientPaint | PatternPaint | SwatchRefPaint;
+export type Paint = SolidPaint | GradientPaint | PatternPaint | VarRefPaint;
 
-/** A concrete paint — anything that is not an unresolved swatch reference. */
-export type ConcretePaint = Exclude<Paint, SwatchRefPaint>;
+/** A concrete paint — anything that is not an unresolved variable reference. */
+export type ConcretePaint = Exclude<Paint, VarRefPaint>;
 
 const clamp01 = (n: number) => Math.max(0, Math.min(1, n));
 
-export function swatchRef(swatchId: string, alpha = 1): SwatchRefPaint {
-  return { type: "swatch", swatchId, alpha: clamp01(alpha) };
+export function varRef(varId: string, alpha = 1): VarRefPaint {
+  return { type: "var", varId, alpha: clamp01(alpha) };
 }
 
-/** Whether a paint is an (unresolved) reference to a document swatch. */
-export function isSwatchRef(paint: Paint | null | undefined): paint is SwatchRefPaint {
-  return !!paint && paint.type === "swatch";
-}
-
-/**
- * Resolve a possibly-referential paint to a concrete one. Returns null for a
- * dangling reference so callers can fall back (render: skip; export: omit).
- * A non-referential paint is returned unchanged.
- */
-export function resolvePaintRef(
-  paint: Paint | null,
-  swatches: Record<string, Swatch>
-): ConcretePaint | null {
-  if (paint == null) return null;
-  if (paint.type !== "swatch") return paint;
-  const s = swatches[paint.swatchId];
-  if (!s) return null; // dangling — treat as no paint
-  return tintPaint(s.paint, paint.alpha);
+/** Whether a paint is an (unresolved) reference to a document variable. */
+export function isVarRef(paint: Paint | null | undefined): paint is VarRefPaint {
+  return !!paint && paint.type === "var";
 }
 
 /** Multiply a per-use tint (0..1) onto a concrete paint's own opacity. Solid
  *  and pattern carry one alpha; a gradient's opacity lives per stop, so the
  *  tint scales every stop. `1` returns the paint untouched (identity). */
-function tintPaint(base: ConcretePaint, tint: number): ConcretePaint {
+export function tintPaint(base: ConcretePaint, tint: number): ConcretePaint {
   if (tint === 1) return base;
   if (base.type === "solid" || base.type === "pattern") {
     return { ...base, alpha: clamp01(base.alpha * tint) };
@@ -223,9 +208,9 @@ export function paintToCss(paint: Paint): string {
   // Patterns need the decoded asset to preview; callers that can resolve it
   // (ColorField) render their own swatch. Fall back to a neutral fill here.
   if (paint.type === "pattern") return "#8a9099";
-  // Swatch references are resolved by callers that can see the document; this
+  // Variable references are resolved by callers that can see the document; this
   // pure helper never receives one. Fall back to a neutral fill defensively.
-  if (paint.type === "swatch") return "#8a9099";
+  if (paint.type === "var") return "#8a9099";
   const stops = sortedStops(paint.stops)
     .map((s) => `${rgba(s.color, s.alpha)} ${round(s.offset * 100)}%`)
     .join(", ");
@@ -257,8 +242,8 @@ export function resolvePaint(
   // Patterns are resolved by the canvas renderer (it owns the asset cache);
   // this pure helper only knows solids and gradients.
   if (paint.type === "pattern") return "transparent";
-  // Swatch references are resolved by the caller before reaching here.
-  if (paint.type === "swatch") return "transparent";
+  // Variable references are resolved by the caller before reaching here.
+  if (paint.type === "var") return "transparent";
   const b = bounds ?? { x: 0, y: 0, width: 0, height: 0 };
   const cx = b.x + b.width / 2;
   const cy = b.y + b.height / 2;

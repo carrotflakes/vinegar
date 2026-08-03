@@ -17,7 +17,7 @@ For the feature catalogue see [features.md](features.md); for the persisted form
 The persisted `Document` is a **unified scene tree**: a flat `nodes` map keyed by id, with `rootIds` and each group/frame/compound-path container's `childIds` as the only source of hierarchy and back-to-front paint order.
 Every node carries a Canvas/SVG-compatible affine `transform` into its parent space plus a `transformOrigin`; parents, world matrices and leaf shapes are derived (not stored).
 Frames are ordinary nodes in that tree (top-level only), so there is no separate artboard list.
-The document also holds `symbols`, global-color `swatches` (with a `swatchOrder`), `assets` (embedded raster images), `settings` (unit, dpi, grid size), document-local generator `scripts`, `metadata` and namespaced `extensions`.
+The document also holds `symbols` (each with its declared `params`), document `vars` (named colours and numbers, with a `varOrder`), `assets` (embedded raster images), `settings` (unit, dpi, grid size), document-local generator `scripts`, `metadata` and namespaced `extensions`.
 
 The file wrapper is versioned by `CURRENT_FILE_VERSION` in `src/io/serialize.ts`.
 There is no migration chain: files written by any other version are rejected with a clear message.
@@ -75,7 +75,8 @@ Per-area notes live alongside this file in `docs/`:
 - [compound-path-nodes.md](compound-path-nodes.md) — compound paths as real child nodes
 - [document-model.md](document-model.md) — the persisted format
 - [drag-and-drop.md](drag-and-drop.md) — pointer-based drag conventions
-- [global-colors.md](global-colors.md) — document color swatches and references
+- [global-colors.md](global-colors.md) — colour variables and paint references
+- [parameters.md](parameters.md) — document variables, numeric bindings and symbol parameters
 - [path-commands.md](path-commands.md) — join / cut / combine / split and cleanup ops
 - [pen-and-touch.md](pen-and-touch.md) — stylus vs finger roles, palm rejection, touch gestures
 - [path-modifiers.md](path-modifiers.md) — direction for a non-destructive modifier stack

@@ -1,12 +1,12 @@
 // ===========================================================================
-// Document parameters ("global numbers") and the bindings that drive node
-// number fields from them — the numeric counterpart of global colours.
+// Numeric bindings: the edge that drives node number fields from a document
+// variable's number (`kind: "number"`, see model/vars.ts).
 //
 // A binding lives on the node (`node.bindings`, keyed by field path) while the
 // bound field itself keeps the last resolved number. Every consumer therefore
 // keeps reading a plain `number`, and a dangling reference degrades to the
 // literal it was showing rather than to no value at all. `syncParamBindings`
-// re-derives every bound field from `doc.params`; the store runs it on every
+// re-derives every bound field from `doc.vars`; the store runs it on every
 // committed document, so the two can never drift apart.
 //
 // See docs/parameters.md.
@@ -15,7 +15,7 @@
 import { GENERATORS, defaultArgs } from "./generators/generators";
 import { isShape } from "./scene";
 import type {
-  DocParam,
+  DocVar,
   Document,
   ParamRef,
   PathModifier,
@@ -124,16 +124,19 @@ export function writeNumField(
   return { ...shape, modifiers };
 }
 
-/** The value a reference resolves to, or null when the parameter is gone. */
+/**
+ * The value a reference resolves to, or null when the variable is gone (or is
+ * not a number — a binding never follows a paint variable).
+ */
 export function resolveParamRef(
   ref: ParamRef,
-  params: Record<string, DocParam>
+  vars: Record<string, DocVar>
 ): number | null {
-  const param = params[ref.paramId];
-  if (!param) return null;
-  const value = param.value * ref.scale;
+  const entry = vars[ref.varId]?.value;
+  if (!entry || entry.kind !== "number") return null;
+  const value = entry.value * ref.scale;
   if (!Number.isFinite(value)) return null;
-  return param.integer ? Math.round(value) : value;
+  return entry.integer ? Math.round(value) : value;
 }
 
 /**
@@ -182,14 +185,14 @@ export function materializeBindable(node: SceneNode, path: string): SceneNode {
 }
 
 /**
- * Re-derive one node's bound fields from `params`. Bindings whose parameter is
+ * Re-derive one node's bound fields from `vars`. Bindings whose variable is
  * gone keep the field's current (last resolved) value; bindings whose field
  * path no longer addresses anything — a removed modifier, a detached generator
  * — are dropped, since nothing will ever resolve them again.
  */
 export function syncNodeBindings(
   node: SceneNode,
-  params: Record<string, DocParam>
+  vars: Record<string, DocVar>
 ): SceneNode {
   const entries = Object.entries(node.bindings);
   if (!entries.length) return node;
@@ -202,7 +205,7 @@ export function syncNodeBindings(
       (stale ??= []).push(path);
       continue;
     }
-    const value = resolveParamRef(ref, params);
+    const value = resolveParamRef(ref, vars);
     if (value === null || value === current) continue;
     const written = writeNumField(next, path, value);
     if (!written) continue;
@@ -227,7 +230,7 @@ export function syncParamBindings(doc: Document): Document {
   let nodes = doc.nodes;
   let changed = false;
   for (const [id, node] of Object.entries(doc.nodes)) {
-    const next = syncNodeBindings(node, doc.params);
+    const next = syncNodeBindings(node, doc.vars);
     if (next === node) continue;
     if (!changed) {
       nodes = { ...doc.nodes };
@@ -236,26 +239,6 @@ export function syncParamBindings(doc: Document): Document {
     nodes[id] = next;
   }
   return changed ? { ...doc, nodes } : doc;
-}
-
-/** Binding counts for every parameter, in one scan (panel display). */
-export function paramUsageCounts(doc: Document): Map<string, number> {
-  const counts = new Map<string, number>();
-  for (const node of Object.values(doc.nodes)) {
-    for (const ref of Object.values(node.bindings)) {
-      counts.set(ref.paramId, (counts.get(ref.paramId) ?? 0) + 1);
-    }
-  }
-  return counts;
-}
-
-/** Parameter ids referenced by the given nodes (clipboard payloads). */
-export function referencedParamIds(nodes: Iterable<SceneNode>): Set<string> {
-  const ids = new Set<string>();
-  for (const node of nodes) {
-    for (const ref of Object.values(node.bindings)) ids.add(ref.paramId);
-  }
-  return ids;
 }
 
 /** A node with `path` bound to `ref`, or unbound when `ref` is null. */
@@ -278,7 +261,7 @@ export function withBinding(
  */
 export function bakeParamRefs(
   doc: Document,
-  opts: { paramId?: string; nodeIds?: Iterable<string>; path?: string } = {}
+  opts: { varId?: string; nodeIds?: Iterable<string>; path?: string } = {}
 ): Record<string, SceneNode> {
   const ids = opts.nodeIds ? [...opts.nodeIds] : Object.keys(doc.nodes);
   let nodes = doc.nodes;
@@ -288,7 +271,7 @@ export function bakeParamRefs(
     if (!node) continue;
     const drop = Object.entries(node.bindings).filter(
       ([path, ref]) =>
-        (!opts.paramId || ref.paramId === opts.paramId) &&
+        (!opts.varId || ref.varId === opts.varId) &&
         (!opts.path || path === opts.path)
     );
     if (!drop.length) continue;
@@ -324,15 +307,4 @@ export function remapModifierBindings(
     next[modifierParamPath(index, parsed.key)] = ref;
   }
   return next;
-}
-
-/**
- * Global numbers' structural invariant: `paramOrder` and `params` are a
- * bijection. Reference *targets* are not checked — a dangling binding is
- * tolerated (the field keeps its last value) and surfaced by the UI.
- */
-export function hasValidParams(doc: Document): boolean {
-  const ids = Object.keys(doc.params);
-  if (ids.length !== doc.paramOrder.length) return false;
-  return !doc.paramOrder.some((id) => !doc.params[id]);
 }

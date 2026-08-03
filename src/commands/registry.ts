@@ -13,6 +13,7 @@ import {
   canMakeCompoundPathSelection,
 } from "@/model/path/compoundPath";
 import { canConvertShapeToPath } from "@/model/path/convertToPath";
+import { numberValue } from "@/model/types";
 import {
   canConvertBrushToOutline,
   canConvertPathToBrush,
@@ -499,15 +500,15 @@ export const COMMANDS: Command[] = [
     run: (s) => s.applyPathModifiersSelected(),
   },
   {
-    id: "param.create",
-    label: "New parameter",
-    group: "Parameter",
-    run: (s) => void s.createParam(),
+    id: "var.createNumber",
+    label: "New variable",
+    group: "Variable",
+    run: (s) => void s.createVar(numberValue(0)),
   },
   {
-    id: "param.unbindSelection",
-    label: "Unbind parameters from selection",
-    group: "Parameter",
+    id: "var.unbindSelection",
+    label: "Unbind variables from selection",
+    group: "Variable",
     enabled: (s) =>
       selectionRoots(s.doc, s.selection).some(
         (id) => Object.keys(s.doc.nodes[id]?.bindings ?? {}).length > 0
@@ -515,9 +516,9 @@ export const COMMANDS: Command[] = [
     run: (s) => s.unbindAll(selectionRoots(s.doc, s.selection)),
   },
   {
-    id: "param.bakeAll",
-    label: "Unbind all parameters",
-    group: "Parameter",
+    id: "var.bakeAll",
+    label: "Unbind all variables",
+    group: "Variable",
     enabled: (s) =>
       Object.values(s.doc.nodes).some((node) => Object.keys(node.bindings).length > 0),
     run: (s) => s.unbindAll(),

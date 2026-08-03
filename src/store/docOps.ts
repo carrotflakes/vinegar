@@ -12,7 +12,7 @@ import {
   translation as translationMatrix,
 } from "@/model/geometry/matrix";
 import { GENERATORS } from "@/model/generators/generators";
-import { referencedParamIds } from "@/model/params";
+import { referencedVarIds } from "@/model/vars";
 import {
   childIdsOf,
   descendantNodeIds,
@@ -21,7 +21,6 @@ import {
   parentIdOf,
   referencedAssetIdsOf,
   referencedScriptIds,
-  referencedSwatchIds,
   selectionRoots,
   withChildIds,
 } from "../model/scene";
@@ -29,7 +28,7 @@ import {
   baseNodeDefaults,
   makeId,
   type BrushShape,
-  type DocParam,
+  type DocVar,
   type Document,
   type DocumentAsset,
   type Group,
@@ -37,7 +36,6 @@ import {
   type PathShape,
   type SceneNode,
   type ScriptDef,
-  type Swatch,
   type SymbolInstance,
 } from "../model/types";
 
@@ -60,10 +58,9 @@ export interface ClipboardPayload extends NodePayload {
   scripts: Record<string, ScriptDef>;
   /** Image assets used by copied image nodes and pattern paints. */
   assets: Record<string, DocumentAsset>;
-  /** Global colours referenced by copied fills/strokes. */
-  swatches: Record<string, Swatch>;
-  /** Document parameters the copied nodes' bindings point at. */
-  params: Record<string, DocParam>;
+  /** Document variables the copied nodes reference: colours through their
+   *  fills/strokes, numbers through their bindings. */
+  vars: Record<string, DocVar>;
   /** Whether the source document's scripts were trusted when copied. */
   scriptsTrusted: boolean;
 }
@@ -143,8 +140,7 @@ export function copyPayload(
     rootIds: roots,
     scripts: pick(referencedScriptIds(all), doc.scripts),
     assets: pick(referencedAssetIdsOf(all), doc.assets),
-    swatches: pick(referencedSwatchIds(all), doc.swatches),
-    params: pick(referencedParamIds(all), doc.params),
+    vars: pick(referencedVarIds(all), doc.vars),
     scriptsTrusted,
   };
 }
@@ -197,10 +193,8 @@ export interface ReattachedPayload {
   nodes: Record<string, SceneNode>;
   scripts: Record<string, ScriptDef>;
   assets: Record<string, DocumentAsset>;
-  swatches: Record<string, Swatch>;
-  swatchOrder: string[];
-  params: Record<string, DocParam>;
-  paramOrder: string[];
+  vars: Record<string, DocVar>;
+  varOrder: string[];
   /** Ids of scripts taken from the payload (the document lacked them). */
   addedScripts: string[];
   /** True when an image/pattern asset resolves neither here nor in the payload. */
@@ -218,7 +212,7 @@ export interface ReattachedPayload {
 export function reattachPayloadResources(
   doc: Document,
   payload: NodePayload,
-  resources: Pick<ClipboardPayload, "scripts" | "assets" | "swatches" | "params">
+  resources: Pick<ClipboardPayload, "scripts" | "assets" | "vars">
 ): ReattachedPayload {
   const nodes = { ...payload.nodes };
   const scripts = { ...doc.scripts };
@@ -245,31 +239,21 @@ export function reattachPayloadResources(
     else missingAsset = true;
   }
 
-  // A dangling swatch reference is tolerated by the model (the paint is simply
-  // skipped), so a missing global colour only costs the link, not the paste.
-  const swatches = { ...doc.swatches };
-  const swatchOrder = [...doc.swatchOrder];
-  for (const swatchId of referencedSwatchIds(all)) {
-    if (swatches[swatchId]) continue;
-    const swatch = resources.swatches[swatchId];
-    if (!swatch) continue;
-    swatches[swatchId] = structuredClone(swatch);
-    swatchOrder.push(swatchId);
+  // A dangling reference is tolerated by the model (a `var` paint is skipped;
+  // a bound field freezes at the last value the source document resolved), so
+  // a missing variable only costs the link, not the paste. Merging is by id,
+  // and the destination's own definition wins.
+  const vars = { ...doc.vars };
+  const varOrder = [...doc.varOrder];
+  for (const varId of referencedVarIds(all)) {
+    if (vars[varId]) continue;
+    const entry = resources.vars[varId];
+    if (!entry) continue;
+    vars[varId] = structuredClone(entry);
+    varOrder.push(varId);
   }
 
-  // Same for parameters: without the merge a pasted binding would dangle and
-  // its field would freeze at the last value the source document resolved.
-  const params = { ...doc.params };
-  const paramOrder = [...doc.paramOrder];
-  for (const paramId of referencedParamIds(all)) {
-    if (params[paramId]) continue;
-    const param = resources.params[paramId];
-    if (!param) continue;
-    params[paramId] = structuredClone(param);
-    paramOrder.push(paramId);
-  }
-
-  return { nodes, scripts, assets, swatches, swatchOrder, params, paramOrder, addedScripts, missingAsset };
+  return { nodes, scripts, assets, vars, varOrder, addedScripts, missingAsset };
 }
 
 /** Clone a payload under fresh ids, optionally nudging its roots. */
@@ -299,6 +283,7 @@ export function instanceNode(id: string, symbolId: string, transform: Matrix): S
     name: "Instance",
     type: "instance",
     symbolId,
+    args: {},
     transform,
     ...baseNodeDefaults(),
   };
