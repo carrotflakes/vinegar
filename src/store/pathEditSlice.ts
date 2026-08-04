@@ -388,7 +388,7 @@ export function createPathEditActions({ set, get, transact }: StoreCtx): PathEdi
         if (!isShape(shape) || shape.type !== "path") continue;
         nodes[id] = {
           ...shape,
-          modifiers: [...(shape.modifiers ?? []), DEFAULT_PATH_MODIFIER[type]()],
+          modifiers: [...(shape.modifiers ?? []), DEFAULT_PATH_MODIFIER[type](shape)],
         };
         changed = true;
       }

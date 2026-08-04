@@ -138,7 +138,7 @@ test("text documents round-trip and malformed typography is rejected", () => {
   doc.nodes.text1 = textShape();
   doc.rootIds = ["text1"];
   const json = serializeDocument(doc);
-  assert.equal(JSON.parse(json).version, 35);
+  assert.equal(JSON.parse(json).version, 36);
   assert.deepEqual(parseDocument(json).nodes.text1, doc.nodes.text1);
 
   const malformed = JSON.parse(json);

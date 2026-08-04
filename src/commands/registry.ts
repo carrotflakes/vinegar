@@ -490,6 +490,20 @@ export const COMMANDS: Command[] = [
     run: (s) => s.addPathModifierSelected("boolean"),
   },
   {
+    id: "path.addArrayModifier",
+    label: "Add Array modifier",
+    group: "Path",
+    enabled: (s) => sel(s).canPathOp,
+    run: (s) => s.addPathModifierSelected("array"),
+  },
+  {
+    id: "path.addRadialModifier",
+    label: "Add Radial modifier",
+    group: "Path",
+    enabled: (s) => sel(s).canPathOp,
+    run: (s) => s.addPathModifierSelected("radial"),
+  },
+  {
     id: "path.addReverseModifier",
     label: "Add Reverse modifier",
     group: "Path",

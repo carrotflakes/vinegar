@@ -18,6 +18,7 @@
 // ===========================================================================
 
 import { GENERATORS, defaultArgs } from "./generators/generators";
+import { arrayCopyCount } from "./path/pathModifiers";
 import { enclosingSymbolId, isShape } from "./scene";
 import {
   documentScope,
@@ -42,10 +43,22 @@ const MODIFIER_NUM_KEYS: Record<PathModifier["type"], readonly string[]> = {
   smooth: [],
   reverse: [],
   boolean: [],
+  array: ["count", "dx", "dy"],
+  radial: ["count", "angle", "cx", "cy"],
 };
 
 /** Field paths whose value may never go negative (the model rejects it). */
 const NON_NEGATIVE = new Set(["strokeWidth", "tolerance", "width"]);
+
+/**
+ * A modifier field's own legal domain. A bound number arrives from a variable
+ * that knows nothing about the field it drives, so a copy count has to be made
+ * whole and bounded here rather than trusted — see `arrayCopyCount`.
+ */
+function clampModifierParam(key: string, value: number): number {
+  if (key === "count") return arrayCopyCount(value);
+  return NON_NEGATIVE.has(key) ? Math.max(0, value) : value;
+}
 
 export const STROKE_WIDTH_PATH = "strokeWidth";
 export const generatorArgPath = (key: string): string => `generator.args.${key}`;
@@ -128,7 +141,7 @@ export function writeNumField(
   if (!shape || !modifier || !MODIFIER_NUM_KEYS[modifier.type].includes(parsed.key)) {
     return null;
   }
-  const clamped = NON_NEGATIVE.has(parsed.key) ? Math.max(0, value) : value;
+  const clamped = clampModifierParam(parsed.key, value);
   const modifiers = shape.modifiers!.map((entry, i) =>
     i === parsed.index ? ({ ...entry, [parsed.key]: clamped } as PathModifier) : entry
   );

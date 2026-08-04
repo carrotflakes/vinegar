@@ -124,8 +124,14 @@ active tool, selection, viewport and undo history does not belong in the file.
   DAG (`hasAcyclicModifierOperands`), and a missing operand disables the stage.
   See [path-modifiers.md](path-modifiers.md).
 
-The current file version is v35; loading also accepts v34 (which simply has no
-boolean stage) and v31–v33 files, which are
+- The stack may also hold the two *repeating* stages, `array` and `radial`,
+  which emit several transformed copies of their input as extra contours. They
+  are the first stages whose output size depends on a parameter, so the copy
+  count is clamped whole and bounded (`arrayCopyCount`) wherever it is written.
+  See [path-modifiers.md](path-modifiers.md).
+
+The current file version is v36; loading also accepts v35 (no repeating stages),
+v34 (no boolean stage either) and v31–v33 files, which are
 transformed on read: their `swatches` and `params` fold into one `vars` table
 (ids unchanged), `swatch` paints become `var` paints, symbols gain an empty
 parameter list and instances empty args. Persisted model changes require a

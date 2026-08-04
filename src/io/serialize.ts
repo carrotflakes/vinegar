@@ -15,13 +15,14 @@ import {
   type ShapeType,
 } from "../model/types";
 
-export const CURRENT_FILE_VERSION = 35 as const;
+export const CURRENT_FILE_VERSION = 36 as const;
 /** Older schemas accepted after a read-time transform (see {@link migrateToV34}).
  *  v34 merged `swatches`+`params` into one `vars` table and gave symbols
  *  parameters, so v31–v33 need their two tables folded into one — ids carry
  *  over unchanged, which makes the transform total and lossless. v35 added the
- *  `boolean` path modifier, which is additive: a v34 file simply has none. */
-const SUPPORTED_FILE_VERSIONS = [31, 32, 33, 34, CURRENT_FILE_VERSION] as const;
+ *  `boolean` path modifier and v36 the `array`/`radial` ones, both additive: an
+ *  older file simply has no such stage. */
+const SUPPORTED_FILE_VERSIONS = [31, 32, 33, 34, 35, CURRENT_FILE_VERSION] as const;
 
 export interface VinegarFile {
   app: "vinegar";
@@ -131,6 +132,15 @@ const isPathModifier = (value: unknown): boolean => {
     return isNumber(value.width) && value.width >= 0 &&
       STROKE_CAPS.includes(value.cap as never) &&
       STROKE_JOINS.includes(value.join as never);
+  }
+  if (value.type === "array") {
+    return isNumber(value.count) && value.count >= 1 &&
+      isNumber(value.dx) && isNumber(value.dy);
+  }
+  if (value.type === "radial") {
+    return isNumber(value.count) && value.count >= 1 &&
+      isNumber(value.angle) && isNumber(value.cx) && isNumber(value.cy) &&
+      typeof value.rotateCopies === "boolean";
   }
   if (value.type === "boolean") {
     // A dangling/empty operand is tolerated: the stage disables itself and the

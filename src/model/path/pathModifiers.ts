@@ -1,10 +1,12 @@
 import ClipperLib from "clipper-lib";
-import { flattenSubpathAdaptive, ringsToSubpaths } from "./path";
+import { flattenSubpathAdaptive, ringsToSubpaths, transformSubpath } from "./path";
 import { booleanWithOperand, isAreal, operandIntoLocal } from "./boolean";
 import { contours, intPath, SCALE, treeToPolys } from "./clipperPaths";
 import { applyPathOpSubpaths } from "./pathOps";
+import { applyMatrix, rotationAbout, translation } from "../geometry/matrix";
 import { enclosingSymbolId, isShape } from "../scene";
 import type {
+  Bounds,
   Document,
   PathModifier,
   SceneNode,
@@ -12,13 +14,51 @@ import type {
   PathSubpath,
   StrokeCap,
   StrokeJoin,
+  Vec2,
 } from "../types";
 
 const OFFSET_FLATNESS = 0.1;
 
+/**
+ * The copy count a repeating stage will actually produce. A count is a number
+ * like any other — it can be bound to a document variable and scrubbed — so the
+ * ceiling is what keeps one careless drag from asking for a million contours.
+ */
+export const MAX_ARRAY_COPIES = 500;
+
+export function arrayCopyCount(count: number): number {
+  if (!Number.isFinite(count)) return 1;
+  return Math.min(MAX_ARRAY_COPIES, Math.max(1, Math.round(count)));
+}
+
+/**
+ * Anchor-point bounds of the base geometry — enough to place a fresh stage's
+ * defaults relative to the shape, which is all this is used for. Handles are
+ * ignored, so it can read narrow; a default is not a measurement.
+ */
+function anchorBounds(subpaths: PathSubpath[]): Bounds | null {
+  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+  for (const subpath of subpaths) {
+    for (const anchor of subpath.anchors) {
+      minX = Math.min(minX, anchor.p.x);
+      minY = Math.min(minY, anchor.p.y);
+      maxX = Math.max(maxX, anchor.p.x);
+      maxY = Math.max(maxY, anchor.p.y);
+    }
+  }
+  if (!Number.isFinite(minX)) return null;
+  return { x: minX, y: minY, width: maxX - minX, height: maxY - minY };
+}
+
+/**
+ * A new stage's parameters. The repeating stages take the shape so a freshly
+ * added Array or Radial *shows a repetition immediately* — copies placed a
+ * shape-width apart, or a ring around a pivot below the shape — rather than
+ * stacking every copy on the original and looking like it did nothing.
+ */
 export const DEFAULT_PATH_MODIFIER: Record<
   PathModifier["type"],
-  () => PathModifier
+  (shape?: PathShape) => PathModifier
 > = {
   simplify: () => ({ type: "simplify", tolerance: 2.5 }),
   flatten: () => ({ type: "flatten", tolerance: 0.5 }),
@@ -28,6 +68,27 @@ export const DEFAULT_PATH_MODIFIER: Record<
   reverse: () => ({ type: "reverse" }),
   // No operand yet: the stage is inert and the row asks for one.
   boolean: () => ({ type: "boolean", op: "subtract", operandId: "" }),
+  array: (shape) => {
+    const bounds = shape ? anchorBounds(shape.subpaths) : null;
+    return {
+      type: "array",
+      count: 3,
+      dx: Math.round((bounds?.width || 20) * 1.2),
+      dy: 0,
+    };
+  },
+  radial: (shape) => {
+    const bounds = shape ? anchorBounds(shape.subpaths) : null;
+    const height = bounds?.height || 20;
+    return {
+      type: "radial",
+      count: 6,
+      angle: 360,
+      cx: bounds ? bounds.x + bounds.width / 2 : 0,
+      cy: (bounds ? bounds.y + bounds.height / 2 : 0) + height * 1.5,
+      rotateCopies: true,
+    };
+  },
 };
 
 function clipperJoin(join: StrokeJoin): number {
@@ -149,6 +210,53 @@ function applyBoolean(
   return booleanWithOperand(subpaths, fillRule, operand, modifier.op, intoLocal, doc);
 }
 
+/** `count` copies of the input, each a further (dx, dy) from the last. */
+function arraySubpaths(
+  subpaths: PathSubpath[],
+  modifier: Extract<PathModifier, { type: "array" }>
+): PathSubpath[] {
+  const count = arrayCopyCount(modifier.count);
+  if (count === 1 || !subpaths.length) return subpaths;
+  const result = [...subpaths];
+  for (let i = 1; i < count; i++) {
+    const matrix = translation(modifier.dx * i, modifier.dy * i);
+    for (const subpath of subpaths) result.push(transformSubpath(matrix, subpath));
+  }
+  return result;
+}
+
+/**
+ * `count` copies spread over `angle` degrees around (cx, cy). The sweep is the
+ * *total*, divided by the count, so the default full turn keeps dividing itself
+ * as the count changes — the case this stage exists for. With `rotateCopies`
+ * off, each copy is carried to where the turn puts its centre and left facing
+ * the way the original does.
+ */
+function radialSubpaths(
+  subpaths: PathSubpath[],
+  modifier: Extract<PathModifier, { type: "radial" }>
+): PathSubpath[] {
+  const count = arrayCopyCount(modifier.count);
+  if (count === 1 || !subpaths.length) return subpaths;
+  const pivot: Vec2 = { x: modifier.cx, y: modifier.cy };
+  const step = ((modifier.angle * Math.PI) / 180) / count;
+  const bounds = anchorBounds(subpaths);
+  const centre: Vec2 = bounds
+    ? { x: bounds.x + bounds.width / 2, y: bounds.y + bounds.height / 2 }
+    : pivot;
+  const result = [...subpaths];
+  for (let i = 1; i < count; i++) {
+    const turn = rotationAbout(pivot, step * i);
+    let matrix = turn;
+    if (!modifier.rotateCopies) {
+      const moved = applyMatrix(turn, centre);
+      matrix = translation(moved.x - centre.x, moved.y - centre.y);
+    }
+    for (const subpath of subpaths) result.push(transformSubpath(matrix, subpath));
+  }
+  return result;
+}
+
 function applyModifier(
   subpaths: PathSubpath[],
   modifier: PathModifier,
@@ -171,6 +279,10 @@ function applyModifier(
       return outlineSubpaths(subpaths, modifier.width, modifier.cap, modifier.join);
     case "boolean":
       return applyBoolean(subpaths, modifier, shape, fillRule, doc);
+    case "array":
+      return arraySubpaths(subpaths, modifier);
+    case "radial":
+      return radialSubpaths(subpaths, modifier);
   }
 }
 

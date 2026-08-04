@@ -216,7 +216,7 @@ test("bounds, hit-testing and SVG export all follow the combined outline", () =>
 test("boolean modifiers round-trip through the file format", () => {
   const doc = docWithBoolean();
   const text = serializeDocument(doc);
-  assert.equal(JSON.parse(text).version, 35);
+  assert.equal(JSON.parse(text).version, 36);
   const parsed = parseDocument(text);
   assert.deepEqual(parsed.nodes.target.modifiers, [
     { type: "boolean", op: "subtract", operandId: "cutter" },

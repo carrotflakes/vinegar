@@ -384,6 +384,26 @@ export type PathModifier = PathModifierBase & (
    * disables the stage. See docs/parameters.md (phase 3).
    */
   | { type: "boolean"; op: BoolOp; operandId: string }
+  /**
+   * Repeat the stage's input along a straight line: `count` copies in all,
+   * the first being the input itself, each a further (dx, dy) along.
+   */
+  | { type: "array"; count: number; dx: number; dy: number }
+  /**
+   * Repeat the stage's input around (cx, cy) — the shape's own coordinates,
+   * the same space `subpaths` lives in. `count` copies spread evenly over a
+   * total sweep of `angle` degrees, so a full turn divides itself as the count
+   * changes. Copies turn with the sweep unless `rotateCopies` is false, which
+   * carries each copy to its place without changing its orientation.
+   */
+  | {
+      type: "radial";
+      count: number;
+      angle: number;
+      cx: number;
+      cy: number;
+      rotateCopies: boolean;
+    }
 );
 
 export const PATH_MODIFIER_TYPES = [
@@ -394,6 +414,8 @@ export const PATH_MODIFIER_TYPES = [
   "smooth",
   "reverse",
   "boolean",
+  "array",
+  "radial",
 ] as const;
 
 /**

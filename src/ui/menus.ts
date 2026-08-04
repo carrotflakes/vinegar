@@ -116,6 +116,8 @@ export function selectionMenu(): MenuEntry[] {
     "path.addOutlineModifier",
     "path.addSmoothModifier",
     "path.addReverseModifier",
+    "path.addArrayModifier",
+    "path.addRadialModifier",
   ]
     .filter(enabled)
     .map((id) => item(id));

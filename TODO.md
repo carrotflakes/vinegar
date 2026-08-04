@@ -176,6 +176,10 @@ additional effects, or other feature expansion.
     = base, cached `resolvedSubpaths()` feeds render/hit-test/bounds/export).
     Phase 1 = vertical slice (Simplify + live tolerance); the shipped one-shot
     ops become "Apply/bake".
+  - [x] Array / Radial の繰り返しモディファイア (v36) — count/step/sweep はすべて
+    バインド可能な数値なので、ドキュメント変数で繰り返し数をまとめて動かせる。
+    コピーごとの累積変換（step scale/rotate）と、radial の中心のキャンバス
+    ハンドルは未実装。`docs/path-modifiers.md`
   - [ ] パスのオフセット (candidate first modifier once the stack lands)
   - [ ] Join (connect open paths), Average — see the path-ops proposal
   - [ ] `path.join` に線幅バグがある（ベイクして identity + 基準の `strokeWidth` を

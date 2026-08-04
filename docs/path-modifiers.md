@@ -1,6 +1,8 @@
 # Path modifiers
 
-Status: **implemented** (2026-08-02). File version: **v31** (additive shape
+Status: **implemented** (2026-08-02); the repeating **array** and **radial**
+stages landed 2026-08-04 in **v36** (see *The repeating stages*).
+File version: **v31** (additive shape
 field, but Vinegar's strict current-only file policy requires a version bump;
 absent `modifiers` still means no change). The **boolean** stage — the one
 deferred below for needing a second operand — landed in **v35** as phase 3 of
@@ -58,7 +60,11 @@ type Modifier =
   | { type: "smooth" }
   | { type: "reverse" }
   // v35, see below
-  | { type: "boolean"; op: BoolOp; operandId: string };
+  | { type: "boolean"; op: BoolOp; operandId: string }
+  // v36, see below
+  | { type: "array"; count: number; dx: number; dy: number }
+  | { type: "radial"; count: number; angle: number; cx: number; cy: number;
+      rotateCopies: boolean };
 // each modifier optionally: { enabled?: boolean } to toggle without removing
 ```
 
@@ -229,3 +235,54 @@ with a multi-selection it converts the bottom-most shape to a path if needed,
 appends one boolean stage per other shape, and hides those operands. *Apply
 modifiers* bakes the result, and the destructive Pathfinder commands
 (`path.union`, …) are unchanged.
+
+## The repeating stages (v36)
+
+`array` and `radial` emit several copies of the stage's input as additional
+contours: `count` copies in all, the first being the input itself, each further
+one carried by a transform. They are the answer to "arrange this badge in a
+ring" — the thing that previously meant placing six nodes by hand — and they are
+the first stages that make [parameters.md](parameters.md)'s bindings visibly
+worth having: `count`, the step and the sweep are all ordinary numeric modifier
+params, so a document variable can drive the count of every repeated element at
+once.
+
+**Two stages, not one stage with a mode.** Their parameters do not overlap at
+all, so a single record would carry four fields that are meaningless in half its
+states, and every row would open with a mode select before saying anything.
+
+- **`array`** repeats along a straight line: copy *i* is translated by
+  `(dx·i, dy·i)`.
+- **`radial`** repeats around `(cx, cy)` — the shape's *own* coordinate space,
+  the one `subpaths` lives in, so the pivot is unaffected by the node's
+  transform. `angle` is the **total sweep**, divided by the count, so the
+  default full turn keeps redividing itself as the count changes; that is the
+  case the stage exists for, and it is why the parameter is not a per-copy step
+  the user would have to compute. With `rotateCopies` off, a copy is carried to
+  where the turn puts its centre and left facing the way the original does
+  (labels and glyphs in a ring), which is a translation, not the turn itself.
+
+**Defaults are computed from the shape** (`DEFAULT_PATH_MODIFIER` now takes the
+`PathShape`), so a freshly added stage *shows a repetition immediately* — a row
+a shape-width apart, a ring around a pivot below the shape — instead of stacking
+every copy on the original and looking inert.
+
+**A count is a number like any other, which is the one real hazard.** It can be
+bound to a document variable, and a variable knows nothing about the field it
+drives, so `arrayCopyCount` makes it whole and bounds it at `MAX_ARRAY_COPIES`
+(500) at every write and again in the evaluator. Without that, one scrub of a
+bound count is an unbounded number of contours — the same reasoning as any other
+domain clamp in `writeNumField`, but with a cost that grows the document's
+geometry rather than just being wrong.
+
+Nothing downstream needed changing: the output is subpaths, and every reader
+already consumes a multi-contour resolved array. `count: 1` returns the input
+array itself, so a stage that repeats nothing costs nothing and keeps the
+identity the caches below key on.
+
+**Deferred.** Per-copy accumulating transforms (step scale / step rotate, so
+copies spiral or taper) are not in v36: the more a repeating stage can express,
+the less the difference between it and simply baking copies, and no use has
+asked for it yet. There is also no canvas handle for the radial pivot — the
+centre is scrubbed in the panel — which is the first thing to add if the stage
+gets used in anger.

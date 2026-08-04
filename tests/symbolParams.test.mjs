@@ -201,7 +201,7 @@ test("SVG export bakes each instance's own overrides", () => {
 test("symbol parameters and instance args round-trip through the file format", () => {
   const doc = docWithParametricSymbol();
   const text = serializeDocument(doc);
-  assert.equal(JSON.parse(text).version, 35);
+  assert.equal(JSON.parse(text).version, 36);
   const parsed = parseDocument(text);
   assert.deepEqual(parsed.symbols.sym.params, doc.symbols.sym.params);
   assert.deepEqual(parsed.nodes.i2.args, { c: paintValue(BLUE()) });

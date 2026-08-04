@@ -1,7 +1,11 @@
 import { LuChevronDown, LuChevronUp, LuCrosshair, LuTriangleAlert, LuX } from "react-icons/lu";
 import { BOOL_OPS, type BoolOp, type PathModifier, type PathShape } from "@/model/types";
 import { useEditor } from "@/store/editorStore";
-import { booleanOperandError } from "@/model/path/pathModifiers";
+import {
+  arrayCopyCount,
+  booleanOperandError,
+  MAX_ARRAY_COPIES,
+} from "@/model/path/pathModifiers";
 import { modifierParamPath, remapModifierBindings } from "@/model/params";
 import BindableNumber from "@/ui/controls/BindableNumber";
 import Section from "../Section";
@@ -15,6 +19,8 @@ function modifierLabel(type: PathModifier["type"]): string {
     case "smooth": return "Smooth";
     case "reverse": return "Reverse";
     case "boolean": return "Boolean";
+    case "array": return "Array";
+    case "radial": return "Radial";
   }
 }
 
@@ -73,7 +79,9 @@ export default function ModifiersSection({ shape }: { shape: PathShape }) {
     label: string,
     value: number,
     onChange: (value: number) => void,
-    min?: number
+    min?: number,
+    step = 0.1,
+    max?: number
   ) => (
     <label className="geo-field">
       <span>{label}</span>
@@ -83,11 +91,19 @@ export default function ModifiersSection({ shape }: { shape: PathShape }) {
         label={label}
         value={Math.round(value * 100) / 100}
         min={min}
-        step={0.1}
+        {...(max === undefined ? {} : { max })}
+        step={step}
         onChange={onChange}
       />
     </label>
   );
+  // A copy count is a whole number with a ceiling; the model clamps it too,
+  // since a bound variable can hand it anything.
+  const countField = (
+    index: number,
+    value: number,
+    onChange: (value: number) => void
+  ) => numberField(index, "count", "Count", value, onChange, 1, 1, MAX_ARRAY_COPIES);
 
   return (
     <Section title="Modifiers">
@@ -256,6 +272,48 @@ export default function ModifiersSection({ shape }: { shape: PathShape }) {
                 </select>
               </label>
             </>
+          ) : modifier.type === "array" ? (
+            <div className="geometry-grid">
+              {countField(index, modifier.count, (value) =>
+                replace(index, { ...modifier, count: arrayCopyCount(value) })
+              )}
+              {numberField(index, "dx", "Step X", modifier.dx, (value) =>
+                replace(index, { ...modifier, dx: value })
+              )}
+              {numberField(index, "dy", "Step Y", modifier.dy, (value) =>
+                replace(index, { ...modifier, dy: value })
+              )}
+            </div>
+          ) : modifier.type === "radial" ? (
+            <>
+              <div className="geometry-grid">
+                {countField(index, modifier.count, (value) =>
+                  replace(index, { ...modifier, count: arrayCopyCount(value) })
+                )}
+                {/* The total sweep, not the step: a full turn keeps dividing
+                    itself as the count changes. */}
+                {numberField(index, "angle", "Sweep°", modifier.angle, (value) =>
+                  replace(index, { ...modifier, angle: value })
+                )}
+                {numberField(index, "cx", "Center X", modifier.cx, (value) =>
+                  replace(index, { ...modifier, cx: value })
+                )}
+                {numberField(index, "cy", "Center Y", modifier.cy, (value) =>
+                  replace(index, { ...modifier, cy: value })
+                )}
+              </div>
+              <label className="field-inline">
+                <span>Rotate copies</span>
+                <input
+                  type="checkbox"
+                  checked={modifier.rotateCopies}
+                  onChange={(event) => replace(index, {
+                    ...modifier,
+                    rotateCopies: event.target.checked,
+                  })}
+                />
+              </label>
+            </>
           ) : null}
         </div>
       ))}
@@ -277,6 +335,8 @@ export default function ModifiersSection({ shape }: { shape: PathShape }) {
           <option value="smooth">Smooth</option>
           <option value="reverse">Reverse</option>
           <option value="boolean">Boolean…</option>
+          <option value="array">Array</option>
+          <option value="radial">Radial</option>
         </select>
       </div>
       {modifiers.length > 0 && (
