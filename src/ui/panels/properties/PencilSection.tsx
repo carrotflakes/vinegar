@@ -1,11 +1,15 @@
-import { usePencil, PENCIL_DEFAULTS } from "../../../store/pencilStore";
+import {
+  usePencil,
+  PENCIL_DEFAULTS,
+  type PencilCloseMode,
+} from "../../../store/pencilStore";
 import ScrubbableNumber from "@/ui/controls/ScrubbableNumber";
 import "../../Panel.css";
 import Section from "../Section";
 
 /** Tool options for the Pencil (freehand) tool. Shown while it is active. */
 export default function PencilSection() {
-  const { smoothing, simplify, setPencil } = usePencil();
+  const { smoothing, simplify, close, setPencil } = usePencil();
 
   return (
     <Section title="Pencil">
@@ -36,6 +40,22 @@ export default function PencilSection() {
             onChange={(v) => setPencil({ simplify: v })}
             aria-label="Simplify tolerance in pixels"
           />
+        </label>
+
+        <label>
+          <span>Close</span>
+          <select
+            className="blend-select"
+            value={close}
+            onChange={(event) =>
+              setPencil({ close: event.target.value as PencilCloseMode })
+            }
+            aria-label="When a stroke becomes a closed path"
+          >
+            <option value="never">Never</option>
+            <option value="auto">Near start</option>
+            <option value="always">Always</option>
+          </select>
         </label>
       </div>
     </Section>

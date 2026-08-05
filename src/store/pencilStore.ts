@@ -2,6 +2,14 @@ import { create } from "zustand";
 
 const STORAGE_KEY = "vinegar.pencil";
 
+/**
+ * When a freehand stroke becomes a closed path: never, when it ends back on
+ * its start ("auto", the default), or always. "always" is for drawing many
+ * filled regions in a row, where every stroke is meant to be a loop and
+ * landing back on the start each time is just friction.
+ */
+export type PencilCloseMode = "never" | "auto" | "always";
+
 /** Persisted options for the Pencil (freehand) tool. */
 export interface PencilOptions {
   /**
@@ -17,11 +25,14 @@ export interface PencilOptions {
    * world units): larger drops more anchors for a smoother, less faithful path.
    */
   simplify: number;
+  /** How a finished stroke decides whether it is a closed path. */
+  close: PencilCloseMode;
 }
 
 export const PENCIL_DEFAULTS: PencilOptions = {
   smoothing: 0.4,
   simplify: 2,
+  close: "auto",
 };
 const DEFAULTS = PENCIL_DEFAULTS;
 
@@ -31,9 +42,14 @@ const clamp = (v: number, lo: number, hi: number) =>
 function sanitize(o: Partial<PencilOptions>): PencilOptions {
   const num = (v: unknown, fallback: number) =>
     typeof v === "number" && Number.isFinite(v) ? v : fallback;
+  const close: PencilCloseMode =
+    o.close === "never" || o.close === "auto" || o.close === "always"
+      ? o.close
+      : DEFAULTS.close;
   return {
     smoothing: clamp(num(o.smoothing, DEFAULTS.smoothing), 0, 0.95),
     simplify: clamp(num(o.simplify, DEFAULTS.simplify), 0, 20),
+    close,
   };
 }
 

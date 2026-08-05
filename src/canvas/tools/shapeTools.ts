@@ -109,11 +109,21 @@ function pencilCloseTol(ctx: ToolContext, state: EditorState): number {
   return grabRadius(ctx) / state.viewport.scale;
 }
 
+/** Did the stroke end back on its own start, closely enough to meet it? */
+function freehandEndsOnStart(
+  first: Vec2,
+  last: Vec2,
+  closeTol: number
+): boolean {
+  return Math.hypot(last.x - first.x, last.y - first.y) <= closeTol;
+}
+
 /**
- * Does a freehand stroke end back on its start, closely enough to close it?
- * The live close ring and the commit both ask this and must never disagree —
- * a ring that promises a closed path and a release that leaves it open is
- * worse than no ring at all — so the rule lives here only.
+ * Does a freehand stroke become a closed path? The live close hint and the
+ * commit both ask this and must never disagree — a ring that promises a closed
+ * path and a release that leaves it open is worse than no ring at all — so the
+ * rule lives here only. The `count` floor holds in every mode: a stroke of two
+ * or three samples closes into a degenerate sliver, never a region.
  */
 function freehandCloses(
   first: Vec2,
@@ -121,9 +131,15 @@ function freehandCloses(
   count: number,
   closeTol: number
 ): boolean {
-  return (
-    count > 3 && Math.hypot(last.x - first.x, last.y - first.y) <= closeTol
-  );
+  if (count <= 3) return false;
+  switch (usePencil.getState().close) {
+    case "never":
+      return false;
+    case "always":
+      return true;
+    default:
+      return freehandEndsOnStart(first, last, closeTol);
+  }
 }
 
 /**
@@ -339,10 +355,11 @@ export function onPencilMove(
 }
 
 /**
- * Ring the stroke's own start point while releasing there would close the path,
- * and show the fill the closed path would get. Closing is otherwise invisible
- * until the pointer is up, and by then it has already happened — the pen shows
- * the same promise with the same mark while a click would close its draft.
+ * Preview the close: the closing edge and the fill the closed path would get,
+ * plus a ring on the stroke's own start point while releasing there is what
+ * closes it. Closing is otherwise invisible until the pointer is up, and by
+ * then it has already happened — the pen shows the same promise with the same
+ * mark while a click would close its draft.
  * Extensions of an existing path never close. This is the stroke's own state
  * (`closeHint`), not the hover affordance that rings someone else's endpoint.
  */
@@ -361,20 +378,29 @@ function updateCloseHint(
     releaseWorld,
     pencilMinDist(state)
   );
+  const closeTol = pencilCloseTol(ctx, state);
   const closes =
     !stroke.extend &&
     freehandCloses(
       first,
       settled.last,
       anchors.length + settled.points.length,
-      pencilCloseTol(ctx, state)
+      closeTol
     );
-  const previousCloses = ctx.closeHint.current !== null;
+  // The ring marks a place, so it only says something while releasing *there*
+  // is what closes the path: a forced close draws none, and the closing edge
+  // in the preview carries the promise instead.
+  const ring =
+    closes && freehandEndsOnStart(first, settled.last, closeTol) ? first : null;
+  const ringChanged = (ctx.closeHint.current !== null) !== (ring !== null);
+  ctx.closeHint.current = ring;
+  if (stroke.extend) return ringChanged;
   const nextFill = closes ? state.style.fill : null;
-  const fillChanged = !stroke.extend && shape.fill !== nextFill;
-  ctx.closeHint.current = closes ? first : null;
-  if (!stroke.extend) shape.fill = nextFill;
-  return previousCloses !== closes || fillChanged;
+  const shapeChanged =
+    shape.fill !== nextFill || shape.subpaths[0].closed !== closes;
+  shape.fill = nextFill;
+  shape.subpaths[0].closed = closes;
+  return ringChanged || shapeChanged;
 }
 
 /** `world` is where the pointer was lifted; the stroke is settled onto it. */
@@ -535,8 +561,12 @@ function freehandToPath(
     pts.length,
     closeTol
   );
-  // The last point duplicates the first; the closed subpath implies that edge.
-  if (closed) pts = pts.slice(0, -1);
+  // A stroke that ended on its start duplicates the first point; the closed
+  // subpath implies that edge. A forced close ends wherever the pointer lifted,
+  // and dropping that point would throw away real geometry.
+  if (closed && freehandEndsOnStart(pts[0], pts[pts.length - 1], closeTol)) {
+    pts = pts.slice(0, -1);
+  }
   const simplified = simplifyPath(pts, usePencil.getState().simplify / state.viewport.scale);
   const anchors = pointsToAnchors(simplified.length >= 2 ? simplified : pts, closed);
   return {
