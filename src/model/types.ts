@@ -280,8 +280,19 @@ export function baseShapeDefaults(): Pick<
   };
 }
 
+/**
+ * A shape whose geometry can pass through a non-destructive modifier stack.
+ * The shape's own fields stay the editable base — a rect keeps its width and
+ * corner radius even while modifiers reshape what is painted. The union of
+ * these shapes is {@link PrimitiveShape}. See docs/path-modifiers.md.
+ */
+export interface ModifiableShapeBase extends BaseShape {
+  /** Ordered non-destructive geometry stages; absent is an empty stack. */
+  modifiers?: PathModifier[];
+}
+
 /** Axis-aligned rectangle, defined by its top-left corner and size. */
-export interface RectShape extends BaseShape {
+export interface RectShape extends ModifiableShapeBase {
   type: "rect";
   x: number;
   y: number;
@@ -292,7 +303,7 @@ export interface RectShape extends BaseShape {
 }
 
 /** Ellipse defined by its bounding box (top-left + size). */
-export interface EllipseShape extends BaseShape {
+export interface EllipseShape extends ModifiableShapeBase {
   type: "ellipse";
   x: number;
   y: number;
@@ -301,7 +312,7 @@ export interface EllipseShape extends BaseShape {
 }
 
 /** Straight line segment between two points. */
-export interface LineShape extends BaseShape {
+export interface LineShape extends ModifiableShapeBase {
   type: "line";
   x1: number;
   y1: number;
@@ -357,11 +368,9 @@ export const PATH_MODIFIER_TYPES = [
  * A multi-subpath outline. Null handles make straight segments; non-null
  * handles make cubic Bézier segments. All subpaths share one winding rule.
  */
-export interface PathShape extends BaseShape {
+export interface PathShape extends ModifiableShapeBase {
   type: "path";
   subpaths: PathSubpath[];
-  /** Ordered non-destructive geometry stages; absent is an empty stack. */
-  modifiers?: PathModifier[];
   /** Winding rule for fill, hit-testing, and clipping. */
   fillRule: "nonzero" | "evenodd";
 }
@@ -534,6 +543,10 @@ export function makeFrame(
   };
 }
 
+/**
+ * Shapes with resolvable outline geometry and a modifier stack. Every
+ * geometry reader can take these through `resolvedSubpaths`.
+ */
 export type PrimitiveShape =
   | RectShape
   | EllipseShape

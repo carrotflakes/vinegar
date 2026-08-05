@@ -16,7 +16,7 @@
 
 import ClipperLib, { type IntPoint, type PolyNode, type PolyTree } from "clipper-lib";
 import { flattenSubpath } from "@/model/path/path";
-import { resolvedSubpaths } from "@/model/path/pathModifiers";
+import { modifiedSubpaths, resolvedSubpaths } from "@/model/path/pathModifiers";
 import { brushCenterlineSamples, cachedBrushEnvelope } from "@/model/brush/brushOutline";
 import { shapeBounds } from "@/model/geometry/bounds";
 import { compoundChildren } from "@/model/path/compoundPath";
@@ -60,6 +60,15 @@ function fillGeometry(
   doc?: Document
 ): { rings: Vec2[][]; fillType: number } | null {
   const evenOdd = ClipperLib.PolyFillType.pftEvenOdd;
+  const modified = modifiedSubpaths(shape);
+  if (modified) {
+    const rings = modified
+      .filter((sp) => sp.anchors.length >= 2)
+      .map((sp) => flattenSubpath(sp));
+    return rings.length
+      ? { rings, fillType: ClipperLib.PolyFillType.pftNonZero }
+      : null;
+  }
   switch (shape.type) {
     case "rect":
       return { rings: [roundedRectPolyline(shape)], fillType: evenOdd };

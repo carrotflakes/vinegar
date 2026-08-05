@@ -13,6 +13,7 @@
 // ===========================================================================
 
 import { GENERATORS, defaultArgs } from "./generators/generators";
+import { isModifiable } from "./path/pathModifiers";
 import { isShape } from "./scene";
 import type {
   DocParam,
@@ -20,6 +21,7 @@ import type {
   ParamRef,
   PathModifier,
   PathShape,
+  PrimitiveShape,
   SceneNode,
 } from "./types";
 
@@ -61,8 +63,8 @@ function parsePath(path: string): ParsedPath | null {
   return null;
 }
 
-const asPath = (node: SceneNode): PathShape | null =>
-  node.type === "path" ? node : null;
+const asModifiable = (node: SceneNode): PrimitiveShape | null =>
+  isModifiable(node) ? node : null;
 
 /**
  * The current number at `path`, or null when the path does not address a
@@ -79,7 +81,7 @@ export function readNumField(node: SceneNode, path: string): number | null {
     const value = node.generator?.args[parsed.key];
     return typeof value === "number" ? value : null;
   }
-  const modifier = asPath(node)?.modifiers?.[parsed.index];
+  const modifier = asModifiable(node)?.modifiers?.[parsed.index];
   if (!modifier || !MODIFIER_NUM_KEYS[modifier.type].includes(parsed.key)) {
     return null;
   }
@@ -112,7 +114,7 @@ export function writeNumField(
       generator: { ...generator, args: { ...generator.args, [parsed.key]: value } },
     };
   }
-  const shape = asPath(node);
+  const shape = asModifiable(node);
   const modifier = shape?.modifiers?.[parsed.index];
   if (!shape || !modifier || !MODIFIER_NUM_KEYS[modifier.type].includes(parsed.key)) {
     return null;
@@ -142,7 +144,7 @@ export function resolveParamRef(
  * their args are not bindable in the first place (see `canBindGeneratorArgs`).
  */
 function rebuiltGenerator(node: SceneNode): SceneNode {
-  const shape = asPath(node);
+  const shape: PathShape | null = node.type === "path" ? node : null;
   const scriptId = shape?.generator?.scriptId;
   if (!shape || !scriptId) return node;
   const builtin = GENERATORS[scriptId];

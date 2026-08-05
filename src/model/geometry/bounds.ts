@@ -1,4 +1,5 @@
-import { flattenPath } from "@/model/path/path";
+import { flattenPath, flattenSubpaths } from "@/model/path/path";
+import { modifiedSubpaths } from "@/model/path/pathModifiers";
 import { cachedBrushEnvelope } from "@/model/brush/brushOutline";
 import { clippingMask } from "../clippingMask";
 import { compoundChildren } from "@/model/path/compoundPath";
@@ -38,6 +39,10 @@ export function normalizeRect(
 
 /** Axis-aligned bounding box of a single shape (ignores stroke width). */
 export function shapeBounds(shape: Shape, doc?: Document): Bounds {
+  // Modifiers reshape a primitive's silhouette, so its own x/y/width/height no
+  // longer bound what is painted.
+  const modified = modifiedSubpaths(shape);
+  if (modified) return pointsBounds(flattenSubpaths(modified));
   switch (shape.type) {
     case "rect":
     case "ellipse":

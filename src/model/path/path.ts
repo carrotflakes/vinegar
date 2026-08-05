@@ -143,9 +143,17 @@ export function flattenSubpathAdaptive(
   return points;
 }
 
+/** Every defining point across a set of subpaths (flattened). */
+export function flattenSubpaths(
+  subpaths: PathSubpath[],
+  perSegment = 18
+): Vec2[] {
+  return subpaths.flatMap((sp) => flattenSubpath(sp, perSegment));
+}
+
 /** Every defining point of a path shape, across all subpaths (flattened). */
 export function flattenPath(shape: PathShape, perSegment = 18): Vec2[] {
-  return resolvedSubpaths(shape).flatMap((sp) => flattenSubpath(sp, perSegment));
+  return flattenSubpaths(resolvedSubpaths(shape), perSegment);
 }
 
 function lerp(a: Vec2, b: Vec2, t: number): Vec2 {

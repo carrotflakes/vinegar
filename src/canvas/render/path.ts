@@ -2,10 +2,10 @@ import { shapeBounds } from "@/model/geometry/bounds";
 import { cachedBrushEnvelope } from "@/model/brush/brushOutline";
 import { isCompoundChild } from "@/model/path/compoundPath";
 import { subpathSegments } from "@/model/path/path";
-import { resolvedSubpaths } from "@/model/path/pathModifiers";
+import { modifiedSubpaths, resolvedSubpaths } from "@/model/path/pathModifiers";
 import { effectiveRectCornerRadius, roundedRectSubpath } from "@/model/roundedRect";
 import { isShape } from "@/model/scene";
-import type { Document, Shape } from "@/model/types";
+import type { Document, PathSubpath, Shape } from "@/model/types";
 import { renderCachesDisabled } from "@/debug/renderFlags";
 
 type PathTarget = Pick<
@@ -18,8 +18,41 @@ type PathTarget = Pick<
   | "ellipse"
 >;
 
+function appendSubpaths(target: PathTarget, subpaths: PathSubpath[]): void {
+  for (const sp of subpaths) {
+    const segs = subpathSegments(sp);
+    if (segs.length === 0) {
+      if (sp.anchors[0]) {
+        const p = sp.anchors[0].p;
+        target.moveTo(p.x, p.y);
+      }
+      continue;
+    }
+    target.moveTo(segs[0].p0.x, segs[0].p0.y);
+    for (const s of segs) {
+      if (
+        s.c1.x === s.p0.x &&
+        s.c1.y === s.p0.y &&
+        s.c2.x === s.p1.x &&
+        s.c2.y === s.p1.y
+      ) {
+        target.lineTo(s.p1.x, s.p1.y);
+      } else {
+        target.bezierCurveTo(s.c1.x, s.c1.y, s.c2.x, s.c2.y, s.p1.x, s.p1.y);
+      }
+    }
+    if (sp.closed) target.closePath();
+  }
+}
+
 /** Append non-compound geometry to either a live canvas path or a Path2D. */
 function appendPath(target: PathTarget, shape: Shape): void {
+  // A modified primitive has no primitive silhouette left to draw.
+  const modified = modifiedSubpaths(shape);
+  if (modified) {
+    appendSubpaths(target, modified);
+    return;
+  }
   switch (shape.type) {
     case "rect": {
       const b = shapeBounds(shape);
@@ -67,37 +100,7 @@ function appendPath(target: PathTarget, shape: Shape): void {
       break;
     }
     case "path": {
-      for (const sp of resolvedSubpaths(shape)) {
-        const segs = subpathSegments(sp);
-        if (segs.length === 0) {
-          if (sp.anchors[0]) {
-            const p = sp.anchors[0].p;
-            target.moveTo(p.x, p.y);
-          }
-          continue;
-        }
-        target.moveTo(segs[0].p0.x, segs[0].p0.y);
-        for (const s of segs) {
-          if (
-            s.c1.x === s.p0.x &&
-            s.c1.y === s.p0.y &&
-            s.c2.x === s.p1.x &&
-            s.c2.y === s.p1.y
-          ) {
-            target.lineTo(s.p1.x, s.p1.y);
-          } else {
-            target.bezierCurveTo(
-              s.c1.x,
-              s.c1.y,
-              s.c2.x,
-              s.c2.y,
-              s.p1.x,
-              s.p1.y
-            );
-          }
-        }
-        if (sp.closed) target.closePath();
-      }
+      appendSubpaths(target, resolvedSubpaths(shape));
       break;
     }
     case "brush": {

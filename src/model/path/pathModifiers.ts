@@ -1,11 +1,16 @@
 import ClipperLib from "clipper-lib";
+import { ellipseSubpath } from "../ellipse";
 import { flattenSubpathAdaptive, ringsToSubpaths } from "./path";
 import { contours, intPath, SCALE, treeToPolys } from "./clipperPaths";
 import { applyPathOpSubpaths } from "./pathOps";
+import { roundedRectSubpath } from "../roundedRect";
 import type {
+  LineShape,
   PathModifier,
   PathShape,
   PathSubpath,
+  PrimitiveShape,
+  SceneNode,
   StrokeCap,
   StrokeJoin,
 } from "../types";
@@ -132,26 +137,85 @@ function applyModifier(
   }
 }
 
-const resolvedCache = new WeakMap<PathShape, PathSubpath[]>();
+function lineSubpath(shape: LineShape): PathSubpath {
+  return {
+    closed: false,
+    anchors: [
+      { p: { x: shape.x1, y: shape.y1 }, hIn: null, hOut: null },
+      { p: { x: shape.x2, y: shape.y2 }, hIn: null, hOut: null },
+    ],
+  };
+}
 
-/** Evaluate a path's immutable base geometry through its modifier stack. */
-export function resolvedSubpaths(shape: PathShape): PathSubpath[] {
+/**
+ * A shape's own geometry as subpaths, before any modifier runs. This is the
+ * editable base: a rect's rounded corners, a path's stored anchors.
+ */
+export function baseSubpaths(shape: PrimitiveShape): PathSubpath[] {
+  switch (shape.type) {
+    case "rect":
+      return [roundedRectSubpath(shape)];
+    case "ellipse":
+      return [ellipseSubpath(shape)];
+    case "line":
+      return [lineSubpath(shape)];
+    case "path":
+      return shape.subpaths;
+  }
+}
+
+/** Whether a node's geometry can be taken through a modifier stack. */
+export function isModifiable(
+  node: SceneNode | null | undefined
+): node is PrimitiveShape {
+  return node?.type === "rect" || node?.type === "ellipse" ||
+    node?.type === "line" || node?.type === "path";
+}
+
+/** Whether the stack holds at least one stage that is not bypassed. */
+export function hasActiveModifiers(node: SceneNode | null | undefined): boolean {
+  return isModifiable(node) &&
+    !!node.modifiers?.some((modifier) => modifier.enabled !== false);
+}
+
+const resolvedCache = new WeakMap<PrimitiveShape, PathSubpath[]>();
+
+/** Evaluate a shape's immutable base geometry through its modifier stack. */
+export function resolvedSubpaths(shape: PrimitiveShape): PathSubpath[] {
   const modifiers = shape.modifiers ?? [];
   if (!modifiers.some((modifier) => modifier.enabled !== false)) {
-    return shape.subpaths;
+    return baseSubpaths(shape);
   }
   const cached = resolvedCache.get(shape);
   if (cached) return cached;
-  let result = shape.subpaths;
+  const fillRule = shape.type === "path" ? shape.fillRule : "nonzero";
+  let result = baseSubpaths(shape);
   for (const modifier of modifiers) {
     if (modifier.enabled === false) continue;
-    result = applyModifier(result, modifier, shape.fillRule);
+    result = applyModifier(result, modifier, fillRule);
   }
   resolvedCache.set(shape, result);
   return result;
 }
 
-/** Bake the evaluated stack into editable base geometry. */
+/**
+ * Resolved geometry, but only when a modifier actually reshapes the node.
+ * `null` lets a reader keep its shape-specific fast path (a bare rect stays a
+ * `<rect>`, an ellipse keeps its analytic hit test), so the generic subpath
+ * route costs nothing until the user adds a stage.
+ */
+export function modifiedSubpaths(
+  node: SceneNode | null | undefined
+): PathSubpath[] | null {
+  if (!isModifiable(node) || node.type === "path") return null;
+  return hasActiveModifiers(node) ? resolvedSubpaths(node) : null;
+}
+
+/**
+ * Bake the evaluated stack into editable base geometry. Only paths can absorb
+ * the result in place; `applyShapeModifiers` (model/path/convertToPath.ts)
+ * converts a modified primitive to a path first.
+ */
 export function applyPathModifiers(shape: PathShape): PathShape {
   if (!(shape.modifiers?.length)) return shape;
   return {

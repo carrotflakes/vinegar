@@ -18,7 +18,10 @@ active tool, selection, viewport and undo history does not belong in the file.
 - Parent ids, ancestors, depth, leaf shapes, inherited visibility/locking and
   world matrices are derived by the Scene Index and are not persisted.
 - Leaf shape types are `rect`, `ellipse`, `line`, `path`, `image`, `text`, and
-  `brush`. A `path` is the canonical vector-outline shape:
+  `brush`. `rect`, `ellipse`, `line` and `path` may carry a `modifiers` stack —
+  a non-destructive chain of geometry stages evaluated over the shape's own
+  geometry (see [path-modifiers.md](path-modifiers.md)); the shape's own fields
+  stay the editable base. A `path` is the canonical vector-outline shape:
   it stores one or more `subpaths`, each with cubic anchors (`p`, `hIn`,
   `hOut`, and optional linkage tag `t`) and a `closed` flag. Null handles make
   straight segments; absent `t` is derived from the handle geometry.

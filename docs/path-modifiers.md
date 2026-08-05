@@ -1,8 +1,9 @@
 # Path modifiers
 
-Status: **implemented** (2026-08-02). File version: **v31** (additive shape
-field, but Vinegar's strict current-only file policy requires a version bump;
-absent `modifiers` still means no change). Related: extends the generator concept
+Status: **implemented** (2026-08-02); extended to `rect`/`ellipse`/`line`
+(2026-08-06). File version: **v33** (additive shape field, but Vinegar's strict
+current-only file policy requires a version bump; absent `modifiers` still
+means no change). Related: extends the generator concept
 ([document-model.md](document-model.md)); modeled on `effects`; overlaps
 [path-unification.md](path-unification.md) (v21) and
 [compound-path-nodes.md](compound-path-nodes.md) (v22).
@@ -40,11 +41,14 @@ result:             resolvedSubpaths(node)  — cached; used by all readers belo
 Add an ordered modifier stack to path nodes, mirroring `effects`:
 
 ```ts
-interface PathShape extends BaseShape {
+interface ModifiableShapeBase extends BaseShape {
+  modifiers?: Modifier[];         // absent ⇒ resolved === the shape's own geometry
+}
+// rect, ellipse, line and path all extend it — their union is PrimitiveShape.
+interface PathShape extends ModifiableShapeBase {
   type: "path";
   subpaths: PathSubpath[];        // BASE (editable) geometry — unchanged meaning
-  fillRule?: "nonzero" | "evenodd";
-  modifiers?: Modifier[];         // NEW — absent ⇒ resolved === subpaths
+  fillRule: "nonzero" | "evenodd";
 }
 
 type Modifier =
@@ -58,16 +62,26 @@ type Modifier =
 // each modifier optionally: { enabled?: boolean } to toggle without removing
 ```
 
-- `subpaths` stays the **base** geometry — what the node tool edits and what
-  serializes. It is *never* overwritten by a modifier.
-- `resolvedSubpaths(node)` applies the enabled stack over the base and is the
-  geometry every downstream reader consumes. Cached (see below).
+- A shape's own fields stay the **base** geometry — a path's `subpaths` (what
+  the node tool edits), a rect's `x/y/width/height/cornerRadius`, a line's
+  endpoints. They are *never* overwritten by a modifier, so a rect keeps its
+  corner-radius field while an Offset stage reshapes what is painted.
+- `baseSubpaths(shape)` is that base as contours (a rect becomes its rounded
+  contour), and `resolvedSubpaths(shape)` applies the enabled stack over it.
+  The resolved geometry is what every downstream reader consumes. Cached
+  (see below).
+- `modifiedSubpaths(node)` returns the resolved geometry **only** when a stage
+  is actually active on a non-path shape, and `null` otherwise. It is the guard
+  every type-branching reader opens with, so a bare rect keeps its analytic
+  fast path (`ctx.rect`, `<rect>`, exact rounded-rect containment) and only a
+  modified one pays for the generic contour route.
 - Generators stay as the `generator` link producing stage-0 `subpaths`; a node
   can have *both* a generator and modifiers (generate → modify).
 
-Deliberately **not** part of v1: modifiers on `rect`/`ellipse`/`brush`/`text`
-(they'd first convert to path), boolean-as-modifier (needs a second operand —
-harder; deferred), per-fill/stroke modifiers.
+Deliberately **not** part of this: modifiers on `brush`/`text`/`image`/
+`compoundPath` (a brush's width lives in its envelope, text needs glyph
+outlines), boolean-as-modifier (needs a second operand — harder; deferred),
+per-fill/stroke modifiers.
 
 ## Evaluation & caching
 
@@ -103,7 +117,23 @@ Every current reader of `.subpaths` must be classified as **base** or
   `model/outlineStroke.ts` — operate on resolved ink/silhouette
 - `model/convertToPath.ts` — "Apply modifiers / Convert" bakes resolved
 
-**Stay on base `subpaths` (editable/source):**
+Readers that branch per shape type (`render/path.ts`, `bounds.ts`,
+`hitTest.ts`, `bucketFill.ts`, `outlineStroke.ts`, `boolean.ts`,
+`clippingMask.ts`, `stroke.ts`, `exportSvg.ts`, `highlight.ts`) each open with
+the `modifiedSubpaths` guard before their `switch`. That guard is a convention
+the type system cannot enforce, so `tests/modifierReaders.test.mjs` holds it up
+from two sides:
+
+1. every `src/` file branching on `rect`/`ellipse`/`line` must either consult
+   resolved geometry or be listed as a base-geometry author (`NON_READERS`,
+   with the reason) — a new reader that forgets the guard fails the build;
+2. a modified primitive must be **indistinguishable from the path carrying the
+   same base contours and the same stack** — bounds, hit testing (sampled
+   grid), stroke outlining, arealness, stroke alignment and SVG geometry are
+   compared pairwise across the primitives and several stacks. A fully
+   disabled stack must conversely still emit `<rect>`/`<ellipse>`/`<line>`.
+
+**Stay on base geometry (editable/source):**
 - `canvas/nodes.ts` (node tool), `canvas/tools/penTool.ts`,
   `canvas/tools/shapeTools.ts`, `store/shapeSlice.ts` — create/edit base anchors
 - `io/serialize.ts` — persist base + `modifiers` (not the resolved cache)
@@ -125,7 +155,10 @@ top" model, and mirrors how `effects` already leaves `subpaths` untouched.
   one-shot `pathOpSelected` commands remain as **Apply once (bake)**.
 - **Apply** (mirroring the generator's "Detach") bakes
   the resolved geometry into `subpaths` and clears `modifiers`
-  (`convertToPath`-style); *Remove* drops a single modifier.
+  (`convertToPath`-style); *Remove* drops a single modifier. A rect/ellipse/
+  line cannot express an offset or outlined silhouette, so applying a stack on
+  one converts the node to a `path` (`applyShapeModifiers`). Bindings onto the
+  baked stages are dropped with them.
 
 ## Export & serialization
 
@@ -143,13 +176,18 @@ top" model, and mirrors how `effects` already leaves `subpaths` untouched.
   contours. One-sided offset is deferred.
 - Boolean-as-modifier (needs a second operand reference) — deferred.
 - Modifiers on non-path shapes (auto-convert-on-add?) — deferred.
-- Interaction with `brush` width profile and `compoundPath` children — v1 scopes
-  to plain `path` nodes only.
+- Interaction with `brush` width profile and `compoundPath` children — still
+  out of scope; a compound container consumes each child's resolved geometry.
+- Resizing a modified shape scales its base geometry only: a modifier's
+  distances are absolute local units and stay put, exactly as for paths.
 - Caching strategy under heavy documents (ties into
   [render-performance.md](render-performance.md) culling/caching work).
 
 ## Implemented scope
 
+- Modifiers apply to `rect`, `ellipse`, `line` and `path` — the shapes with
+  resolvable outline geometry (`PrimitiveShape`). The stack is additive on all
+  four; the primitive keeps its own editable fields.
 - `resolvedSubpaths()` with identity-based memoization routes rendering,
   hit-testing, bounds, snapping, geometry operations, clipping, and export.
 - Simplify, Flatten, Smooth, Reverse, Offset, and Outline are stackable and
@@ -163,5 +201,5 @@ top" model, and mirrors how `effects` already leaves `subpaths` untouched.
 ## Sequencing vs. roadmap
 
 v21 path-unification and v22 compound-path nodes are both **done**. Path
-modifiers operate on plain path leaves; compound containers consume each
+modifiers operate on every primitive leaf; compound containers consume each
 child's resolved geometry through the shared readers.

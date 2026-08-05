@@ -13,9 +13,9 @@ import {
   type ShapeType,
 } from "../model/types";
 
-export const CURRENT_FILE_VERSION = 32 as const;
+export const CURRENT_FILE_VERSION = 33 as const;
 /** Older schemas accepted directly by the current document validator. */
-const SUPPORTED_FILE_VERSIONS = [31, CURRENT_FILE_VERSION] as const;
+const SUPPORTED_FILE_VERSIONS = [31, 32, CURRENT_FILE_VERSION] as const;
 
 export interface VinegarFile {
   app: "vinegar";
@@ -191,10 +191,12 @@ const isNode = (id: string, node: unknown): boolean => {
       STROKE_ALIGNMENTS.includes(node.strokeAlignment as never))) return false;
   switch (node.type) {
     case "rect":
-      return isNumber(node.x) && isNumber(node.y) && isNumber(node.width) && isNumber(node.height) &&
+      return isPathModifiersOrAbsent(node.modifiers) &&
+        isNumber(node.x) && isNumber(node.y) && isNumber(node.width) && isNumber(node.height) &&
         isNumber(node.cornerRadius) && node.cornerRadius >= 0;
     case "ellipse":
-      return isNumber(node.x) && isNumber(node.y) && isNumber(node.width) && isNumber(node.height);
+      return isPathModifiersOrAbsent(node.modifiers) &&
+        isNumber(node.x) && isNumber(node.y) && isNumber(node.width) && isNumber(node.height);
     case "image":
       return typeof node.assetId === "string" &&
         isNumber(node.x) && isNumber(node.y) && isNumber(node.width) && isNumber(node.height) &&
@@ -213,7 +215,8 @@ const isNode = (id: string, node: unknown): boolean => {
         isNumber(node.lineHeight) && node.lineHeight > 0 &&
         (node.align === "left" || node.align === "center" || node.align === "right");
     case "line":
-      return isNumber(node.x1) && isNumber(node.y1) && isNumber(node.x2) && isNumber(node.y2);
+      return isPathModifiersOrAbsent(node.modifiers) &&
+        isNumber(node.x1) && isNumber(node.y1) && isNumber(node.x2) && isNumber(node.y2);
     case "path":
       return (
         (node.fillRule === "nonzero" || node.fillRule === "evenodd") &&

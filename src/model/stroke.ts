@@ -5,7 +5,7 @@ import type {
   StrokeCap,
   StrokeJoin,
 } from "./types";
-import { resolvedSubpaths } from "./path/pathModifiers";
+import { modifiedSubpaths, resolvedSubpaths } from "./path/pathModifiers";
 
 export const DEFAULT_STROKE_CAP: StrokeCap = "round";
 export const DEFAULT_STROKE_JOIN: StrokeJoin = "round";
@@ -20,6 +20,12 @@ export function normalizeStrokeDash(dash: readonly number[]): number[] {
 
 /** Inside/outside is well-defined only for closed geometry and live text. */
 export function supportsStrokeAlignment(shape: Shape): boolean {
+  // A modifier decides closedness for any shape it reshapes: an outlined line
+  // becomes closed, a reversed rect stays closed.
+  const modified = modifiedSubpaths(shape);
+  if (modified) {
+    return modified.length > 0 && modified.every((subpath) => subpath.closed);
+  }
   switch (shape.type) {
     case "rect":
     case "ellipse":

@@ -1,10 +1,10 @@
 import { flattenSubpath } from "@/model/path/path";
-import { shapeBounds } from "@/model/geometry/bounds";
+import { normalizeRect } from "@/model/geometry/bounds";
 import type { PathSubpath, RectShape, Vec2 } from "./types";
 
 /** Maximum circular radius that fits inside the rectangle. */
 export function maxRectCornerRadius(shape: RectShape): number {
-  const bounds = shapeBounds(shape);
+  const bounds = normalizeRect(shape.x, shape.y, shape.width, shape.height);
   return Math.max(0, Math.min(bounds.width, bounds.height) / 2);
 }
 
@@ -27,7 +27,7 @@ export function clampRectCornerRadius(shape: RectShape, radius: number): number 
  * booleans, hit testing and outline conversion can share one representation.
  */
 export function roundedRectSubpath(shape: RectShape): PathSubpath {
-  const b = shapeBounds(shape);
+  const b = normalizeRect(shape.x, shape.y, shape.width, shape.height);
   const r = effectiveRectCornerRadius(shape);
   if (r <= 0) {
     return {
@@ -104,7 +104,7 @@ export function roundedRectPolyline(shape: RectShape): Vec2[] {
 
 /** Exact fill containment for the circular-corner rectangle. */
 export function pointInRoundedRect(shape: RectShape, point: Vec2): boolean {
-  const b = shapeBounds(shape);
+  const b = normalizeRect(shape.x, shape.y, shape.width, shape.height);
   const right = b.x + b.width;
   const bottom = b.y + b.height;
   if (point.x < b.x || point.x > right || point.y < b.y || point.y > bottom) {

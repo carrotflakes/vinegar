@@ -1,5 +1,5 @@
 import { LuChevronDown, LuChevronUp, LuX } from "react-icons/lu";
-import type { PathModifier, PathShape } from "@/model/types";
+import type { PathModifier, PrimitiveShape } from "@/model/types";
 import { useEditor } from "@/store/editorStore";
 import { modifierParamPath, remapModifierBindings } from "@/model/params";
 import BindableNumber from "@/ui/controls/BindableNumber";
@@ -16,7 +16,7 @@ function modifierLabel(type: PathModifier["type"]): string {
   }
 }
 
-export default function ModifiersSection({ shape }: { shape: PathShape }) {
+export default function ModifiersSection({ shape }: { shape: PrimitiveShape }) {
   const setPathModifiers = useEditor((state) => state.setPathModifiers);
   const addPathModifierSelected = useEditor((state) => state.addPathModifierSelected);
   const applyPathModifiersSelected = useEditor((state) => state.applyPathModifiersSelected);
@@ -206,7 +206,13 @@ export default function ModifiersSection({ shape }: { shape: PathShape }) {
         </select>
       </div>
       {modifiers.length > 0 && (
-        <button className="ghost-btn" onClick={applyPathModifiersSelected}>
+        <button
+          className="ghost-btn"
+          title={shape.type === "path"
+            ? "Bake the stack into the path's anchors"
+            : "Bake the stack — the shape becomes a path"}
+          onClick={applyPathModifiersSelected}
+        >
           Apply modifiers
         </button>
       )}

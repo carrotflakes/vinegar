@@ -17,7 +17,7 @@ import type {
   SceneNode,
   Shape,
 } from "./types";
-import { resolvedSubpaths } from "./path/pathModifiers";
+import { hasActiveModifiers, resolvedSubpaths } from "./path/pathModifiers";
 
 /** Shapes whose closed geometry can define a vector clipping mask. */
 export type ClippingMaskShape =
@@ -36,6 +36,11 @@ export function isClippingMaskCandidate(
   switch (node.type) {
     case "rect":
     case "ellipse":
+      // Modifiers can hollow the silhouette out entirely (a zero-width
+      // outline), so a modified primitive is judged on its resolved contours.
+      if (hasActiveModifiers(node)) {
+        return resolvedSubpaths(node).some((sp) => sp.anchors.length >= 2);
+      }
       return node.width !== 0 && node.height !== 0;
     case "compoundPath":
       return (

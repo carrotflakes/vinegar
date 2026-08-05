@@ -4,7 +4,7 @@ import { isShape } from "@/model/scene";
 import type { Bounds, Document, Shape, Vec2 } from "@/model/types";
 import { worldToScreen, type Viewport } from "@/model/geometry/viewport";
 import { cachedShapePath, tracePath } from "./render/path";
-import { resolvedSubpaths } from "@/model/path/pathModifiers";
+import { modifiedSubpaths, resolvedSubpaths } from "@/model/path/pathModifiers";
 
 const HIGHLIGHT = "#3b82f6";
 /**
@@ -82,6 +82,10 @@ function traceLeaf(
  * alone. Compound-path components are always closed.
  */
 function fillable(shape: Shape): boolean {
+  const modified = modifiedSubpaths(shape);
+  if (modified) {
+    return modified.length > 0 && modified.every((sp) => sp.closed);
+  }
   if (shape.type === "line") return false;
   if (shape.type === "path") {
     const subpaths = resolvedSubpaths(shape);

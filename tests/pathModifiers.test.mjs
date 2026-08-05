@@ -5,7 +5,12 @@ import { NODE_BASE, SHAPE_BASE } from "./nodeBase.mjs";
 
 let server;
 let applyPathModifiers;
+let modifiedSubpaths;
 let resolvedSubpaths;
+let isAreal;
+let supportsStrokeAlignment;
+let hitTestShape;
+let exportSvg;
 let shapeBounds;
 let createEmptyDocument;
 let parseDocument;
@@ -19,8 +24,14 @@ let useEditor;
 
 before(async () => {
   server = await createServer({ server: { middlewareMode: true } });
-  ({ applyPathModifiers, resolvedSubpaths } =
+  ({ applyPathModifiers, modifiedSubpaths, resolvedSubpaths } =
     await server.ssrLoadModule("/src/model/path/pathModifiers.ts"));
+  ({ isAreal } = await server.ssrLoadModule("/src/model/path/boolean.ts"));
+  ({ supportsStrokeAlignment } =
+    await server.ssrLoadModule("/src/model/stroke.ts"));
+  ({ hitTestShape } =
+    await server.ssrLoadModule("/src/model/geometry/hitTest.ts"));
+  ({ exportSvg } = await server.ssrLoadModule("/src/io/exportSvg.ts"));
   ({ shapeBounds } =
     await server.ssrLoadModule("/src/model/geometry/bounds.ts"));
   ({ createEmptyDocument } =
@@ -243,7 +254,7 @@ test("apply bakes resolved geometry, clears the stack, and detaches generator", 
   assert.equal(shape.modifiers.length, 1);
 });
 
-test("modifier stacks round-trip in v32 documents", () => {
+test("modifier stacks round-trip in v33 documents", () => {
   const shape = path([
     { type: "simplify", tolerance: 1.25, enabled: false },
     { type: "offset", distance: -3, join: "bevel" },
@@ -256,8 +267,94 @@ test("modifier stacks round-trip in v32 documents", () => {
     nodes: { [shape.id]: shape },
   };
   const text = serializeDocument(doc);
-  assert.equal(JSON.parse(text).version, 32);
+  assert.equal(JSON.parse(text).version, 33);
   assert.deepEqual(parseDocument(text).nodes[shape.id].modifiers, shape.modifiers);
+});
+
+const primitive = (type, patch, modifiers = []) => ({
+  id: `${type}-1`,
+  name: type,
+  type,
+  ...SHAPE_BASE,
+  ...NODE_BASE,
+  transform: [1, 0, 0, 1, 0, 0],
+  modifiers,
+  ...patch,
+});
+
+const rect = (modifiers = [], patch = {}) =>
+  primitive("rect", { x: 0, y: 0, width: 20, height: 10, cornerRadius: 0, ...patch }, modifiers);
+const ellipse = (modifiers = [], patch = {}) =>
+  primitive("ellipse", { x: 0, y: 0, width: 20, height: 10, ...patch }, modifiers);
+const line = (modifiers = [], patch = {}) =>
+  primitive("line", { x1: 0, y1: 0, x2: 20, y2: 0, ...patch }, modifiers);
+
+test("a rect resolves through its stack without losing its own fields", () => {
+  const shape = rect([{ type: "offset", distance: 5, join: "miter" }]);
+  assert.deepEqual(shapeBounds(shape), { x: -5, y: -5, width: 30, height: 20 });
+  // The rect stays a rect: width, height and corner radius remain editable.
+  assert.equal(shape.type, "rect");
+  assert.equal(shape.width, 20);
+});
+
+test("a bare primitive keeps its own geometry and skips the subpath route", () => {
+  assert.equal(modifiedSubpaths(rect()), null);
+  assert.equal(modifiedSubpaths(ellipse([{ type: "reverse", enabled: false }])), null);
+  assert.deepEqual(shapeBounds(rect()), { x: 0, y: 0, width: 20, height: 10 });
+});
+
+test("an outlined line becomes closed, areal and stroke-alignable", () => {
+  const shape = line([{ type: "outline", width: 10, cap: "butt", join: "round" }]);
+  const resolved = resolvedSubpaths(shape);
+  assert.ok(resolved.length > 0);
+  assert.ok(resolved.every((subpath) => subpath.closed));
+  assert.equal(isAreal(shape), true);
+  assert.equal(supportsStrokeAlignment(shape), true);
+  assert.equal(supportsStrokeAlignment(line()), false);
+  assert.deepEqual(shapeBounds(shape), { x: 0, y: -5, width: 20, height: 10 });
+});
+
+test("an ellipse's modified silhouette drives hit testing and SVG export", () => {
+  const filled = { fill: { type: "solid", color: "#000000", alpha: 1 } };
+  const shape = ellipse([{ type: "offset", distance: 10, join: "round" }], filled);
+  const empty = createEmptyDocument();
+  const doc = { ...empty, rootIds: [shape.id], nodes: { [shape.id]: shape } };
+  // A point outside the bare ellipse but inside the offset silhouette.
+  assert.equal(hitTestShape(doc, shape, { x: 10, y: 13 }, 0), true);
+  assert.equal(hitTestShape(doc, ellipse([], filled), { x: 10, y: 13 }, 0), false);
+  const svg = exportSvg(doc);
+  assert.ok(!svg.includes("<ellipse"), svg);
+  assert.ok(svg.includes("<path"), svg);
+});
+
+test("applying a stack converts a modified primitive into a path", () => {
+  const shape = rect([{ type: "offset", distance: 5, join: "miter" }], {
+    bindings: { "modifiers.0.distance": { paramId: "p1", scale: 1 } },
+  });
+  const empty = createEmptyDocument();
+  const doc = { ...empty, rootIds: [shape.id], nodes: { [shape.id]: shape } };
+  useEditor.getState().loadDocument(doc);
+  useEditor.getState().setSelection([shape.id]);
+  useEditor.getState().applyPathModifiersSelected();
+
+  const baked = useEditor.getState().doc.nodes[shape.id];
+  assert.equal(baked.type, "path");
+  assert.deepEqual(baked.modifiers ?? [], []);
+  assert.deepEqual(baked.bindings, {});
+  assert.deepEqual(shapeBounds(baked), { x: -5, y: -5, width: 30, height: 20 });
+});
+
+test("primitive modifier stacks round-trip through the file format", () => {
+  const shape = rect([{ type: "outline", width: 6, cap: "square", join: "miter" }]);
+  const empty = createEmptyDocument();
+  const text = serializeDocument({
+    ...empty,
+    rootIds: [shape.id],
+    nodes: { [shape.id]: shape },
+  });
+  const parsed = parseDocument(text).nodes[shape.id];
+  assert.equal(parsed.type, "rect");
+  assert.deepEqual(parsed.modifiers, shape.modifiers);
 });
 
 test("selection context menu groups modifier commands in a submenu", () => {

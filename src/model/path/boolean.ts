@@ -8,7 +8,7 @@ import { ellipseSubpath } from "../ellipse";
 import { IDENTITY } from "@/model/geometry/matrix";
 import { roundedRectSubpath } from "../roundedRect";
 import { strokeDetailFields } from "../stroke";
-import { resolvedSubpaths } from "./pathModifiers";
+import { modifiedSubpaths, resolvedSubpaths } from "./pathModifiers";
 import {
   baseNodeDefaults,
   makeId,
@@ -70,6 +70,24 @@ function pathsOf(item: paper.PathItem | null): paper.Path[] {
  */
 function shapeToGeom(shape: Shape, doc?: Document): paper.PathItem | null {
   let item: paper.PathItem | null;
+  const modified = modifiedSubpaths(shape);
+  if (modified) {
+    // Modifiers already produced the silhouette; force the implicit fill close
+    // exactly as the path branch does.
+    item = compound(
+      modified
+        .filter((sp) => sp.anchors.length >= 2)
+        .map((sp) => {
+          const path = subpathToPath(sp);
+          path.closed = true;
+          return path;
+        })
+    );
+    if (!item) return null;
+    item.fillRule = "nonzero";
+    item.transform(toPaperMatrix(shape.transform));
+    return item;
+  }
   switch (shape.type) {
     case "rect": {
       item = subpathToPath(roundedRectSubpath(shape));
@@ -112,6 +130,9 @@ function shapeToGeom(shape: Shape, doc?: Document): paper.PathItem | null {
 
 /** Whether a shape encloses an area and can take part in boolean operations. */
 export function isAreal(shape: Shape): boolean {
+  // An outline or offset modifier gives even a line real area.
+  const modified = modifiedSubpaths(shape);
+  if (modified) return modified.some((sp) => sp.anchors.length >= 2);
   switch (shape.type) {
     case "rect":
     case "ellipse":

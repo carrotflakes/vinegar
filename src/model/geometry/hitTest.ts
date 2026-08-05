@@ -1,5 +1,5 @@
 import { flattenSubpath } from "@/model/path/path";
-import { resolvedSubpaths } from "@/model/path/pathModifiers";
+import { modifiedSubpaths, resolvedSubpaths } from "@/model/path/pathModifiers";
 import { cachedBrushEnvelope } from "@/model/brush/brushOutline";
 import { compoundChildren } from "@/model/path/compoundPath";
 import {
@@ -21,7 +21,7 @@ import { invertMatrix, matrixScale, nodeWorldMatrix, shapeWorldMatrix, transform
 import { isInstance, isShape, symbolLeafIds } from "../scene";
 import { pointInRoundedRect, roundedRectPolyline } from "../roundedRect";
 import { effectiveStrokeAlignment, strokeOutset } from "../stroke";
-import type { Bounds, Document, Shape, SymbolInstance, Vec2 } from "../types";
+import type { Bounds, Document, PathSubpath, Shape, SymbolInstance, Vec2 } from "../types";
 import { applyMatrix } from "./matrix";
 
 /** Even-odd point-in-polygon test. */
@@ -111,6 +111,16 @@ function containsGeometry(
   rule: "nonzero" | "evenodd",
   doc?: Document
 ): boolean {
+  const modified = modifiedSubpaths(shape);
+  if (modified) {
+    return containsRings(
+      modified
+        .filter((subpath) => subpath.anchors.length >= 2)
+        .map((subpath) => flattenSubpath(subpath)),
+      p,
+      rule
+    );
+  }
   switch (shape.type) {
     case "rect": {
       return pointInRoundedRect(shape, p);
@@ -244,6 +254,23 @@ export function hitTestShape(
     return alignment === "inside" ? inside : !inside;
   };
 
+  const hitsSubpaths = (
+    subpaths: PathSubpath[],
+    rule: "nonzero" | "evenodd"
+  ): boolean => {
+    const rings = subpaths
+      .filter((subpath) => subpath.anchors.length >= 2)
+      .map((subpath) => flattenSubpath(subpath));
+    const inside = containsRings(rings, p, rule);
+    if (hasFill && inside) return true;
+    return subpaths.some((sp) =>
+      hitsStroke(distToPolyline(p, flattenSubpath(sp), sp.closed), inside)
+    );
+  };
+
+  const modified = modifiedSubpaths(shape);
+  if (modified) return hitsSubpaths(modified, "nonzero");
+
   switch (shape.type) {
     case "text": {
       const b = shapeBounds(shape);
@@ -295,21 +322,8 @@ export function hitTestShape(
         false
       );
     }
-    case "path": {
-      const subpaths = resolvedSubpaths(shape);
-      const rings = subpaths
-        .filter((subpath) => subpath.anchors.length >= 2)
-        .map((subpath) => flattenSubpath(subpath));
-      const inside = containsRings(
-        rings,
-        p,
-        shape.fillRule ?? "nonzero"
-      );
-      if (hasFill && inside) return true;
-      return subpaths.some((sp) =>
-        hitsStroke(distToPolyline(p, flattenSubpath(sp), sp.closed), inside)
-      );
-    }
+    case "path":
+      return hitsSubpaths(resolvedSubpaths(shape), shape.fillRule ?? "nonzero");
     case "brush": {
       // The whole nonzero-filled envelope is the visible mark; `tol` adds a
       // pick band. Width is already baked into the ring, so ignore strokeReach.
@@ -563,6 +577,13 @@ function rectsIntersect(a: Bounds, b: Bounds): boolean {
 }
 
 function localPolylines(shape: Shape, doc?: Document): WorldPolyline[] {
+  const modified = modifiedSubpaths(shape);
+  if (modified) {
+    return modified.map((sp) => ({
+      points: flattenSubpath(sp),
+      closed: sp.closed,
+    }));
+  }
   switch (shape.type) {
     case "image":
     case "text": {

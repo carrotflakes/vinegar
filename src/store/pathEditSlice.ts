@@ -8,7 +8,9 @@ import { PATH_OP_LABEL, pathOpShape } from "@/model/path/pathOps";
 import {
   applyPathModifiers,
   DEFAULT_PATH_MODIFIER,
+  isModifiable,
 } from "@/model/path/pathModifiers";
+import { applyShapeModifiers } from "@/model/path/convertToPath";
 import { toggleBrushAnchorSmooth } from "@/model/brush/brushEdit";
 import {
   scaleBrushAnchorWidths,
@@ -274,7 +276,7 @@ export function createPathEditActions({ set, get, transact }: StoreCtx): PathEdi
     setPathModifiers: (id, modifiers, bindings) => {
       const doc = get().doc;
       const shape = doc.nodes[id];
-      if (!isShape(shape) || shape.type !== "path") return;
+      if (!isModifiable(shape)) return;
       const nextShape = { ...shape, modifiers, ...(bindings ? { bindings } : {}) };
       if (get()._interaction) {
         get().applyShapes({ [id]: nextShape });
@@ -291,7 +293,7 @@ export function createPathEditActions({ set, get, transact }: StoreCtx): PathEdi
       let changed = false;
       for (const id of selectionRoots(doc, get().selection)) {
         const shape = nodes[id];
-        if (!isShape(shape) || shape.type !== "path") continue;
+        if (!isModifiable(shape)) continue;
         nodes[id] = {
           ...shape,
           modifiers: [...(shape.modifiers ?? []), DEFAULT_PATH_MODIFIER[type]()],
@@ -309,14 +311,15 @@ export function createPathEditActions({ set, get, transact }: StoreCtx): PathEdi
       let changed = false;
       for (const id of selectionRoots(doc, get().selection)) {
         const shape = nodes[id];
-        if (!isShape(shape) || shape.type !== "path" || !shape.modifiers?.length) continue;
-        nodes[id] = applyPathModifiers(shape);
+        if (!isModifiable(shape) || !shape.modifiers?.length) continue;
+        // A modified primitive cannot hold the baked result; it becomes a path.
+        nodes[id] = applyShapeModifiers(shape, doc);
         changed = true;
       }
-      if (changed) transact(
-        { ...doc, nodes },
-        { label: "Apply path modifiers" }
-      );
+      const next = { ...doc, nodes };
+      if (changed && hasValidSceneContainers(next)) {
+        transact(next, { label: "Apply path modifiers" });
+      }
     },
   };
 }

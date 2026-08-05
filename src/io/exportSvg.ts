@@ -1,5 +1,5 @@
 import { subpathSegments } from "@/model/path/path";
-import { resolvedSubpaths } from "@/model/path/pathModifiers";
+import { modifiedSubpaths, resolvedSubpaths } from "@/model/path/pathModifiers";
 import { shapeBounds } from "@/model/geometry/bounds";
 import { cachedBrushEnvelope } from "@/model/brush/brushOutline";
 import { compoundChildren } from "@/model/path/compoundPath";
@@ -31,6 +31,7 @@ import {
 } from "../model/stroke";
 import type {
   PathShape,
+  PathSubpath,
   Bounds,
   Document,
   DocumentAsset,
@@ -457,6 +458,12 @@ function shapeToSvg(doc: Document, shape: Shape, defs: Defs): string {
 }
 
 function shapeGeometryToSvg(doc: Document, shape: Shape, attrs: string): string {
+  // Modifiers have no SVG counterpart, so a modified primitive is baked into
+  // path data rather than emitted as <rect>/<ellipse>/<line>.
+  const modified = modifiedSubpaths(shape);
+  if (modified) {
+    return `<path d="${subpathsData(modified)}" ${attrs} />`;
+  }
   switch (shape.type) {
     case "text": {
       const layout = layoutTextInBrowser(shape);
@@ -518,6 +525,17 @@ function primitivePathData(shape: PrimitiveShape, matrix: Matrix): string {
     points.length
       ? `M ${point(points[0])}${points.slice(1).map((p) => ` L ${point(p)}`).join("")}${closed ? " Z" : ""}`
       : "";
+  const modified = modifiedSubpaths(shape);
+  if (modified) {
+    return modified.map((sp) => {
+      if (!sp.anchors.length) return "";
+      let d = `M ${point(sp.anchors[0].p)}`;
+      for (const segment of subpathSegments(sp)) {
+        d += ` C ${point(segment.c1)} ${point(segment.c2)} ${point(segment.p1)}`;
+      }
+      return d + (sp.closed ? " Z" : "");
+    }).join(" ");
+  }
   switch (shape.type) {
     case "rect": {
       if (effectiveRectCornerRadius(shape) > 0) {
@@ -562,8 +580,12 @@ function primitivePathData(shape: PrimitiveShape, matrix: Matrix): string {
 }
 
 function pathData(shape: PathShape): string {
+  return subpathsData(resolvedSubpaths(shape));
+}
+
+function subpathsData(subpaths: PathSubpath[]): string {
   const parts: string[] = [];
-  for (const sp of resolvedSubpaths(shape)) {
+  for (const sp of subpaths) {
     const segs = subpathSegments(sp);
     if (sp.anchors.length === 0) continue;
     const start = sp.anchors[0].p;

@@ -1,9 +1,8 @@
 import { compoundChildren } from "./compoundPath";
 import { convertBrushToCenterlinePath } from "@/model/brush/convertBrush";
-import { ellipseSubpath } from "../ellipse";
-import { roundedRectSubpath } from "../roundedRect";
 import { transformSubpath } from "./path";
-import { resolvedSubpaths } from "./pathModifiers";
+import { applyPathModifiers, resolvedSubpaths } from "./pathModifiers";
+import { remapModifierBindings } from "../params";
 import { strokeDetailFields } from "../stroke";
 import type {
   CompoundPathNode,
@@ -12,7 +11,6 @@ import type {
   EllipseShape,
   LineShape,
   PathShape,
-  PathSubpath,
   PrimitiveShape,
   RectShape,
   SceneNode,
@@ -35,29 +33,6 @@ export function canConvertShapeToPath(
     node?.type === "compoundPath";
 }
 
-function lineSubpath(shape: LineShape): PathSubpath {
-  return {
-    closed: false,
-    anchors: [
-      { p: { x: shape.x1, y: shape.y1 }, hIn: null, hOut: null },
-      { p: { x: shape.x2, y: shape.y2 }, hIn: null, hOut: null },
-    ],
-  };
-}
-
-function primitiveSubpaths(shape: PrimitiveShape): PathSubpath[] {
-  switch (shape.type) {
-    case "rect":
-      return [roundedRectSubpath(shape)];
-    case "ellipse":
-      return [ellipseSubpath(shape)];
-    case "line":
-      return [lineSubpath(shape)];
-    case "path":
-      return resolvedSubpaths(shape);
-  }
-}
-
 /**
  * Convert supported shape geometry to an editable path without changing its
  * meaning. A brush becomes its centerline as a uniform-width stroked path (the
@@ -71,11 +46,11 @@ export function convertShapeToPath(
   if (shape.type === "brush") return convertBrushToCenterlinePath(shape);
   const subpaths = shape.type === "compoundPath"
     ? compoundChildren(doc, shape).flatMap((child) =>
-        primitiveSubpaths(child).map((subpath) =>
+        resolvedSubpaths(child).map((subpath) =>
           transformSubpath(child.transform, subpath)
         )
       )
-    : primitiveSubpaths(shape);
+    : resolvedSubpaths(shape);
   return {
     id: shape.id,
     name: shape.name,
@@ -92,8 +67,27 @@ export function convertShapeToPath(
     hidden: shape.hidden,
     locked: shape.locked,
     generator: shape.generator,
-    bindings: { ...shape.bindings },
+    // The stack is baked into `subpaths` here, so bindings onto its stages
+    // have nothing left to address.
+    bindings: remapModifierBindings(shape.bindings, new Map()),
     transform: [...shape.transform],
     transformOrigin: shape.transformOrigin ? { ...shape.transformOrigin } : null,
   };
+}
+
+/**
+ * Bake a modifier stack into base geometry. A path absorbs the result into its
+ * own anchors; a rect/ellipse/line cannot express an offset or outlined
+ * silhouette, so baking converts it to a path. Bindings onto the baked stages
+ * go away with the stages they addressed.
+ */
+export function applyShapeModifiers(
+  shape: PrimitiveShape,
+  doc: Document
+): PrimitiveShape {
+  if (!shape.modifiers?.length) return shape;
+  const baked = shape.type === "path"
+    ? applyPathModifiers(shape)
+    : convertShapeToPath(shape, doc);
+  return { ...baked, bindings: remapModifierBindings(baked.bindings, new Map()) };
 }

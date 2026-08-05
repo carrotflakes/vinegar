@@ -252,3 +252,7 @@ additional effects, or other feature expansion.
 - [ ] modifier部分焼き込み
 - [x] viewの上下反転
 - [ ] 自由変形
+- [ ] Repeat コンテナ array, radial
+- [x] path modifier適用対象拡張 (rect/ellipse/line, v33)
+- [ ] pencil の交差トリム
+- [ ] Brush はfillなのかstrokeなのか問題

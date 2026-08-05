@@ -13,6 +13,7 @@ import {
   canMakeCompoundPathSelection,
 } from "@/model/path/compoundPath";
 import { canConvertShapeToPath } from "@/model/path/convertToPath";
+import { isModifiable } from "@/model/path/pathModifiers";
 import {
   canConvertBrushToOutline,
   canConvertPathToBrush,
@@ -96,6 +97,10 @@ function sel(s: EditorState) {
       canConvertBrushToOutline(s.doc.nodes[id])
     ),
     canPathOp: shapeRoots.some((sh) => sh.type === "path"),
+    canModify: shapeRoots.some(isModifiable),
+    canApplyModifiers: shapeRoots.some(
+      (sh) => isModifiable(sh) && !!sh.modifiers?.length
+    ),
     canJoin:
       roots.length >= 1 &&
       shapeRoots.length === roots.length &&
@@ -450,52 +455,49 @@ export const COMMANDS: Command[] = [
     id: "path.addSimplifyModifier",
     label: "Add Simplify modifier",
     group: "Path",
-    enabled: (s) => sel(s).canPathOp,
+    enabled: (s) => sel(s).canModify,
     run: (s) => s.addPathModifierSelected("simplify"),
   },
   {
     id: "path.addFlattenModifier",
     label: "Add Flatten modifier",
     group: "Path",
-    enabled: (s) => sel(s).canPathOp,
+    enabled: (s) => sel(s).canModify,
     run: (s) => s.addPathModifierSelected("flatten"),
   },
   {
     id: "path.addOffsetModifier",
     label: "Add Offset modifier",
     group: "Path",
-    enabled: (s) => sel(s).canPathOp,
+    enabled: (s) => sel(s).canModify,
     run: (s) => s.addPathModifierSelected("offset"),
   },
   {
     id: "path.addOutlineModifier",
     label: "Add Outline modifier",
     group: "Path",
-    enabled: (s) => sel(s).canPathOp,
+    enabled: (s) => sel(s).canModify,
     run: (s) => s.addPathModifierSelected("outline"),
   },
   {
     id: "path.addSmoothModifier",
     label: "Add Smooth modifier",
     group: "Path",
-    enabled: (s) => sel(s).canPathOp,
+    enabled: (s) => sel(s).canModify,
     run: (s) => s.addPathModifierSelected("smooth"),
   },
   {
     id: "path.addReverseModifier",
     label: "Add Reverse modifier",
     group: "Path",
-    enabled: (s) => sel(s).canPathOp,
+    enabled: (s) => sel(s).canModify,
     run: (s) => s.addPathModifierSelected("reverse"),
   },
   {
     id: "path.applyModifiers",
     label: "Apply path modifiers",
     group: "Path",
-    enabled: (s) => selectionRoots(s.doc, s.selection).some((id) => {
-      const node = s.doc.nodes[id];
-      return node?.type === "path" && !!node.modifiers?.length;
-    }),
+    enabled: (s) => sel(s).canApplyModifiers,
     run: (s) => s.applyPathModifiersSelected(),
   },
   {

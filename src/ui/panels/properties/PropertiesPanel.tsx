@@ -17,6 +17,7 @@ import AppearanceSection from "./AppearanceSection";
 import EffectsSection from "./EffectsSection";
 import GeneratorSection from "./GeneratorSection";
 import ModifiersSection from "./ModifiersSection";
+import { isModifiable } from "@/model/path/pathModifiers";
 import GroupSection, { GroupTransformSection } from "./GroupSection";
 import SelectionActionsSection from "./SelectionActionsSection";
 import SelectionHeader from "./SelectionHeader";
@@ -131,7 +132,7 @@ export default function PropertiesPanel() {
           <GeneratorSection shape={selected[0]} />
         )}
 
-      {selected.length === 1 && selected[0].type === "path" && (
+      {selected.length === 1 && isModifiable(selected[0]) && (
         <ModifiersSection shape={selected[0]} />
       )}
 

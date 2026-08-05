@@ -1,9 +1,9 @@
-import { shapeBounds } from "@/model/geometry/bounds";
+import { normalizeRect } from "@/model/geometry/bounds";
 import type { EllipseShape, PathSubpath } from "./types";
 
 /** Four cubic arcs approximating an ellipse in the shape's local space. */
 export function ellipseSubpath(shape: EllipseShape): PathSubpath {
-  const b = shapeBounds(shape);
+  const b = normalizeRect(shape.x, shape.y, shape.width, shape.height);
   const cx = b.x + b.width / 2;
   const cy = b.y + b.height / 2;
   const rx = b.width / 2;
