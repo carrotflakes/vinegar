@@ -105,7 +105,7 @@ additional effects, or other feature expansion.
 - [x] キーボード到達性 — `tabIndex={0}` + `:focus-visible` リング、`role="tree"` /
   `role="treeitem"` / `aria-selected` / `aria-level` / `aria-expanded`、
   `aria-activedescendant` でカーソル行を通知（Tab 到達時は選択末尾をカーソルに）
-- [ ] 折りたたみ機能
+- [ ] 折りたたみメニュー
 
 ### Properties パネルのリファイン
 - [ ] UIの統一感
@@ -159,16 +159,16 @@ additional effects, or other feature expansion.
     （アプリ内クリップボードのみ。SVG 経由のタブ間ペーストは下の「System clipboard」）
   - [ ] コードを変更したときに、それを使っているインスタンスのパラメータを保持した
     まま再生成する方法
-  - [ ] ツールバーから generator の図形挿入
+  - [x] ツールバーから generator の図形挿入
   - [ ] generator の編集ロック pref へ
 - [ ] パス操作
-  - [ ] **Path modifier stack (Blender-like, non-destructive)** — the agreed
+  - [x] **Path modifier stack (Blender-like, non-destructive)** — the agreed
     direction: path ops become re-editable modifiers extending the generator
     concept. Plan in `docs/path-modifiers.md` (model like `effects`, `subpaths`
     = base, cached `resolvedSubpaths()` feeds render/hit-test/bounds/export).
     Phase 1 = vertical slice (Simplify + live tolerance); the shipped one-shot
     ops become "Apply/bake".
-  - [ ] パスのオフセット (candidate first modifier once the stack lands)
+  - [x] パスのオフセット (candidate first modifier once the stack lands)
   - [ ] Join (connect open paths), Average — see the path-ops proposal
   - [ ] `path.join` に線幅バグがある（ベイクして identity + 基準の `strokeWidth` を
     そのままコピーするので、スケールを持つパスを join すると線幅が変わる）。既存の
@@ -188,12 +188,11 @@ additional effects, or other feature expansion.
 - [ ] コンテキストメニューの拡充
   - [ ] 項目の拡充（Align / Boolean / パス操作などコンテキスト依存の項目）
   - [ ] タッチ長押しで表示（モバイル）
-  - [ ] キーボードナビゲーション（↑↓Enter）
+  - [x] キーボードナビゲーション（↑↓Enter）
 - [ ] ペン入力 傾き対応（線幅・不透明度）
 - [ ] アニメーション機能　パラメトリックに動かす
 - [ ] MCPサーバー化
 - [ ] 保存形式の検討 zip化?
-- [ ] 左右反転のUIリファイン
 - [ ] ColorField のリファクタリング（特にコンポーネントわけ）
 - [ ] ドックのフローティング、マルチカラム化
 - [ ] Assetという名前は問題ないか。raster imageではないか。
@@ -250,7 +249,6 @@ additional effects, or other feature expansion.
     速度→幅シミュレーション
 - [ ] PWA
 - [ ] modifier部分焼き込み
-- [x] viewの上下反転
 - [ ] 自由変形
 - [ ] Repeat コンテナ array, radial
 - [x] path modifier適用対象拡張 (rect/ellipse/line, v33)
