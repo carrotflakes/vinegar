@@ -164,9 +164,23 @@ test("the selection must be two or more sibling paths", () => {
   assert.equal(canCombineSelection(doc, ["a"]), false);
   // Different parents.
   assert.equal(canCombineSelection(doc, ["a", "c"]), false);
-  // Non-path members: convert to path first.
-  assert.equal(canCombineSelection(doc, ["a", "r"]), false);
-  assert.equal(canCombineSelection(doc, ["a", "g"]), false);
+  // Primitives come along, converted to paths.
+  assert.equal(canCombineSelection(doc, ["a", "r"]), true);
+  // A group contributes its contents; a lone single-child group has only one.
+  assert.equal(canCombineSelection(doc, ["a", "g"]), true);
+  assert.equal(canCombineSelection(doc, ["g"]), false);
+  // A brush's path form is not the shape that was drawn, so it is refused.
+  doc.nodes.br = {
+    id: "br", name: "br", type: "brush", ...SHAPE_BASE, ...NODE_BASE,
+    anchors: [
+      { p: { x: 0, y: 0 }, hIn: null, hOut: null, w: 1 },
+      { p: { x: 10, y: 0 }, hIn: null, hOut: null, w: 1 },
+    ],
+    fill: null, stroke: solid("#112233"), strokeWidth: 3,
+    transform: [1, 0, 0, 1, 0, 0], transformOrigin: null,
+  };
+  doc.rootIds.push("br");
+  assert.equal(canCombineSelection(doc, ["a", "br"]), false);
 });
 
 // --- Store integration ----------------------------------------------------
@@ -228,6 +242,136 @@ test("combine is the inverse of split: the round trip restores the contours", ()
   const again = state.doc.nodes[state.doc.nodes[state.doc.rootIds[0]].childIds[0]];
   assert.equal(again.subpaths.length, combined.subpaths.length);
   assert.deepEqual(again.subpaths, combined.subpaths);
+});
+
+test("a rect joins the combine as its converted contour", () => {
+  const doc = createEmptyDocument();
+  doc.nodes.a = pathShape("a", [openSeg({ x: 0, y: 0 }, { x: 10, y: 0 })]);
+  doc.nodes.r = {
+    id: "r", name: "r", type: "rect", ...SHAPE_BASE, cornerRadius: 0, ...NODE_BASE,
+    x: 0, y: 40, width: 5, height: 5, fill: solid("#fff"), stroke: null, strokeWidth: 1,
+    transform: [1, 0, 0, 1, 0, 0], transformOrigin: null,
+  };
+  doc.rootIds = ["a", "r"];
+  useEditor.getState().loadDocument(doc);
+  useEditor.getState().setSelection(["a", "r"]);
+  commandById("path.combine").run(useEditor.getState());
+
+  const state = useEditor.getState();
+  const result = state.doc.nodes[state.doc.rootIds[0]];
+  assert.equal(state.doc.rootIds.length, 1);
+  assert.equal(result.type, "path");
+  assert.equal(result.subpaths.length, 2);
+  // The rect's closed contour, in the backmost input's (identity) space.
+  assert.equal(result.subpaths[1].closed, true);
+  assert.deepEqual(result.subpaths[1].anchors[0].p, { x: 0, y: 40 });
+  // Appearance still comes from the backmost input, the path.
+  assert.deepEqual(result.stroke, doc.nodes.a.stroke);
+});
+
+test("selecting a group combines its contents in one step", () => {
+  const doc = createEmptyDocument();
+  doc.nodes.a = pathShape("a", [openSeg({ x: 0, y: 0 }, { x: 10, y: 0 })]);
+  doc.nodes.b = pathShape("b", [openSeg({ x: 0, y: 50 }, { x: 10, y: 50 })]);
+  doc.nodes.g = {
+    id: "g", name: "g", type: "group", clipsToMask: false, ...NODE_BASE,
+    childIds: ["a", "b"], opacity: 0.5,
+    // A group transform the contents must be re-expressed through.
+    transform: [2, 0, 0, 2, 100, 0], transformOrigin: null,
+  };
+  doc.rootIds = ["g"];
+  useEditor.getState().loadDocument(doc);
+  useEditor.getState().setSelection(["g"]);
+
+  const combine = commandById("path.combine");
+  assert.equal(combine.enabled(useEditor.getState()), true);
+  combine.run(useEditor.getState());
+
+  const state = useEditor.getState();
+  assert.deepEqual(state.doc.rootIds.length, 1);
+  const result = state.doc.nodes[state.doc.rootIds[0]];
+  assert.equal(result.type, "path");
+  assert.equal(result.subpaths.length, 2);
+  assert.equal(state.doc.nodes.g, undefined);
+  assert.equal(state.doc.nodes.a, undefined);
+  // The group's space is preserved, so the contours land where they were drawn.
+  assert.deepEqual(result.transform, [2, 0, 0, 2, 100, 0]);
+  assert.deepEqual(result.subpaths[0].anchors[0].p, { x: 0, y: 0 });
+  assert.deepEqual(result.subpaths[1].anchors[0].p, { x: 0, y: 50 });
+  // The group's opacity applied to its flattened contents; the result carries it.
+  assert.equal(result.opacity, 0.5);
+});
+
+test("split then combine the group restores the source path", () => {
+  useEditor.getState().loadDocument(threeStrokes());
+  useEditor.getState().setSelection(["a", "b"]);
+  commandById("path.combine").run(useEditor.getState());
+  const combinedId = useEditor.getState().doc.rootIds[0];
+  const combined = useEditor.getState().doc.nodes[combinedId];
+
+  commandById("path.splitSubpaths").run(useEditor.getState());
+  const groupId = useEditor.getState().doc.rootIds[0];
+  assert.equal(useEditor.getState().doc.nodes[groupId].type, "group");
+  useEditor.getState().setSelection([groupId]);
+  commandById("path.combine").run(useEditor.getState());
+
+  const state = useEditor.getState();
+  const again = state.doc.nodes[state.doc.rootIds[0]];
+  assert.equal(again.type, "path");
+  assert.deepEqual(again.subpaths, combined.subpaths);
+  assert.equal(state.doc.nodes[groupId], undefined);
+});
+
+test("hidden or locked members are refused rather than silently revived", () => {
+  const groupOf = (childIds, patch = {}) => ({
+    id: "g", name: "g", type: "group", clipsToMask: false, ...NODE_BASE,
+    childIds, opacity: 1, transform: [1, 0, 0, 1, 0, 0], transformOrigin: null,
+    ...patch,
+  });
+  const docWith = (patch) => {
+    const doc = createEmptyDocument();
+    doc.nodes.a = pathShape("a", [openSeg({ x: 0, y: 0 }, { x: 10, y: 0 })], patch.a);
+    doc.nodes.b = pathShape("b", [openSeg({ x: 0, y: 50 }, { x: 10, y: 50 })], patch.b);
+    doc.nodes.g = groupOf(["a", "b"], patch.g);
+    doc.rootIds = ["g"];
+    return doc;
+  };
+
+  for (const patch of [{ a: { hidden: true } }, { b: { locked: true } }, { g: { hidden: true } }]) {
+    useEditor.getState().loadDocument(docWith(patch));
+    useEditor.getState().setSelection(["g"]);
+    // The command stays enabled — the refusal explains itself with a toast,
+    // like the clipping-mask case.
+    assert.equal(commandById("path.combine").enabled(useEditor.getState()), true);
+    commandById("path.combine").run(useEditor.getState());
+    const state = useEditor.getState();
+    assert.deepEqual(state.doc.rootIds, ["g"]);
+    assert.deepEqual(state.doc.nodes.g.childIds, ["a", "b"]);
+  }
+
+  // Nothing flagged: the same selection goes through.
+  useEditor.getState().loadDocument(docWith({}));
+  useEditor.getState().setSelection(["g"]);
+  commandById("path.combine").run(useEditor.getState());
+  assert.equal(useEditor.getState().doc.nodes.g, undefined);
+});
+
+test("a group holding an instance cannot be combined", () => {
+  const doc = createEmptyDocument();
+  doc.nodes.a = pathShape("a", [openSeg({ x: 0, y: 0 }, { x: 10, y: 0 })]);
+  doc.nodes.g = {
+    id: "g", name: "g", type: "group", clipsToMask: false, ...NODE_BASE,
+    childIds: ["a", "inst"], opacity: 1,
+    transform: [1, 0, 0, 1, 0, 0], transformOrigin: null,
+  };
+  doc.nodes.inst = {
+    id: "inst", name: "inst", type: "instance", ...NODE_BASE,
+    symbolId: "sym", opacity: 1, blendMode: "normal",
+    transform: [1, 0, 0, 1, 0, 0], transformOrigin: null,
+  };
+  doc.symbols = { sym: { id: "sym", name: "sym", childIds: [] } };
+  doc.rootIds = ["g"];
+  assert.equal(canCombineSelection(doc, ["g"]), false);
 });
 
 test("a clipping mask member is refused rather than swallowed", () => {

@@ -18,12 +18,33 @@ Grouped by what they change. "N→1" etc. counts *nodes*, not contours.
 | `path.simplify` / `smooth` / `flatten` / `reverse` | 1→1 | rewritten per subpath | kept |
 | `path.cut` | 1→1 | contours severed at the selected anchors | kept |
 | `path.join` | N→1 | **welds** open ends within `JOIN_TOLERANCE` | baked to identity |
-| `path.combine` | N→1 | unchanged (pure re-containering) | **backmost input's** |
+| `path.combine` | N→1 (groups flatten) | unchanged (pure re-containering) | **backmost input's** |
 | `path.splitSubpaths` | 1→group of N | unchanged | group takes the source's |
 | `path.union` / `subtract` / `intersect` / `exclude` | N→1 | recomputed (Clipper/paper) | baked to identity |
 | `path.divide` | N→group of faces | recomputed | baked to identity |
 | `path.outlineStroke` | 1→1, or 1→group of 2 | stroke becomes a filled outline | baked to identity |
 | `structure.makeCompound` / `releaseCompound` | N→1 / 1→N | unchanged | identity container, children keep theirs / the container's is multiplied into each child |
+
+### What `path.combine` accepts
+
+Beyond sibling paths, an input may be a **rect / ellipse / line** (converted by
+`convertShapeToPath`, which reproduces their geometry exactly) or a **group**,
+which contributes every leaf below it in paint order — so a `splitSubpaths`
+result goes back in one step instead of re-selecting the pieces. Leaves nested
+inside a selected group are re-expressed in the surviving parent's space.
+
+A **brush** is refused: its path form is either a centerline (losing the varying
+width) or an envelope outline (a different shape than the one drawn), so neither
+is "unchanged geometry". A group is all-or-nothing — one non-combinable leaf
+(including an instance or a compound path) disables the command for the whole
+selection. A consumed group's opacity is folded into the result, which composites
+its flattened contents the same way; its blend mode and effects are dropped.
+
+**Hidden and locked members are refused** (with a toast, like the mask case).
+The result is one node with one `hidden`/`locked` flag, so a hidden member would
+reappear visible in it and a locked one would be consumed by the very edit its
+lock exists to prevent. Selecting a group whose contents carry those flags is
+the easy way to hit this, since the flags then sit below the selection.
 
 ## Shared conventions
 

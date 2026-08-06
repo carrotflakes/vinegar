@@ -3,7 +3,11 @@
 // replaces the selected nodes with the shape(s) the operation produces.
 
 import { booleanShapes, divideShapes, DIVIDE_MAX_INPUTS, isAreal } from "@/model/path/boolean";
-import { canCombineSelection, combineShapes } from "@/model/path/combinePaths";
+import {
+  canCombineSelection,
+  combineInputs,
+  combineShapes,
+} from "@/model/path/combinePaths";
 import { joinShapes } from "@/model/path/joinPath";
 import {
   canMakeCompoundPathSelection,
@@ -35,11 +39,19 @@ import {
   childIdsOf,
   descendantNodeIds,
   isCompoundPath,
+  isGroup,
   isShape,
   parentIdOf,
   selectionRoots,
 } from "../model/scene";
-import { baseNodeDefaults, baseShapeDefaults, makeId, type PathShape, type Shape } from "../model/types";
+import {
+  baseNodeDefaults,
+  baseShapeDefaults,
+  makeId,
+  type Document,
+  type PathShape,
+  type Shape,
+} from "../model/types";
 import { groupNode, replaceChildren } from "./docOps";
 import {
   clearTransient,
@@ -56,6 +68,25 @@ import { notify, notifyEffectsRemoved } from "./toastStore";
  */
 const maskMultiNodeError = (verb: string) =>
   `A clipping mask cannot be ${verb}. Release the clipping mask first.`;
+
+/**
+ * The message for a combine whose members carry a hidden or locked flag the
+ * single result node cannot represent, or null when none do. Refusing keeps a
+ * hidden member from reappearing in the result and a locked one from being
+ * consumed by an edit its lock is meant to prevent.
+ */
+function combineBlockedFlags(doc: Document, consumed: string[]): string | null {
+  const hidden = consumed.some((id) => doc.nodes[id]?.hidden);
+  const locked = consumed.some((id) => doc.nodes[id]?.locked);
+  if (hidden && locked) {
+    return "Hidden and locked members cannot be combined. Unhide and unlock them first.";
+  }
+  if (hidden) {
+    return "A hidden member cannot be combined — it would come back visible. Unhide it first.";
+  }
+  if (locked) return "A locked member cannot be combined. Unlock it first.";
+  return null;
+}
 
 /**
  * The child list after several consumed siblings collapse into one result node,
@@ -260,17 +291,39 @@ export function createShapeOpsActions({ set, get, transact }: StoreCtx): ShapeOp
       const siblings = childIdsOf(doc, parent);
       const selected = new Set(roots);
       const ordered = siblings.filter((id) => selected.has(id));
+      // A selected group is consumed whole, so its contents count too.
+      const consumed = ordered.flatMap((id) => [id, ...descendantNodeIds(doc, id)]);
       // Combining the mask with anything would leave the clip group without a
-      // mask or without content (see maskMultiNodeError).
-      if (ordered.some((id) => isClippingMaskNode(doc, id))) {
+      // mask or without content (see maskMultiNodeError); a consumed clip group
+      // would lose its clip the same way.
+      if (consumed.some((id) => isClippingMaskNode(doc, id))) {
         notify.error(maskMultiNodeError("combined"));
         return;
       }
-      const effectsRemoved = ordered.some((id) => !!doc.nodes[id]?.effects.length);
-      const result = combineShapes(ordered.map((id) => doc.nodes[id] as PathShape));
-      if (!result) return;
+      // The result is one node with one hidden/locked flag, so a member
+      // carrying either would come back visible or be edited despite its lock
+      // — most easily reached by selecting a group whose contents are.
+      const blocked = combineBlockedFlags(doc, consumed);
+      if (blocked) {
+        notify.error(blocked);
+        return;
+      }
+      const inputs = combineInputs(doc, ordered, parent);
+      if (!inputs) return;
+      const effectsRemoved = consumed.some((id) => !!doc.nodes[id]?.effects.length);
+      const combined = combineShapes(inputs);
+      if (!combined) return;
+      // A consumed group's opacity applied to its flattened contents as a
+      // whole, which is exactly what the single result node does with it.
+      const groupOpacity = consumed.reduce((acc, id) => {
+        const node = doc.nodes[id];
+        return isGroup(node) ? acc * node.opacity : acc;
+      }, 1);
+      const result = groupOpacity === 1
+        ? combined
+        : { ...combined, opacity: combined.opacity * groupOpacity };
       const nodes = { ...doc.nodes };
-      for (const id of ordered) delete nodes[id];
+      for (const id of consumed) delete nodes[id];
       nodes[result.id] = result;
       const next = replaceChildren(
         { ...doc, nodes },

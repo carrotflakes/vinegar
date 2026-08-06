@@ -174,10 +174,9 @@ additional effects, or other feature expansion.
   - [ ] `path.join` に線幅バグがある（ベイクして identity + 基準の `strokeWidth` を
     そのままコピーするので、スケールを持つパスを join すると線幅が変わる）。既存の
     出荷済みコマンドの挙動変更になるので未着手。`docs/path-commands.md` 参照
-  - [ ] group を選んで統合（split の結果を 1 手で戻せるようにする）。今は
-    グループ内のピースを選び直す必要がある
-  - [ ] rect / ellipse / line を統合の入力に許す（`convertShapeToPath` の再利用で
-    済む）。brush はエンベロープ輪郭になってしまうので対象外が妥当
+  - [x] group を選んで統合（split の結果を 1 手で戻せるようにする）
+  - [x] rect / ellipse / line を統合の入力に許す（`convertShapeToPath` の再利用）。
+    brush はエンベロープ輪郭になってしまうので対象外
   - [ ] マスクの分割 — 全輪郭が閉じている場合に限り group ではなく compoundPath で
     包めば有効なマスクのまま分割できる（穴の読みまで保たれる）。開いた subpath を
     含むマスクは compound の子になれないので引き続き拒否

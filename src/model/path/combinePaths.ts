@@ -3,31 +3,110 @@ import {
   invertMatrix,
   isIdentity,
   multiply,
+  nodeWorldMatrix,
 } from "@/model/geometry/matrix";
-import { parentIdOf, selectionRoots } from "../scene";
+import { isGroup, parentIdOf, selectionRoots } from "../scene";
 import { strokeDetailFields } from "../stroke";
 import { transformSubpath } from "./path";
+import { convertShapeToPath } from "./convertToPath";
 import { resolvedSubpaths } from "./pathModifiers";
 import {
   baseNodeDefaults,
   makeId,
   type Document,
+  type EllipseShape,
+  type LineShape,
   type Matrix,
   type PathShape,
+  type RectShape,
+  type SceneNode,
 } from "../types";
 
 /**
- * Whether the selection can be combined: at least two sibling path nodes.
- * Same-parent is required because the result lives in one coordinate space,
- * like the boolean ops and `joinShapes`.
+ * What may feed a combine. The parametric primitives join in because
+ * `convertShapeToPath` reproduces their geometry exactly; a brush stays out
+ * because its path form is either a centerline (losing the varying width) or
+ * an envelope outline (a different shape than the one drawn).
+ */
+export type CombinableShape = PathShape | RectShape | EllipseShape | LineShape;
+
+export const isCombinableShape = (
+  node: SceneNode | undefined
+): node is CombinableShape =>
+  node?.type === "path" ||
+  node?.type === "rect" ||
+  node?.type === "ellipse" ||
+  node?.type === "line";
+
+/**
+ * The leaves one selected node contributes, in paint order — itself, or every
+ * descendant when it is a group, so selecting a group combines its contents
+ * (the one-step inverse of `splitSubpaths`, whose result is such a group).
+ * Null when anything inside cannot be combined, since a group is all-or-nothing.
+ */
+export function combineLeafIds(doc: Document, id: string): string[] | null {
+  const node = doc.nodes[id];
+  if (!isGroup(node)) return isCombinableShape(node) ? [id] : null;
+  const leaves: string[] = [];
+  for (const childId of node.childIds) {
+    const nested = combineLeafIds(doc, childId);
+    if (!nested) return null;
+    leaves.push(...nested);
+  }
+  return leaves;
+}
+
+/**
+ * Whether the selection can be combined: sibling nodes contributing at least
+ * two combinable leaves between them. Same-parent is required because the
+ * result lives in one coordinate space, like the boolean ops and `joinShapes`.
  */
 export function canCombineSelection(doc: Document, selection: string[]): boolean {
   const roots = selectionRoots(doc, selection);
-  if (roots.length < 2) return false;
+  if (!roots.length) return false;
   const parent = parentIdOf(doc, roots[0]);
-  return roots.every(
-    (id) => doc.nodes[id]?.type === "path" && parentIdOf(doc, id) === parent
-  );
+  if (!roots.every((id) => parentIdOf(doc, id) === parent)) return false;
+  let leaves = 0;
+  for (const id of roots) {
+    const ids = combineLeafIds(doc, id);
+    if (!ids) return false;
+    leaves += ids.length;
+  }
+  return leaves >= 2;
+}
+
+/**
+ * The path inputs `ordered` (siblings in back-to-front order) stand for, ready
+ * for {@link combineShapes}: primitives converted, and leaves that sat inside a
+ * selected group re-expressed in `parent`'s space, which is where the result
+ * lands. Null when something is not combinable or the parent space is
+ * degenerate.
+ */
+export function combineInputs(
+  doc: Document,
+  ordered: string[],
+  parent: string | null
+): PathShape[] | null {
+  const intoParent = invertMatrix(nodeWorldMatrix(doc, parent));
+  const inputs: PathShape[] = [];
+  for (const rootId of ordered) {
+    const leafIds = combineLeafIds(doc, rootId);
+    if (!leafIds) return null;
+    for (const leafId of leafIds) {
+      const shape = doc.nodes[leafId] as CombinableShape;
+      const path = shape.type === "path" ? shape : convertShapeToPath(shape, doc);
+      if (parentIdOf(doc, leafId) === parent) {
+        inputs.push(path);
+        continue;
+      }
+      if (!intoParent) return null;
+      inputs.push({
+        ...path,
+        transform: multiply(intoParent, nodeWorldMatrix(doc, leafId)),
+      });
+    }
+  }
+  return inputs;
 }
 
 /**

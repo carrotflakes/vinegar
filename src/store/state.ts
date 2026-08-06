@@ -428,7 +428,11 @@ export interface ShapeOpsActions {
   divideSelected: () => void;
   /** Weld selected paths' open endpoints into continuous contours. */
   joinSelected: () => void;
-  /** Gather selected paths into one multi-subpath path, changing no geometry. */
+  /**
+   * Gather the selection into one multi-subpath path, changing no geometry.
+   * Primitives convert on the way in and a selected group contributes its
+   * contents (see `canCombineSelection`).
+   */
   combineSelected: () => void;
   /** Break selected multi-subpath paths into one path node per contour. */
   splitSubpathsSelected: () => void;
