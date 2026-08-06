@@ -45,6 +45,19 @@ export function toDisplayTree(doc: Document, ids: string[]): DNode[] {
   return result.reverse();
 }
 
+/**
+ * Every row that can be folded, in display order: the containers with at least
+ * one child. An empty container has no fold state (its chevron is not drawn),
+ * so collapsing it would leave an id in the set that no row ever matches.
+ */
+export function containerIds(nodes: DNode[]): string[] {
+  return nodes.flatMap((n) =>
+    n.children && n.children.length > 0
+      ? [n.key, ...containerIds(n.children)]
+      : []
+  );
+}
+
 /** All descendant shape ids, in display order. */
 export function shapeIds(nodes: DNode[]): string[] {
   return nodes.flatMap((n) => (n.children ? shapeIds(n.children) : [n.key]));

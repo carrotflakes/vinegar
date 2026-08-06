@@ -17,6 +17,8 @@ export interface LayersViewState {
   toggleCollapsed: (id: string) => void;
   /** Unfold containers, e.g. to reveal a row selected elsewhere. */
   expand: (ids: string[]) => void;
+  /** Replace the whole fold state (the panel's expand/collapse-all menu). */
+  setCollapsed: (ids: string[]) => void;
 }
 
 export const useLayersView = create<LayersViewState>((set, get) => ({
@@ -34,4 +36,5 @@ export const useLayersView = create<LayersViewState>((set, get) => ({
     for (const id of ids) next.delete(id);
     set({ collapsed: next });
   },
+  setCollapsed: (ids) => set({ collapsed: new Set(ids) }),
 }));

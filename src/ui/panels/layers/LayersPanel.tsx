@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { LuChevronLeft } from "react-icons/lu";
+import { LuChevronLeft, LuChevronsDownUp } from "react-icons/lu";
 import {
   ancestorIds,
   enclosingSymbolId,
@@ -11,7 +11,15 @@ import { currentFocusRoot, useEditor } from "@/store/editorStore";
 import { useHighlight } from "@/store/highlightStore";
 import { useLayersView } from "@/store/layersViewStore";
 import { readModifiers } from "@/store/inputStore";
-import { flattenRows, rangeIds, toDisplayTree, visibleIds } from "./tree";
+import type { MenuEntry } from "@/store/menuStore";
+import { DropdownMenu } from "@/ui/menu/Menu";
+import {
+  containerIds,
+  flattenRows,
+  rangeIds,
+  toDisplayTree,
+  visibleIds,
+} from "./tree";
 import { useLayersDnd } from "./useLayersDnd";
 import { useRowWindow } from "./useRowWindow";
 import { LayerRow } from "./rows/LayerRow";
@@ -52,6 +60,7 @@ export default function LayersPanel() {
   const collapsed = useLayersView((s) => s.collapsed);
   const toggleCollapsed = useLayersView((s) => s.toggleCollapsed);
   const expandContainers = useLayersView((s) => s.expand);
+  const setCollapsed = useLayersView((s) => s.setCollapsed);
   // Range selection keeps two marks, like any list: `anchor` is where a range
   // starts and `cursor` is the row the keyboard sits on / the last one clicked.
   const [anchor, setAnchor] = useState<string | null>(null);
@@ -248,6 +257,38 @@ export default function LayersPanel() {
     rowDnd: dnd.rowDnd,
   };
 
+  /**
+   * Fold commands for the whole tree. Reaching every container by clicking its
+   * chevron is the part that does not scale, which is exactly where a deep
+   * document needs help. "Collapse others" keeps the way down to the selection
+   * open, so it isolates a branch instead of hiding the row the user is on.
+   */
+  const foldMenu = (): MenuEntry[] => {
+    // One more walk of a tree the render already walks once (flattenRows).
+    const containers = containerIds(roots);
+    const keep = new Set(
+      selection.flatMap((id) => [id, ...ancestorIds(doc, id)])
+    );
+    const others = containers.filter((id) => !keep.has(id));
+    return [
+      {
+        label: "Expand all",
+        disabled: collapsed.size === 0,
+        onSelect: () => setCollapsed([]),
+      },
+      {
+        label: "Collapse all",
+        disabled: containers.every((id) => collapsed.has(id)),
+        onSelect: () => setCollapsed(containers),
+      },
+      {
+        label: "Collapse others",
+        disabled: selection.length === 0 || others.length === 0,
+        onSelect: () => setCollapsed(others),
+      },
+    ];
+  };
+
   // The scope is a container node id; a symbol's definition root reads as the
   // symbol's name rather than as the anonymous group holding its content.
   const scopeSymbol = scope ? doc.symbols[enclosingSymbolId(doc, scope) ?? ""] : undefined;
@@ -257,7 +298,26 @@ export default function LayersPanel() {
 
   return (
     <div className={"layers" + (dnd.dragging ? " dragging" : "")}>
-      <div className="section-title layers-title">Layers</div>
+      <div className="section-title layers-title">
+        Layers
+        <DropdownMenu
+          entries={foldMenu()}
+          placement="bottom-end"
+          renderTrigger={({ ref, open, props }) => (
+            <button
+              ref={ref}
+              className="layer-icon-btn title-add"
+              title="Expand / collapse"
+              aria-label="Expand and collapse options"
+              aria-haspopup="menu"
+              aria-expanded={open}
+              {...props}
+            >
+              <LuChevronsDownUp aria-hidden />
+            </button>
+          )}
+        />
+      </div>
       {scopeName !== null && (
         <button className="layers-scope" onClick={exitFocus}>
           <LuChevronLeft aria-hidden />

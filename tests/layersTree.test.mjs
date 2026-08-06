@@ -83,6 +83,16 @@ test("flattenRows carries the indent, container slot and inherited dimming", () 
   );
 });
 
+test("containerIds lists the foldable rows and skips empty containers", () => {
+  const d = doc(
+    [rect("a"), group("g", ["c", "h"]), rect("c"), group("h", ["e"]), rect("e"),
+     group("empty", [])],
+    ["a", "g", "empty"]
+  );
+  const display = tree.toDisplayTree(d, d.rootIds);
+  assert.deepEqual(tree.containerIds(display), ["g", "h"]);
+});
+
 test("shapeIds counts the leaves under a container, not the container", () => {
   const display = tree.toDisplayTree(nested, ["g"]);
   assert.deepEqual(tree.shapeIds(display), ["d", "c"]);
