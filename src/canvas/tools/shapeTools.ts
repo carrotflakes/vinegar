@@ -356,11 +356,12 @@ export function onPencilMove(
 
 /**
  * Preview the close: the closing edge and the fill the closed path would get,
- * plus a ring on the stroke's own start point while releasing there is what
- * closes it. Closing is otherwise invisible until the pointer is up, and by
- * then it has already happened — the pen shows the same promise with the same
- * mark while a click would close its draft.
- * Extensions of an existing path never close. This is the stroke's own state
+ * plus a ring on the point releasing there would close onto. Closing is
+ * otherwise invisible until the pointer is up, and by then it has already
+ * happened — the pen shows the same promise with the same mark while a click
+ * would close its draft. An extension closes onto the far end of the path it
+ * continues, which is that path's first anchor (the pickup reverses it so the
+ * tail always appends to the end). This is the stroke's own state
  * (`closeHint`), not the hover affordance that rings someone else's endpoint.
  */
 function updateCloseHint(
@@ -372,21 +373,22 @@ function updateCloseHint(
   const stroke = pencilStroke;
   if (!stroke) return false;
   const anchors = shape.subpaths[0].anchors;
-  const first = anchors[0].p;
+  const ext = stroke.extend;
+  // An extension's preview is the continued path, drawn in its local space; the
+  // settled tail is in world space, so the comparison happens in world.
+  const first = ext ? applyMatrix(ext.world, anchors[0].p) : anchors[0].p;
   const settled = pencilTailSettlement(
     stroke,
     releaseWorld,
     pencilMinDist(state)
   );
   const closeTol = pencilCloseTol(ctx, state);
-  const closes =
-    !stroke.extend &&
-    freehandCloses(
-      first,
-      settled.last,
-      anchors.length + settled.points.length,
-      closeTol
-    );
+  const closes = freehandCloses(
+    first,
+    settled.last,
+    anchors.length + settled.points.length,
+    closeTol
+  );
   // The ring marks a place, so it only says something while releasing *there*
   // is what closes the path: a forced close draws none, and the closing edge
   // in the preview carries the promise instead.
@@ -394,8 +396,10 @@ function updateCloseHint(
     closes && freehandEndsOnStart(first, settled.last, closeTol) ? first : null;
   const ringChanged = (ctx.closeHint.current !== null) !== (ring !== null);
   ctx.closeHint.current = ring;
-  if (stroke.extend) return ringChanged;
-  const nextFill = closes ? state.style.fill : null;
+  // A loop the user deliberately closed is a region and takes the current fill,
+  // but an extension never overwrites a fill the continued path already has.
+  const baseFill = ext ? ext.base.fill : null;
+  const nextFill = closes ? baseFill ?? state.style.fill : baseFill;
   const shapeChanged =
     shape.fill !== nextFill || shape.subpaths[0].closed !== closes;
   shape.fill = nextFill;
@@ -420,7 +424,7 @@ export function finishPencil(
     settlePencilTail(stroke, shape, world, pencilMinDist(state));
   }
   if (stroke?.extend) {
-    commitPencilExtend(state, stroke.extend);
+    commitPencilExtend(state, stroke.extend, pencilCloseTol(ctx, state));
     ctx.scheduleDraw();
     return;
   }
@@ -443,17 +447,66 @@ export function finishPencil(
  * onto the original anchors, replacing the endpoint anchor with the refitted
  * one while keeping its incoming handle. The original geometry is otherwise
  * untouched. A stroke with no travel leaves the path unchanged.
+ *
+ * An extension that comes back to the path's far end closes it, under the same
+ * {@link freehandCloses} rule (and the same live hint) as a fresh stroke — the
+ * two ends of an open path are the only way to draw a loop in two goes.
  */
-function commitPencilExtend(state: EditorState, ext: PencilExtend): void {
+function commitPencilExtend(
+  state: EditorState,
+  ext: PencilExtend,
+  closeTol: number
+): void {
   if (ext.newPoints.length < 1) return;
-  const anchors = buildExtendedAnchors(
-    ext.base.subpaths[0].anchors,
+  const orig = ext.base.subpaths[0].anchors;
+  const { points, closed } = resolveExtendClose(
+    orig,
     ext.newPoints,
+    ext.world,
+    closeTol
+  );
+  const anchors = buildExtendedAnchors(
+    orig,
+    points,
     ext.world,
     ext.inverse,
     usePencil.getState().simplify / state.viewport.scale
   );
-  state.updateShape({ ...ext.base, subpaths: [{ anchors, closed: false }] });
+  state.updateShape({
+    ...ext.base,
+    subpaths: [{ anchors, closed }],
+    ...(closed && ext.base.fill === null ? { fill: state.style.fill } : {}),
+  });
+}
+
+/**
+ * Does an extension close the path it continues, and which of the drawn points
+ * survive? The pickup reversed the path so the tail appends to its end, which
+ * makes `orig[0]` the far end — the only point an extension can close onto.
+ * A stroke that ended there duplicates it and the closed subpath implies that
+ * edge, so the duplicate is dropped; a forced close ends wherever the pointer
+ * lifted and keeps every point (`freehandToPath` does the same for a fresh
+ * stroke). Pure and exported for tests.
+ */
+export function resolveExtendClose(
+  orig: PathAnchor[],
+  newPointsWorld: Vec2[],
+  world: Matrix,
+  closeTol: number
+): { points: Vec2[]; closed: boolean } {
+  const startWorld = applyMatrix(world, orig[0].p);
+  const last = newPointsWorld[newPointsWorld.length - 1];
+  const closed = freehandCloses(
+    startWorld,
+    last,
+    orig.length + newPointsWorld.length,
+    closeTol
+  );
+  const points =
+    closed && freehandEndsOnStart(startWorld, last, closeTol)
+      ? newPointsWorld.slice(0, -1)
+      : newPointsWorld;
+  return { points, closed };
 }
 
 /**

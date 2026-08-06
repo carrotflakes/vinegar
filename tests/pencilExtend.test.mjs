@@ -1,7 +1,8 @@
 // buildExtendedAnchors: the Pencil tool continuing a selected open path. The
 // drawn tail is fitted in world space and mapped back into the path's local
 // space; the original anchors up to the endpoint are preserved and the seam
-// anchor keeps the endpoint's incoming handle.
+// anchor keeps the endpoint's incoming handle. resolveExtendClose decides
+// whether the extension closes the path onto its far end.
 
 import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
@@ -9,15 +10,31 @@ import { createServer } from "vite";
 
 let server;
 let buildExtendedAnchors;
+let resolveExtendClose;
 let invertMatrix;
+let usePencil;
 
 const near = (a, b, eps = 1e-6) => Math.abs(a - b) <= eps;
 
 before(async () => {
   server = await createServer({ server: { middlewareMode: true } });
-  ({ buildExtendedAnchors } = await server.ssrLoadModule("/src/canvas/tools/shapeTools.ts"));
+  ({ buildExtendedAnchors, resolveExtendClose } = await server.ssrLoadModule(
+    "/src/canvas/tools/shapeTools.ts"
+  ));
   ({ invertMatrix } = await server.ssrLoadModule("/src/model/geometry/matrix.ts"));
+  ({ usePencil } = await server.ssrLoadModule("/src/store/pencilStore.ts"));
 });
+
+/** The close rule reads the tool's option; restore it after each case. */
+function withCloseMode(mode, fn) {
+  const previous = usePencil.getState().close;
+  usePencil.setState({ close: mode });
+  try {
+    fn();
+  } finally {
+    usePencil.setState({ close: previous });
+  }
+}
 
 after(async () => server.close());
 
@@ -52,6 +69,65 @@ test("maps world tail back through the path's transform", () => {
   const lastPt = out[out.length - 1].p;
   // world (25, 43) -> local ((25-5)/2, (43-3)/2) = (10, 20).
   assert.ok(near(lastPt.x, 10) && near(lastPt.y, 20), "last point mapped to local coords");
+});
+
+test("closes the path when the extension comes back to its far end", () => {
+  // The pickup reverses the path, so orig[0] is the end left open behind.
+  const orig = [anchor(0, 0), anchor(10, 0)];
+  const identity = [1, 0, 0, 1, 0, 0];
+  const tail = [
+    { x: 10, y: 10 },
+    { x: 0, y: 10 },
+    { x: 0, y: 0 }, // back onto orig[0]
+  ];
+  withCloseMode("auto", () => {
+    const { points, closed } = resolveExtendClose(orig, tail, identity, 2);
+    assert.equal(closed, true, "landing on the far end closes the path");
+    assert.equal(points.length, 2, "the duplicated far end is dropped");
+  });
+});
+
+test("leaves an extension that ends elsewhere open", () => {
+  const orig = [anchor(0, 0), anchor(10, 0)];
+  const identity = [1, 0, 0, 1, 0, 0];
+  const tail = [
+    { x: 10, y: 10 },
+    { x: 10, y: 40 },
+  ];
+  withCloseMode("auto", () => {
+    const { points, closed } = resolveExtendClose(orig, tail, identity, 2);
+    assert.equal(closed, false);
+    assert.equal(points.length, 2, "every drawn point is kept");
+  });
+});
+
+test("respects the never and always close modes", () => {
+  const orig = [anchor(0, 0), anchor(10, 0)];
+  const identity = [1, 0, 0, 1, 0, 0];
+  const onStart = [{ x: 10, y: 10 }, { x: 0, y: 10 }, { x: 0, y: 0 }];
+  const away = [{ x: 10, y: 10 }, { x: 10, y: 40 }];
+  withCloseMode("never", () => {
+    assert.equal(resolveExtendClose(orig, onStart, identity, 2).closed, false);
+  });
+  withCloseMode("always", () => {
+    const { points, closed } = resolveExtendClose(orig, away, identity, 2);
+    assert.equal(closed, true, "a forced close does not need the far end");
+    assert.equal(points.length, 2, "a forced close keeps the lifted point");
+  });
+});
+
+test("measures the far end through the path's transform", () => {
+  const orig = [anchor(0, 0), anchor(10, 0)];
+  // Scale 2, translate (5, 3): local (0,0) -> world (5, 3).
+  const world = [2, 0, 0, 2, 5, 3];
+  const tail = [
+    { x: 25, y: 23 },
+    { x: 5, y: 23 },
+    { x: 5, y: 3 }, // world position of orig[0]
+  ];
+  withCloseMode("auto", () => {
+    assert.equal(resolveExtendClose(orig, tail, world, 2).closed, true);
+  });
 });
 
 test("keeps the endpoint's incoming handle at the seam", () => {
