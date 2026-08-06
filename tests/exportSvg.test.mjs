@@ -7,9 +7,9 @@ let server;
 let createEmptyDocument;
 let embeddedImageSize;
 let exportSvg;
-let linearGradient;
 let pattern;
-let radialGradient;
+let gradient;
+let gradientStop;
 
 before(async () => {
   server = await createServer({ server: { middlewareMode: true } });
@@ -17,8 +17,10 @@ before(async () => {
     await server.ssrLoadModule("/src/model/types.ts"));
   ({ embeddedImageSize } =
     await server.ssrLoadModule("/src/io/imageDimensions.ts"));
-  ({ linearGradient, pattern, radialGradient } =
+  ({ pattern } =
     await server.ssrLoadModule("/src/model/paint.ts"));
+  ({ gradient, gradientStop } =
+    await server.ssrLoadModule("/src/model/gradient.ts"));
   ({ exportSvg } = await server.ssrLoadModule("/src/io/exportSvg.ts"));
 });
 
@@ -161,12 +163,9 @@ test("SVG export embeds and reuses image patterns with placement and alpha", () 
   assert.doesNotMatch(svg, /#8a9099/);
 });
 
-test("SVG gradients use local coordinates without distorting their geometry", () => {
+test("SVG gradients export their placement as a unit-space gradientTransform", () => {
   const doc = createEmptyDocument();
-  const stops = [
-    { offset: 0, color: "#ff0000", alpha: 1 },
-    { offset: 1, color: "#0000ff", alpha: 1 },
-  ];
+  const stops = [gradientStop("#ff0000", 0), gradientStop("#0000ff", 1)];
   doc.nodes.rect = {
     id: "rect",
     name: "Gradients",
@@ -180,8 +179,10 @@ test("SVG gradients use local coordinates without distorting their geometry", ()
     transform: [1, 0, 0, 1, 0, 0],
     transformOrigin: null,
     opacity: 1,
-    fill: linearGradient(stops, Math.PI / 4),
-    stroke: radialGradient(stops),
+    // Bounds space: the unit square maps onto the 200×100 box, so the ramp
+    // runs (0,50) → (200,50) and its perpendicular axis is the box height.
+    fill: gradient(stops),
+    stroke: gradient(stops, { kind: "radial", spread: "reflect" }),
     strokeWidth: 2,
   };
   doc.rootIds = ["rect"];
@@ -189,12 +190,37 @@ test("SVG gradients use local coordinates without distorting their geometry", ()
   const svg = exportSvg(doc, { margin: 0 });
   assert.match(
     svg,
-    /<linearGradient id="grad0" gradientUnits="userSpaceOnUse" x1="25" y1="-25" x2="175" y2="125">/
+    /<linearGradient id="grad0" gradientUnits="userSpaceOnUse" gradientTransform="matrix\(200,0,0,100,0,50\)" x1="0" y1="0" x2="1" y2="0">/
   );
   assert.match(
     svg,
-    /<radialGradient id="grad1" gradientUnits="userSpaceOnUse" cx="100" cy="50" r="111.803">/
+    /<radialGradient id="grad1" gradientUnits="userSpaceOnUse" gradientTransform="matrix\(100,0,0,50,100,50\)" spreadMethod="reflect" cx="0" cy="0" r="1">/
   );
+});
+
+test("a conic gradient falls back to a wedge pattern SVG has a def for", () => {
+  const doc = createEmptyDocument();
+  doc.nodes.rect = {
+    id: "rect",
+    name: "Conic",
+    type: "rect",
+    ...SHAPE_BASE, cornerRadius: 0,
+    ...NODE_BASE,
+    x: 0, y: 0, width: 100, height: 100,
+    transform: [1, 0, 0, 1, 0, 0],
+    transformOrigin: null,
+    opacity: 1,
+    fill: gradient([gradientStop("#ff0000", 0), gradientStop("#00ff00", 1)], {
+      kind: "conic",
+    }),
+    stroke: null,
+    strokeWidth: 0,
+  };
+  doc.rootIds = ["rect"];
+
+  const svg = exportSvg(doc, { margin: 0 });
+  assert.match(svg, /<pattern id="grad0" patternUnits="userSpaceOnUse"/);
+  assert.match(svg, /fill="url\(#grad0\)"/);
 });
 
 test("SVG paths export their data-driven fill rule", () => {

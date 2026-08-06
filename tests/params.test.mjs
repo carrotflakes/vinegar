@@ -202,7 +202,7 @@ test("parameters and bindings round-trip through the file format", () => {
     [param("w", 2, { min: 0, max: 20, step: 0.5 })]
   );
   const text = serializeDocument(doc);
-  assert.equal(JSON.parse(text).version, 33);
+  assert.equal(JSON.parse(text).version, 34);
   const parsed = parseDocument(text);
   assert.deepEqual(parsed.params, doc.params);
   assert.deepEqual(parsed.paramOrder, ["w"]);
@@ -211,10 +211,10 @@ test("parameters and bindings round-trip through the file format", () => {
   });
 });
 
-test("a v31 file without parameters still opens", () => {
+test("a file without parameters still opens", () => {
   const legacy = {
     app: "vinegar",
-    version: 31,
+    version: 34,
     document: (() => {
       const { params, paramOrder, ...rest } = docWith(rect());
       const { bindings, ...node } = rest.nodes["rect-1"];

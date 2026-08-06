@@ -12,8 +12,8 @@ import {
 } from "../model/clippingMask";
 import { hasEffects, SHADOW_BLUR_TO_STDDEV } from "../model/effects";
 import { applyMatrix, isIdentity } from "@/model/geometry/matrix";
+import { gradientToSvgDef } from "@/model/gradient";
 import {
-  gradientToSvg,
   hexToRgb,
   paintToSvgAttrs,
   patternPlacement,
@@ -195,7 +195,7 @@ function makeDefs(doc: Document): Defs {
         ];
       }
       const gradientId = nextId("grad");
-      items.push(gradientToSvg(paint, gradientId, bounds));
+      items.push(gradientToSvgDef(paint, gradientId, bounds));
       return [`${kind}="url(#${gradientId})"`];
     },
     clipPath(shape) {

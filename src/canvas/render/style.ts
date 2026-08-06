@@ -1,10 +1,11 @@
 import { getAssetImage } from "@/imageCache";
+import { rgba } from "@/model/color";
 import {
   patternPlacement,
-  resolvePaint,
   type Paint,
   type PatternPaint,
 } from "@/model/paint";
+import { gradientStyle } from "./gradient";
 import {
   normalizeStrokeDash,
   STROKE_MITER_LIMIT,
@@ -51,19 +52,25 @@ export function checkerPattern(ctx: CanvasRenderingContext2D): CanvasPattern | n
 }
 
 /**
- * Canvas fill/stroke style for a paint. Patterns resolve to a CanvasPattern
- * from the decoded asset — null while it's still decoding or missing, so the
- * caller skips painting until the cache repaints. Solids and gradients defer
- * to the pure resolver (they bake their alpha into the style).
+ * Canvas fill/stroke style for a paint (alpha baked in). Patterns resolve to a
+ * CanvasPattern from the decoded asset — null while it's still decoding or
+ * missing, so the caller skips painting until the cache repaints. `bounds` is
+ * the shape-local box gradients and patterns are laid out over — a stroke is
+ * laid out over the same box but paints outside it, hence `overflow`.
  */
 export function resolveStyle(
   ctx: CanvasRenderingContext2D,
   paint: Paint,
   bounds: Bounds,
-  assets: Record<string, DocumentAsset>
+  assets: Record<string, DocumentAsset>,
+  /** How far the paint reaches outside `bounds`; see {@link strokeOutset}. */
+  overflow = 0
 ): string | CanvasGradient | CanvasPattern | null {
   if (paint.type === "pattern") return resolvePattern(ctx, paint, bounds, assets);
-  return resolvePaint(ctx, paint, bounds);
+  if (paint.type === "gradient") return gradientStyle(ctx, paint, bounds, overflow);
+  // A swatch reference is resolved by the caller before it reaches here.
+  if (paint.type === "swatch") return null;
+  return rgba(paint.color, paint.alpha);
 }
 
 interface CachedPattern {

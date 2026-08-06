@@ -9,7 +9,7 @@ import { clippingContentIds, clippingMask, shapeFillRule } from "@/model/clippin
 import { effectsMargin, hasEffects } from "@/model/effects";
 import { isSwatchRef, resolvePaintRef } from "@/model/paint";
 import { ancestorIds, isFrame, isGroup, isInstance, isShape } from "@/model/scene";
-import { effectiveStrokeAlignment, STROKE_MITER_LIMIT } from "@/model/stroke";
+import { effectiveStrokeAlignment, strokeOutset, STROKE_MITER_LIMIT } from "@/model/stroke";
 import type {
   Bounds,
   Document,
@@ -450,7 +450,7 @@ function paintVectorStroke(
     const layer = acq;
     const { lctx } = layer;
     setLayerTransform(layer, ctx);
-    const style = resolveStyle(lctx, shape.stroke, bounds, assets);
+    const style = resolveStyle(lctx, shape.stroke, bounds, assets, strokeOutset(shape));
     if (!style) {
       releaseLayer(layer);
       return;
@@ -475,7 +475,7 @@ function paintVectorStroke(
     return;
   }
 
-  const style = resolveStyle(ctx, shape.stroke, bounds, assets);
+  const style = resolveStyle(ctx, shape.stroke, bounds, assets, strokeOutset(shape));
   if (!style) return;
   withPaintAlpha(ctx, shape.opacity, shape.stroke, () => {
     ctx.save();
@@ -509,7 +509,7 @@ function paintTextStroke(
   if (!shape.stroke) return;
   const alignment = effectiveStrokeAlignment(shape);
   if (alignment === "center") {
-    const style = resolveStyle(ctx, shape.stroke, bounds, assets);
+    const style = resolveStyle(ctx, shape.stroke, bounds, assets, strokeOutset(shape));
     if (!style) return;
     withPaintAlpha(ctx, shape.opacity, shape.stroke, () => {
       ctx.strokeStyle = style;
@@ -534,7 +534,7 @@ function paintTextStroke(
   setLayerTransform(layer, ctx);
   lctx.font = ctx.font;
   lctx.textBaseline = "alphabetic";
-  const style = resolveStyle(lctx, shape.stroke, bounds, assets);
+  const style = resolveStyle(lctx, shape.stroke, bounds, assets, strokeOutset(shape));
   if (!style) {
     releaseLayer(layer);
     return;

@@ -13,9 +13,11 @@ import {
   type ShapeType,
 } from "../model/types";
 
-export const CURRENT_FILE_VERSION = 33 as const;
-/** Older schemas accepted directly by the current document validator. */
-const SUPPORTED_FILE_VERSIONS = [31, 32, CURRENT_FILE_VERSION] as const;
+export const CURRENT_FILE_VERSION = 34 as const;
+/** Older schemas accepted directly by the current document validator.
+ *  v33 and below stored gradients as `linear`/`radial` paints with no geometry
+ *  beyond an angle, which the placed-gradient model cannot express. */
+const SUPPORTED_FILE_VERSIONS = [CURRENT_FILE_VERSION] as const;
 
 export interface VinegarFile {
   app: "vinegar";
@@ -59,9 +61,11 @@ const isPoint = (value: unknown): boolean => value !== null && isPointOrNull(val
 const isNumber = (value: unknown): value is number =>
   typeof value === "number" && Number.isFinite(value);
 const isStop = (value: unknown): boolean =>
-  isObject(value) && isNumber(value.offset) && value.offset >= 0 && value.offset <= 1 &&
+  isObject(value) && typeof value.id === "string" &&
+  isNumber(value.offset) && value.offset >= 0 && value.offset <= 1 &&
   typeof value.color === "string" &&
-  isNumber(value.alpha) && value.alpha >= 0 && value.alpha <= 1;
+  isNumber(value.alpha) && value.alpha >= 0 && value.alpha <= 1 &&
+  isNumber(value.midpoint) && value.midpoint > 0 && value.midpoint < 1;
 const isStops = (value: unknown): boolean =>
   Array.isArray(value) && value.length >= 2 && value.every(isStop);
 const isPaint = (value: unknown): boolean => {
@@ -70,8 +74,17 @@ const isPaint = (value: unknown): boolean => {
     return typeof value.color === "string" &&
       isNumber(value.alpha) && value.alpha >= 0 && value.alpha <= 1;
   }
-  if (value.type === "linear") return isStops(value.stops) && isNumber(value.angle);
-  if (value.type === "radial") return isStops(value.stops);
+  if (value.type === "gradient") {
+    const kindOk = value.kind === "linear" || value.kind === "radial" || value.kind === "conic";
+    const spaceOk = value.space === "bounds" || value.space === "local";
+    const spreadOk =
+      value.spread === "pad" || value.spread === "repeat" || value.spread === "reflect";
+    const interpOk = value.interpolation === "srgb" || value.interpolation === "oklab";
+    return kindOk && spaceOk && spreadOk && interpOk && isStops(value.stops) &&
+      isPoint(value.start) && isPoint(value.end) && isPoint(value.focal) &&
+      isNumber(value.ratio) && value.ratio > 0 &&
+      isNumber(value.alpha) && value.alpha >= 0 && value.alpha <= 1;
+  }
   if (value.type === "pattern") {
     const modeOk = value.mode === "tile" || value.mode === "fill" ||
       value.mode === "fit" || value.mode === "stretch";

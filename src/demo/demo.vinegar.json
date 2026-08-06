@@ -1,6 +1,6 @@
 {
   "app": "vinegar",
-  "version": 31,
+  "version": 34,
   "document": {
     "nodes": {
       "cover_backdrop": {
@@ -8,20 +8,41 @@
         "type": "rect",
         "name": "Backdrop (locked)",
         "fill": {
-          "type": "linear",
+          "type": "gradient",
+          "kind": "linear",
+          "space": "bounds",
+          "start": {
+            "x": 0.3188,
+            "y": 0.034
+          },
+          "end": {
+            "x": 0.6812,
+            "y": 0.966
+          },
+          "ratio": 1,
+          "focal": {
+            "x": 0,
+            "y": 0
+          },
+          "spread": "pad",
+          "interpolation": "srgb",
           "stops": [
             {
+              "id": "stop_03f967aa-b636-4bac-82d0-20ec14f68b2f",
               "offset": 0,
               "color": "#fffaf0",
-              "alpha": 1
+              "alpha": 1,
+              "midpoint": 0.5
             },
             {
+              "id": "stop_7b43dc29-0b28-48ac-a708-21a5b17ca438",
               "offset": 1,
               "color": "#ffe3c4",
-              "alpha": 1
+              "alpha": 1,
+              "midpoint": 0.5
             }
           ],
-          "angle": 1.2
+          "alpha": 1
         },
         "stroke": null,
         "strokeWidth": 0,
@@ -54,21 +75,43 @@
       "cover_glow": {
         "id": "cover_glow",
         "type": "ellipse",
-        "name": "Glow · blur effect",
+        "name": "Glow \u00b7 blur effect",
         "fill": {
-          "type": "radial",
+          "type": "gradient",
+          "kind": "radial",
+          "space": "bounds",
+          "start": {
+            "x": 0.5,
+            "y": 0.5
+          },
+          "end": {
+            "x": 1.0,
+            "y": 0.5
+          },
+          "ratio": 1,
+          "focal": {
+            "x": 0,
+            "y": 0
+          },
+          "spread": "pad",
+          "interpolation": "srgb",
           "stops": [
             {
+              "id": "stop_1e6a61ca-cd23-4d22-8c0e-c4abf162b0e6",
               "offset": 0,
               "color": "#f4a259",
-              "alpha": 0.85
+              "alpha": 0.85,
+              "midpoint": 0.5
             },
             {
+              "id": "stop_340372cb-fc3d-4b90-bf1b-cd7715614f33",
               "offset": 1,
               "color": "#f4a259",
-              "alpha": 0
+              "alpha": 0,
+              "midpoint": 0.5
             }
-          ]
+          ],
+          "alpha": 1
         },
         "stroke": null,
         "strokeWidth": 0,
@@ -105,7 +148,7 @@
       "cover_dot_band": {
         "id": "cover_dot_band",
         "type": "rect",
-        "name": "Dot band · pattern tile + multiply",
+        "name": "Dot band \u00b7 pattern tile + multiply",
         "fill": {
           "type": "pattern",
           "assetId": "asset_dots",
@@ -149,7 +192,7 @@
       "cover_swoosh": {
         "id": "cover_swoosh",
         "type": "brush",
-        "name": "Brush stroke · pressure profile",
+        "name": "Brush stroke \u00b7 pressure profile",
         "fill": null,
         "stroke": {
           "type": "swatch",
@@ -239,7 +282,7 @@
       "cover_title": {
         "id": "cover_title",
         "type": "text",
-        "name": "Title · point text",
+        "name": "Title \u00b7 point text",
         "fill": {
           "type": "swatch",
           "swatchId": "sw_ink",
@@ -292,7 +335,7 @@
       "cover_subtitle": {
         "id": "cover_subtitle",
         "type": "text",
-        "name": "Subtitle · italic serif",
+        "name": "Subtitle \u00b7 italic serif",
         "fill": {
           "type": "solid",
           "color": "#64748b",
@@ -336,7 +379,7 @@
       "cover_lede": {
         "id": "cover_lede",
         "type": "text",
-        "name": "Lede · area text (wrapping)",
+        "name": "Lede \u00b7 area text (wrapping)",
         "fill": {
           "type": "solid",
           "color": "#3f4a5a",
@@ -364,7 +407,7 @@
           0,
           0
         ],
-        "text": "A sample file rather than a screenshot: every frame below is real document data — shapes and paint, structure, effects and blending, generators and path modifiers.",
+        "text": "A sample file rather than a screenshot: every frame below is real document data \u2014 shapes and paint, structure, effects and blending, generators and path modifiers.",
         "textMode": "area",
         "x": 74,
         "y": 300,
@@ -380,7 +423,7 @@
       "cover_photo": {
         "id": "cover_photo",
         "type": "image",
-        "name": "Image · rotated, drop shadow",
+        "name": "Image \u00b7 rotated, drop shadow",
         "fill": null,
         "stroke": null,
         "strokeWidth": 0,
@@ -467,7 +510,7 @@
       "cover_badge": {
         "id": "cover_badge",
         "type": "instance",
-        "name": "Symbol instance · Badge",
+        "name": "Symbol instance \u00b7 Badge",
         "symbolId": "sym_badge",
         "transformOrigin": null,
         "opacity": 1,
@@ -525,7 +568,7 @@
           0,
           0
         ],
-        "text": "1 · Cover",
+        "text": "1 \u00b7 Cover",
         "textMode": "point",
         "x": 72,
         "y": 40,
@@ -541,7 +584,7 @@
       "cover_rule": {
         "id": "cover_rule",
         "type": "line",
-        "name": "Rule · dashed line",
+        "name": "Rule \u00b7 dashed line",
         "fill": null,
         "stroke": {
           "type": "swatch",
@@ -646,7 +689,7 @@
           0,
           0
         ],
-        "text": "2 · Shapes & paint",
+        "text": "2 \u00b7 Shapes & paint",
         "textMode": "point",
         "x": 32,
         "y": 34,
@@ -703,7 +746,7 @@
       "shapes_cap_0_0": {
         "id": "shapes_cap_0_0",
         "type": "text",
-        "name": "Caption · Rectangle",
+        "name": "Caption \u00b7 Rectangle",
         "fill": {
           "type": "solid",
           "color": "#64748b",
@@ -788,7 +831,7 @@
       "shapes_cap_1_0": {
         "id": "shapes_cap_1_0",
         "type": "text",
-        "name": "Caption · Rounded rectangle · radius 28",
+        "name": "Caption \u00b7 Rounded rectangle \u00b7 radius 28",
         "fill": {
           "type": "solid",
           "color": "#64748b",
@@ -816,7 +859,7 @@
           0,
           0
         ],
-        "text": "Rounded rectangle · radius 28",
+        "text": "Rounded rectangle \u00b7 radius 28",
         "textMode": "area",
         "x": 252,
         "y": 180,
@@ -872,7 +915,7 @@
       "shapes_cap_2_0": {
         "id": "shapes_cap_2_0",
         "type": "text",
-        "name": "Caption · Ellipse",
+        "name": "Caption \u00b7 Ellipse",
         "fill": {
           "type": "solid",
           "color": "#64748b",
@@ -957,7 +1000,7 @@
       "shapes_cap_3_0": {
         "id": "shapes_cap_3_0",
         "type": "text",
-        "name": "Caption · Line · dash + offset",
+        "name": "Caption \u00b7 Line \u00b7 dash + offset",
         "fill": {
           "type": "solid",
           "color": "#64748b",
@@ -985,7 +1028,7 @@
           0,
           0
         ],
-        "text": "Line · dash + offset",
+        "text": "Line \u00b7 dash + offset",
         "textMode": "area",
         "x": 692,
         "y": 180,
@@ -1109,7 +1152,7 @@
       "shapes_cap_0_1": {
         "id": "shapes_cap_0_1",
         "type": "text",
-        "name": "Caption · Caps · butt / round / square",
+        "name": "Caption \u00b7 Caps \u00b7 butt / round / square",
         "fill": {
           "type": "solid",
           "color": "#64748b",
@@ -1137,7 +1180,7 @@
           0,
           0
         ],
-        "text": "Caps · butt / round / square",
+        "text": "Caps \u00b7 butt / round / square",
         "textMode": "area",
         "x": 32,
         "y": 328,
@@ -1345,7 +1388,7 @@
       "shapes_cap_1_1": {
         "id": "shapes_cap_1_1",
         "type": "text",
-        "name": "Caption · Joins · miter / round / bevel",
+        "name": "Caption \u00b7 Joins \u00b7 miter / round / bevel",
         "fill": {
           "type": "solid",
           "color": "#64748b",
@@ -1373,7 +1416,7 @@
           0,
           0
         ],
-        "text": "Joins · miter / round / bevel",
+        "text": "Joins \u00b7 miter / round / bevel",
         "textMode": "area",
         "x": 252,
         "y": 328,
@@ -1512,7 +1555,7 @@
       "shapes_cap_2_1": {
         "id": "shapes_cap_2_1",
         "type": "text",
-        "name": "Caption · Stroke align · inside / center / outside",
+        "name": "Caption \u00b7 Stroke align \u00b7 inside / center / outside",
         "fill": {
           "type": "solid",
           "color": "#64748b",
@@ -1540,7 +1583,7 @@
           0,
           0
         ],
-        "text": "Stroke align · inside / center / outside",
+        "text": "Stroke align \u00b7 inside / center / outside",
         "textMode": "area",
         "x": 472,
         "y": 328,
@@ -1650,7 +1693,7 @@
       "shapes_cap_3_1": {
         "id": "shapes_cap_3_1",
         "type": "text",
-        "name": "Caption · Anchors · cusp / smooth / symmetric",
+        "name": "Caption \u00b7 Anchors \u00b7 cusp / smooth / symmetric",
         "fill": {
           "type": "solid",
           "color": "#64748b",
@@ -1678,7 +1721,7 @@
           0,
           0
         ],
-        "text": "Anchors · cusp / smooth / symmetric",
+        "text": "Anchors \u00b7 cusp / smooth / symmetric",
         "textMode": "area",
         "x": 692,
         "y": 328,
@@ -1863,7 +1906,7 @@
       "shapes_cap_0_2": {
         "id": "shapes_cap_0_2",
         "type": "text",
-        "name": "Caption · Fill rule · nonzero",
+        "name": "Caption \u00b7 Fill rule \u00b7 nonzero",
         "fill": {
           "type": "solid",
           "color": "#64748b",
@@ -1891,7 +1934,7 @@
           0,
           0
         ],
-        "text": "Fill rule · nonzero",
+        "text": "Fill rule \u00b7 nonzero",
         "textMode": "area",
         "x": 32,
         "y": 476,
@@ -2076,7 +2119,7 @@
       "shapes_cap_1_2": {
         "id": "shapes_cap_1_2",
         "type": "text",
-        "name": "Caption · Fill rule · even-odd (hole)",
+        "name": "Caption \u00b7 Fill rule \u00b7 even-odd (hole)",
         "fill": {
           "type": "solid",
           "color": "#64748b",
@@ -2104,7 +2147,7 @@
           0,
           0
         ],
-        "text": "Fill rule · even-odd (hole)",
+        "text": "Fill rule \u00b7 even-odd (hole)",
         "textMode": "area",
         "x": 252,
         "y": 476,
@@ -2122,25 +2165,48 @@
         "type": "rect",
         "name": "Linear gradient",
         "fill": {
-          "type": "linear",
+          "type": "gradient",
+          "kind": "linear",
+          "space": "bounds",
+          "start": {
+            "x": 0.0873,
+            "y": 0.2177
+          },
+          "end": {
+            "x": 0.9127,
+            "y": 0.7823
+          },
+          "ratio": 1,
+          "focal": {
+            "x": 0,
+            "y": 0
+          },
+          "spread": "pad",
+          "interpolation": "srgb",
           "stops": [
             {
+              "id": "stop_176c7a21-4e33-48ef-a53c-75e59ca29baa",
               "offset": 0,
               "color": "#3aa88b",
-              "alpha": 1
+              "alpha": 1,
+              "midpoint": 0.5
             },
             {
+              "id": "stop_dc6f7794-ed5b-4409-aecc-301618771e33",
               "offset": 0.55,
               "color": "#f4d35e",
-              "alpha": 1
+              "alpha": 1,
+              "midpoint": 0.5
             },
             {
+              "id": "stop_3e6eaaab-bc41-4578-b476-ce7ace15a988",
               "offset": 1,
               "color": "#d1495b",
-              "alpha": 1
+              "alpha": 1,
+              "midpoint": 0.5
             }
           ],
-          "angle": 0.6
+          "alpha": 1
         },
         "stroke": null,
         "strokeWidth": 0,
@@ -2173,7 +2239,7 @@
       "shapes_cap_2_2": {
         "id": "shapes_cap_2_2",
         "type": "text",
-        "name": "Caption · Linear gradient",
+        "name": "Caption \u00b7 Linear gradient",
         "fill": {
           "type": "solid",
           "color": "#64748b",
@@ -2219,24 +2285,48 @@
         "type": "ellipse",
         "name": "Radial gradient",
         "fill": {
-          "type": "radial",
+          "type": "gradient",
+          "kind": "radial",
+          "space": "bounds",
+          "start": {
+            "x": 0.5,
+            "y": 0.5
+          },
+          "end": {
+            "x": 1.0,
+            "y": 0.5
+          },
+          "ratio": 1,
+          "focal": {
+            "x": 0,
+            "y": 0
+          },
+          "spread": "pad",
+          "interpolation": "srgb",
           "stops": [
             {
+              "id": "stop_6fd2883c-818c-4b35-acb7-655846e7d418",
               "offset": 0,
               "color": "#ffffff",
-              "alpha": 1
+              "alpha": 1,
+              "midpoint": 0.5
             },
             {
+              "id": "stop_10b0cfb4-2e2c-4174-8023-c0be8bfee43c",
               "offset": 0.45,
               "color": "#8ecae6",
-              "alpha": 1
+              "alpha": 1,
+              "midpoint": 0.5
             },
             {
+              "id": "stop_05f02d27-ee3c-425d-8a18-5ecc614c0e39",
               "offset": 1,
               "color": "#2b3f6b",
-              "alpha": 1
+              "alpha": 1,
+              "midpoint": 0.5
             }
-          ]
+          ],
+          "alpha": 1
         },
         "stroke": null,
         "strokeWidth": 0,
@@ -2268,7 +2358,7 @@
       "shapes_cap_3_2": {
         "id": "shapes_cap_3_2",
         "type": "text",
-        "name": "Caption · Radial gradient",
+        "name": "Caption \u00b7 Radial gradient",
         "fill": {
           "type": "solid",
           "color": "#64748b",
@@ -2360,7 +2450,7 @@
       "shapes_cap_0_3": {
         "id": "shapes_cap_0_3",
         "type": "text",
-        "name": "Caption · Pattern · tile",
+        "name": "Caption \u00b7 Pattern \u00b7 tile",
         "fill": {
           "type": "solid",
           "color": "#64748b",
@@ -2388,7 +2478,7 @@
           0,
           0
         ],
-        "text": "Pattern · tile",
+        "text": "Pattern \u00b7 tile",
         "textMode": "area",
         "x": 32,
         "y": 624,
@@ -2452,7 +2542,7 @@
       "shapes_cap_1_3": {
         "id": "shapes_cap_1_3",
         "type": "text",
-        "name": "Caption · Pattern · fill",
+        "name": "Caption \u00b7 Pattern \u00b7 fill",
         "fill": {
           "type": "solid",
           "color": "#64748b",
@@ -2480,7 +2570,7 @@
           0,
           0
         ],
-        "text": "Pattern · fill",
+        "text": "Pattern \u00b7 fill",
         "textMode": "area",
         "x": 252,
         "y": 624,
@@ -2544,7 +2634,7 @@
       "shapes_cap_2_3": {
         "id": "shapes_cap_2_3",
         "type": "text",
-        "name": "Caption · Pattern · fit",
+        "name": "Caption \u00b7 Pattern \u00b7 fit",
         "fill": {
           "type": "solid",
           "color": "#64748b",
@@ -2572,7 +2662,7 @@
           0,
           0
         ],
-        "text": "Pattern · fit",
+        "text": "Pattern \u00b7 fit",
         "textMode": "area",
         "x": 472,
         "y": 624,
@@ -2636,7 +2726,7 @@
       "shapes_cap_3_3": {
         "id": "shapes_cap_3_3",
         "type": "text",
-        "name": "Caption · Pattern · stretch",
+        "name": "Caption \u00b7 Pattern \u00b7 stretch",
         "fill": {
           "type": "solid",
           "color": "#64748b",
@@ -2664,7 +2754,7 @@
           0,
           0
         ],
-        "text": "Pattern · stretch",
+        "text": "Pattern \u00b7 stretch",
         "textMode": "area",
         "x": 692,
         "y": 624,
@@ -2680,7 +2770,7 @@
       "s_swatch_sw_ink": {
         "id": "s_swatch_sw_ink",
         "type": "ellipse",
-        "name": "Swatch · Ink",
+        "name": "Swatch \u00b7 Ink",
         "fill": {
           "type": "swatch",
           "swatchId": "sw_ink",
@@ -2720,7 +2810,7 @@
       "s_swatch_sw_citrus": {
         "id": "s_swatch_sw_citrus",
         "type": "ellipse",
-        "name": "Swatch · Citrus",
+        "name": "Swatch \u00b7 Citrus",
         "fill": {
           "type": "swatch",
           "swatchId": "sw_citrus",
@@ -2760,7 +2850,7 @@
       "s_swatch_sw_leaf": {
         "id": "s_swatch_sw_leaf",
         "type": "ellipse",
-        "name": "Swatch · Leaf",
+        "name": "Swatch \u00b7 Leaf",
         "fill": {
           "type": "swatch",
           "swatchId": "sw_leaf",
@@ -2800,7 +2890,7 @@
       "s_swatch_sw_berry": {
         "id": "s_swatch_sw_berry",
         "type": "ellipse",
-        "name": "Swatch · Berry",
+        "name": "Swatch \u00b7 Berry",
         "fill": {
           "type": "swatch",
           "swatchId": "sw_berry",
@@ -2840,7 +2930,7 @@
       "shapes_cap_0_4": {
         "id": "shapes_cap_0_4",
         "type": "text",
-        "name": "Caption · Global colours (swatch references)",
+        "name": "Caption \u00b7 Global colours (swatch references)",
         "fill": {
           "type": "solid",
           "color": "#64748b",
@@ -3016,7 +3106,7 @@
       "shapes_cap_1_4": {
         "id": "shapes_cap_1_4",
         "type": "text",
-        "name": "Caption · Text · left / center / right",
+        "name": "Caption \u00b7 Text \u00b7 left / center / right",
         "fill": {
           "type": "solid",
           "color": "#64748b",
@@ -3044,7 +3134,7 @@
           0,
           0
         ],
-        "text": "Text · left / center / right",
+        "text": "Text \u00b7 left / center / right",
         "textMode": "area",
         "x": 252,
         "y": 772,
@@ -3176,7 +3266,7 @@
           0,
           0
         ],
-        "text": "日本語のテキスト",
+        "text": "\u65e5\u672c\u8a9e\u306e\u30c6\u30ad\u30b9\u30c8",
         "textMode": "point",
         "x": 472,
         "y": 734,
@@ -3192,7 +3282,7 @@
       "shapes_cap_2_4": {
         "id": "shapes_cap_2_4",
         "type": "text",
-        "name": "Caption · Text · weights, mono, CJK",
+        "name": "Caption \u00b7 Text \u00b7 weights, mono, CJK",
         "fill": {
           "type": "solid",
           "color": "#64748b",
@@ -3220,7 +3310,7 @@
           0,
           0
         ],
-        "text": "Text · weights, mono, CJK",
+        "text": "Text \u00b7 weights, mono, CJK",
         "textMode": "area",
         "x": 472,
         "y": 772,
@@ -3322,7 +3412,7 @@
       "shapes_cap_3_4": {
         "id": "shapes_cap_3_4",
         "type": "text",
-        "name": "Caption · Textured stroke · pattern paint",
+        "name": "Caption \u00b7 Textured stroke \u00b7 pattern paint",
         "fill": {
           "type": "solid",
           "color": "#64748b",
@@ -3350,7 +3440,7 @@
           0,
           0
         ],
-        "text": "Textured stroke · pattern paint",
+        "text": "Textured stroke \u00b7 pattern paint",
         "textMode": "area",
         "x": 692,
         "y": 772,
@@ -3486,7 +3576,7 @@
       "sym_badge_star": {
         "id": "sym_badge_star",
         "type": "path",
-        "name": "Badge star · Star generator",
+        "name": "Badge star \u00b7 Star generator",
         "fill": {
           "type": "solid",
           "color": "#fffdf8",
@@ -3727,7 +3817,7 @@
       "sym_cluster_badge": {
         "id": "sym_cluster_badge",
         "type": "instance",
-        "name": "Nested instance · Badge",
+        "name": "Nested instance \u00b7 Badge",
         "symbolId": "sym_badge",
         "transformOrigin": null,
         "opacity": 1,
@@ -3846,7 +3936,7 @@
           0,
           0
         ],
-        "text": "3 · Structure",
+        "text": "3 \u00b7 Structure",
         "textMode": "point",
         "x": 32,
         "y": 34,
@@ -3890,7 +3980,7 @@
           0,
           0
         ],
-        "text": "Transparent background · Clip content off — the arrow below hangs outside the frame box.",
+        "text": "Transparent background \u00b7 Clip content off \u2014 the arrow below hangs outside the frame box.",
         "textMode": "point",
         "x": 32,
         "y": 66,
@@ -4017,7 +4107,7 @@
       "struct_nested_inner": {
         "id": "struct_nested_inner",
         "type": "group",
-        "name": "Inner group · rotated about an explicit pivot",
+        "name": "Inner group \u00b7 rotated about an explicit pivot",
         "transformOrigin": {
           "x": 79,
           "y": 79
@@ -4070,7 +4160,7 @@
       "struct_cap_nested": {
         "id": "struct_cap_nested",
         "type": "text",
-        "name": "Caption · Nested groups + pivot",
+        "name": "Caption \u00b7 Nested groups + pivot",
         "fill": {
           "type": "solid",
           "color": "#64748b",
@@ -4192,7 +4282,7 @@
       "struct_clip_mask": {
         "id": "struct_clip_mask",
         "type": "path",
-        "name": "Clipping mask · Star generator",
+        "name": "Clipping mask \u00b7 Star generator",
         "fill": {
           "type": "solid",
           "color": "#000000",
@@ -4377,7 +4467,7 @@
       "struct_cap_clip": {
         "id": "struct_cap_clip",
         "type": "text",
-        "name": "Caption · Clipping mask (frontmost child masks)",
+        "name": "Caption \u00b7 Clipping mask (frontmost child masks)",
         "fill": {
           "type": "solid",
           "color": "#64748b",
@@ -4421,7 +4511,7 @@
       "struct_compound_outer": {
         "id": "struct_compound_outer",
         "type": "path",
-        "name": "Compound child · blob path",
+        "name": "Compound child \u00b7 blob path",
         "fill": {
           "type": "solid",
           "color": "#cccccc",
@@ -4521,7 +4611,7 @@
       "struct_compound_hole": {
         "id": "struct_compound_hole",
         "type": "ellipse",
-        "name": "Compound child · ellipse hole",
+        "name": "Compound child \u00b7 ellipse hole",
         "fill": {
           "type": "solid",
           "color": "#ffffff",
@@ -4560,7 +4650,7 @@
       "struct_compound_slot": {
         "id": "struct_compound_slot",
         "type": "rect",
-        "name": "Compound child · rect hole",
+        "name": "Compound child \u00b7 rect hole",
         "fill": {
           "type": "solid",
           "color": "#ffffff",
@@ -4597,22 +4687,43 @@
       "struct_compound": {
         "id": "struct_compound",
         "type": "compoundPath",
-        "name": "Compound path · one appearance, three children",
+        "name": "Compound path \u00b7 one appearance, three children",
         "fill": {
-          "type": "linear",
+          "type": "gradient",
+          "kind": "linear",
+          "space": "bounds",
+          "start": {
+            "x": 0.1892,
+            "y": 0.1083
+          },
+          "end": {
+            "x": 0.8108,
+            "y": 0.8917
+          },
+          "ratio": 1,
+          "focal": {
+            "x": 0,
+            "y": 0
+          },
+          "spread": "pad",
+          "interpolation": "srgb",
           "stops": [
             {
+              "id": "stop_62ac4612-42ea-4d61-a87b-a59a11eec0c0",
               "offset": 0,
               "color": "#7b5ea7",
-              "alpha": 1
+              "alpha": 1,
+              "midpoint": 0.5
             },
             {
+              "id": "stop_719bb2f0-c716-4370-8906-1a5663de97e2",
               "offset": 1,
               "color": "#d1495b",
-              "alpha": 1
+              "alpha": 1,
+              "midpoint": 0.5
             }
           ],
-          "angle": 0.9
+          "alpha": 1
         },
         "stroke": {
           "type": "swatch",
@@ -4649,7 +4760,7 @@
       "struct_cap_compound": {
         "id": "struct_cap_compound",
         "type": "text",
-        "name": "Caption · Compound path (even-odd holes)",
+        "name": "Caption \u00b7 Compound path (even-odd holes)",
         "fill": {
           "type": "solid",
           "color": "#64748b",
@@ -4693,7 +4804,7 @@
       "struct_instance_a": {
         "id": "struct_instance_a",
         "type": "instance",
-        "name": "Instance · Badge",
+        "name": "Instance \u00b7 Badge",
         "symbolId": "sym_badge",
         "transformOrigin": null,
         "opacity": 1,
@@ -4714,7 +4825,7 @@
       "struct_instance_b": {
         "id": "struct_instance_b",
         "type": "instance",
-        "name": "Instance · Badge (scaled, tinted)",
+        "name": "Instance \u00b7 Badge (scaled, tinted)",
         "symbolId": "sym_badge",
         "transformOrigin": null,
         "opacity": 1,
@@ -4743,7 +4854,7 @@
       "struct_instance_c": {
         "id": "struct_instance_c",
         "type": "instance",
-        "name": "Instance · Badge (faded)",
+        "name": "Instance \u00b7 Badge (faded)",
         "symbolId": "sym_badge",
         "transformOrigin": null,
         "opacity": 0.45,
@@ -4764,7 +4875,7 @@
       "struct_instance_cluster": {
         "id": "struct_instance_cluster",
         "type": "instance",
-        "name": "Instance · Cluster (contains another instance)",
+        "name": "Instance \u00b7 Cluster (contains another instance)",
         "symbolId": "sym_cluster",
         "transformOrigin": null,
         "opacity": 1,
@@ -4785,7 +4896,7 @@
       "struct_cap_symbols": {
         "id": "struct_cap_symbols",
         "type": "text",
-        "name": "Caption · Symbol instances · the last one nests a symbol",
+        "name": "Caption \u00b7 Symbol instances \u00b7 the last one nests a symbol",
         "fill": {
           "type": "solid",
           "color": "#64748b",
@@ -4813,7 +4924,7 @@
           0,
           0
         ],
-        "text": "Symbol instances · the last one nests a symbol",
+        "text": "Symbol instances \u00b7 the last one nests a symbol",
         "textMode": "area",
         "x": 60,
         "y": 522,
@@ -4877,7 +4988,7 @@
       "struct_cap_locked": {
         "id": "struct_cap_locked",
         "type": "text",
-        "name": "Caption · Locked node",
+        "name": "Caption \u00b7 Locked node",
         "fill": {
           "type": "solid",
           "color": "#64748b",
@@ -4980,7 +5091,7 @@
       "struct_overflow": {
         "id": "struct_overflow",
         "type": "path",
-        "name": "Overflowing arrow · Arrow generator",
+        "name": "Overflowing arrow \u00b7 Arrow generator",
         "fill": {
           "type": "swatch",
           "swatchId": "sw_berry",
@@ -5160,7 +5271,7 @@
           0,
           0
         ],
-        "text": "4 · Effects & blending",
+        "text": "4 \u00b7 Effects & blending",
         "textMode": "point",
         "x": 32,
         "y": 34,
@@ -5178,35 +5289,62 @@
         "type": "rect",
         "name": "Spectrum bar",
         "fill": {
-          "type": "linear",
+          "type": "gradient",
+          "kind": "linear",
+          "space": "bounds",
+          "start": {
+            "x": 0.0,
+            "y": 0.5
+          },
+          "end": {
+            "x": 1.0,
+            "y": 0.5
+          },
+          "ratio": 1,
+          "focal": {
+            "x": 0,
+            "y": 0
+          },
+          "spread": "pad",
+          "interpolation": "srgb",
           "stops": [
             {
+              "id": "stop_79bb120a-a375-4e60-8375-f328e1fe823f",
               "offset": 0,
               "color": "#d1495b",
-              "alpha": 1
+              "alpha": 1,
+              "midpoint": 0.5
             },
             {
+              "id": "stop_bbff0b6c-5945-4321-886b-4e1a05c8ea4c",
               "offset": 0.25,
               "color": "#f4a259",
-              "alpha": 1
+              "alpha": 1,
+              "midpoint": 0.5
             },
             {
+              "id": "stop_440df8e8-18ee-4437-bfb0-071ad96c4f7a",
               "offset": 0.5,
               "color": "#f4d35e",
-              "alpha": 1
+              "alpha": 1,
+              "midpoint": 0.5
             },
             {
+              "id": "stop_5fe9cc0c-aa4a-4cdc-8528-42c3cf235ce6",
               "offset": 0.75,
               "color": "#3aa88b",
-              "alpha": 1
+              "alpha": 1,
+              "midpoint": 0.5
             },
             {
+              "id": "stop_579fb510-cf2b-441b-a56c-1b141c268664",
               "offset": 1,
               "color": "#4361ee",
-              "alpha": 1
+              "alpha": 1,
+              "midpoint": 0.5
             }
           ],
-          "angle": 0
+          "alpha": 1
         },
         "stroke": null,
         "strokeWidth": 0,
@@ -5239,7 +5377,7 @@
       "fx_blend_0": {
         "id": "fx_blend_0",
         "type": "ellipse",
-        "name": "Blend · multiply",
+        "name": "Blend \u00b7 multiply",
         "fill": {
           "type": "solid",
           "color": "#8ecae6",
@@ -5275,7 +5413,7 @@
       "fx_blend_cap_0": {
         "id": "fx_blend_cap_0",
         "type": "text",
-        "name": "Caption · multiply",
+        "name": "Caption \u00b7 multiply",
         "fill": {
           "type": "solid",
           "color": "#9aa7bd",
@@ -5319,7 +5457,7 @@
       "fx_blend_1": {
         "id": "fx_blend_1",
         "type": "ellipse",
-        "name": "Blend · screen",
+        "name": "Blend \u00b7 screen",
         "fill": {
           "type": "solid",
           "color": "#4361ee",
@@ -5355,7 +5493,7 @@
       "fx_blend_cap_1": {
         "id": "fx_blend_cap_1",
         "type": "text",
-        "name": "Caption · screen",
+        "name": "Caption \u00b7 screen",
         "fill": {
           "type": "solid",
           "color": "#9aa7bd",
@@ -5399,7 +5537,7 @@
       "fx_blend_2": {
         "id": "fx_blend_2",
         "type": "ellipse",
-        "name": "Blend · overlay",
+        "name": "Blend \u00b7 overlay",
         "fill": {
           "type": "solid",
           "color": "#f4d35e",
@@ -5435,7 +5573,7 @@
       "fx_blend_cap_2": {
         "id": "fx_blend_cap_2",
         "type": "text",
-        "name": "Caption · overlay",
+        "name": "Caption \u00b7 overlay",
         "fill": {
           "type": "solid",
           "color": "#9aa7bd",
@@ -5479,7 +5617,7 @@
       "fx_blend_3": {
         "id": "fx_blend_3",
         "type": "ellipse",
-        "name": "Blend · darken",
+        "name": "Blend \u00b7 darken",
         "fill": {
           "type": "solid",
           "color": "#8ecae6",
@@ -5515,7 +5653,7 @@
       "fx_blend_cap_3": {
         "id": "fx_blend_cap_3",
         "type": "text",
-        "name": "Caption · darken",
+        "name": "Caption \u00b7 darken",
         "fill": {
           "type": "solid",
           "color": "#9aa7bd",
@@ -5559,7 +5697,7 @@
       "fx_blend_4": {
         "id": "fx_blend_4",
         "type": "ellipse",
-        "name": "Blend · lighten",
+        "name": "Blend \u00b7 lighten",
         "fill": {
           "type": "solid",
           "color": "#7b5ea7",
@@ -5595,7 +5733,7 @@
       "fx_blend_cap_4": {
         "id": "fx_blend_cap_4",
         "type": "text",
-        "name": "Caption · lighten",
+        "name": "Caption \u00b7 lighten",
         "fill": {
           "type": "solid",
           "color": "#9aa7bd",
@@ -5639,7 +5777,7 @@
       "fx_blend_5": {
         "id": "fx_blend_5",
         "type": "ellipse",
-        "name": "Blend · color-dodge",
+        "name": "Blend \u00b7 color-dodge",
         "fill": {
           "type": "solid",
           "color": "#3a3a3a",
@@ -5675,7 +5813,7 @@
       "fx_blend_cap_5": {
         "id": "fx_blend_cap_5",
         "type": "text",
-        "name": "Caption · color-dodge",
+        "name": "Caption \u00b7 color-dodge",
         "fill": {
           "type": "solid",
           "color": "#9aa7bd",
@@ -5719,7 +5857,7 @@
       "fx_blend_6": {
         "id": "fx_blend_6",
         "type": "ellipse",
-        "name": "Blend · difference",
+        "name": "Blend \u00b7 difference",
         "fill": {
           "type": "solid",
           "color": "#f2f5fa",
@@ -5755,7 +5893,7 @@
       "fx_blend_cap_6": {
         "id": "fx_blend_cap_6",
         "type": "text",
-        "name": "Caption · difference",
+        "name": "Caption \u00b7 difference",
         "fill": {
           "type": "solid",
           "color": "#9aa7bd",
@@ -5799,7 +5937,7 @@
       "fx_blend_7": {
         "id": "fx_blend_7",
         "type": "ellipse",
-        "name": "Blend · luminosity",
+        "name": "Blend \u00b7 luminosity",
         "fill": {
           "type": "solid",
           "color": "#d1495b",
@@ -5835,7 +5973,7 @@
       "fx_blend_cap_7": {
         "id": "fx_blend_cap_7",
         "type": "text",
-        "name": "Caption · luminosity",
+        "name": "Caption \u00b7 luminosity",
         "fill": {
           "type": "solid",
           "color": "#9aa7bd",
@@ -5881,20 +6019,41 @@
         "type": "rect",
         "name": "Drop shadow plate",
         "fill": {
-          "type": "linear",
+          "type": "gradient",
+          "kind": "linear",
+          "space": "bounds",
+          "start": {
+            "x": 0.2732,
+            "y": 0.0544
+          },
+          "end": {
+            "x": 0.7268,
+            "y": 0.9456
+          },
+          "ratio": 1,
+          "focal": {
+            "x": 0,
+            "y": 0
+          },
+          "spread": "pad",
+          "interpolation": "srgb",
           "stops": [
             {
+              "id": "stop_82e8da0b-4b10-4450-a7b9-ea486423f3aa",
               "offset": 0,
               "color": "#f2f5fa",
-              "alpha": 1
+              "alpha": 1,
+              "midpoint": 0.5
             },
             {
+              "id": "stop_170d5a8e-4450-4a5a-88e3-5a3373fa7c10",
               "offset": 1,
               "color": "#8ecae6",
-              "alpha": 1
+              "alpha": 1,
+              "midpoint": 0.5
             }
           ],
-          "angle": 1.1
+          "alpha": 1
         },
         "stroke": null,
         "strokeWidth": 0,
@@ -5927,7 +6086,7 @@
       "fx_shadow_mark": {
         "id": "fx_shadow_mark",
         "type": "path",
-        "name": "Drop shadow mark · Flower generator",
+        "name": "Drop shadow mark \u00b7 Flower generator",
         "fill": {
           "type": "swatch",
           "swatchId": "sw_berry",
@@ -6142,7 +6301,7 @@
       "fx_shadow": {
         "id": "fx_shadow",
         "type": "group",
-        "name": "Effect · Drop shadow",
+        "name": "Effect \u00b7 Drop shadow",
         "transformOrigin": null,
         "opacity": 1,
         "blendMode": "normal",
@@ -6176,7 +6335,7 @@
       "fx_shadow_cap": {
         "id": "fx_shadow_cap",
         "type": "text",
-        "name": "Caption · Drop shadow",
+        "name": "Caption \u00b7 Drop shadow",
         "fill": {
           "type": "solid",
           "color": "#9aa7bd",
@@ -6222,20 +6381,41 @@
         "type": "rect",
         "name": "Gaussian blur plate",
         "fill": {
-          "type": "linear",
+          "type": "gradient",
+          "kind": "linear",
+          "space": "bounds",
+          "start": {
+            "x": 0.2732,
+            "y": 0.0544
+          },
+          "end": {
+            "x": 0.7268,
+            "y": 0.9456
+          },
+          "ratio": 1,
+          "focal": {
+            "x": 0,
+            "y": 0
+          },
+          "spread": "pad",
+          "interpolation": "srgb",
           "stops": [
             {
+              "id": "stop_61b089d1-cc6c-486f-a205-f39962f5b6a4",
               "offset": 0,
               "color": "#f2f5fa",
-              "alpha": 1
+              "alpha": 1,
+              "midpoint": 0.5
             },
             {
+              "id": "stop_0d0c44e2-6baa-4d72-b750-dc9c752df695",
               "offset": 1,
               "color": "#8ecae6",
-              "alpha": 1
+              "alpha": 1,
+              "midpoint": 0.5
             }
           ],
-          "angle": 1.1
+          "alpha": 1
         },
         "stroke": null,
         "strokeWidth": 0,
@@ -6268,7 +6448,7 @@
       "fx_blur_mark": {
         "id": "fx_blur_mark",
         "type": "path",
-        "name": "Gaussian blur mark · Flower generator",
+        "name": "Gaussian blur mark \u00b7 Flower generator",
         "fill": {
           "type": "swatch",
           "swatchId": "sw_berry",
@@ -6483,7 +6663,7 @@
       "fx_blur": {
         "id": "fx_blur",
         "type": "group",
-        "name": "Effect · Gaussian blur",
+        "name": "Effect \u00b7 Gaussian blur",
         "transformOrigin": null,
         "opacity": 1,
         "blendMode": "normal",
@@ -6513,7 +6693,7 @@
       "fx_blur_cap": {
         "id": "fx_blur_cap",
         "type": "text",
-        "name": "Caption · Gaussian blur",
+        "name": "Caption \u00b7 Gaussian blur",
         "fill": {
           "type": "solid",
           "color": "#9aa7bd",
@@ -6559,20 +6739,41 @@
         "type": "rect",
         "name": "Colour adjust plate",
         "fill": {
-          "type": "linear",
+          "type": "gradient",
+          "kind": "linear",
+          "space": "bounds",
+          "start": {
+            "x": 0.2732,
+            "y": 0.0544
+          },
+          "end": {
+            "x": 0.7268,
+            "y": 0.9456
+          },
+          "ratio": 1,
+          "focal": {
+            "x": 0,
+            "y": 0
+          },
+          "spread": "pad",
+          "interpolation": "srgb",
           "stops": [
             {
+              "id": "stop_0f758295-3695-4824-a1f1-e585dc350929",
               "offset": 0,
               "color": "#f2f5fa",
-              "alpha": 1
+              "alpha": 1,
+              "midpoint": 0.5
             },
             {
+              "id": "stop_9c4511b7-57d3-4ffc-8fcf-4fd0e3208916",
               "offset": 1,
               "color": "#8ecae6",
-              "alpha": 1
+              "alpha": 1,
+              "midpoint": 0.5
             }
           ],
-          "angle": 1.1
+          "alpha": 1
         },
         "stroke": null,
         "strokeWidth": 0,
@@ -6605,7 +6806,7 @@
       "fx_adjust_mark": {
         "id": "fx_adjust_mark",
         "type": "path",
-        "name": "Colour adjust mark · Flower generator",
+        "name": "Colour adjust mark \u00b7 Flower generator",
         "fill": {
           "type": "swatch",
           "swatchId": "sw_berry",
@@ -6820,7 +7021,7 @@
       "fx_adjust": {
         "id": "fx_adjust",
         "type": "group",
-        "name": "Effect · Colour adjust",
+        "name": "Effect \u00b7 Colour adjust",
         "transformOrigin": null,
         "opacity": 1,
         "blendMode": "normal",
@@ -6853,7 +7054,7 @@
       "fx_adjust_cap": {
         "id": "fx_adjust_cap",
         "type": "text",
-        "name": "Caption · Colour adjust",
+        "name": "Caption \u00b7 Colour adjust",
         "fill": {
           "type": "solid",
           "color": "#9aa7bd",
@@ -6899,20 +7100,41 @@
         "type": "rect",
         "name": "Colour overlay plate",
         "fill": {
-          "type": "linear",
+          "type": "gradient",
+          "kind": "linear",
+          "space": "bounds",
+          "start": {
+            "x": 0.2732,
+            "y": 0.0544
+          },
+          "end": {
+            "x": 0.7268,
+            "y": 0.9456
+          },
+          "ratio": 1,
+          "focal": {
+            "x": 0,
+            "y": 0
+          },
+          "spread": "pad",
+          "interpolation": "srgb",
           "stops": [
             {
+              "id": "stop_d6f0a6a1-782b-4417-9585-74d4f482e3bf",
               "offset": 0,
               "color": "#f2f5fa",
-              "alpha": 1
+              "alpha": 1,
+              "midpoint": 0.5
             },
             {
+              "id": "stop_8adc23b9-b6c2-4b5b-a84b-f3df1858a61e",
               "offset": 1,
               "color": "#8ecae6",
-              "alpha": 1
+              "alpha": 1,
+              "midpoint": 0.5
             }
           ],
-          "angle": 1.1
+          "alpha": 1
         },
         "stroke": null,
         "strokeWidth": 0,
@@ -6945,7 +7167,7 @@
       "fx_overlay_mark": {
         "id": "fx_overlay_mark",
         "type": "path",
-        "name": "Colour overlay mark · Flower generator",
+        "name": "Colour overlay mark \u00b7 Flower generator",
         "fill": {
           "type": "swatch",
           "swatchId": "sw_berry",
@@ -7160,7 +7382,7 @@
       "fx_overlay": {
         "id": "fx_overlay",
         "type": "group",
-        "name": "Effect · Colour overlay",
+        "name": "Effect \u00b7 Colour overlay",
         "transformOrigin": null,
         "opacity": 1,
         "blendMode": "normal",
@@ -7191,7 +7413,7 @@
       "fx_overlay_cap": {
         "id": "fx_overlay_cap",
         "type": "text",
-        "name": "Caption · Colour overlay",
+        "name": "Caption \u00b7 Colour overlay",
         "fill": {
           "type": "solid",
           "color": "#9aa7bd",
@@ -7235,22 +7457,43 @@
       "fx_stack_plate": {
         "id": "fx_stack_plate",
         "type": "rect",
-        "name": "Stacked · blur → adjust → shadow plate",
+        "name": "Stacked \u00b7 blur \u2192 adjust \u2192 shadow plate",
         "fill": {
-          "type": "linear",
+          "type": "gradient",
+          "kind": "linear",
+          "space": "bounds",
+          "start": {
+            "x": 0.2732,
+            "y": 0.0544
+          },
+          "end": {
+            "x": 0.7268,
+            "y": 0.9456
+          },
+          "ratio": 1,
+          "focal": {
+            "x": 0,
+            "y": 0
+          },
+          "spread": "pad",
+          "interpolation": "srgb",
           "stops": [
             {
+              "id": "stop_2427e036-122d-407a-b9bf-46bf4b20886d",
               "offset": 0,
               "color": "#f2f5fa",
-              "alpha": 1
+              "alpha": 1,
+              "midpoint": 0.5
             },
             {
+              "id": "stop_eb1e08b1-b78c-4283-bfc7-9eacb75d5f18",
               "offset": 1,
               "color": "#8ecae6",
-              "alpha": 1
+              "alpha": 1,
+              "midpoint": 0.5
             }
           ],
-          "angle": 1.1
+          "alpha": 1
         },
         "stroke": null,
         "strokeWidth": 0,
@@ -7283,7 +7526,7 @@
       "fx_stack_mark": {
         "id": "fx_stack_mark",
         "type": "path",
-        "name": "Stacked · blur → adjust → shadow mark · Flower generator",
+        "name": "Stacked \u00b7 blur \u2192 adjust \u2192 shadow mark \u00b7 Flower generator",
         "fill": {
           "type": "swatch",
           "swatchId": "sw_berry",
@@ -7498,7 +7741,7 @@
       "fx_stack": {
         "id": "fx_stack",
         "type": "group",
-        "name": "Effect · Stacked · blur → adjust → shadow",
+        "name": "Effect \u00b7 Stacked \u00b7 blur \u2192 adjust \u2192 shadow",
         "transformOrigin": null,
         "opacity": 1,
         "blendMode": "lighten",
@@ -7543,7 +7786,7 @@
       "fx_stack_cap": {
         "id": "fx_stack_cap",
         "type": "text",
-        "name": "Caption · Stacked · blur → adjust → shadow",
+        "name": "Caption \u00b7 Stacked \u00b7 blur \u2192 adjust \u2192 shadow",
         "fill": {
           "type": "solid",
           "color": "#9aa7bd",
@@ -7571,7 +7814,7 @@
           0,
           0
         ],
-        "text": "Stacked · blur → adjust → shadow",
+        "text": "Stacked \u00b7 blur \u2192 adjust \u2192 shadow",
         "textMode": "area",
         "x": 720,
         "y": 404,
@@ -7809,7 +8052,7 @@
       "fx_opacity_cap": {
         "id": "fx_opacity_cap",
         "type": "text",
-        "name": "Caption · Node opacity 100 → 10 %",
+        "name": "Caption \u00b7 Node opacity 100 \u2192 10 %",
         "fill": {
           "type": "solid",
           "color": "#9aa7bd",
@@ -7837,7 +8080,7 @@
           0,
           0
         ],
-        "text": "Node opacity 100 → 10 %",
+        "text": "Node opacity 100 \u2192 10 %",
         "textMode": "area",
         "x": 32,
         "y": 542,
@@ -7853,7 +8096,7 @@
       "fx_brush": {
         "id": "fx_brush",
         "type": "brush",
-        "name": "Brush stroke · tapered highlight",
+        "name": "Brush stroke \u00b7 tapered highlight",
         "fill": null,
         "stroke": {
           "type": "solid",
@@ -7927,7 +8170,7 @@
       "fx_brush_cap": {
         "id": "fx_brush_cap",
         "type": "text",
-        "name": "Caption · Brush stroke on screen blend",
+        "name": "Caption \u00b7 Brush stroke on screen blend",
         "fill": {
           "type": "solid",
           "color": "#9aa7bd",
@@ -8062,7 +8305,7 @@
           0,
           0
         ],
-        "text": "5 · Generators & path modifiers",
+        "text": "5 \u00b7 Generators & path modifiers",
         "textMode": "point",
         "x": 32,
         "y": 34,
@@ -8106,7 +8349,7 @@
           0,
           0
         ],
-        "text": "Every node in the top row keeps a live generator link — select one and drag its orange knobs. The bottom row shares one hand-drawn source path; only the modifier stack differs.",
+        "text": "Every node in the top row keeps a live generator link \u2014 select one and drag its orange knobs. The bottom row shares one hand-drawn source path; only the modifier stack differs.",
         "textMode": "area",
         "x": 32,
         "y": 64,
@@ -8122,7 +8365,7 @@
       "gen_star": {
         "id": "gen_star",
         "type": "path",
-        "name": "Star · generator",
+        "name": "Star \u00b7 generator",
         "fill": {
           "type": "swatch",
           "swatchId": "sw_citrus",
@@ -8269,7 +8512,7 @@
       "gen_cap_star": {
         "id": "gen_cap_star",
         "type": "text",
-        "name": "Caption · Star",
+        "name": "Caption \u00b7 Star",
         "fill": {
           "type": "solid",
           "color": "#64748b",
@@ -8313,7 +8556,7 @@
       "gen_gear": {
         "id": "gen_gear",
         "type": "path",
-        "name": "Gear · generator",
+        "name": "Gear \u00b7 generator",
         "fill": {
           "type": "solid",
           "color": "#8ecae6",
@@ -8810,7 +9053,7 @@
       "gen_cap_gear": {
         "id": "gen_cap_gear",
         "type": "text",
-        "name": "Caption · Gear",
+        "name": "Caption \u00b7 Gear",
         "fill": {
           "type": "solid",
           "color": "#64748b",
@@ -8854,7 +9097,7 @@
       "gen_spiral": {
         "id": "gen_spiral",
         "type": "path",
-        "name": "Spiral · generator",
+        "name": "Spiral \u00b7 generator",
         "fill": null,
         "stroke": {
           "type": "solid",
@@ -9692,7 +9935,7 @@
       "gen_cap_spiral": {
         "id": "gen_cap_spiral",
         "type": "text",
-        "name": "Caption · Spiral",
+        "name": "Caption \u00b7 Spiral",
         "fill": {
           "type": "solid",
           "color": "#64748b",
@@ -9736,7 +9979,7 @@
       "gen_flower": {
         "id": "gen_flower",
         "type": "path",
-        "name": "Flower · generator",
+        "name": "Flower \u00b7 generator",
         "fill": {
           "type": "swatch",
           "swatchId": "sw_berry",
@@ -9983,7 +10226,7 @@
       "gen_cap_flower": {
         "id": "gen_cap_flower",
         "type": "text",
-        "name": "Caption · Flower",
+        "name": "Caption \u00b7 Flower",
         "fill": {
           "type": "solid",
           "color": "#64748b",
@@ -10027,7 +10270,7 @@
       "gen_arrow": {
         "id": "gen_arrow",
         "type": "path",
-        "name": "Arrow · generator",
+        "name": "Arrow \u00b7 generator",
         "fill": {
           "type": "swatch",
           "swatchId": "sw_leaf",
@@ -10135,7 +10378,7 @@
       "gen_cap_arrow": {
         "id": "gen_cap_arrow",
         "type": "text",
-        "name": "Caption · Arrow",
+        "name": "Caption \u00b7 Arrow",
         "fill": {
           "type": "solid",
           "color": "#64748b",
@@ -10179,7 +10422,7 @@
       "gen_sector": {
         "id": "gen_sector",
         "type": "path",
-        "name": "Sector · generator",
+        "name": "Sector \u00b7 generator",
         "fill": {
           "type": "solid",
           "color": "#7b5ea7",
@@ -10288,7 +10531,7 @@
       "gen_cap_sector": {
         "id": "gen_cap_sector",
         "type": "text",
-        "name": "Caption · Sector",
+        "name": "Caption \u00b7 Sector",
         "fill": {
           "type": "solid",
           "color": "#64748b",
@@ -10332,7 +10575,7 @@
       "gen_moon": {
         "id": "gen_moon",
         "type": "path",
-        "name": "Moon · generator",
+        "name": "Moon \u00b7 generator",
         "fill": {
           "type": "solid",
           "color": "#f4d35e",
@@ -10438,7 +10681,7 @@
       "gen_cap_moon": {
         "id": "gen_cap_moon",
         "type": "text",
-        "name": "Caption · Moon",
+        "name": "Caption \u00b7 Moon",
         "fill": {
           "type": "solid",
           "color": "#64748b",
@@ -10482,7 +10725,7 @@
       "gen_script_wave": {
         "id": "gen_script_wave",
         "type": "path",
-        "name": "Wave · document script · generator",
+        "name": "Wave \u00b7 document script \u00b7 generator",
         "fill": null,
         "stroke": {
           "type": "solid",
@@ -10613,7 +10856,7 @@
       "gen_cap_script_wave": {
         "id": "gen_cap_script_wave",
         "type": "text",
-        "name": "Caption · Wave · document script",
+        "name": "Caption \u00b7 Wave \u00b7 document script",
         "fill": {
           "type": "solid",
           "color": "#64748b",
@@ -10641,7 +10884,7 @@
           0,
           0
         ],
-        "text": "Wave · document script",
+        "text": "Wave \u00b7 document script",
         "textMode": "area",
         "x": 1672,
         "y": 292,
@@ -10657,7 +10900,7 @@
       "mod_none": {
         "id": "mod_none",
         "type": "path",
-        "name": "Modifier · No modifiers (source)",
+        "name": "Modifier \u00b7 No modifiers (source)",
         "fill": null,
         "stroke": {
           "type": "solid",
@@ -10914,7 +11157,7 @@
       "mod_cap_none": {
         "id": "mod_cap_none",
         "type": "text",
-        "name": "Caption · No modifiers (source)",
+        "name": "Caption \u00b7 No modifiers (source)",
         "fill": {
           "type": "solid",
           "color": "#64748b",
@@ -10958,7 +11201,7 @@
       "mod_simplify": {
         "id": "mod_simplify",
         "type": "path",
-        "name": "Modifier · Simplify · tolerance 6",
+        "name": "Modifier \u00b7 Simplify \u00b7 tolerance 6",
         "fill": null,
         "stroke": {
           "type": "solid",
@@ -11220,7 +11463,7 @@
       "mod_cap_simplify": {
         "id": "mod_cap_simplify",
         "type": "text",
-        "name": "Caption · Simplify · tolerance 6",
+        "name": "Caption \u00b7 Simplify \u00b7 tolerance 6",
         "fill": {
           "type": "solid",
           "color": "#64748b",
@@ -11248,7 +11491,7 @@
           0,
           0
         ],
-        "text": "Simplify · tolerance 6",
+        "text": "Simplify \u00b7 tolerance 6",
         "textMode": "area",
         "x": 252,
         "y": 486,
@@ -11264,7 +11507,7 @@
       "mod_flatten": {
         "id": "mod_flatten",
         "type": "path",
-        "name": "Modifier · Flatten · tolerance 12",
+        "name": "Modifier \u00b7 Flatten \u00b7 tolerance 12",
         "fill": null,
         "stroke": {
           "type": "solid",
@@ -11526,7 +11769,7 @@
       "mod_cap_flatten": {
         "id": "mod_cap_flatten",
         "type": "text",
-        "name": "Caption · Flatten · tolerance 12",
+        "name": "Caption \u00b7 Flatten \u00b7 tolerance 12",
         "fill": {
           "type": "solid",
           "color": "#64748b",
@@ -11554,7 +11797,7 @@
           0,
           0
         ],
-        "text": "Flatten · tolerance 12",
+        "text": "Flatten \u00b7 tolerance 12",
         "textMode": "area",
         "x": 484,
         "y": 486,
@@ -11570,7 +11813,7 @@
       "mod_smooth": {
         "id": "mod_smooth",
         "type": "path",
-        "name": "Modifier · Smooth",
+        "name": "Modifier \u00b7 Smooth",
         "fill": null,
         "stroke": {
           "type": "solid",
@@ -11831,7 +12074,7 @@
       "mod_cap_smooth": {
         "id": "mod_cap_smooth",
         "type": "text",
-        "name": "Caption · Smooth",
+        "name": "Caption \u00b7 Smooth",
         "fill": {
           "type": "solid",
           "color": "#64748b",
@@ -11875,7 +12118,7 @@
       "mod_offset": {
         "id": "mod_offset",
         "type": "path",
-        "name": "Modifier · Offset · 14",
+        "name": "Modifier \u00b7 Offset \u00b7 14",
         "fill": {
           "type": "swatch",
           "swatchId": "sw_leaf",
@@ -12142,7 +12385,7 @@
       "mod_cap_offset": {
         "id": "mod_cap_offset",
         "type": "text",
-        "name": "Caption · Offset · 14",
+        "name": "Caption \u00b7 Offset \u00b7 14",
         "fill": {
           "type": "solid",
           "color": "#64748b",
@@ -12170,7 +12413,7 @@
           0,
           0
         ],
-        "text": "Offset · 14",
+        "text": "Offset \u00b7 14",
         "textMode": "area",
         "x": 948,
         "y": 486,
@@ -12186,7 +12429,7 @@
       "mod_outline": {
         "id": "mod_outline",
         "type": "path",
-        "name": "Modifier · Outline · width 16",
+        "name": "Modifier \u00b7 Outline \u00b7 width 16",
         "fill": {
           "type": "swatch",
           "swatchId": "sw_leaf",
@@ -12454,7 +12697,7 @@
       "mod_cap_outline": {
         "id": "mod_cap_outline",
         "type": "text",
-        "name": "Caption · Outline · width 16",
+        "name": "Caption \u00b7 Outline \u00b7 width 16",
         "fill": {
           "type": "solid",
           "color": "#64748b",
@@ -12482,7 +12725,7 @@
           0,
           0
         ],
-        "text": "Outline · width 16",
+        "text": "Outline \u00b7 width 16",
         "textMode": "area",
         "x": 1180,
         "y": 486,
@@ -12498,7 +12741,7 @@
       "mod_reverse": {
         "id": "mod_reverse",
         "type": "path",
-        "name": "Modifier · Reverse (direction only)",
+        "name": "Modifier \u00b7 Reverse (direction only)",
         "fill": null,
         "stroke": {
           "type": "solid",
@@ -12759,7 +13002,7 @@
       "mod_cap_reverse": {
         "id": "mod_cap_reverse",
         "type": "text",
-        "name": "Caption · Reverse (direction only)",
+        "name": "Caption \u00b7 Reverse (direction only)",
         "fill": {
           "type": "solid",
           "color": "#64748b",
@@ -12803,7 +13046,7 @@
       "mod_stack": {
         "id": "mod_stack",
         "type": "path",
-        "name": "Modifier · Smooth → offset, outline bypassed",
+        "name": "Modifier \u00b7 Smooth \u2192 offset, outline bypassed",
         "fill": {
           "type": "swatch",
           "swatchId": "sw_leaf",
@@ -13080,7 +13323,7 @@
       "mod_cap_stack": {
         "id": "mod_cap_stack",
         "type": "text",
-        "name": "Caption · Smooth → offset, outline bypassed",
+        "name": "Caption \u00b7 Smooth \u2192 offset, outline bypassed",
         "fill": {
           "type": "solid",
           "color": "#64748b",
@@ -13108,7 +13351,7 @@
           0,
           0
         ],
-        "text": "Smooth → offset, outline bypassed",
+        "text": "Smooth \u2192 offset, outline bypassed",
         "textMode": "area",
         "x": 1644,
         "y": 486,

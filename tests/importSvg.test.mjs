@@ -97,7 +97,7 @@ test("Paper paths retain curves, transforms, and solid stroke styling", () => {
   assert.deepEqual(node.subpaths[0].anchors[1].hIn, { x: 10, y: 20 });
 });
 
-test("Paper gradients retain stops, alpha, angle, and radial type", () => {
+test("Paper gradients retain stops, alpha, placement, and radial type", () => {
   const scope = makeScope();
   const path = new scope.Path.Rectangle({
     point: [0, 0],
@@ -120,21 +120,30 @@ test("Paper gradients retain stops, alpha, angle, and radial type", () => {
   const imported = convertSvgItem(path);
   const node = importedContent(imported);
   assert.equal(node.type, "path");
-  assert.deepEqual(node.fill, {
-    type: "linear",
-    angle: Math.PI / 4,
-    stops: [
+  // An imported gradient is pinned to the artwork's own coordinates, which is
+  // the only space Paper's origin/destination points mean anything in.
+  assert.equal(node.fill.type, "gradient");
+  assert.equal(node.fill.kind, "linear");
+  assert.equal(node.fill.space, "local");
+  assert.deepEqual(node.fill.start, { x: 10, y: 20 });
+  assert.deepEqual(node.fill.end, { x: 30, y: 40 });
+  assert.deepEqual(
+    node.fill.stops.map(({ offset, color, alpha }) => ({ offset, color, alpha })),
+    [
       { offset: 0, color: "#ff0000", alpha: 0.4 },
       { offset: 1, color: "#0000ff", alpha: 0.8 },
-    ],
-  });
-  assert.deepEqual(node.stroke, {
-    type: "radial",
-    stops: [
+    ]
+  );
+  assert.equal(node.stroke.kind, "radial");
+  assert.deepEqual(node.stroke.start, { x: 50, y: 50 });
+  assert.deepEqual(node.stroke.end, { x: 100, y: 50 });
+  assert.deepEqual(
+    node.stroke.stops.map(({ offset, color, alpha }) => ({ offset, color, alpha })),
+    [
       { offset: 0, color: "#ffffff", alpha: 1 },
       { offset: 1, color: "#000000", alpha: 1 },
-    ],
-  });
+    ]
+  );
 });
 
 test("open fill paths (no Z) keep their fill and enclose an implicit area", () => {

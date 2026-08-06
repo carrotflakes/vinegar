@@ -254,7 +254,7 @@ test("apply bakes resolved geometry, clears the stack, and detaches generator", 
   assert.equal(shape.modifiers.length, 1);
 });
 
-test("modifier stacks round-trip in v33 documents", () => {
+test("modifier stacks round-trip in v34 documents", () => {
   const shape = path([
     { type: "simplify", tolerance: 1.25, enabled: false },
     { type: "offset", distance: -3, join: "bevel" },
@@ -267,7 +267,7 @@ test("modifier stacks round-trip in v33 documents", () => {
     nodes: { [shape.id]: shape },
   };
   const text = serializeDocument(doc);
-  assert.equal(JSON.parse(text).version, 33);
+  assert.equal(JSON.parse(text).version, 34);
   assert.deepEqual(parseDocument(text).nodes[shape.id].modifiers, shape.modifiers);
 });
 

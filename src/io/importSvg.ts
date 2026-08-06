@@ -3,13 +3,8 @@
 import * as paperNs from "paper";
 import { isClippingMaskCandidate } from "../model/clippingMask";
 import { applyMatrix, IDENTITY } from "@/model/geometry/matrix";
-import {
-  linearGradient,
-  radialGradient,
-  solid,
-  type GradientStop,
-  type Paint,
-} from "../model/paint";
+import { gradient, gradientStop, type GradientStop } from "@/model/gradient";
+import { solid, type Paint } from "../model/paint";
 import { rgbToHex } from "../model/color";
 import {
   BLEND_MODES,
@@ -88,32 +83,56 @@ function colorHex(color: paper.Color): string {
 
 function gradientStopsOf(color: paper.Color): GradientStop[] {
   const paintAlpha = clamp01(finite(color.alpha, 1));
-  return color.gradient.stops.map((stop) => ({
-    offset: clamp01(finite(stop.offset)),
-    color: colorHex(stop.color),
-    alpha: clamp01(finite(stop.color.alpha, 1) * paintAlpha),
-  }));
+  return color.gradient.stops.map((stop) =>
+    gradientStop(colorHex(stop.color), clamp01(finite(stop.offset)), {
+      alpha: clamp01(finite(stop.color.alpha, 1) * paintAlpha),
+    })
+  );
 }
 
+/**
+ * Paper exposes a gradient's placement as absolute points in the item's own
+ * coordinates, which is exactly our `local` gradient space: origin → the
+ * destination point is the first axis, and `highlight` (radial only) is the
+ * focal point, converted to the unit circle.
+ */
 function paintOf(color: paper.Color | null): Paint | null {
   if (!color) return null;
   if (color.type === "gradient") {
     const stops = gradientStopsOf(color);
     if (!stops.length) return null;
-    if (color.gradient.radial) return radialGradient(stops);
     // Paper exposes these gradient components at runtime but omits them from
     // its Color declaration (only `highlight` is declared).
     const gradientColor = color as paper.Color & {
       origin: paper.Point;
       destination: paper.Point;
     };
-    const origin = gradientColor.origin;
-    const destination = gradientColor.destination;
-    const angle = Math.atan2(
-      finite(destination.y - origin.y),
-      finite(destination.x - origin.x)
-    );
-    return linearGradient(stops, angle);
+    const start = {
+      x: finite(gradientColor.origin?.x),
+      y: finite(gradientColor.origin?.y),
+    };
+    const end = {
+      x: finite(gradientColor.destination?.x, start.x + 1),
+      y: finite(gradientColor.destination?.y, start.y),
+    };
+    const radial = !!color.gradient.radial;
+    const d = { x: end.x - start.x, y: end.y - start.y };
+    const len2 = d.x * d.x + d.y * d.y;
+    const h = color.highlight;
+    const focal =
+      radial && h && len2 > 1e-12
+        ? {
+            x: ((finite(h.x) - start.x) * d.x + (finite(h.y) - start.y) * d.y) / len2,
+            y: ((finite(h.x) - start.x) * -d.y + (finite(h.y) - start.y) * d.x) / len2,
+          }
+        : { x: 0, y: 0 };
+    return gradient(stops, {
+      kind: radial ? "radial" : "linear",
+      space: "local",
+      start,
+      end,
+      focal,
+    });
   }
   return solid(colorHex(color), clamp01(finite(color.alpha, 1)));
 }

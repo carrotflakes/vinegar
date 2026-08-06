@@ -11,22 +11,25 @@ import { LuLink2Off, LuPlus } from "react-icons/lu";
 import {
   isGradient,
   isSwatchRef,
-  linearGradient,
   paintToCss,
   pattern,
-  radialGradient,
   resolvePaintRef,
   solid,
-  stopsToCssBar,
   swatchRef,
-  type GradientStop,
   type Paint,
   type PatternMode,
   type PatternPaint,
 } from "@/model/paint";
+import {
+  defaultGeometry,
+  gradient,
+  gradientStop,
+  type GradientPaint,
+} from "@/model/gradient";
+import type { Bounds } from "@/model/types";
 import { pickImageFiles } from "@/io/importImage";
-import ColorInput from "./ColorInput";
 import ColorPicker from "./ColorPicker";
+import GradientEditor from "./GradientEditor";
 import ScrubbableNumber from "./ScrubbableNumber";
 import { usePopoverDismiss } from "./usePopoverDismiss";
 import { useEditor } from "@/store/editorStore";
@@ -44,13 +47,21 @@ const PATTERN_MODE_HINTS: Record<PatternMode, string> = {
 /** Round to one decimal for the offset number inputs. */
 const round1 = (n: number) => Math.round(n * 10) / 10;
 
+const GRADIENT_LABELS: Record<GradientPaint["kind"], string> = {
+  linear: "Linear",
+  radial: "Radial",
+  conic: "Conic",
+};
+
 interface Props {
   label: string;
   value: Paint | null;
   onChange: (v: Paint | null) => void;
+  /** Fill bounds of the shape being edited; gradients are placed over it. */
+  bounds?: Bounds | null;
 }
 
-export default function ColorField({ label, value, onChange }: Props) {
+export default function ColorField({ label, value, onChange, bounds = null }: Props) {
   const addRecentColor = useEditor((s) => s.addRecentColor);
   const assets = useEditor((s) => s.doc.assets);
   const addPatternImage = useEditor((s) => s.addPatternImage);
@@ -67,15 +78,15 @@ export default function ColorField({ label, value, onChange }: Props) {
   const ref = isSwatchRef(value) ? value : null;
   const linkedSwatch = ref ? docSwatches[ref.swatchId] : null;
   const concrete = resolvePaintRef(value, docSwatches);
-  const kind = value === null ? "none" : concrete?.type ?? "solid"; // none|solid|linear|radial|pattern
+  const kind = value === null ? "none" : concrete?.type ?? "solid"; // none|solid|gradient|pattern
   // Colour and alpha are edited independently; a paint keeps its alpha when the
   // colour changes (and vice-versa). Swatches/recents/palette store colours.
-  const gradient = concrete && isGradient(concrete) ? concrete : null;
+  const gradientPaint = concrete && isGradient(concrete) ? concrete : null;
   const color =
     concrete && concrete.type === "solid"
       ? concrete.color
-      : gradient
-        ? gradient.stops[0]?.color ?? "#888888"
+      : gradientPaint
+        ? gradientPaint.stops[0]?.color ?? "#888888"
         : "#888888";
   const alpha = concrete && concrete.type === "solid" ? concrete.alpha : 1;
   // While linked, colour/alpha edits update the global swatch (re-tinting every
@@ -94,21 +105,14 @@ export default function ColorField({ label, value, onChange }: Props) {
   const unlink = () => onChange(concrete);
 
   // ---- gradient editing --------------------------------------------------
-  const stops: GradientStop[] = gradient
-    ? gradient.stops
-    : [
-        { offset: 0, color, alpha: 1 },
-        { offset: 1, color: "#ffffff", alpha: 1 },
-      ];
-  const angle = concrete && concrete.type === "linear" ? concrete.angle : 0;
-  const setStops = (next: GradientStop[]) =>
-    onChange(kind === "radial" ? radialGradient(next) : linearGradient(next, angle));
-  const updateStop = (i: number, patch: Partial<GradientStop>) =>
-    setStops(stops.map((s, j) => (j === i ? { ...s, ...patch } : s)));
-  const addStop = () =>
-    setStops([...stops, { offset: 0.5, color: "#888888", alpha: 1 }]);
-  const removeStop = (i: number) =>
-    stops.length > 2 && setStops(stops.filter((_, j) => j !== i));
+  // Remember the last gradient so toggling away and back keeps its ramp.
+  const lastGradient = useRef<GradientPaint | null>(null);
+  if (gradientPaint) lastGradient.current = gradientPaint;
+  const newGradient = () =>
+    lastGradient.current ??
+    gradient([gradientStop(color, 0, { alpha }), gradientStop("#ffffff", 1)], {
+      ...defaultGeometry("linear"),
+    });
 
   // ---- pattern (raster fill) editing -------------------------------------
   const patternPaint = concrete && concrete.type === "pattern" ? concrete : null;
@@ -132,12 +136,11 @@ export default function ColorField({ label, value, onChange }: Props) {
     if (id) chooseAsset(id);
   };
 
-  const setKind = (next: "none" | "solid" | "linear" | "radial" | "pattern") => {
+  const setKind = (next: "none" | "solid" | "gradient" | "pattern") => {
     if (next === "none") return onChange(null);
     // Keep an existing document-colour link when "Solid" is (re)selected.
     if (next === "solid") return ref && linkedSwatch ? undefined : onChange(solid(color, alpha));
-    if (next === "linear") return onChange(linearGradient(stops, angle));
-    if (next === "radial") return onChange(radialGradient(stops));
+    if (next === "gradient") return onChange(newGradient());
     // Pattern: reuse a remembered image, else the first existing asset, else
     // import one now.
     const memo = patternPaint ?? lastPattern.current;
@@ -201,11 +204,9 @@ export default function ColorField({ label, value, onChange }: Props) {
                 ? alpha < 1
                   ? `${color} · ${Math.round(alpha * 100)}%`
                   : color
-                : kind === "linear"
-                  ? "Linear"
-                  : kind === "radial"
-                    ? "Radial"
-                    : "Image"}
+                : gradientPaint
+                  ? GRADIENT_LABELS[gradientPaint.kind]
+                  : "Image"}
         </span>
       </div>
 
@@ -217,7 +218,7 @@ export default function ColorField({ label, value, onChange }: Props) {
             style={floatingStyles}
           >
           <div className="paint-type-row">
-            {(["none", "solid", "linear", "radial", "pattern"] as const).map((t) => (
+            {(["none", "solid", "gradient", "pattern"] as const).map((t) => (
               <button
                 key={t}
                 className={"paint-type-btn" + (kind === t ? " active" : "")}
@@ -227,11 +228,9 @@ export default function ColorField({ label, value, onChange }: Props) {
                   ? "None"
                   : t === "solid"
                     ? "Solid"
-                    : t === "linear"
-                      ? "Linear"
-                      : t === "radial"
-                        ? "Radial"
-                        : "Image"}
+                    : t === "gradient"
+                      ? "Gradient"
+                      : "Image"}
               </button>
             ))}
           </div>
@@ -295,76 +294,12 @@ export default function ColorField({ label, value, onChange }: Props) {
             </>
           )}
 
-          {gradient && (
-            <>
-              <div
-                className="gradient-bar"
-                style={{ background: stopsToCssBar(stops) }}
-              />
-              {kind === "linear" && (
-                <div className="color-pop-alpha">
-                  <span className="alpha-label">Angle</span>
-                  <input
-                    type="range"
-                    min={0}
-                    max={360}
-                    value={Math.round((angle * 180) / Math.PI)}
-                    onChange={(e) =>
-                      onChange(
-                        linearGradient(
-                          stops,
-                          (Number(e.target.value) * Math.PI) / 180
-                        )
-                      )
-                    }
-                  />
-                  <span className="alpha-value">
-                    {Math.round((angle * 180) / Math.PI)}°
-                  </span>
-                </div>
-              )}
-              <div className="color-pop-label">
-                Stops
-                <button
-                  className="swatch-add"
-                  title="Add a stop"
-                  onClick={addStop}
-                >
-                  +
-                </button>
-              </div>
-              {stops.map((s, i) => (
-                <div className="gradient-stop" key={i}>
-                  <ColorInput
-                    className="stop-color"
-                    value={s.color}
-                    onChange={(hex) => updateStop(i, { color: hex })}
-                    alpha={s.alpha}
-                    onAlphaChange={(a) => updateStop(i, { alpha: a })}
-                    title="Stop color"
-                  />
-                  <input
-                    type="range"
-                    className="stop-offset"
-                    min={0}
-                    max={100}
-                    value={Math.round(s.offset * 100)}
-                    onChange={(e) =>
-                      updateStop(i, { offset: Number(e.target.value) / 100 })
-                    }
-                    title="Position"
-                  />
-                  <button
-                    className="stop-remove"
-                    title="Remove stop"
-                    disabled={stops.length <= 2}
-                    onClick={() => removeStop(i)}
-                  >
-                    ×
-                  </button>
-                </div>
-              ))}
-            </>
+          {gradientPaint && (
+            <GradientEditor
+              value={gradientPaint}
+              onChange={onChange}
+              bounds={bounds}
+            />
           )}
 
           {patternPaint && (

@@ -22,6 +22,7 @@ import {
 } from "./StyleFields";
 import Section from "../Section";
 import { resolvedSubpaths } from "@/model/path/pathModifiers";
+import { shapeBounds } from "@/model/geometry/bounds";
 
 const FILL_RULES: SegmentedControlOption<PathShape["fillRule"]>[] = [
   { value: "nonzero", label: "Nonzero", title: "Overlaps of same-direction contours stay filled" },
@@ -46,6 +47,7 @@ export default function AppearanceSection({
   const paintless =
     hasSelection && selected.every((shape) => shape.type === "image");
 
+  const paintBounds = selected.length === 1 && first ? shapeBounds(first) : null;
   const fill = hasSelection ? first.fill : style.fill;
   const stroke = hasSelection ? first.stroke : style.stroke;
   const strokeWidth = hasSelection ? first.strokeWidth : style.strokeWidth;
@@ -129,8 +131,10 @@ export default function AppearanceSection({
     >
       {!paintless && (
         <>
-          <ColorField label="Fill" value={fill} onChange={setFill} />
-          <ColorField label="Stroke" value={stroke} onChange={setStroke} />
+          {/* Gradients are placed over the shape's own box, so the field needs
+              it; a defaults field (no selection) has none. */}
+          <ColorField label="Fill" value={fill} onChange={setFill} bounds={paintBounds} />
+          <ColorField label="Stroke" value={stroke} onChange={setStroke} bounds={paintBounds} />
 
           <div className="field-inline">
             <label>Stroke width</label>
