@@ -105,7 +105,8 @@ additional effects, or other feature expansion.
 - [x] キーボード到達性 — `tabIndex={0}` + `:focus-visible` リング、`role="tree"` /
   `role="treeitem"` / `aria-selected` / `aria-level` / `aria-expanded`、
   `aria-activedescendant` でカーソル行を通知（Tab 到達時は選択末尾をカーソルに）
-- [ ] 折りたたみメニュー
+- [x] 折りたたみメニュー — パネル見出しに Expand all / Collapse all /
+  Collapse others（選択への道筋だけ開いたまま畳む）
 
 ### Properties パネルのリファイン
 - [ ] UIの統一感
@@ -151,8 +152,8 @@ additional effects, or other feature expansion.
   - [ ] パラメトリック生成（パラメータ変更で再生成）
 - [ ] 生成器（generator）の拡充
   - [ ] パラメータ型の拡張（bool=チェックボックス、enum=セレクト。今は number のみ）
-  - [ ] プロパティの GeneratorSection に「Edit source」ボタン（インスタンス→ソースへ
-    ジャンプ、`openGenerators(scriptId)`）
+  - [x] プロパティの GeneratorSection に「Edit source」ボタン（インスタンス→ソースへ
+    ジャンプ、`openGenerators(scriptId)`。組み込みは読み取り専用なので "View source"）
   - [x] クリップボードが生成器スクリプトを持ち運ばない → 別ドキュメントへ貼ると
     `generator.scriptId` が宙に浮く（形状は出るがパラメータ編集不可）。payload に
     参照 `ScriptDef` を同梱してマージするか、貼り先に無ければ generator リンクを外す
@@ -206,8 +207,6 @@ additional effects, or other feature expansion.
     Join コマンド（上記 path-ops）と同じ縫合処理を共有する形で設計する
   - [ ] ペン: ツールオプションがない（スナップ切替、閉じたときの塗り、既定の
     アンカー種別あたりの置き場。PencilSection/BrushSection が前例）
-  - [ ] ペン: アンカー 1 点だけで確定すると無言で消える（何も起きない理由が
-    伝わらない）
   - [ ] ペン: 開いたパスにも既定の塗りが乗る（`onPenDown` は
     `styleFromDefaults` をそのまま使う）。pencil は開ストロークを `fill: null`
     にし brush も常に null なので、同じ「開いた線」がツールで見た目が変わる。
@@ -219,8 +218,9 @@ additional effects, or other feature expansion.
   - [ ] pencil: 選択パスの途中をなぞって区間を差し替える（Illustrator の
     リシェイプ）。今できるのは端点からの延長だけ。パス上の最近点探索＋
     de Casteljau 分割が要る本命機能
-  - [ ] pencil: 延長描画（`commitPencilExtend`）が常に `closed: false`。
+  - [x] pencil: 延長描画（`commitPencilExtend`）が常に `closed: false`。
     既存の開パスの端点から描き始めて反対の端点に戻っても閉じられない
+    → 新規ストロークと同じ Close ルール（`resolveExtendClose`）で閉じる
   - [ ] pencil: 描いたストロークの収納先が brush と非対称。brush は
     `addBrushStroke` で activeGroup（"Drawing"）に集約するのに pencil は
     スコープ直下にバラ撒く。連続スケッチでレイヤーが荒れる
