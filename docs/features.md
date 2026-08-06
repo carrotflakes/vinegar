@@ -80,7 +80,7 @@ Related design notes: [path-unification.md](path-unification.md), [path-modifier
 
 ## Canvas and workspace
 
-- **Snapping**: edges/centers snap to other shapes (magenta alignment guides), equal-spacing distribution between neighbours (spacing markers), and an optional grid (adjustable size).
+- **Snapping**: edges/centers snap to other shapes (magenta alignment guides), equal-spacing distribution (spacing markers — centering in the gap between two neighbours, or repeating a gap that already exists in the row, which continues an evenly spaced row past its end), and an optional grid (adjustable size).
   Object/grid/guide point snapping works while creating shapes and frames, resizing, and editing Pen vertices; full edge/center and equal-spacing snapping applies while moving — toggle "Snap" / "Grid" in the status bar.
 - **Rulers and guides**: rulers along the top/left edges label document units and count from the **active frame** (which follows selection and frame creation, never panning — Illustrator's artboard rulers) or from the document origin, per the "Ruler origin" preference; drag out of a ruler for a persistent guide, drag it to move, drop it back on or beyond a ruler (or press Delete) to remove it.
   Guides are saved with the document, are undoable like any edit, snap alongside objects and the grid, and can be hidden or locked from the "Snap" status-bar menu. See [rulers-and-guides.md](rulers-and-guides.md)

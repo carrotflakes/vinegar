@@ -177,9 +177,19 @@ function gridSnap(edges: number[], grid: number, threshold: number): AxisSnap | 
   return best === null ? null : { offset: best, kind: "grid" };
 }
 
+/** Two gaps closer than this count as the same spacing. */
+const GAP_EPSILON = 0.5;
+
 /**
- * Distribution snap: centre the moving box in the gap between two neighbours
- * that overlap it on the cross axis, producing equal-spacing markers.
+ * Distribution snap. Two ways to line up with the neighbours that overlap the
+ * moving box on the cross axis:
+ *  - centre it in the gap between two of them, and
+ *  - repeat a gap that already exists in that band, either side of any
+ *    neighbour — this is what continues an evenly spaced row when the moving
+ *    box is dragged past its end, where there is no second neighbour to centre
+ *    between.
+ * Both produce equal-spacing markers; the matched source gaps are drawn too, so
+ * it is visible *which* spacing is being repeated.
  */
 function distSnap(
   horizontal: boolean,
@@ -192,7 +202,7 @@ function distSnap(
   const size = horizontal ? box.width : box.height;
   const crossLo = horizontal ? box.y : box.x;
   const crossHi = crossLo + (horizontal ? box.height : box.width);
-  const center = lo + size / 2;
+  const pos = crossLo + (crossHi - crossLo) / 2;
 
   const band = boxes
     .map((b) => ({
@@ -205,27 +215,59 @@ function distSnap(
     .sort((p, q) => p.lo - q.lo);
 
   let best: AxisSnap | null = null;
+  /** Take `start` as the moving box's new position if it beats the current best. */
+  const consider = (start: number, gaps: [number, number][]) => {
+    const off = start - lo;
+    if (Math.abs(off) > threshold) return;
+    if (best && Math.abs(off) >= Math.abs(best.offset)) return;
+    best = {
+      offset: off,
+      kind: "dist",
+      spacings: gaps.map(([a, b]) => ({ horizontal, a, b, pos })),
+    };
+  };
+
+  // Distinct gaps between consecutive neighbours, each with the spans to draw
+  // when it gets repeated.
+  const gaps: { size: number; sources: [number, number][] }[] = [];
+  for (let i = 0; i + 1 < band.length; i++) {
+    const pEnd = band[i].lo + band[i].size;
+    const gap = band[i + 1].lo - pEnd;
+    if (gap <= GAP_EPSILON) continue;
+    const known = gaps.find((g) => Math.abs(g.size - gap) < GAP_EPSILON);
+    if (known) known.sources.push([pEnd, band[i + 1].lo]);
+    else gaps.push({ size: gap, sources: [[pEnd, band[i + 1].lo]] });
+  }
+
   for (let i = 0; i + 1 < band.length; i++) {
     const p = band[i];
     const q = band[i + 1];
     const pEnd = p.lo + p.size;
-    const gap = q.lo - pEnd;
-    if (gap < size) continue;
-    const target = (pEnd + q.lo) / 2;
-    const off = target - center;
-    if (Math.abs(off) > threshold) continue;
-    if (best && Math.abs(off) >= Math.abs(best.offset)) continue;
+    if (q.lo - pEnd < size) continue;
+    const start = (pEnd + q.lo - size) / 2;
+    consider(start, [
+      [pEnd, start],
+      [start + size, q.lo],
+    ]);
+  }
 
-    const boxStart = target - size / 2;
-    const pos = crossLo + (crossHi - crossLo) / 2;
-    best = {
-      offset: off,
-      kind: "dist",
-      spacings: [
-        { horizontal, a: pEnd, b: boxStart, pos },
-        { horizontal, a: boxStart + size, b: q.lo, pos },
-      ],
-    };
+  for (const gap of gaps) {
+    for (let i = 0; i < band.length; i++) {
+      const b = band[i];
+      const bEnd = b.lo + b.size;
+      // After `b`: only legal if the box fits before the next neighbour.
+      const after = bEnd + gap.size;
+      const next = band[i + 1];
+      if (!next || after + size <= next.lo + GAP_EPSILON) {
+        consider(after, [[bEnd, after], ...gap.sources]);
+      }
+      // Before `b`, symmetrically.
+      const before = b.lo - gap.size - size;
+      const prev = band[i - 1];
+      if (!prev || prev.lo + prev.size <= before + GAP_EPSILON) {
+        consider(before, [[before + size, b.lo], ...gap.sources]);
+      }
+    }
   }
   return best;
 }

@@ -70,7 +70,7 @@ additional effects, or other feature expansion.
   Phase-1 gap: document-script generators are not bindable (their geometry only
   rebuilds through the worker, which the pure resolution step cannot await).
 - [ ] Swatches saved in the document (currently localStorage, color-only)
-- [ ] Distribution: match an existing gap (not just centering)
+- [x] Distribution: match an existing gap (not just centering)
 - [ ] Status bar: color swatch under the cursor (eyedropper-style; watch getImageData cost)
 
 ## Known issues / polish
