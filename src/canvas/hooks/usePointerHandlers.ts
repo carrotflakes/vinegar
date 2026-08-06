@@ -19,6 +19,7 @@ import { cancelActiveInteraction } from "../interactionLifecycle";
 import { pickShape } from "../picking";
 import { onGuideDown } from "../tools/guideTool";
 import { onNodeDoubleClick } from "../tools/nodeTool";
+import { addGradientStopAt } from "../tools/gradientTool";
 import { commitPenDraft, onPenHoverMove, undoPenAnchor } from "../tools/penTool";
 import { endpointWorld, pickOpenEndpoint } from "../tools/openPathPickup";
 import { onSelectDoubleClick, updateSelectHover } from "../tools/selectTool";
@@ -513,6 +514,12 @@ export function usePointerHandlers(deps: PointerHandlerDeps): PointerHandlers {
     }
     if (state.tool === "node") {
       onNodeDoubleClick(ctx, state, screen);
+      return;
+    }
+    if (state.tool === "gradient") {
+      // Double-clicking the ramp adds a stop with the colour it already has.
+      addGradientStopAt(state, screen);
+      ctx.scheduleDraw();
     }
   };
 

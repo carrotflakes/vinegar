@@ -9,6 +9,8 @@ import { usePreferences } from "../store/preferencesStore";
 import type { CanvasTheme } from "./canvasTheme";
 import { cornerRadiusControl } from "./cornerRadiusHandle";
 import { generatorControls } from "./generatorHandles";
+import { gradientControls, gradientTargetShape } from "./gradientHandles";
+import { useGradientTool } from "@/store/gradientToolStore";
 import {
   frameNodeSelectionFrame,
   getSelectionFrame,
@@ -34,6 +36,7 @@ import {
   drawFrameLabels,
   drawGuides,
   drawNodes,
+  drawGradientAnnotator,
   drawOverlay,
   drawPenDraft,
   drawSpacings,
@@ -195,6 +198,19 @@ export function paintCanvas(input: PaintInput): void {
         ? unionNodeWorldBounds(doc, [state.activeGroupId])
         : null,
   });
+
+  // The gradient tool's annotator, drawn over its shape.
+  if (tool === "gradient") {
+    const { target, stopId } = useGradientTool.getState();
+    const controls = gradientControls(
+      doc,
+      gradientTargetShape(doc, selection),
+      target,
+      viewport,
+      chrome
+    );
+    if (controls) drawGradientAnnotator(ctx2d, dpr, controls, stopId, chrome);
+  }
 
   // Frame name labels above each frame (scene scope only).
   if (scope === null) {

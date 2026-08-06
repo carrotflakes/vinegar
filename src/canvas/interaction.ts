@@ -8,6 +8,8 @@ import type {
   Shape,
   Vec2,
 } from "../model/types";
+import type { GradientPaint } from "@/model/gradient";
+import type { GradientHandle } from "./gradientHandles";
 import type { HandleId } from "./handles";
 import type { CachedSelectHover } from "./tools/selectTool";
 import type { CornerRadiusControl } from "./cornerRadiusHandle";
@@ -34,6 +36,33 @@ export interface PenHover {
 export type Interaction =
   | { kind: "none" }
   | { kind: "pan"; startScreen: Vec2; startOffset: Vec2 }
+  | {
+      /** Dragging a whole new gradient axis onto a shape. */
+      kind: "gradient-axis";
+      shapeId: string;
+      target: "fill" | "stroke";
+      /** Press point, in the gradient's own space. */
+      start: Vec2;
+      /** Press point in screen space, to tell a drag from a click. */
+      startScreen: Vec2;
+      /**
+       * Whether the drag has passed {@link CLICK_SLOP} and actually rewritten
+       * the paint. A press that never does is a click (it may be the first
+       * half of a double-click adding a stop) and must leave the gradient
+       * alone rather than collapse it to a zero-length axis.
+       */
+      placed: boolean;
+      shift: boolean;
+    }
+  | {
+      /** Dragging one handle of the gradient annotator. */
+      kind: "gradient-handle";
+      shapeId: string;
+      target: "fill" | "stroke";
+      handle: GradientHandle;
+      /** The paint as it stood when the drag began (midpoints need its gaps). */
+      origin: GradientPaint;
+    }
   | {
       kind: "pivot";
       shapeId?: string | undefined;

@@ -13,6 +13,12 @@ import { finishFrame, onFrameDown, onFrameMove } from "./tools/frameTool";
 import { finishBrush, onBrushMove, startBrush } from "./tools/brushTool";
 import { finishGuideDrag, onGuideMove } from "./tools/guideTool";
 import { bucketFillAt } from "./tools/bucketTool";
+import {
+  finishGradient,
+  onGradientAxisMove,
+  onGradientDown,
+  onGradientHandleMove,
+} from "./tools/gradientTool";
 import { finishEraser, onEraserMove, startEraser } from "./tools/eraserTool";
 import {
   onNodeDown,
@@ -75,6 +81,9 @@ export function startToolInteraction(
       return;
     case "eraser":
       startEraser(ctx, world);
+      return;
+    case "gradient":
+      onGradientDown(ctx, state, screen, world, shift);
       return;
     case "bucket":
       // A plain click commits (or toasts) immediately; no drag interaction.
@@ -171,6 +180,12 @@ export function dispatchToolMove(
     case "guide-drag":
       onGuideMove(ctx, state, inter, world);
       break;
+    case "gradient-axis":
+      onGradientAxisMove(ctx, state, inter, screen, shift);
+      break;
+    case "gradient-handle":
+      onGradientHandleMove(ctx, state, inter, screen, shift);
+      break;
   }
 }
 
@@ -251,6 +266,10 @@ export function finishToolInteraction(
       break;
     case "guide-drag":
       finishGuideDrag(ctx, state, inter, screen, canvasSize);
+      break;
+    case "gradient-axis":
+    case "gradient-handle":
+      finishGradient(ctx, state, inter);
       break;
   }
 }

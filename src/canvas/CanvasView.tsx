@@ -28,6 +28,7 @@ import {
   type PenHover,
   type ToolContext,
 } from "./interaction";
+import GradientBar from "./GradientBar";
 import ModifierBar from "./ModifierBar";
 import PenDraftBar from "./PenDraftBar";
 import FocusBreadcrumb from "./FocusBreadcrumb";
@@ -258,6 +259,7 @@ export default function CanvasView() {
       )}
       <ModifierBar />
       <PenDraftBar ctx={ctx} />
+      <GradientBar />
       <FocusBreadcrumb />
     </div>
   );

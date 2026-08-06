@@ -32,7 +32,11 @@ active tool, selection, viewport and undo history does not belong in the file.
   belong directly in a node. `image` nodes and `pattern` fills/strokes both
   reference an image asset; an asset survives save only while something still
   references it (see `referencedAssetIds`).
-- `fill`/`stroke` are a `Paint` union: `solid`, linear/radial `gradient`, a
+- `fill`/`stroke` are a `Paint` union: `solid`, a `gradient` (`kind`
+  linear/radial/conic; a unit-space ramp placed by `start`/`end`/`ratio`/
+  `focal`, held either relative to the shape's bounds or in its local units;
+  plus `spread`, `interpolation` and stops carrying `id`, `offset`, `color`,
+  `alpha` and a blend `midpoint` — see `docs/gradients.md`), a
   `pattern` (an image asset mapped onto the shape by an explicit `mode` —
   tile / fill / fit / stretch — plus `scale`/`rotation`/`offset`), or a
   `swatch` reference (`swatchId` plus a per-use `alpha`, `1` = the swatch's

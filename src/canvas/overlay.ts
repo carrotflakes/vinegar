@@ -19,6 +19,7 @@ import {
   nodeSubpaths,
   type NodeEditShape,
 } from "./nodes";
+import type { GradientControls } from "./gradientHandles";
 import type { PenHover } from "./interaction";
 
 const ACCENT = "#3b82f6";
@@ -183,6 +184,100 @@ export function drawOverlay(
       marquee.width,
       marquee.height
     );
+  }
+}
+
+/**
+ * The gradient tool's annotator: the ramp axis with a round origin and a
+ * square end, the ellipse and focal knobs, and one chip per stop showing its
+ * own colour (a diamond marks each blend midpoint). Screen space throughout —
+ * `canvas/gradientHandles.ts` has already projected it.
+ */
+export function drawGradientAnnotator(
+  ctx: CanvasRenderingContext2D,
+  dpr: number,
+  controls: GradientControls,
+  activeStopId: string | null,
+  scale: number
+): void {
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  const { from, to } = controls.axis;
+  const size = HANDLE_SIZE * scale;
+
+  // The axis reads over any artwork: a dark line under a white one.
+  ctx.lineCap = "round";
+  ctx.strokeStyle = "rgba(0,0,0,0.45)";
+  ctx.lineWidth = 3;
+  ctx.beginPath();
+  ctx.moveTo(from.x, from.y);
+  ctx.lineTo(to.x, to.y);
+  ctx.stroke();
+  ctx.strokeStyle = "#ffffff";
+  ctx.lineWidth = 1.5;
+  ctx.stroke();
+
+  // A thin rail beside it carries the stop chips (see `gradientHandles.ts`).
+  const g = controls.gutter;
+  ctx.strokeStyle = "rgba(0,0,0,0.25)";
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(from.x + g.x, from.y + g.y);
+  ctx.lineTo(to.x + g.x, to.y + g.y);
+  ctx.stroke();
+  ctx.lineCap = "butt";
+
+  for (const h of controls.handles) {
+    const p = h.point;
+    ctx.lineWidth = 1.5;
+    switch (h.handle.type) {
+      case "start":
+        ctx.fillStyle = "#ffffff";
+        ctx.strokeStyle = ACCENT;
+        dot(ctx, p, size / 2);
+        ctx.fill();
+        ctx.stroke();
+        break;
+      case "end":
+        ctx.fillStyle = "#ffffff";
+        ctx.strokeStyle = ACCENT;
+        ctx.beginPath();
+        ctx.rect(Math.round(p.x - size / 2), Math.round(p.y - size / 2), size, size);
+        ctx.fill();
+        ctx.stroke();
+        break;
+      case "ratio":
+      case "focal":
+        ctx.fillStyle = "#ffffff";
+        ctx.strokeStyle = PARAM_ACCENT;
+        dot(ctx, p, size * 0.4);
+        ctx.fill();
+        ctx.stroke();
+        break;
+      case "midpoint":
+        ctx.fillStyle = "#ffffff";
+        ctx.strokeStyle = "rgba(0,0,0,0.55)";
+        ctx.lineWidth = 1;
+        diamond(ctx, p, size * 0.7);
+        ctx.fill();
+        ctx.stroke();
+        break;
+      case "stop": {
+        const active = h.handle.id === activeStopId;
+        const r = size * (active ? 0.62 : 0.52);
+        ctx.fillStyle = h.color ?? "#ffffff";
+        ctx.strokeStyle = active ? ACCENT : "#ffffff";
+        ctx.lineWidth = active ? 2.5 : 2;
+        dot(ctx, p, r);
+        ctx.fill();
+        ctx.stroke();
+        // A thin dark ring keeps a white stop visible on white artwork.
+        ctx.strokeStyle = "rgba(0,0,0,0.45)";
+        ctx.lineWidth = 1;
+        dot(ctx, p, r + (active ? 1.5 : 1));
+        ctx.stroke();
+        break;
+      }
+    }
   }
 }
 

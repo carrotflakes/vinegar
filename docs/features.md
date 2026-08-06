@@ -53,7 +53,7 @@ Related design notes: [path-unification.md](path-unification.md), [path-modifier
 
 ## Appearance
 
-- **Paint model** for fill/stroke: solid colors with **per-color alpha** and **gradients** (linear & radial, with a stop editor), plus raster **patterns** with tile / fill / fit / stretch placement modes, scale, offset and (for tiles) rotation — rendered on Canvas and exported to SVG using embedded images and `<pattern>`.
+- **Paint model** for fill/stroke: solid colors with **per-color alpha** and **gradients** (linear, radial and conic, placed with an on-canvas gradient tool: axis, ellipse and focal handles, stop chips with blend midpoints, pad/repeat/reflect spread and sRGB or OkLab blending), plus raster **patterns** with tile / fill / fit / stretch placement modes, scale, offset and (for tiles) rotation — rendered on Canvas and exported to SVG using embedded images and `<pattern>`.
   Swatch popover with preset palette, recent colors, saved swatches, hex input, "none" and the **eyedropper**.
 - Stroke width plus **dash pattern/offset, cap, join and inside/center/outside alignment** (closed vectors and text), opacity, and per-node **blend modes** (multiply, screen, overlay, … — shapes and groups)
 - **Effects**: non-destructive, Illustrator-style **ordered effect stack** on any node (shape / group / instance) — **Drop Shadow**, **Gaussian Blur**, **Color Adjust** (brightness / contrast / saturation / hue) and **Color Overlay** (solid tint masked by the content's alpha), applied after content but before opacity/blend; the length-based effects (shadow, blur) scale with the transform and zoom, the color effects are unitless; rendered on Canvas, exported to SVG (`<filter>`/`feColorMatrix`) and raster images, with export bounds grown so shadows/blur aren't cropped
@@ -114,7 +114,7 @@ Vinegar uses Canvas 2D and its own document model as the source of truth.
 SVG import and export are **best-effort interchange features**, not a goal of full SVG specification coverage or lossless round-tripping.
 
 - Import uses Paper.js and converts supported shapes, paths, compound paths, groups/layers, transforms, clipping groups, solid paints, basic linear/radial gradients, opacity, blend modes and stroke dash/cap/join styles into editable Vinegar nodes
-- SVG text, embedded images, patterns, filters and other unsupported SVG constructs may be omitted or lose appearance during import; gradient geometry is reduced to Vinegar's angle/bounds-relative model
+- SVG text, embedded images, patterns, filters and other unsupported SVG constructs may be omitted or lose appearance during import; imported gradients keep their placement but are pinned to the artwork's own coordinates
 - Export covers Vinegar vector geometry, text, embedded images, gradients, clipping masks, Brush outlines, blend modes and the supported effect stack
 - Raster pattern paints export as SVG `<pattern>` elements with embedded images; pattern, filter and blend rendering can still vary between SVG viewers
 

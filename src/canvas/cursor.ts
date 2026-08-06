@@ -48,6 +48,7 @@ export function resolveCursor(
     case "brush":
     case "eraser":
     case "bucket":
+    case "gradient":
       return "crosshair";
     default:
       return selectCursor(ctx, screen, world);

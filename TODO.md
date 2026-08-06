@@ -193,7 +193,11 @@ additional effects, or other feature expansion.
 - [ ] アニメーション機能　パラメトリックに動かす
 - [ ] MCPサーバー化
 - [ ] 保存形式の検討 zip化?
-- [ ] ColorField のリファクタリング（特にコンポーネントわけ）
+- [ ] ColorField のリファクタリング（特にコンポーネントわけ。グラデーション部分は
+  `GradientEditor.tsx` に分離済み）
+- [ ] グラデーション（docs/gradients.md）の続き — フリーフォームグラデーション
+  （メッシュ）、複数オブジェクトにまたがるグラデーション、スウォッチとしての
+  グラデーション保存（`Swatch.paint` は今のところ solid のみ）
 - [ ] ドックのフローティング、マルチカラム化
 - [ ] Assetという名前は問題ないか。raster imageではないか。
 - [ ] テキストってインプレイス編集しかない？

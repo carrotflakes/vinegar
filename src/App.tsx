@@ -97,6 +97,8 @@ const TOOL_HINTS: Record<ToolId, string> = {
   brush: "Draw with pen pressure · adjust size / pressure / smoothing / taper in the panel",
   eraser: "Drag across brush strokes to split/trim them · size in the panel",
   bucket: "Click an enclosed empty area to fill it · gap closing in the panel",
+  gradient:
+    "Drag across a shape to place a gradient · drag the handles to reshape it · double-click the axis to add a stop · Shift = 15°",
   text: "Click for auto width · drag for a wrapping area · double-click text to edit",
   frame: "Drag to create a frame · move/resize it with the Select tool",
 };

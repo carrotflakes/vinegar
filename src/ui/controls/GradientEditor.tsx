@@ -203,7 +203,7 @@ export default function GradientEditor({ value, onChange, bounds }: Props) {
         <span className="alpha-value">{deg(gradientAngle(value))}°</span>
       </div>
 
-      <div className="pattern-offset">
+      <div className="gradient-num-row">
         <span className="alpha-label">{value.kind === "linear" ? "Length" : "Radius"}</span>
         <label className="offset-input">
           {value.space === "bounds" ? "%" : "px"}
@@ -237,7 +237,7 @@ export default function GradientEditor({ value, onChange, bounds }: Props) {
       )}
 
       {value.kind === "radial" && (
-        <div className="pattern-offset">
+        <div className="gradient-num-row">
           <span className="alpha-label">Focus</span>
           <label className="offset-input">
             X

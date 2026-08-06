@@ -48,3 +48,16 @@ globalStyle(".gradient-midpoint", {
   transform: "rotate(45deg)",
   cursor: "ew-resize",
 });
+
+/* A label plus one or two number inputs (length, focal point). */
+globalStyle(".gradient-num-row", {
+  display: "flex",
+  alignItems: "center",
+  gap: "8px",
+  fontSize: "12px",
+  color: vars.muted,
+});
+
+globalStyle(".gradient-num-row .alpha-label", {
+  flex: "none",
+});

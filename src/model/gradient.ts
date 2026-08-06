@@ -415,8 +415,17 @@ export function tiledStops(
       : stops;
     for (const s of cycle) {
       const offset = (i - range.from + s.offset) / span;
-      // Skip the duplicate that every cycle boundary would otherwise emit.
-      if (out.length && Math.abs(out[out.length - 1]!.offset - offset) < 1e-9) continue;
+      const prev = out[out.length - 1];
+      // A cycle boundary repeats one offset. Two stops there are meaningful —
+      // that is the hard step `repeat` needs — but an identical colour is not.
+      if (
+        prev &&
+        Math.abs(prev.offset - offset) < 1e-9 &&
+        prev.color === s.color &&
+        prev.alpha === s.alpha
+      ) {
+        continue;
+      }
       out.push({ ...s, offset: clamp01(offset) });
     }
   }
