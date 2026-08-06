@@ -6,6 +6,7 @@ import {
 } from "@/model/generators/generators";
 import type { PathShape } from "../../../model/types";
 import { useEditor } from "../../../store/editorStore";
+import { useUi } from "../../../store/uiStore";
 import { canBindGeneratorArgs, generatorArgPath } from "@/model/params";
 import BindableNumber from "@/ui/controls/BindableNumber";
 import Section from "../Section";
@@ -24,6 +25,7 @@ export default function GeneratorSection({ shape }: { shape: PathShape }) {
   const scripts = useEditor((state) => state.doc.scripts);
   const scriptMeta = useEditor((state) => state.scriptMeta);
   const trusted = useEditor((state) => state.scriptsTrusted);
+  const openGenerators = useUi((state) => state.openGenerators);
 
   const gen = shape.generator;
   const scriptId = gen?.scriptId;
@@ -38,6 +40,9 @@ export default function GeneratorSection({ shape }: { shape: PathShape }) {
 
   const def = gen ? resolveGenerator(gen.scriptId, scripts, trusted, scriptMeta) : null;
   if (!gen || !def) return null;
+  // Built-in sources are shown read-only by the dialog; document scripts open
+  // in the editor. Both jump through the same focus id.
+  const isBuiltin = gen.scriptId in GENERATORS;
 
   return (
     <Section title={def.name}>
@@ -84,9 +89,22 @@ export default function GeneratorSection({ shape }: { shape: PathShape }) {
         </>
       )}
 
-      <button className="ghost-btn" onClick={() => detachGenerator(shape.id)}>
-        Detach (make editable)
-      </button>
+      <div className="btn-row">
+        <button
+          className="ghost-btn"
+          onClick={() => openGenerators(gen.scriptId)}
+          title={
+            isBuiltin
+              ? "Show this generator's source in the Generators dialog"
+              : "Edit this generator's source in the Generators dialog"
+          }
+        >
+          {isBuiltin ? "View source" : "Edit source"}
+        </button>
+        <button className="ghost-btn" onClick={() => detachGenerator(shape.id)}>
+          Detach (make editable)
+        </button>
+      </div>
     </Section>
   );
 }

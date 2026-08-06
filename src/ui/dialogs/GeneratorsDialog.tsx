@@ -89,9 +89,16 @@ export default function GeneratorsDialog({ open, focusId, onClose }: Props) {
   const [args, setArgs] = useState<Record<string, number>>({});
   const previewCanvas = useRef<HTMLCanvasElement>(null);
 
-  // Preselect a script for editing when opened with a focus id (from the panel).
+  // Preselect a generator when opened with a focus id (from the Generators
+  // panel or a node's Properties). Built-ins have no editable draft — the
+  // dialog shows their source read-only — so they are selected on their own.
   useEffect(() => {
     if (!open || !focusId) return;
+    if (focusId in GENERATORS) {
+      setSelected(focusId);
+      setDraft(null);
+      return;
+    }
     const script = scripts[focusId];
     if (!script) return;
     setSelected(focusId);
