@@ -5,6 +5,7 @@ import {
   type Paint,
   type PatternPaint,
 } from "@/model/paint";
+import { suppressesStrokeCaps } from "@/model/marker";
 import { gradientStyle } from "./gradient";
 import {
   normalizeStrokeDash,
@@ -164,7 +165,9 @@ export function applyStrokeStyle(
   width: number
 ): void {
   ctx.lineWidth = width;
-  ctx.lineCap = shape.strokeCap;
+  // A marked end is terminated by its marker, not by the pen; the caps of the
+  // remaining ends are drawn back as geometry (model/marker.ts).
+  ctx.lineCap = suppressesStrokeCaps(shape) ? "butt" : shape.strokeCap;
   ctx.lineJoin = shape.strokeJoin;
   ctx.miterLimit = STROKE_MITER_LIMIT;
   const dash = normalizeStrokeDash(shape.strokeDash);

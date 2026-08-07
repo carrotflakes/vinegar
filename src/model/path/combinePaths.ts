@@ -6,6 +6,7 @@ import {
   nodeWorldMatrix,
 } from "@/model/geometry/matrix";
 import { isGroup, parentIdOf, selectionRoots } from "../scene";
+import { markerFields } from "@/model/marker";
 import { strokeDetailFields } from "../stroke";
 import { transformSubpath } from "./path";
 import { convertShapeToPath } from "./convertToPath";
@@ -160,6 +161,7 @@ export function combineShapes(shapes: PathShape[]): PathShape | null {
     stroke: base.stroke,
     strokeWidth: base.strokeWidth,
     ...strokeDetailFields(base),
+    ...markerFields(base),
     ...baseNodeDefaults(),
     opacity: base.opacity,
     blendMode: base.blendMode,

@@ -10,6 +10,7 @@ import { screenToWorld, type Viewport } from "@/model/geometry/viewport";
 import { compoundChildren } from "@/model/path/compoundPath";
 import { clippingContentIds, clippingMask } from "@/model/clippingMask";
 import { effectsMargin } from "@/model/effects";
+import { markerOutset } from "@/model/marker";
 import { isFrame, isGroup, isInstance, isShape } from "@/model/scene";
 import { effectiveStrokeAlignment, STROKE_MITER_LIMIT } from "@/model/stroke";
 import type { Bounds, Document, Matrix, Shape } from "@/model/types";
@@ -41,11 +42,12 @@ function shapeStrokeMargin(shape: Shape): number {
     return 0;
   }
   const alignment = effectiveStrokeAlignment(shape);
-  return alignment === "outside"
+  const pen = alignment === "outside"
     ? shape.strokeWidth * STROKE_MITER_LIMIT
     : alignment === "center"
       ? (shape.strokeWidth * STROKE_MITER_LIMIT) / 2
       : 0;
+  return Math.max(pen, markerOutset(shape));
 }
 
 function shapePaintBounds(

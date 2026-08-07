@@ -40,6 +40,12 @@ additional effects, or other feature expansion.
   per-fill/stroke effects, effects on artboards/layers, rotating drop-shadow
   offset with the object, group-effect export bounds beyond the per-leaf
   approximation
+- [ ] End markers (docs/markers.md) — arbitrary nodes/symbols as markers
+  (`{ kind: "builtin" } | { kind: "symbol", id }`), mid-path markers, an
+  independent marker colour, SVG **import** of `marker-start`/`marker-end`,
+  hit-testing the marker itself, and stroke trim-back (a translucent stroke
+  reads darker under its marker, and a hollow marker shows the line stub inside;
+  the same change would let a dashed stroke drop its caps at a marked end)
 - [ ] Text — rich text (style runs), text on path, vertical text, letter-spacing,
   outline-on-export, fixed-height clipping boxes, Google Fonts loading
 - [ ] Bucket fill (docs/bucket-fill.md) — hover preview of the region (needs an
@@ -257,3 +263,4 @@ additional effects, or other feature expansion.
 - [x] path modifier適用対象拡張 (rect/ellipse/line, v33)
 - [ ] pencil の交差トリム
 - [ ] Brush はfillなのかstrokeなのか問題
+- [ ] ハンドルが回転に追従しない

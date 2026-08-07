@@ -9,6 +9,7 @@ import {
   type Vec2,
 } from "../../model/types";
 import {
+  markersFromDefaults,
   styleFromDefaults,
   type EditorState,
   type StyleDefaults,
@@ -317,6 +318,7 @@ export function startPencil(
     }],
     fillRule: "nonzero",
     ...styleFromDefaults(state.style),
+    ...markersFromDefaults(state.style),
     fill: null,
   };
   ctx.preview.current = shape;
@@ -565,6 +567,7 @@ function makeCreatedShape(
       x2: b.x,
       y2: b.y,
       ...base,
+      ...markersFromDefaults(style),
       fill: null,
     };
   }
@@ -629,6 +632,7 @@ function freehandToPath(
     subpaths: [{ anchors, closed }],
     fillRule: "nonzero",
     ...styleFromDefaults(state.style),
+    ...markersFromDefaults(state.style),
     // An open stroke is a line and takes no fill; a loop the user deliberately
     // closed is a region, so it gets the current fill like any drawn shape.
     ...(closed ? {} : { fill: null }),

@@ -16,6 +16,7 @@ import type {
   DocParam,
   Document,
   Effect,
+  Marker,
   PathModifier,
   ParamRef,
   Matrix,
@@ -47,6 +48,10 @@ export interface StyleDefaults {
   strokeCap: StrokeCap;
   strokeJoin: StrokeJoin;
   strokeAlignment: StrokeAlignment;
+  /** End markers for newly drawn lines and paths; `null` is no marker. Shapes
+   *  that cannot carry one (rect, ellipse, text, brush) ignore these. */
+  markerStart: Marker | null;
+  markerEnd: Marker | null;
 }
 
 export interface HistoryEntry {
@@ -256,6 +261,15 @@ export interface ShapeActions {
   /** Refresh persisted text bounds after browser fonts become available. */
   remeasureTextShapes: () => void;
   updateSelectedStyle: (patch: Partial<StyleStylableFields>) => void;
+  /**
+   * Set or clear the end markers of every markable shape in the selection
+   * (lines and paths; other shapes are left alone). An omitted end keeps its
+   * current marker, `null` removes it. See docs/markers.md.
+   */
+  setSelectedMarkers: (patch: {
+    start?: Marker | null;
+    end?: Marker | null;
+  }) => void;
   setShapeGeometry: (id: string, patch: Partial<{ x: number; y: number; width: number; height: number }>) => void;
   /**
    * Move by a world-space delta (the arrow keys): the selected anchors when the

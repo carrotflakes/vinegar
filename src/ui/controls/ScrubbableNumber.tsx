@@ -12,6 +12,7 @@ type Props = {
   /** When set, double-clicking the field resets it to this value. */
   defaultValue?: number;
   className?: string;
+  disabled?: boolean;
   "aria-label"?: string;
   /** Optional lifecycle hooks for callers that batch a scrub into one undo step. */
   onScrubStart?: () => void;
@@ -33,6 +34,7 @@ export default function ScrubbableNumber({
   scale = "linear",
   defaultValue,
   className,
+  disabled,
   onScrubStart,
   onScrubEnd,
   onScrubCancel,
@@ -121,7 +123,8 @@ export default function ScrubbableNumber({
       className={className}
       // touchAction none: keep the horizontal scrub gesture from scrolling the
       // panel and cancelling the pointer mid-drag on touch devices.
-      style={{ cursor: "ew-resize", touchAction: "none" }}
+      style={{ cursor: disabled ? "default" : "ew-resize", touchAction: "none" }}
+      disabled={disabled}
       min={min}
       max={max}
       step={step}

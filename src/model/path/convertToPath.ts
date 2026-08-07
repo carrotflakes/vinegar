@@ -3,6 +3,7 @@ import { convertBrushToCenterlinePath } from "@/model/brush/convertBrush";
 import { transformSubpath } from "./path";
 import { applyPathModifiers, resolvedSubpaths } from "./pathModifiers";
 import { remapModifierBindings } from "../params";
+import { markerFields } from "../marker";
 import { strokeDetailFields } from "../stroke";
 import type {
   CompoundPathNode,
@@ -61,6 +62,9 @@ export function convertShapeToPath(
     stroke: shape.stroke,
     strokeWidth: shape.strokeWidth,
     ...strokeDetailFields(shape),
+    // A converted line keeps its end markers: they attach to the resolved
+    // geometry, which this conversion preserves.
+    ...markerFields(shape),
     opacity: shape.opacity,
     blendMode: shape.blendMode,
     effects: structuredClone(shape.effects),

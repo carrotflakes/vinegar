@@ -6,6 +6,7 @@ import { expandBounds, instanceWorldBounds, intersectBounds, shapeBounds, worldS
 import { hasValidSceneContainers } from "../model/sceneValidation";
 import { eraseBrush } from "@/model/brush/eraser";
 import { applyMatrix, applyWorldTransformToNode, boundsTransform, IDENTITY, invertMatrix, isIdentity, multiply, nodeWorldMatrix, shapeWorldMatrix, translation as translationMatrix } from "@/model/geometry/matrix";
+import { isMarkable } from "@/model/marker";
 import { moveAnchors } from "@/model/nodeEdit";
 import { childIdsOf, descendantShapeIds, isGroup, isInstance, isNodeHidden, isNodeLocked, isShape, parentIdOf, scopeLeafIds, selectionRoots, withChildIds } from "../model/scene";
 import { clampRectCornerRadius } from "../model/roundedRect";
@@ -200,6 +201,39 @@ export function createShapeActions({ set, get, transact, replaceDocumentWithoutH
         for (const id of ids) { nodes[id] = { ...(nodes[id] as Shape), ...patch } as Shape; changed = true; }
       }
       if (changed) transact({ ...doc, nodes }, { label: "Edit style", coalesceKey: `style:${roots.join(",")}:${Object.keys(patch).sort().join(",")}` });
+    },
+    setSelectedMarkers: (patch) => {
+      const doc = get().doc;
+      const nodes = { ...doc.nodes };
+      let changed = false;
+      const roots = selectionRoots(doc, get().selection);
+      for (const root of roots) {
+        const ids = isShape(nodes[root]) ? [root] : descendantShapeIds(doc, root);
+        for (const id of ids) {
+          const shape = nodes[id];
+          if (!isMarkable(shape)) continue;
+          // Absent, not null, is "no marker" — so clearing deletes the field.
+          const next = { ...shape };
+          if (patch.start !== undefined) {
+            if (patch.start) next.markerStart = patch.start;
+            else delete next.markerStart;
+          }
+          if (patch.end !== undefined) {
+            if (patch.end) next.markerEnd = patch.end;
+            else delete next.markerEnd;
+          }
+          nodes[id] = next;
+          changed = true;
+        }
+      }
+      if (!changed) return;
+      transact(
+        { ...doc, nodes },
+        {
+          label: "Edit markers",
+          coalesceKey: `markers:${roots.join(",")}:${Object.keys(patch).sort().join(",")}`,
+        }
+      );
     },
     setShapeGeometry: (id, patch) => {
       const doc = get().doc;

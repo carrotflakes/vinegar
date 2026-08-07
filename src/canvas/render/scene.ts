@@ -7,6 +7,7 @@ import { isIdentity, transformBounds } from "@/model/geometry/matrix";
 import { cachedBrushEnvelope } from "@/model/brush/brushOutline";
 import { clippingContentIds, clippingMask, shapeFillRule } from "@/model/clippingMask";
 import { effectsMargin, hasEffects } from "@/model/effects";
+import { hasMarkers, strokeEndContours } from "@/model/marker";
 import { isSwatchRef, resolvePaintRef } from "@/model/paint";
 import { ancestorIds, isFrame, isGroup, isInstance, isShape } from "@/model/scene";
 import { effectiveStrokeAlignment, strokeOutset, STROKE_MITER_LIMIT } from "@/model/stroke";
@@ -40,7 +41,7 @@ import {
   setLayerTransform,
   withLayerStats,
 } from "./layers";
-import { cachedShapePath, tracePath } from "./path";
+import { cachedShapePath, traceSubpaths, tracePath } from "./path";
 import {
   applyStrokeStyle,
   checkerPattern,
@@ -371,8 +372,49 @@ export function paintShape(
   }
   if (shape.stroke !== null && shape.strokeWidth > 0) {
     paintVectorStroke(ctx, shape, bounds, assets, path, doc, preview);
+    paintMarkers(ctx, shape, bounds, assets);
   }
   ctx.restore();
+}
+
+/**
+ * Paint the end markers of an open shape, over the stroke and with the same
+ * paint. Markers are ordinary contours in the shape's local space, so they need
+ * no transform of their own — which is what keeps a user-space gradient
+ * continuous across line and arrowhead.
+ */
+function paintMarkers(
+  ctx: CanvasRenderingContext2D,
+  shape: Shape,
+  bounds: Bounds,
+  assets: Record<string, DocumentAsset>
+): void {
+  if (!shape.stroke || !hasMarkers(shape)) return;
+  const contours = strokeEndContours(shape);
+  if (!contours.length) return;
+  const style = resolveStyle(ctx, shape.stroke, bounds, assets, strokeOutset(shape));
+  // A null style is a pattern still decoding; skip until the cache repaints.
+  if (!style) return;
+  withPaintAlpha(ctx, shape.opacity, shape.stroke, () => {
+    ctx.save();
+    applyStrokeStyle(ctx, shape, shape.strokeWidth);
+    // A dash pattern belongs to the line, never to the mark on its end.
+    if (typeof ctx.setLineDash === "function") ctx.setLineDash([]);
+    ctx.lineDashOffset = 0;
+    // The corners belong to the marker's own artwork, not to the line: a miter
+    // would spike an arrow's vertex past the end point it is meant to sit on.
+    ctx.lineJoin = "round";
+    // …but the marker's open ends (an arrow's tails, a bar) keep the line's cap.
+    ctx.lineCap = shape.strokeCap;
+    ctx.fillStyle = style;
+    ctx.strokeStyle = style;
+    for (const contour of contours) {
+      traceSubpaths(ctx, [contour.subpath]);
+      if (contour.filled) ctx.fill("nonzero");
+      else ctx.stroke();
+    }
+    ctx.restore();
+  });
 }
 
 /**

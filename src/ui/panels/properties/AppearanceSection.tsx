@@ -4,7 +4,7 @@ import {
   normalizeStrokeDash,
   supportsStrokeAlignment,
 } from "../../../model/stroke";
-import { type PathShape, type Shape } from "../../../model/types";
+import { type Marker, type PathShape, type Shape } from "../../../model/types";
 import { useEditor } from "../../../store/editorStore";
 import { STROKE_WIDTH_PATH } from "@/model/params";
 import BindableNumber from "@/ui/controls/BindableNumber";
@@ -13,6 +13,7 @@ import ScrubbableNumber from "@/ui/controls/ScrubbableNumber";
 import SegmentedControl, {
   type SegmentedControlOption,
 } from "@/ui/controls/SegmentedControl";
+import MarkerControls from "./MarkerControls";
 import StrokeDetailControls, {
   type StrokeDetailsValue,
 } from "./StrokeDetailControls";
@@ -21,6 +22,7 @@ import {
   OpacityField,
 } from "./StyleFields";
 import Section from "../Section";
+import { isMarkable } from "@/model/marker";
 import { resolvedSubpaths } from "@/model/path/pathModifiers";
 import { shapeBounds } from "@/model/geometry/bounds";
 
@@ -42,6 +44,7 @@ export default function AppearanceSection({
   const setSelectedFillRule = useEditor(
     (state) => state.setSelectedFillRule
   );
+  const setSelectedMarkers = useEditor((state) => state.setSelectedMarkers);
   const hasSelection = selected.length > 0;
   const first = selected[0];
   const paintless =
@@ -96,6 +99,27 @@ export default function AppearanceSection({
     hasSelection
       ? updateSelectedStyle({ strokeWidth: value })
       : setStyle({ strokeWidth: value });
+  // Only open geometry has ends to mark, so the controls appear exactly when
+  // every selected shape can carry a marker — or when there is no selection at
+  // all and the fields stand for what the next line or path will be drawn with.
+  const markerSource =
+    hasSelection && isMarkable(first) && selected.every(isMarkable) ? first : null;
+  const markers = hasSelection
+    ? markerSource && {
+        start: markerSource.markerStart ?? null,
+        end: markerSource.markerEnd ?? null,
+      }
+    : { start: style.markerStart, end: style.markerEnd };
+  const setMarkers = (patch: { start?: Marker | null; end?: Marker | null }) => {
+    if (hasSelection) {
+      setSelectedMarkers(patch);
+      return;
+    }
+    setStyle({
+      ...(patch.start !== undefined ? { markerStart: patch.start } : {}),
+      ...(patch.end !== undefined ? { markerEnd: patch.end } : {}),
+    });
+  };
   const setStrokeDetails = (patch: Partial<StrokeDetailsValue>) => {
     const shared = {
       ...(patch.cap !== undefined ? { strokeCap: patch.cap } : {}),
@@ -168,6 +192,14 @@ export default function AppearanceSection({
             alignmentEnabled={alignmentEnabled}
             onChange={setStrokeDetails}
           />
+
+          {markers && (
+            <MarkerControls
+              start={markers.start}
+              end={markers.end}
+              onChange={setMarkers}
+            />
+          )}
 
           {showFillRule && (
             <div className="field">

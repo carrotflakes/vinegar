@@ -5,6 +5,7 @@ import { referencedAssetIds } from "../model/scene";
 import {
   BLEND_MODES,
   EFFECT_TYPES,
+  MARKER_SHAPES,
   PATH_MODIFIER_TYPES,
   STROKE_ALIGNMENTS,
   STROKE_CAPS,
@@ -13,7 +14,7 @@ import {
   type ShapeType,
 } from "../model/types";
 
-export const CURRENT_FILE_VERSION = 34 as const;
+export const CURRENT_FILE_VERSION = 35 as const;
 /** Older schemas accepted directly by the current document validator.
  *  v33 and below stored gradients as `linear`/`radial` paints with no geometry
  *  beyond an angle, which the placed-gradient model cannot express. */
@@ -144,6 +145,14 @@ const isPathModifier = (value: unknown): boolean => {
 };
 const isPathModifiersOrAbsent = (value: unknown): boolean =>
   value === undefined || (Array.isArray(value) && value.every(isPathModifier));
+/** An end marker. Absent is the v34 form: that end carries no marker. */
+const isMarkerOrAbsent = (value: unknown): boolean =>
+  value === undefined ||
+  (isObject(value) && MARKER_SHAPES.includes(value.shape as never) &&
+    isNumber(value.scale) && value.scale > 0 &&
+    typeof value.filled === "boolean" && typeof value.flip === "boolean");
+const hasValidMarkers = (node: Record<string, unknown>): boolean =>
+  isMarkerOrAbsent(node.markerStart) && isMarkerOrAbsent(node.markerEnd);
 const isStrokeDash = (value: unknown): boolean =>
   Array.isArray(value) && value.every((entry) => isNumber(entry) && entry >= 0);
 const isGeneratorOrNull = (value: unknown): boolean => {
@@ -228,12 +237,12 @@ const isNode = (id: string, node: unknown): boolean => {
         isNumber(node.lineHeight) && node.lineHeight > 0 &&
         (node.align === "left" || node.align === "center" || node.align === "right");
     case "line":
-      return isPathModifiersOrAbsent(node.modifiers) &&
+      return isPathModifiersOrAbsent(node.modifiers) && hasValidMarkers(node) &&
         isNumber(node.x1) && isNumber(node.y1) && isNumber(node.x2) && isNumber(node.y2);
     case "path":
       return (
         (node.fillRule === "nonzero" || node.fillRule === "evenodd") &&
-        isPathModifiersOrAbsent(node.modifiers) &&
+        isPathModifiersOrAbsent(node.modifiers) && hasValidMarkers(node) &&
         Array.isArray(node.subpaths) &&
         node.subpaths.every((sp) =>
           isObject(sp) && typeof sp.closed === "boolean" &&

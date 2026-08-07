@@ -121,6 +121,15 @@ function appendPath(target: PathTarget, shape: Shape): void {
   }
 }
 
+/** Trace loose contours (end markers) onto a live canvas path. */
+export function traceSubpaths(
+  ctx: CanvasRenderingContext2D,
+  subpaths: PathSubpath[]
+): void {
+  ctx.beginPath();
+  appendSubpaths(ctx, subpaths);
+}
+
 const pathCache = new WeakMap<Shape, Path2D>();
 const compoundPathCache = new WeakMap<
   Shape,

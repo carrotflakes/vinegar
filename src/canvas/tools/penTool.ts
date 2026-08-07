@@ -7,6 +7,7 @@ import { isShape } from "../../model/scene";
 import { makeId, type PathShape, type Vec2 } from "../../model/types";
 import { worldToScreen } from "@/model/geometry/viewport";
 import {
+  markersFromDefaults,
   styleFromDefaults,
   useEditor,
   type EditorState,
@@ -214,6 +215,7 @@ export function onPenDown(
       ],
       fillRule: "nonzero",
       ...styleFromDefaults(state.style),
+      ...markersFromDefaults(state.style),
     };
     ctx.penDraft.current = shape;
     ctx.preview.current = shape;

@@ -62,6 +62,8 @@ export function initialPrefs(): PrefsData {
       strokeCap: "round",
       strokeJoin: "round",
       strokeAlignment: "center",
+      markerStart: null,
+      markerEnd: null,
     },
     snapEnabled: loadBool(SNAP_ENABLED_KEY, true),
     gridSnap: loadBool(GRID_SNAP_KEY, false),

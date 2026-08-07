@@ -76,6 +76,7 @@ Per-area notes live alongside this file in `docs/`:
 - [document-model.md](document-model.md) — the persisted format
 - [drag-and-drop.md](drag-and-drop.md) — pointer-based drag conventions
 - [global-colors.md](global-colors.md) — document color swatches and references
+- [markers.md](markers.md) — arrowheads and other end markers on open strokes
 - [path-commands.md](path-commands.md) — join / cut / combine / split and cleanup ops
 - [pen-and-touch.md](pen-and-touch.md) — stylus vs finger roles, palm rejection, touch gestures
 - [path-modifiers.md](path-modifiers.md) — direction for a non-destructive modifier stack

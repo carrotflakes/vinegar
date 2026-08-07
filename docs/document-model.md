@@ -25,6 +25,11 @@ active tool, selection, viewport and undo history does not belong in the file.
   it stores one or more `subpaths`, each with cubic anchors (`p`, `hIn`,
   `hOut`, and optional linkage tag `t`) and a `closed` flag. Null handles make
   straight segments; absent `t` is derived from the handle geometry.
+- `line` and `path` — the shapes that can be *open* — may also carry
+  `markerStart` / `markerEnd`: an end marker (arrowhead, dot, tick) drawn at
+  each open end of the resolved geometry, painted with the shape's stroke paint
+  at its stroke width. An absent field means that end has no marker. See
+  [markers.md](markers.md).
 - A path's `fillRule` is either `nonzero` or `evenodd`. The rule applies to all subpaths consistently in
   rendering, hit-testing, clipping, boolean input, and SVG export. Filling
   implicitly closes open subpaths without closing their strokes.
@@ -110,9 +115,9 @@ active tool, selection, viewport and undo history does not belong in the file.
   document, and a binding whose field path no longer addresses anything is
   pruned there. See [parameters.md](parameters.md).
 
-The current file version is v32; loading also accepts compatible v31 files
-(their absent `params`/`paramOrder`/`bindings` fill in as empty). Persisted
-model changes require a version review and, when incompatible, a migration.
+The current file version is v35 and it is the only version loading accepts.
+Persisted model changes require a version review and, when incompatible, a
+migration.
 
 ## Coordinate policy
 

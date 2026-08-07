@@ -5,6 +5,7 @@ import type {
   StrokeCap,
   StrokeJoin,
 } from "./types";
+import { markerOutset } from "./marker";
 import { modifiedSubpaths, resolvedSubpaths } from "./path/pathModifiers";
 
 export const DEFAULT_STROKE_CAP: StrokeCap = "round";
@@ -63,7 +64,8 @@ export function strokeOutset(shape: Shape): number {
       ? shape.strokeWidth
       : shape.strokeWidth / 2;
   if (outset > 0 && shape.strokeJoin === "miter") outset *= STROKE_MITER_LIMIT;
-  return outset;
+  // End markers paint outside the geometry too, and reach further than the pen.
+  return Math.max(outset, markerOutset(shape));
 }
 
 /** Copy a shape's stroke appearance to a newly-created result. */

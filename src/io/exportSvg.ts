@@ -22,6 +22,7 @@ import {
   type PaintTarget,
   type PatternPaint,
 } from "../model/paint";
+import { strokeEndContours, suppressesStrokeCaps } from "../model/marker";
 import { isGroup, isShape } from "../model/scene";
 import { effectiveRectCornerRadius, roundedRectSubpath } from "../model/roundedRect";
 import { ellipseSubpath } from "../model/ellipse";
@@ -339,7 +340,13 @@ function filterAttr(node: SceneNode, defs: Defs): string {
   return hasEffects(node.effects) ? `filter="url(#${defs.filter(node.effects)})"` : "";
 }
 
-function commonAttrs(doc: Document, shape: Shape, defs: Defs): string {
+function commonAttrs(
+  doc: Document,
+  shape: Shape,
+  defs: Defs,
+  /** Off when a wrapping <g> already carries opacity / blend / transform / filter. */
+  includeBase = true
+): string {
   const parts: string[] = [];
   const bounds = shapeBounds(shape, doc);
   // SVG fills open subpaths by implicitly closing them while leaving their
@@ -353,10 +360,39 @@ function commonAttrs(doc: Document, shape: Shape, defs: Defs): string {
   if (shape.stroke && shape.strokeWidth > 0) {
     parts.push(...strokeSvgAttrs(shape, defs, shape.strokeWidth, doc));
   }
-  parts.push(...baseAttrs(shape));
-  const fx = filterAttr(shape, defs);
-  if (fx) parts.push(fx);
+  if (includeBase) {
+    parts.push(...baseAttrs(shape));
+    const fx = filterAttr(shape, defs);
+    if (fx) parts.push(fx);
+  }
   return parts.join(" ");
+}
+
+/**
+ * The shape's end markers as sibling `<path>` elements. Their geometry is baked
+ * in the shape's own coordinate space rather than placed with a transform, so a
+ * user-space gradient runs continuously from the line into its arrowhead —
+ * exactly as the canvas paints it.
+ */
+function markerSvg(doc: Document, shape: Shape, defs: Defs): string {
+  const contours = strokeEndContours(shape);
+  if (!contours.length || !shape.stroke) return "";
+  const bounds = shapeBounds(shape, doc);
+  return contours
+    .map((contour) => {
+      const attrs = contour.filled
+        ? [...defs.paintAttrs(shape.stroke!, "fill", bounds), `stroke="none"`]
+        : [
+            `fill="none"`,
+            ...defs.paintAttrs(shape.stroke!, "stroke", bounds),
+            `stroke-width="${num(shape.strokeWidth)}"`,
+            `stroke-linecap="${shape.strokeCap}"`,
+            // Round joins, not the shape's: see paintMarkers.
+            `stroke-linejoin="round"`,
+          ];
+      return `<path d="${subpathsData([contour.subpath])}" ${attrs.join(" ")} />`;
+    })
+    .join("");
 }
 
 function strokeSvgAttrs(
@@ -369,7 +405,7 @@ function strokeSvgAttrs(
   const parts = [
     ...defs.paintAttrs(shape.stroke, "stroke", shapeBounds(shape, doc)),
     `stroke-width="${num(width)}"`,
-    `stroke-linecap="${shape.strokeCap}"`,
+    `stroke-linecap="${suppressesStrokeCaps(shape) ? "butt" : shape.strokeCap}"`,
     `stroke-linejoin="${shape.strokeJoin}"`,
     `stroke-miterlimit="${STROKE_MITER_LIMIT}"`,
   ];
@@ -425,9 +461,17 @@ function shapeToSvg(doc: Document, shape: Shape, defs: Defs): string {
     if (fx) parts.push(fx);
     return shapeGeometryToSvg(doc, shape, parts.join(" "));
   }
+  const markers = markerSvg(doc, shape, defs);
   const alignment = effectiveStrokeAlignment(shape);
   if (!shape.stroke || shape.strokeWidth <= 0 || alignment === "center") {
-    return shapeGeometryToSvg(doc, shape, commonAttrs(doc, shape, defs));
+    if (!markers) {
+      return shapeGeometryToSvg(doc, shape, commonAttrs(doc, shape, defs));
+    }
+    // Markers make the node several elements, so opacity / blend / transform /
+    // filter move to the wrapper they share.
+    const line = shapeGeometryToSvg(doc, shape, commonAttrs(doc, shape, defs, false));
+    const wrapper = [...baseAttrs(shape), filterAttr(shape, defs)].filter(Boolean).join(" ");
+    return `<g${wrapper ? " " + wrapper : ""}>${line}${markers}</g>`;
   }
 
   // SVG has no interoperable inside/outside stroke positioning. Paint fill
@@ -455,7 +499,7 @@ function shapeToSvg(doc: Document, shape: Shape, defs: Defs): string {
         return `<g mask="url(#${mask})">${stroke}</g>`;
       })();
   const wrapper = [...baseAttrs(shape), filterAttr(shape, defs)].filter(Boolean).join(" ");
-  return `<g${wrapper ? " " + wrapper : ""}>${fill}${limitedStroke}</g>`;
+  return `<g${wrapper ? " " + wrapper : ""}>${fill}${limitedStroke}${markers}</g>`;
 }
 
 function shapeGeometryToSvg(doc: Document, shape: Shape, attrs: string): string {

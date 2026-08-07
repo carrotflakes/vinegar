@@ -7,6 +7,7 @@
 
 import { create } from "zustand";
 import { IDENTITY } from "@/model/geometry/matrix";
+import type { MarkableShape } from "@/model/marker";
 import { baseNodeDefaults, createEmptyDocument, type Shape } from "../model/types";
 import { createClipboardActions } from "./clipboardSlice";
 import { createHistory, trimHistoryToLimit } from "./historySlice";
@@ -105,6 +106,20 @@ export function hasUnsavedChanges(
   state: Pick<EditorState, "_revision" | "_savedRevision">
 ): boolean {
   return !state._savedRevision || state._revision.history !== state._savedRevision.history || state._revision.maintenance !== state._savedRevision.maintenance;
+}
+
+/**
+ * The marker fields of the new-shape defaults, for the tools that create a
+ * shape which can carry them. Kept out of {@link styleFromDefaults} so a rect
+ * or a text node never grows a field its type does not have.
+ */
+export function markersFromDefaults(
+  style: StyleDefaults
+): Pick<MarkableShape, "markerStart" | "markerEnd"> {
+  return {
+    ...(style.markerStart ? { markerStart: { ...style.markerStart } } : {}),
+    ...(style.markerEnd ? { markerEnd: { ...style.markerEnd } } : {}),
+  };
 }
 
 export function styleFromDefaults(style: StyleDefaults) {

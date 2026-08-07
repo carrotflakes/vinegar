@@ -16,6 +16,31 @@ export type StrokeJoin = (typeof STROKE_JOINS)[number];
 export const STROKE_ALIGNMENTS = ["inside", "center", "outside"] as const;
 export type StrokeAlignment = (typeof STROKE_ALIGNMENTS)[number];
 
+export const MARKER_SHAPES = [
+  "arrow",
+  "triangle",
+  "circle",
+  "square",
+  "diamond",
+  "bar",
+] as const;
+export type MarkerShape = (typeof MARKER_SHAPES)[number];
+
+/**
+ * An end marker (arrowhead, dot, tick) drawn at an open end of a stroke. It is
+ * painted with the shape's stroke paint at the shape's stroke width, so a
+ * marker is invisible without a stroke. See docs/markers.md.
+ */
+export interface Marker {
+  shape: MarkerShape;
+  /** Size as a multiple of the stroke width. */
+  scale: number;
+  /** Solid vs hollow. Ignored by `arrow` and `bar`, which are always stroked. */
+  filled: boolean;
+  /** Point the marker back along the path instead of outward. */
+  flip: boolean;
+}
+
 /** Canvas/SVG-compatible 2D affine matrix [a, b, c, d, e, f]. */
 export type Matrix = [number, number, number, number, number, number];
 
@@ -291,6 +316,16 @@ export interface ModifiableShapeBase extends BaseShape {
   modifiers?: PathModifier[];
 }
 
+/**
+ * A shape that can carry end markers. Only the shapes that can be *open* —
+ * lines and paths — do; a rect or an ellipse has no ends to mark. Absent means
+ * no marker on that end. See docs/markers.md.
+ */
+export interface MarkableShapeBase extends ModifiableShapeBase {
+  markerStart?: Marker;
+  markerEnd?: Marker;
+}
+
 /** Axis-aligned rectangle, defined by its top-left corner and size. */
 export interface RectShape extends ModifiableShapeBase {
   type: "rect";
@@ -312,7 +347,7 @@ export interface EllipseShape extends ModifiableShapeBase {
 }
 
 /** Straight line segment between two points. */
-export interface LineShape extends ModifiableShapeBase {
+export interface LineShape extends MarkableShapeBase {
   type: "line";
   x1: number;
   y1: number;
@@ -368,7 +403,7 @@ export const PATH_MODIFIER_TYPES = [
  * A multi-subpath outline. Null handles make straight segments; non-null
  * handles make cubic Bézier segments. All subpaths share one winding rule.
  */
-export interface PathShape extends ModifiableShapeBase {
+export interface PathShape extends MarkableShapeBase {
   type: "path";
   subpaths: PathSubpath[];
   /** Winding rule for fill, hit-testing, and clipping. */

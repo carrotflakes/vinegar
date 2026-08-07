@@ -1,4 +1,5 @@
 import { IDENTITY } from "@/model/geometry/matrix";
+import { markerFields } from "@/model/marker";
 import { strokeDetailFields } from "../stroke";
 import { transformAnchor } from "./path";
 import { resolvedSubpaths } from "./pathModifiers";
@@ -139,6 +140,7 @@ export function joinShapes(
     stroke: base.stroke,
     strokeWidth: base.strokeWidth,
     ...strokeDetailFields(base),
+    ...markerFields(base),
     ...baseNodeDefaults(),
     opacity: base.opacity,
     blendMode: base.blendMode,

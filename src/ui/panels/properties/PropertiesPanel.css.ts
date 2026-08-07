@@ -98,6 +98,51 @@ globalStyle(".dash-input.invalid", {
   outlineColor: vars.danger,
 });
 
+/* One row per end of the path: which marker, how big, and its two toggles. */
+globalStyle(".marker-rows", {
+  display: "flex",
+  flexDirection: "column",
+  gap: "6px",
+});
+
+globalStyle(".marker-row", {
+  display: "grid",
+  gridTemplateColumns: "auto minmax(0, 1fr) auto auto auto",
+  alignItems: "center",
+  gap: "6px",
+});
+
+globalStyle(".marker-end-label", {
+  minWidth: "34px",
+  fontSize: "12px",
+  color: vars.muted,
+});
+
+globalStyle(".marker-shape-select", {
+  width: "100%",
+  minWidth: "0",
+});
+
+globalStyle(".marker-scale", {
+  width: "48px",
+});
+
+globalStyle(".marker-toggle", {
+  padding: "4px 7px",
+  fontSize: "11px",
+});
+
+globalStyle(".marker-toggle.active", {
+  background: vars.accentSoft,
+  borderColor: vars.accent,
+  color: vars.text,
+});
+
+/* .ghost-btn already dims when disabled; the native controls do not. */
+globalStyle(".marker-row select:disabled,\n.marker-row input:disabled", {
+  opacity: "0.45",
+});
+
 globalStyle(".readout", {
   textAlign: "right",
   color: vars.muted,
