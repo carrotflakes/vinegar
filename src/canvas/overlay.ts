@@ -2,7 +2,11 @@ import type { Guide, Spacing } from "@/model/geometry/snap";
 import { applyMatrix } from "@/model/geometry/matrix";
 import { effectiveAnchorType } from "@/model/path/anchorType";
 import type { Bounds, PathShape, Matrix, Vec2 } from "../model/types";
-import { worldToScreen, type Viewport } from "@/model/geometry/viewport";
+import {
+  screenAngle,
+  worldToScreen,
+  type Viewport,
+} from "@/model/geometry/viewport";
 import { HANDLE_SIZE, PARAM_KNOB_SIZE, usableHandleIds } from "./handles";
 import {
   frameCorners,
@@ -117,18 +121,14 @@ export function drawOverlay(
         ctx.stroke();
       }
 
-      // Resize handles.
-      const half = handleSize / 2;
+      // Resize handles. They sit *on* the box's edges, so they follow its
+      // screen orientation (selection rotation and canvas rotation both) —
+      // squares left axis-aligned under a rotated view read as debris rather
+      // than as part of the frame.
+      const angle = screenAngle(viewport, frame.transform);
       ctx.fillStyle = "#ffffff";
       for (const id of usableHandleIds(frame.bounds)) {
-        const sp = toS(frameHandlePoint(frame, id));
-        ctx.beginPath();
-        ctx.rect(
-          Math.round(sp.x - half),
-          Math.round(sp.y - half),
-          handleSize,
-          handleSize
-        );
+        square(ctx, toS(frameHandlePoint(frame, id)), handleSize, angle);
         ctx.fill();
         ctx.stroke();
       }
@@ -165,7 +165,9 @@ export function drawOverlay(
         ctx.strokeStyle = PARAM_ACCENT;
         ctx.lineWidth = 1.5;
         for (const knob of knobs) {
-          diamond(ctx, knob, knobSize);
+          // These knobs are placed relative to the box (a corner inset, a
+          // generator's parameter point), so they turn with it too.
+          diamond(ctx, knob, knobSize, angle);
           ctx.fill();
           ctx.stroke();
         }
@@ -203,6 +205,9 @@ export function drawGradientAnnotator(
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   const { from, to } = controls.axis;
   const size = HANDLE_SIZE * scale;
+  // The end cap and the midpoint marks belong to the ramp, so they lie along
+  // it — which also carries the canvas rotation, since the axis is projected.
+  const axisAngle = Math.atan2(to.y - from.y, to.x - from.x);
 
   // The axis reads over any artwork: a dark line under a white one.
   ctx.lineCap = "round";
@@ -240,8 +245,7 @@ export function drawGradientAnnotator(
       case "end":
         ctx.fillStyle = "#ffffff";
         ctx.strokeStyle = ACCENT;
-        ctx.beginPath();
-        ctx.rect(Math.round(p.x - size / 2), Math.round(p.y - size / 2), size, size);
+        square(ctx, p, size, axisAngle);
         ctx.fill();
         ctx.stroke();
         break;
@@ -257,7 +261,7 @@ export function drawGradientAnnotator(
         ctx.fillStyle = "#ffffff";
         ctx.strokeStyle = "rgba(0,0,0,0.55)";
         ctx.lineWidth = 1;
-        diamond(ctx, p, size * 0.7);
+        diamond(ctx, p, size * 0.7, axisAngle);
         ctx.fill();
         ctx.stroke();
         break;
@@ -393,20 +397,59 @@ export function drawSpacings(
   }
 }
 
-function square(ctx: CanvasRenderingContext2D, c: Vec2, size: number): void {
-  const h = size / 2;
+/**
+ * Four-cornered marker centred on `c`, given the distance to a corner and the
+ * screen angle of the first one. Squares and diamonds are the same shape a
+ * quarter turn apart, so they share this and rotate the same way.
+ */
+function quad(
+  ctx: CanvasRenderingContext2D,
+  c: Vec2,
+  radius: number,
+  angle: number
+): void {
   ctx.beginPath();
-  ctx.rect(Math.round(c.x - h), Math.round(c.y - h), size, size);
+  for (let i = 0; i < 4; i++) {
+    const a = angle + (i * Math.PI) / 2;
+    const x = c.x + Math.cos(a) * radius;
+    const y = c.y + Math.sin(a) * radius;
+    if (i === 0) ctx.moveTo(x, y);
+    else ctx.lineTo(x, y);
+  }
+  ctx.closePath();
 }
 
-function diamond(ctx: CanvasRenderingContext2D, c: Vec2, size: number): void {
-  const h = size / 2;
-  ctx.beginPath();
-  ctx.moveTo(c.x, c.y - h);
-  ctx.lineTo(c.x + h, c.y);
-  ctx.lineTo(c.x, c.y + h);
-  ctx.lineTo(c.x - h, c.y);
-  ctx.closePath();
+/** True when a quarter-turn-symmetric marker at `angle` is square to the pixel
+ *  grid, and so can be snapped to it. */
+function isAxisAligned(angle: number): boolean {
+  return Math.abs(Math.sin(2 * angle)) < 1e-6;
+}
+
+/** Square of side `size`, its edges tilted by `angle`. */
+function square(
+  ctx: CanvasRenderingContext2D,
+  c: Vec2,
+  size: number,
+  angle = 0
+): void {
+  if (isAxisAligned(angle)) {
+    // Snap to the pixel grid whenever the marker is square to the screen.
+    const h = size / 2;
+    ctx.beginPath();
+    ctx.rect(Math.round(c.x - h), Math.round(c.y - h), size, size);
+    return;
+  }
+  quad(ctx, c, size * Math.SQRT1_2, angle + Math.PI / 4);
+}
+
+/** Diamond of full diagonal `size`, its axes tilted by `angle`. */
+function diamond(
+  ctx: CanvasRenderingContext2D,
+  c: Vec2,
+  size: number,
+  angle = 0
+): void {
+  quad(ctx, c, size / 2, angle);
 }
 
 function dot(ctx: CanvasRenderingContext2D, c: Vec2, r: number): void {
@@ -432,6 +475,9 @@ export function drawNodes(
   const toS = (w: Vec2) => worldToScreen(viewport, applyMatrix(transform, w));
   const subpaths = nodeSubpaths(shape);
   const selected = new Set(active.map((node) => `${node.sub}:${node.index}`));
+  // Anchor markers sit in the shape's own space, so they lean with it and with
+  // the canvas rather than staying square to the screen.
+  const angle = screenAngle(viewport, transform);
 
   // Handle lines + dots.
   ctx.strokeStyle = "#9bbcf6";
@@ -475,7 +521,7 @@ export function drawNodes(
       ctx.moveTo(knob.anchorScreen.x, knob.anchorScreen.y);
       ctx.lineTo(knob.screen.x, knob.screen.y);
       ctx.stroke();
-      diamond(ctx, knob.screen, knobSize);
+      diamond(ctx, knob.screen, knobSize, angle);
       ctx.fillStyle = "#ffffff";
       ctx.fill();
       ctx.stroke();
@@ -489,8 +535,8 @@ export function drawNodes(
       const sp = toS(a.p);
       const type = effectiveAnchorType(a);
       if (type === "smooth") dot(ctx, sp, anchorSize / 2);
-      else if (type === "symmetric") diamond(ctx, sp, anchorSize);
-      else square(ctx, sp, anchorSize);
+      else if (type === "symmetric") diamond(ctx, sp, anchorSize, angle);
+      else square(ctx, sp, anchorSize, angle);
       ctx.fillStyle = selected.has(`${sub}:${i}`) ? ACCENT : "#ffffff";
       ctx.fill();
       ctx.strokeStyle = ACCENT;

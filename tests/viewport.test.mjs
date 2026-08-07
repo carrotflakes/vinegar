@@ -11,6 +11,7 @@ let rotateAt;
 let flipHorizontallyAt;
 let flipVerticallyAt;
 let snapAngleToQuarter;
+let screenAngle;
 
 const near = (a, b, eps = 1e-9) =>
   assert.ok(Math.abs(a - b) <= eps, `${a} != ${b}`);
@@ -30,6 +31,7 @@ before(async () => {
     flipHorizontallyAt,
     flipVerticallyAt,
     snapAngleToQuarter,
+    screenAngle,
   } = await server.ssrLoadModule("/src/model/geometry/viewport.ts"));
 });
 
@@ -157,4 +159,27 @@ test("fit viewport respects the editor zoom limits", () => {
     40
   );
   assert.equal(huge.scale, 0.05);
+});
+
+test("screen angle composes the canvas rotation with a shape's own", () => {
+  const identity = [1, 0, 0, 1, 0, 0];
+  const view = { scale: 2, rotation: 0.3, offset: { x: 40, y: -12 } };
+
+  // The canvas tilt itself, and then the shape's rotation on top of it.
+  near(screenAngle(view, identity), 0.3, 1e-12);
+  const t = 0.4;
+  const rotated = [Math.cos(t), Math.sin(t), -Math.sin(t), Math.cos(t), 5, 7];
+  near(screenAngle(view, rotated), 0.7, 1e-12);
+
+  // Zoom and pan never tilt anything.
+  near(screenAngle({ ...view, scale: 0.1, offset: { x: 0, y: 0 } }, identity), 0.3, 1e-12);
+});
+
+test("screen angle keeps quarter turns square to the screen under a flip", () => {
+  // Marker snapping to the pixel grid keys off sin(2a) == 0, so a mirrored
+  // view of an upright shape has to land exactly on a quarter turn.
+  for (const rotation of [0, Math.PI / 2, Math.PI, -Math.PI / 2]) {
+    const view = { scale: 1.5, rotation, offset: { x: 3, y: 4 }, flipX: true };
+    near(Math.sin(2 * screenAngle(view, [1, 0, 0, 1, 0, 0])), 0, 1e-12);
+  }
 });

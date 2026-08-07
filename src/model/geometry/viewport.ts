@@ -57,6 +57,17 @@ export function viewportMatrix(v: Viewport): Matrix {
   return [c * sx, s * sx, -s, c, v.offset.x, v.offset.y];
 }
 
+/**
+ * Screen-space angle (radians) of a transform's local x-axis — the on-screen
+ * tilt of anything drawn in that space, canvas rotation and flip included.
+ * Selection chrome uses it to stay aligned with the artwork it annotates; pass
+ * the identity matrix for the tilt of the canvas itself.
+ */
+export function screenAngle(v: Viewport, m: Matrix): number {
+  const [a, b, c, d] = viewportMatrix(v);
+  return Math.atan2(b * m[0] + d * m[1], a * m[0] + c * m[1]);
+}
+
 /** Zoom around a fixed screen anchor point (keeps that point stationary). */
 export function zoomAt(v: Viewport, anchor: Vec2, factor: number): Viewport {
   const newScale = clampScale(v.scale * factor);
