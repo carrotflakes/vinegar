@@ -1,7 +1,9 @@
-// Escape, a pointercancel and the hand-off to a pinch all funnel into
-// `cancelActiveInteraction`. The gradient tool opens a history interaction on
-// press, so those paths have to roll it back — a leftover `_interaction`
-// swallows the *next* drag's `beginInteraction` and commits both as one step.
+// The gradient tool's press/cancel/double-click behaviour on the canvas.
+//
+// Cancelling matters because Escape, a pointercancel and the hand-off to a
+// pinch all funnel into `cancelActiveInteraction`, and the tool opens a history
+// interaction on press: a leftover `_interaction` swallows the *next* drag's
+// `beginInteraction` and commits both as one step.
 import assert from "node:assert/strict";
 import { after, before, beforeEach, test } from "node:test";
 import { createServer } from "vite";
@@ -11,6 +13,8 @@ let server;
 let useEditor;
 let onGradientDown;
 let onGradientAxisMove;
+let addGradientStopAt;
+let finishGradient;
 let cancelActiveInteraction;
 
 let ctx;
@@ -39,9 +43,8 @@ const at = (x, y) => ({ x, y });
 before(async () => {
   server = await createServer({ server: { middlewareMode: true } });
   ({ useEditor } = await server.ssrLoadModule("/src/store/editorStore.ts"));
-  ({ onGradientDown, onGradientAxisMove } = await server.ssrLoadModule(
-    "/src/canvas/tools/gradientTool.ts"
-  ));
+  ({ onGradientDown, onGradientAxisMove, addGradientStopAt, finishGradient } =
+    await server.ssrLoadModule("/src/canvas/tools/gradientTool.ts"));
   ({ cancelActiveInteraction } = await server.ssrLoadModule(
     "/src/canvas/interactionLifecycle.ts"
   ));
@@ -75,6 +78,40 @@ function dragAxis() {
     false
   );
 }
+
+/** Place a gradient along (10,10)→(90,60) and commit it. */
+function placeGradient() {
+  dragAxis();
+  const inter = ctx.interaction.current;
+  ctx.interaction.current = { kind: "none" };
+  finishGradient(ctx, useEditor.getState(), inter);
+  return useEditor.getState().doc.nodes.a.fill;
+}
+
+const stopCount = () => useEditor.getState().doc.nodes.a.fill.stops.length;
+
+test("double-clicking the ramp adds a stop there", () => {
+  placeGradient();
+  assert.equal(stopCount(), 2);
+  // Halfway along the axis.
+  addGradientStopAt(ctx, useEditor.getState(), at(50, 35));
+  assert.equal(stopCount(), 3);
+  const added = useEditor
+    .getState()
+    .doc.nodes.a.fill.stops.find((s) => s.offset > 0.01 && s.offset < 0.99);
+  assert.ok(Math.abs(added.offset - 0.5) < 0.02, `offset ${added.offset}`);
+});
+
+test("double-clicking away from the ramp leaves the gradient alone", () => {
+  placeGradient();
+  // Off the artwork entirely...
+  addGradientStopAt(ctx, useEditor.getState(), at(400, 400));
+  assert.equal(stopCount(), 2);
+  // ...and beside the axis' midpoint, where the press still projects onto the
+  // ramp but is nowhere near the line that is drawn.
+  addGradientStopAt(ctx, useEditor.getState(), at(-3, 120));
+  assert.equal(stopCount(), 2);
+});
 
 test("cancelling an axis drag rolls the fill back and closes the undo step", () => {
   dragAxis();

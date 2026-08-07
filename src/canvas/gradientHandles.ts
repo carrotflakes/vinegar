@@ -18,6 +18,9 @@ import { worldToScreen, screenToWorld, type Viewport } from "@/model/geometry/vi
 /** Screen-space distance the stop chips sit off the axis. */
 const STOP_GUTTER = 13;
 
+/** How far past the gutter a press still counts as being on the ramp. */
+const RAMP_SLACK = 9;
+
 export type GradientHandle =
   /** Ramp origin: the axis start, or the centre of a radial/conic. */
   | { type: "start" }
@@ -193,6 +196,29 @@ export function pickGradientHandle(
     }
   }
   return hit;
+}
+
+/**
+ * The ramp offset under `screen`, or null when the point is not on the ramp.
+ * Measured in screen space against the drawn axis, so what counts as a hit is
+ * the band the axis line and its stop gutter occupy — a click out on the
+ * artwork misses, however far along the axis it projects.
+ */
+export function pickGradientRamp(
+  controls: GradientControls,
+  screen: Vec2,
+  /** Chrome scale (touch enlarges it), as for {@link gradientControls}. */
+  chrome = 1
+): number | null {
+  const { from, to } = controls.axis;
+  const dx = to.x - from.x;
+  const dy = to.y - from.y;
+  const len2 = dx * dx + dy * dy;
+  if (len2 < 1e-9) return null;
+  const t = Math.max(0, Math.min(1, ((screen.x - from.x) * dx + (screen.y - from.y) * dy) / len2));
+  const nearest = { x: from.x + dx * t, y: from.y + dy * t };
+  const reach = (STOP_GUTTER + RAMP_SLACK) * chrome;
+  return Math.hypot(screen.x - nearest.x, screen.y - nearest.y) <= reach ? t : null;
 }
 
 /** Angle of the axis in *screen* terms, so chrome can align with what is seen. */

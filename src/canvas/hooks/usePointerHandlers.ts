@@ -518,7 +518,7 @@ export function usePointerHandlers(deps: PointerHandlerDeps): PointerHandlers {
     }
     if (state.tool === "gradient") {
       // Double-clicking the ramp adds a stop with the colour it already has.
-      addGradientStopAt(state, screen);
+      addGradientStopAt(ctx, state, screen);
       ctx.scheduleDraw();
     }
   };

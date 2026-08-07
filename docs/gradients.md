@@ -73,7 +73,10 @@ drag mean the same thing.
   (turning a solid fill into a gradient), then drag the annotator: a round origin, a square end, an orange
   aspect knob and focal dot, and stop chips riding a gutter beside the axis so they never sit under the
   endpoint handles. Double-clicking the ramp adds a stop; Shift constrains the axis to 15°.
-  `canvas/gradientHandles.ts` builds that geometry once for the painter, the hit test and the drag.
+  `canvas/gradientHandles.ts` builds that geometry once for the painter, the hit test and the drag —
+  including `pickGradientRamp`, the screen-space band around the axis that decides whether a
+  double-click is a ramp edit at all (a click out on the artwork projects onto the axis but must not
+  add a stop).
   A press that never travels past `CLICK_SLOP` is a click, not a zero-length axis.
 
 The tool edits the fill or the stroke, whichever `store/gradientToolStore.ts` has focused; the bar at the

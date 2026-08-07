@@ -23,6 +23,7 @@ import {
   gradientControls,
   gradientTargetShape,
   pickGradientHandle,
+  pickGradientRamp,
   screenToPaintSpace,
   type GradientHandle,
 } from "../gradientHandles";
@@ -240,24 +241,24 @@ export function movedPaint(
   }
 }
 
-/** Add a stop where the axis was double-clicked. */
-export function addGradientStopAt(
-  state: EditorState,
-  screen: Vec2
-): void {
+/**
+ * Add a stop where the ramp was double-clicked. A double-click that lands
+ * anywhere else is not a ramp edit and leaves the gradient alone.
+ */
+export function addGradientStopAt(ctx: ToolContext, state: EditorState, screen: Vec2): void {
   const { target } = useGradientTool.getState();
-  const shape = gradientTargetShape(state.doc, state.selection);
-  if (!shape) return;
-  const paint = shape[target];
-  if (!isGradientPaint(paint)) return;
-  const p = screenToPaintSpace(state.doc, shape, paint, state.viewport, screen);
-  if (!p) return;
-  const d = { x: paint.end.x - paint.start.x, y: paint.end.y - paint.start.y };
-  const len2 = d.x * d.x + d.y * d.y;
-  if (len2 < 1e-12) return;
-  const t = ((p.x - paint.start.x) * d.x + (p.y - paint.start.y) * d.y) / len2;
-  const { paint: next, stop } = addStopAt(paint, Math.max(0, Math.min(1, t)));
-  state.updateSelectedStyle({ [target]: next });
+  const controls = gradientControls(
+    state.doc,
+    gradientTargetShape(state.doc, state.selection),
+    target,
+    state.viewport,
+    ctx.hitScale()
+  );
+  if (!controls) return;
+  const t = pickGradientRamp(controls, screen, ctx.hitScale());
+  if (t === null) return;
+  const { paint, stop } = addStopAt(controls.paint, t);
+  state.updateSelectedStyle({ [target]: paint });
   useGradientTool.getState().setStopId(stop.id);
 }
 
