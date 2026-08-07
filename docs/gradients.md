@@ -21,6 +21,13 @@ Both are mapped through the paint's own space first:
 - `space: "local"` — `start`/`end` are shape-local user units; the gradient stays put when the shape is
   reshaped, like Illustrator's annotator. Dragging an axis with the gradient tool always produces this.
 
+Switching between the two (`withGradientSpace`) converts *both* axes, re-deriving `ratio` from their
+lengths — a "circle" in a 200×100 box is a 100×50 ellipse once pinned, and the conversion has to say so.
+A rotated ellipse in a non-uniform box also carries a shear that local space cannot express (its second
+axis is always perpendicular), so there the axis lengths survive and the shear does not. `withGradientKind`
+is the matching helper for the kind buttons: the default geometry is written in bounds units, so a pinned
+gradient has it mapped through the bounds before it lands.
+
 `focal` is the radial focal point in **unit-circle coordinates** (`{x:0,y:0}` is the centre), so it rides
 along with the ellipse. `spread` is SVG's `spreadMethod`; a conic ramp wraps by construction and ignores it.
 

@@ -5,7 +5,6 @@
 import { useRef, useState } from "react";
 import {
   addStopAt,
-  defaultGeometry,
   type GradientKind,
   type GradientPaint,
   type GradientSpread,
@@ -17,6 +16,7 @@ import {
   stopsToCssBar,
   updateStop,
   withGradientAngle,
+  withGradientKind,
   withGradientLength,
   withGradientSpace,
 } from "@/model/gradient";
@@ -102,12 +102,7 @@ export default function GradientEditor({ value, onChange, bounds }: Props) {
     setSelectedId(stop.id);
   };
 
-  const setKind = (kind: GradientKind) => {
-    // Switching to or from a linear ramp changes what the axis means, so the
-    // geometry is reset rather than reinterpreted.
-    const geometry = value.kind === "linear" || kind === "linear" ? defaultGeometry(kind) : {};
-    onChange({ ...value, kind, ...geometry });
-  };
+  const setKind = (kind: GradientKind) => onChange(withGradientKind(value, kind, bounds));
 
   return (
     <>

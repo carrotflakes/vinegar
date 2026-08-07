@@ -179,8 +179,10 @@ export function reverseStops(paint: GradientPaint): GradientPaint {
     stops: stops.map((s, i) => ({
       ...s,
       offset: clamp01(1 - s.offset),
-      // The gap a midpoint describes now belongs to the other neighbour.
-      midpoint: 1 - (stops[stops.length - 2 - i]?.midpoint ?? 0.5),
+      // A midpoint describes the gap *after* its stop, so after the flip each
+      // stop carries the gap that used to precede it — mirrored. (The first
+      // stop's gap has no owner left; it lands last, where it is unused.)
+      midpoint: 1 - (stops[i - 1]?.midpoint ?? 0.5),
     })).reverse(),
   };
 }
@@ -219,6 +221,13 @@ export function updateStop(
  * Switch between bounds-relative and pinned placement without moving the
  * gradient: the points are converted through the shape's fill bounds. Without
  * bounds (a "new shape defaults" field has no shape) the geometry is reset.
+ *
+ * `ratio` has to travel too — it is measured *against the first axis*, so a
+ * radial in a 200×100 box reads as a circle in bounds space and an ellipse in
+ * local space. Both axes are converted and the ratio re-derived from their
+ * lengths. Under a non-uniform box a rotated ellipse also picks up a shear,
+ * which this model cannot express in local space (the second axis is always
+ * perpendicular): the axis *lengths* survive, the shear does not.
  */
 export function withGradientSpace(
   paint: GradientPaint,
@@ -233,11 +242,49 @@ export function withGradientSpace(
   const inv = invertMatrix(m);
   if (!inv) return { ...paint, space, ...defaultGeometry(paint.kind) };
   const convert = space === "local" ? m : inv;
+  const start = applyMatrix(convert, paint.start);
+  const end = applyMatrix(convert, paint.end);
+  return { ...paint, space, start, end, ratio: convertedRatio(paint, convert, start, end) };
+}
+
+/** The `ratio` that keeps the second axis the length it was, post-conversion. */
+function convertedRatio(paint: GradientPaint, convert: Matrix, start: Vec2, end: Vec2): number {
+  // A linear ramp ignores `ratio`; converting it would only surprise whoever
+  // switches the kind later.
+  if (paint.kind === "linear") return paint.ratio;
+  const d = { x: paint.end.x - paint.start.x, y: paint.end.y - paint.start.y };
+  // The second axis, as a vector: `d` turned a quarter turn and scaled.
+  const perp = { x: -d.y * paint.ratio, y: d.x * paint.ratio };
+  // Vectors take the matrix's linear part only — no translation.
+  const mapped = { x: convert[0] * perp.x + convert[2] * perp.y, y: convert[1] * perp.x + convert[3] * perp.y };
+  const first = Math.hypot(end.x - start.x, end.y - start.y);
+  if (first < 1e-9) return paint.ratio;
+  return clamp(Math.hypot(mapped.x, mapped.y) / first, MIN_RATIO, MAX_RATIO);
+}
+
+/**
+ * Change the ramp's kind. A linear axis and a radius mean different things, so
+ * crossing that line re-places the ramp on the shape — in the paint's *own*
+ * space, since the defaults are written in bounds units and a pinned gradient
+ * would otherwise collapse to a half-pixel ramp at the origin. Without bounds
+ * to convert through, a pinned gradient keeps the axis it has.
+ */
+export function withGradientKind(
+  paint: GradientPaint,
+  kind: GradientKind,
+  bounds: Bounds | null
+): GradientPaint {
+  if (paint.kind === kind) return paint;
+  if (paint.kind !== "linear" && kind !== "linear") return { ...paint, kind };
+  const geometry = defaultGeometry(kind);
+  if (paint.space === "bounds") return { ...paint, kind, ...geometry };
+  if (!bounds || bounds.width === 0 || bounds.height === 0) return { ...paint, kind };
+  const m = boundsMatrix(bounds);
   return {
     ...paint,
-    space,
-    start: applyMatrix(convert, paint.start),
-    end: applyMatrix(convert, paint.end),
+    kind,
+    start: applyMatrix(m, geometry.start),
+    end: applyMatrix(m, geometry.end),
   };
 }
 

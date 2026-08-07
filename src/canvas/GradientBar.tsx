@@ -1,12 +1,13 @@
 import {
-  defaultGeometry,
   type GradientKind,
   isGradientPaint,
   removeStop,
   reverseStops,
   sortedStops,
   updateStop,
+  withGradientKind,
 } from "@/model/gradient";
+import { shapeBounds } from "@/model/geometry/bounds";
 import { useEditor } from "../store/editorStore";
 import { useGradientTool } from "../store/gradientToolStore";
 import ColorInput from "@/ui/controls/ColorInput";
@@ -79,19 +80,7 @@ export default function GradientBar() {
           title={`${k.label} gradient`}
           onPointerDown={keepFocus}
           onClick={() =>
-            gradient &&
-            apply({
-              ...gradient,
-              kind: k.id,
-              // A linear axis means something different from a radius, so
-              // switching across that line re-places the ramp.
-              ...(gradient.kind === "linear" || k.id === "linear"
-                ? defaultGeometry(k.id)
-                : {}),
-              space: gradient.kind === "linear" || k.id === "linear"
-                ? "bounds"
-                : gradient.space,
-            })
+            gradient && shape && apply(withGradientKind(gradient, k.id, shapeBounds(shape, doc)))
           }
         >
           {k.label}

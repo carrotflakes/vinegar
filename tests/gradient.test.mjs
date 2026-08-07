@@ -105,7 +105,7 @@ test("repeat and reflect tile the ramp across the covered range", () => {
 test("reversing a ramp mirrors offsets and the midpoints between them", () => {
   const paint = G.gradient([
     G.gradientStop("#ff0000", 0, { midpoint: 0.25 }),
-    G.gradientStop("#00ff00", 0.4),
+    G.gradientStop("#00ff00", 0.4, { midpoint: 0.2 }),
     G.gradientStop("#0000ff", 1),
   ]);
   const reversed = G.reverseStops(paint);
@@ -113,8 +113,14 @@ test("reversing a ramp mirrors offsets and the midpoints between them", () => {
     reversed.stops.map((s) => [s.color, s.offset]),
     [["#0000ff", 0], ["#00ff00", 0.6], ["#ff0000", 1]]
   );
-  // The gap that was 0.25-biased now belongs to the other neighbour, flipped.
-  assert.deepEqual(reversed.stops.map((s) => s.midpoint), [0.5, 0.75, 0.5]);
+  // Each gap keeps its bias, mirrored, under the neighbour that now precedes
+  // it: the green→blue gap (0.2) leads the reversed ramp as 0.8, and the
+  // red→green gap (0.25) follows it as 0.75.
+  assert.deepEqual(reversed.stops.map((s) => s.midpoint), [0.8, 0.75, 0.5]);
+  // Reversing twice is the identity.
+  const back = G.reverseStops(reversed);
+  assert.deepEqual(back.stops.map((s) => s.offset), [0, 0.4, 1]);
+  [0.25, 0.2, 0.5].forEach((m, i) => close(back.stops[i].midpoint, m, `midpoint ${i}`));
 });
 
 test("switching placement converts the geometry instead of moving it", () => {
@@ -127,6 +133,35 @@ test("switching placement converts the geometry instead of moving it", () => {
   assert.deepEqual(G.withGradientSpace(local, "bounds", BOUNDS).start, { x: 0, y: 0.5 });
   // Without bounds there is nothing to convert through, so it resets.
   assert.deepEqual(G.withGradientSpace(paint, "local", null).start, { x: 0, y: 0.5 });
+});
+
+test("switching placement keeps a radial the ellipse it looked like", () => {
+  // A default radial reads as a circle in bounds space but paints a 100×50
+  // ellipse in a 200×100 box; pinning it must not inflate it to a circle.
+  const paint = G.gradient(ramp(), { kind: "radial" });
+  const before = G.gradientMatrix(paint, BOUNDS);
+  const local = G.withGradientSpace(paint, "local", BOUNDS);
+  assert.equal(local.ratio, 0.5);
+  before.forEach((v, i) => close(G.gradientMatrix(local, BOUNDS)[i], v, `matrix[${i}]`));
+  // And back again, unchanged.
+  const bounds = G.withGradientSpace(local, "bounds", BOUNDS);
+  close(bounds.ratio, 1, "ratio");
+  before.forEach((v, i) => close(G.gradientMatrix(bounds, BOUNDS)[i], v, `matrix[${i}] back`));
+});
+
+test("changing kind re-places a pinned ramp in its own units", () => {
+  const linear = G.withGradientSpace(G.gradient(ramp()), "local", BOUNDS);
+  const radial = G.withGradientKind(linear, "radial", BOUNDS);
+  assert.equal(radial.space, "local");
+  // The centre of the box, with a radius reaching its right edge — not the
+  // sub-pixel ramp the bounds-space defaults would give a pinned gradient.
+  assert.deepEqual(radial.start, { x: 100, y: 50 });
+  assert.deepEqual(radial.end, { x: 200, y: 50 });
+  // A bounds-relative gradient takes the defaults as they are written.
+  const fitted = G.withGradientKind(G.gradient(ramp()), "radial", BOUNDS);
+  assert.deepEqual(fitted.start, { x: 0.5, y: 0.5 });
+  // Radial → conic keeps the placement: only the reading of the axis changes.
+  assert.deepEqual(G.withGradientKind(radial, "conic", BOUNDS).start, radial.start);
 });
 
 test("spinning a linear ramp turns it about its middle", () => {
