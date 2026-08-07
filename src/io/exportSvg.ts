@@ -19,6 +19,7 @@ import {
   patternPlacement,
   resolvePaintRef,
   type Paint,
+  type PaintTarget,
   type PatternPaint,
 } from "../model/paint";
 import { isGroup, isShape } from "../model/scene";
@@ -69,7 +70,7 @@ interface Defs {
   items: string[];
   paintAttrs(
     paint: Paint,
-    kind: "fill" | "stroke",
+    kind: PaintTarget,
     bounds: Bounds
   ): string[];
   clipPath(shape: ClippingMaskShape): string;

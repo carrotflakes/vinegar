@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import type { PaintTarget } from "@/model/paint";
 
 /**
  * Session state for the gradient tool: which of a shape's two paints it edits
@@ -7,10 +8,10 @@ import { create } from "zustand";
  * the way `penDraftStore` holds the pen's.
  */
 interface GradientToolState {
-  target: "fill" | "stroke";
+  target: PaintTarget;
   /** Id of the stop the annotator highlights; null selects the first one. */
   stopId: string | null;
-  setTarget: (target: "fill" | "stroke") => void;
+  setTarget: (target: PaintTarget) => void;
   setStopId: (id: string | null) => void;
 }
 

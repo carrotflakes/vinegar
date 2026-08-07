@@ -9,6 +9,7 @@ import type {
   Vec2,
 } from "../model/types";
 import type { GradientPaint } from "@/model/gradient";
+import type { PaintTarget } from "@/model/paint";
 import type { GradientHandle } from "./gradientHandles";
 import type { HandleId } from "./handles";
 import type { CachedSelectHover } from "./tools/selectTool";
@@ -40,7 +41,9 @@ export type Interaction =
       /** Dragging a whole new gradient axis onto a shape. */
       kind: "gradient-axis";
       shapeId: string;
-      target: "fill" | "stroke";
+      target: PaintTarget;
+      /** The existing gradient, or the seeded replacement, held until drag. */
+      paint: GradientPaint;
       /** Press point, in the gradient's own space. */
       start: Vec2;
       /** Press point in screen space, to tell a drag from a click. */
@@ -52,13 +55,12 @@ export type Interaction =
        * alone rather than collapse it to a zero-length axis.
        */
       placed: boolean;
-      shift: boolean;
     }
   | {
       /** Dragging one handle of the gradient annotator. */
       kind: "gradient-handle";
       shapeId: string;
-      target: "fill" | "stroke";
+      target: PaintTarget;
       handle: GradientHandle;
       /** The paint as it stood when the drag began (midpoints need its gaps). */
       origin: GradientPaint;

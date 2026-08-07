@@ -8,10 +8,11 @@ import {
   resolvePaintRef,
   solid,
   swatchRef,
+  type PaintTarget,
   type SolidPaint,
 } from "../model/paint";
 import { isShape, selectionRoots } from "../model/scene";
-import { bakeSwatchRefs, type PaintTarget } from "../model/swatches";
+import { bakeSwatchRefs } from "../model/swatches";
 import { makeId, type Document, type Shape, type Swatch } from "../model/types";
 import {
   clearTransient,

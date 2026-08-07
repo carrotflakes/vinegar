@@ -14,7 +14,7 @@ import {
   type GradientPaint,
   updateStop,
 } from "@/model/gradient";
-import { resolvePaintRef } from "@/model/paint";
+import { resolvePaintRef, type PaintTarget } from "@/model/paint";
 import { isShape } from "@/model/scene";
 import type { Shape, Vec2 } from "@/model/types";
 import type { EditorState } from "@/store/state";
@@ -30,13 +30,6 @@ import {
 import { CLICK_SLOP, type Interaction, type ToolContext } from "../interaction";
 import { pickShape } from "../picking";
 
-/**
- * The gradient a drag is about to write, per shape. It is held here instead of
- * on the shape so a press that turns out to be a click (a double-click adding
- * a stop) never touches the document at all.
- */
-const pendingPaint = new Map<string, GradientPaint>();
-
 /** Screen-space radius a handle is grabbed within (scaled for touch). */
 const HANDLE_HIT = 9;
 
@@ -44,7 +37,7 @@ const HANDLE_HIT = 9;
 const SNAP_STEP = Math.PI / 12;
 
 /** The gradient a solid (or missing) paint becomes on the first drag. */
-function seedGradient(shape: Shape, target: "fill" | "stroke", state: EditorState): GradientPaint {
+function seedGradient(shape: Shape, target: PaintTarget, state: EditorState): GradientPaint {
   const current = resolvePaintRef(shape[target], state.doc.swatches);
   const solid = current?.type === "solid" ? current : null;
   // A half-transparent fill stays half-transparent when it becomes a ramp.
@@ -57,7 +50,7 @@ function seedGradient(shape: Shape, target: "fill" | "stroke", state: EditorStat
 function setPaint(
   state: EditorState,
   shape: Shape,
-  target: "fill" | "stroke",
+  target: PaintTarget,
   paint: GradientPaint
 ): void {
   state.applyShapes({ [shape.id]: { ...shape, [target]: paint } });
@@ -71,8 +64,7 @@ export function onGradientDown(
   ctx: ToolContext,
   state: EditorState,
   screen: Vec2,
-  world: Vec2,
-  shift: boolean
+  world: Vec2
 ): void {
   const { target } = useGradientTool.getState();
   let shape = gradientTargetShape(state.doc, state.selection);
@@ -124,12 +116,11 @@ export function onGradientDown(
     kind: "gradient-axis",
     shapeId: shape.id,
     target,
+    paint: pinned,
     start,
     startScreen: screen,
     placed: false,
-    shift,
   };
-  pendingPaint.set(shape.id, pinned);
   ctx.scheduleDraw();
 }
 
@@ -156,13 +147,11 @@ export function onGradientAxisMove(
   }
   const shape = state.doc.nodes[inter.shapeId];
   if (!isShape(shape)) return;
-  const paint = pendingPaint.get(inter.shapeId) ?? shape[inter.target];
-  if (!isGradientPaint(paint)) return;
-  const p = screenToPaintSpace(state.doc, shape, paint, state.viewport, screen);
+  const p = screenToPaintSpace(state.doc, shape, inter.paint, state.viewport, screen);
   if (!p) return;
   inter.placed = true;
   setPaint(state, shape, inter.target, {
-    ...paint,
+    ...inter.paint,
     start: inter.start,
     end: shift ? snapped(inter.start, p) : p,
   });
@@ -266,17 +255,11 @@ export function addGradientStopAt(ctx: ToolContext, state: EditorState, screen: 
   useGradientTool.getState().setStopId(stop.id);
 }
 
-/** Drop the paint a drag was about to write (cancel paths). */
-export function cancelGradient(): void {
-  pendingPaint.clear();
-}
-
 export function finishGradient(
   ctx: ToolContext,
   state: EditorState,
   inter: Interaction
 ): void {
-  pendingPaint.clear();
   // A press that never became a drag changed nothing; don't leave an empty
   // undo step (or a collapsed gradient) behind.
   if (inter.kind === "gradient-axis" && !inter.placed) state.cancelInteraction();

@@ -3,12 +3,11 @@
 // these helpers find and, when detaching/deleting, resolve every reference to a
 // concrete paint in place. See docs/global-colors.md.
 
-import { isSwatchRef, resolvePaintRef } from "./paint";
+import { isSwatchRef, resolvePaintRef, type PaintTarget } from "./paint";
 import type { Document, SceneNode, Shape } from "./types";
 import { isShape } from "./scene";
 
-/** The two paint slots every shape carries. */
-export type PaintTarget = "fill" | "stroke";
+export type { PaintTarget } from "./paint";
 
 /** Whether a node's `target` paint references swatch `id`. */
 function refsSwatch(node: SceneNode, target: PaintTarget, id: string): boolean {

@@ -11,6 +11,7 @@ import {
   isGradientPaint,
   sortedStops,
 } from "@/model/gradient";
+import type { PaintTarget } from "@/model/paint";
 import { isShape } from "@/model/scene";
 import type { Bounds, Document, Matrix, Shape, Vec2 } from "@/model/types";
 import { worldToScreen, screenToWorld, type Viewport } from "@/model/geometry/viewport";
@@ -44,7 +45,7 @@ export interface GradientHandlePoint {
 
 export interface GradientControls {
   shape: Shape;
-  target: "fill" | "stroke";
+  target: PaintTarget;
   paint: GradientPaint;
   /** Shape-local fill bounds — the box a bounds-relative gradient is laid on. */
   bounds: Bounds;
@@ -95,7 +96,7 @@ export function screenToPaintSpace(
 export function gradientControls(
   doc: Document,
   shape: Shape | null,
-  target: "fill" | "stroke",
+  target: PaintTarget,
   viewport: Viewport,
   /** Chrome scale (touch enlarges it), applied to the stop gutter. */
   chrome = 1

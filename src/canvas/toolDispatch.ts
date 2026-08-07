@@ -83,7 +83,7 @@ export function startToolInteraction(
       startEraser(ctx, world);
       return;
     case "gradient":
-      onGradientDown(ctx, state, screen, world, shift);
+      onGradientDown(ctx, state, screen, world);
       return;
     case "bucket":
       // A plain click commits (or toasts) immediately; no drag interaction.

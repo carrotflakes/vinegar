@@ -3,7 +3,6 @@ import { setReadout } from "../store/pointerStore";
 import type { ToolContext } from "./interaction";
 import { cancelBrush } from "./tools/brushTool";
 import { cancelEraser } from "./tools/eraserTool";
-import { cancelGradient } from "./tools/gradientTool";
 import { resetPencilStroke } from "./tools/shapeTools";
 import { usePenDraftInfo } from "../store/penDraftStore";
 
@@ -30,7 +29,6 @@ export function discardCanvasTransients(ctx: ToolContext): void {
   resetPencilStroke();
   cancelBrush(ctx);
   cancelEraser(ctx);
-  cancelGradient();
   usePenDraftInfo.getState().setAnchors(0);
   setReadout(null);
   ctx.scheduleDraw();
@@ -59,10 +57,7 @@ export function cancelActiveInteraction(ctx: ToolContext): void {
       break;
     case "gradient-axis":
     case "gradient-handle":
-      // Also drop the paint the axis drag was holding back, so the next press
-      // seeds itself from the shape rather than from the abandoned drag.
       state.cancelInteraction();
-      cancelGradient();
       break;
     case "frame-create":
       state.cancelInteraction();

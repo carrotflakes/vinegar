@@ -110,6 +110,9 @@ export interface SwatchRefPaint {
 
 export type Paint = SolidPaint | GradientPaint | PatternPaint | SwatchRefPaint;
 
+/** The two paint slots every shape carries. */
+export type PaintTarget = "fill" | "stroke";
+
 /** A concrete paint — anything that is not an unresolved swatch reference. */
 export type ConcretePaint = Exclude<Paint, SwatchRefPaint>;
 
@@ -183,7 +186,7 @@ export function paintToCss(paint: Paint): string {
 const round = (n: number) => parseFloat(n.toFixed(3)).toString();
 
 /** SVG attributes for a solid paint applied as `fill` or `stroke`. */
-export function paintToSvgAttrs(paint: SolidPaint, kind: "fill" | "stroke"): string[] {
+export function paintToSvgAttrs(paint: SolidPaint, kind: PaintTarget): string[] {
   const attrs = [`${kind}="${paint.color}"`];
   if (paint.alpha < 1) attrs.push(`${kind}-opacity="${round(paint.alpha)}"`);
   return attrs;

@@ -7,7 +7,7 @@
 import type { BoolOp } from "@/model/path/boolean";
 import type { PathOp } from "@/model/path/pathOps";
 import type { ScriptMeta } from "@/model/generators/generators";
-import type { Paint, SolidPaint } from "../model/paint";
+import type { Paint, PaintTarget, SolidPaint } from "../model/paint";
 import type {
   BaseNode,
   AnchorType,
@@ -492,9 +492,9 @@ export interface SwatchActions {
   /** Rename or re-colour a swatch; every reference re-tints on next render. */
   updateSwatch: (id: string, patch: Partial<Pick<Swatch, "name" | "paint">>) => void;
   /** Set the selected shapes' fill/stroke to a reference to swatch `id`. */
-  applySwatch: (id: string, target: "fill" | "stroke") => void;
+  applySwatch: (id: string, target: PaintTarget) => void;
   /** Bake references on the given nodes/target back to concrete paint. */
-  unlinkPaint: (nodeIds: Iterable<string>, target: "fill" | "stroke") => void;
+  unlinkPaint: (nodeIds: Iterable<string>, target: PaintTarget) => void;
   /** Bake every reference to concrete paint, then remove the swatch. */
   deleteSwatch: (id: string) => void;
   /** Move a swatch to `index` in the panel display order. */
