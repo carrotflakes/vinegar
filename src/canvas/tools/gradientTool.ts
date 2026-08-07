@@ -46,8 +46,12 @@ const SNAP_STEP = Math.PI / 12;
 /** The gradient a solid (or missing) paint becomes on the first drag. */
 function seedGradient(shape: Shape, target: "fill" | "stroke", state: EditorState): GradientPaint {
   const current = resolvePaintRef(shape[target], state.doc.swatches);
-  const color = current?.type === "solid" ? current.color : "#000000";
-  return gradient([gradientStop(color, 0), gradientStop("#ffffff", 1)], { space: "local" });
+  const solid = current?.type === "solid" ? current : null;
+  // A half-transparent fill stays half-transparent when it becomes a ramp.
+  return gradient([gradientStop(solid?.color ?? "#000000", 0), gradientStop("#ffffff", 1)], {
+    space: "local",
+    alpha: solid?.alpha ?? 1,
+  });
 }
 
 function setPaint(

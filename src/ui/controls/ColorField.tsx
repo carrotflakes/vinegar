@@ -88,7 +88,9 @@ export default function ColorField({ label, value, onChange, bounds = null }: Pr
       : gradientPaint
         ? gradientPaint.stops[0]?.color ?? "#888888"
         : "#888888";
-  const alpha = concrete && concrete.type === "solid" ? concrete.alpha : 1;
+  // Every concrete paint carries an alpha, and it survives a change of kind:
+  // a 50% solid becomes a 50% gradient and comes back a 50% solid.
+  const alpha = concrete ? concrete.alpha : 1;
   // While linked, colour/alpha edits update the global swatch (re-tinting every
   // use); otherwise they set this field's own paint.
   const setColor = (hex: string) =>
@@ -110,8 +112,11 @@ export default function ColorField({ label, value, onChange, bounds = null }: Pr
   if (gradientPaint) lastGradient.current = gradientPaint;
   const newGradient = () =>
     lastGradient.current ??
-    gradient([gradientStop(color, 0, { alpha }), gradientStop("#ffffff", 1)], {
+    // The solid's transparency belongs to the whole ramp, not just the stop it
+    // came from — otherwise converting a 50% fill lands on an opaque white end.
+    gradient([gradientStop(color, 0), gradientStop("#ffffff", 1)], {
       ...defaultGeometry("linear"),
+      alpha,
     });
 
   // ---- pattern (raster fill) editing -------------------------------------

@@ -66,9 +66,10 @@ beforeEach(() => {
 after(async () => server.close());
 
 /** Press and drag out a gradient axis, leaving the interaction open. */
-function dragAxis() {
+function dragAxis(fill) {
   useEditor.getState().addShape(rect("a"), false);
   useEditor.getState().setSelection(["a"]);
+  if (fill) useEditor.getState().updateSelectedStyle({ fill });
   onGradientDown(ctx, useEditor.getState(), at(10, 10), at(10, 10), false);
   onGradientAxisMove(
     ctx,
@@ -89,6 +90,16 @@ function placeGradient() {
 }
 
 const stopCount = () => useEditor.getState().doc.nodes.a.fill.stops.length;
+
+test("placing a gradient over a translucent fill keeps its transparency", () => {
+  dragAxis({ type: "solid", color: "#112233", alpha: 0.4 });
+  const fill = useEditor.getState().doc.nodes.a.fill;
+  assert.equal(fill.type, "gradient");
+  // The transparency belongs to the ramp as a whole, so the far end is not
+  // suddenly opaque white.
+  assert.equal(fill.alpha, 0.4);
+  assert.equal(fill.stops[0].color, "#112233");
+});
 
 test("double-clicking the ramp adds a stop there", () => {
   placeGradient();
