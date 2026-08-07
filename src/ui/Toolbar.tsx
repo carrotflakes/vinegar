@@ -27,19 +27,24 @@ interface ToolDef {
   groupBefore?: boolean;
 }
 
+// Grouped by what a tool *does*, not by how it draws: select/edit, then the
+// tools that make a shape, then the ones that draw — bucket included, since it
+// grows a new path from the ink around the click rather than recolouring
+// anything — then the gradient, the one tool that makes nothing and only lays
+// paint on artwork that is already there, and finally the frame.
 const TOOLS: ToolDef[] = [
   { id: "select", label: "Select", hint: "V", icon: LuMousePointer2 },
   { id: "node", label: "Edit Nodes", hint: "N", icon: LuSpline },
   { id: "rect", label: "Rectangle", hint: "R", icon: LuSquare, groupBefore: true },
   { id: "ellipse", label: "Ellipse", hint: "O", icon: LuCircle },
   { id: "line", label: "Line", hint: "L", icon: LuSlash },
+  { id: "text", label: "Text", hint: "T", icon: LuType },
   { id: "pen", label: "Pen", hint: "P", icon: LuPenTool, groupBefore: true },
   { id: "pencil", label: "Pencil", hint: "⇧B", icon: LuPencil },
   { id: "brush", label: "Brush", hint: "B", icon: LuBrush },
   { id: "eraser", label: "Eraser", hint: "E", icon: LuEraser },
   { id: "bucket", label: "Bucket Fill", hint: "G", icon: LuPaintBucket },
-  { id: "gradient", label: "Gradient", hint: "⇧G", icon: LuBlend },
-  { id: "text", label: "Text", hint: "T", icon: LuType },
+  { id: "gradient", label: "Gradient", hint: "⇧G", icon: LuBlend, groupBefore: true },
   { id: "frame", label: "Frame", hint: "A", icon: LuFrame, groupBefore: true },
 ];
 
