@@ -53,6 +53,7 @@ import {
 import { FILE_COMMANDS } from "./fileCommands";
 import type { Command, CommandContext, KeyStroke } from "./types";
 import { VIEW_COMMANDS } from "./viewCommands";
+import { TOOL_DEFINITIONS, toolKeyStroke } from "../toolDefinitions";
 
 export {
   canvasCenter,
@@ -241,6 +242,16 @@ const NUDGE_COMMANDS: Command[] = (
       enabled: (s: EditorState) => s.editNodes.length > 0 || s.selection.length > 0,
       run: (s: EditorState) => s.nudge(x * step, y * step),
     };
+  })
+);
+
+const TOOL_COMMANDS: Command[] = TOOL_DEFINITIONS.map(
+  (tool): Command => ({
+    id: `tool.${tool.id}`,
+    label: `${tool.label} tool`,
+    group: "Tools",
+    keys: [toolKeyStroke(tool)],
+    run: (s) => s.setTool(tool.id),
   })
 );
 
@@ -736,19 +747,7 @@ export const COMMANDS: Command[] = [
   },
 
   // Tools -------------------------------------------------------------------
-  { id: "tool.select", label: "Select tool", group: "Tools", keys: [{ key: "v" }], run: (s) => s.setTool("select") },
-  { id: "tool.node", label: "Edit Nodes tool", group: "Tools", keys: [{ key: "n" }], run: (s) => s.setTool("node") },
-  { id: "tool.rect", label: "Rectangle tool", group: "Tools", keys: [{ key: "r" }], run: (s) => s.setTool("rect") },
-  { id: "tool.ellipse", label: "Ellipse tool", group: "Tools", keys: [{ key: "o" }], run: (s) => s.setTool("ellipse") },
-  { id: "tool.line", label: "Line tool", group: "Tools", keys: [{ key: "l" }], run: (s) => s.setTool("line") },
-  { id: "tool.text", label: "Text tool", group: "Tools", keys: [{ key: "t" }], run: (s) => s.setTool("text") },
-  { id: "tool.pen", label: "Pen tool", group: "Tools", keys: [{ key: "p" }], run: (s) => s.setTool("pen") },
-  { id: "tool.pencil", label: "Pencil tool", group: "Tools", keys: [{ key: "b", shift: true }], run: (s) => s.setTool("pencil") },
-  { id: "tool.brush", label: "Brush tool", group: "Tools", keys: [{ key: "b" }], run: (s) => s.setTool("brush") },
-  { id: "tool.eraser", label: "Eraser tool", group: "Tools", keys: [{ key: "e" }], run: (s) => s.setTool("eraser") },
-  { id: "tool.bucket", label: "Bucket Fill tool", group: "Tools", keys: [{ key: "g" }], run: (s) => s.setTool("bucket") },
-  { id: "tool.gradient", label: "Gradient tool", group: "Tools", keys: [{ key: "g", shift: true }], run: (s) => s.setTool("gradient") },
-  { id: "tool.frame", label: "Frame tool", group: "Tools", keys: [{ key: "a" }], run: (s) => s.setTool("frame") },
+  ...TOOL_COMMANDS,
 
   // Frames ------------------------------------------------------------------
   {

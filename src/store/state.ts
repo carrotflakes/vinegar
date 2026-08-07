@@ -8,6 +8,7 @@ import type { BoolOp } from "@/model/path/boolean";
 import type { PathOp } from "@/model/path/pathOps";
 import type { ScriptMeta } from "@/model/generators/generators";
 import type { Paint, PaintTarget, SolidPaint } from "../model/paint";
+import type { ToolId } from "../toolDefinitions";
 import type {
   BaseNode,
   AnchorType,
@@ -34,7 +35,7 @@ import type { ImportedSvg } from "../io/importSvg";
 import type { ClipboardPayload } from "./docOps";
 import type { DocumentPatch } from "./documentPatches";
 
-export type ToolId = "select" | "node" | "rect" | "ellipse" | "line" | "pen" | "pencil" | "brush" | "eraser" | "bucket" | "gradient" | "text" | "frame";
+export type { ToolId } from "../toolDefinitions";
 export interface EditNode { shapeId: string; sub: number; index: number }
 export type AlignType = "left" | "hcenter" | "right" | "top" | "vmiddle" | "bottom";
 export interface StyleDefaults {
