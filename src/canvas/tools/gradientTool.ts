@@ -261,6 +261,11 @@ export function addGradientStopAt(
   useGradientTool.getState().setStopId(stop.id);
 }
 
+/** Drop the paint a drag was about to write (cancel paths). */
+export function cancelGradient(): void {
+  pendingPaint.clear();
+}
+
 export function finishGradient(
   ctx: ToolContext,
   state: EditorState,
