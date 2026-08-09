@@ -41,7 +41,11 @@ active tool, selection, viewport and undo history does not belong in the file.
   linear/radial/conic; a unit-space ramp placed by `start`/`end`/`ratio`/
   `focal`, held either relative to the shape's bounds or in its local units;
   plus `spread`, `interpolation` and stops carrying `id`, `offset`, `color`,
-  `alpha` and a blend `midpoint` — see `docs/gradients.md`), a
+  `alpha` and a blend `midpoint` — see `docs/gradients.md`), a `freeform`
+  gradient (scattered colour `points` — each with `id`, `position`, `color`,
+  `alpha` and a `weight` — interpolated by `method` (`shepard`/`gaussian`) at
+  a given `falloff`, in the same `bounds`/`local` space a gradient uses; see
+  `docs/freeform-gradients.md`), a
   `pattern` (an image asset mapped onto the shape by an explicit `mode` —
   tile / fill / fit / stretch — plus `scale`/`rotation`/`offset`), or a
   `swatch` reference (`swatchId` plus a per-use `alpha`, `1` = the swatch's
@@ -115,7 +119,7 @@ active tool, selection, viewport and undo history does not belong in the file.
   document, and a binding whose field path no longer addresses anything is
   pruned there. See [parameters.md](parameters.md).
 
-The current file version is v35 and it is the only version loading accepts.
+The current file version is v36 and it is the only version loading accepts.
 Persisted model changes require a version review and, when incompatible, a
 migration.
 

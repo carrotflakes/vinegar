@@ -14,7 +14,7 @@ import {
   type ShapeType,
 } from "../model/types";
 
-export const CURRENT_FILE_VERSION = 35 as const;
+export const CURRENT_FILE_VERSION = 36 as const;
 /** Older schemas accepted directly by the current document validator.
  *  v33 and below stored gradients as `linear`/`radial` paints with no geometry
  *  beyond an angle, which the placed-gradient model cannot express. */
@@ -69,6 +69,14 @@ const isStop = (value: unknown): boolean =>
   isNumber(value.midpoint) && value.midpoint > 0 && value.midpoint < 1;
 const isStops = (value: unknown): boolean =>
   Array.isArray(value) && value.length >= 2 && value.every(isStop);
+const isFreeformPoint = (value: unknown): boolean =>
+  isObject(value) && typeof value.id === "string" && isPoint(value.position) &&
+  typeof value.color === "string" &&
+  isNumber(value.alpha) && value.alpha >= 0 && value.alpha <= 1 &&
+  isNumber(value.weight) && value.weight > 0;
+/** A freeform gradient needs at least one point; one paints flat. */
+const isFreeformPoints = (value: unknown): boolean =>
+  Array.isArray(value) && value.length >= 1 && value.every(isFreeformPoint);
 const isPaint = (value: unknown): boolean => {
   if (!isObject(value)) return false;
   if (value.type === "solid") {
@@ -84,6 +92,14 @@ const isPaint = (value: unknown): boolean => {
     return kindOk && spaceOk && spreadOk && interpOk && isStops(value.stops) &&
       isPoint(value.start) && isPoint(value.end) && isPoint(value.focal) &&
       isNumber(value.ratio) && value.ratio > 0 &&
+      isNumber(value.alpha) && value.alpha >= 0 && value.alpha <= 1;
+  }
+  if (value.type === "freeform") {
+    const spaceOk = value.space === "bounds" || value.space === "local";
+    const methodOk = value.method === "shepard" || value.method === "gaussian";
+    const interpOk = value.interpolation === "srgb" || value.interpolation === "oklab";
+    return spaceOk && methodOk && interpOk && isFreeformPoints(value.points) &&
+      isNumber(value.falloff) && value.falloff > 0 &&
       isNumber(value.alpha) && value.alpha >= 0 && value.alpha <= 1;
   }
   if (value.type === "pattern") {

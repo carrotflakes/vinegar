@@ -41,6 +41,7 @@ import {
 } from "../model/scene";
 import { screenToWorld } from "@/model/geometry/viewport";
 import { useBrush } from "../store/brushStore";
+import { deleteActiveFreeformPoint } from "../store/gradientToolStore";
 import { currentFocusRoot, useEditor } from "../store/editorStore";
 import { groupEditNodesByShape } from "../store/state";
 import type { EditorState } from "../store/state";
@@ -354,8 +355,15 @@ export const COMMANDS: Command[] = [
       s.editNodes.length > 0 || s.selection.length > 0 || selectedGuide(s) !== null,
     run: (s) => {
       const guide = selectedGuide(s);
-      if (guide) s.removeGuide(guide);
-      else if (s.editNodes.length) s.deleteEditNode();
+      if (guide) {
+        s.removeGuide(guide);
+        return;
+      }
+      // A freeform gradient's active colour point owns Delete while the
+      // gradient tool is editing it — like a guide, it is the sub-object on
+      // screen, and the shape under it is not what the key meant.
+      if (s.tool === "gradient" && deleteActiveFreeformPoint(s)) return;
+      if (s.editNodes.length) s.deleteEditNode();
       else s.deleteSelected();
     },
   },

@@ -1,6 +1,6 @@
 {
   "app": "vinegar",
-  "version": 35,
+  "version": 36,
   "document": {
     "nodes": {
       "cover_backdrop": {

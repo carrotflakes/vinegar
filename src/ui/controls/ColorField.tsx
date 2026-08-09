@@ -21,6 +21,15 @@ import {
   type PatternPaint,
 } from "@/model/paint";
 import {
+  defaultFreeformPoints,
+  freeform,
+  freeformAverage,
+  type FreeformPaint,
+  freeformToGradient,
+  gradientToFreeform,
+  isFreeform,
+} from "@/model/freeform";
+import {
   defaultGeometry,
   gradient,
   gradientStop,
@@ -29,6 +38,7 @@ import {
 import type { Bounds } from "@/model/types";
 import { pickImageFiles } from "@/io/importImage";
 import ColorPicker from "./ColorPicker";
+import FreeformEditor from "./FreeformEditor";
 import GradientEditor from "./GradientEditor";
 import ScrubbableNumber from "./ScrubbableNumber";
 import { usePopoverDismiss } from "./usePopoverDismiss";
@@ -59,9 +69,17 @@ interface Props {
   onChange: (v: Paint | null) => void;
   /** Fill bounds of the shape being edited; gradients are placed over it. */
   bounds?: Bounds | null;
+  /** Selection identity; remembered paint kinds never cross this boundary. */
+  memoryKey?: string;
 }
 
-export default function ColorField({ label, value, onChange, bounds = null }: Props) {
+export default function ColorField({
+  label,
+  value,
+  onChange,
+  bounds = null,
+  memoryKey = "defaults",
+}: Props) {
   const addRecentColor = useEditor((s) => s.addRecentColor);
   const assets = useEditor((s) => s.doc.assets);
   const addPatternImage = useEditor((s) => s.addPatternImage);
@@ -72,13 +90,23 @@ export default function ColorField({ label, value, onChange, bounds = null }: Pr
   const updateSwatch = useEditor((s) => s.updateSwatch);
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
+  const lastGradient = useRef<GradientPaint | null>(null);
+  const lastFreeform = useRef<FreeformPaint | null>(null);
+  const lastPattern = useRef<PatternPaint | null>(null);
+  const rememberedFor = useRef(memoryKey);
+  if (rememberedFor.current !== memoryKey) {
+    rememberedFor.current = memoryKey;
+    lastGradient.current = null;
+    lastFreeform.current = null;
+    lastPattern.current = null;
+  }
   const enabled = value !== null;
   // A `swatch` reference resolves to the document swatch's concrete paint; the
   // whole field then behaves as that paint, but edits flow to the global.
   const ref = isSwatchRef(value) ? value : null;
   const linkedSwatch = ref ? docSwatches[ref.swatchId] : null;
   const concrete = resolvePaintRef(value, docSwatches);
-  const kind = value === null ? "none" : concrete?.type ?? "solid"; // none|solid|gradient|pattern
+  const kind = value === null ? "none" : concrete?.type ?? "solid"; // none|solid|gradient|freeform|pattern
   // Colour and alpha are edited independently; a paint keeps its alpha when the
   // colour changes (and vice-versa). Swatches/recents/palette store colours.
   const gradientPaint = concrete && isGradient(concrete) ? concrete : null;
@@ -87,7 +115,11 @@ export default function ColorField({ label, value, onChange, bounds = null }: Pr
       ? concrete.color
       : gradientPaint
         ? gradientPaint.stops[0]?.color ?? "#888888"
-        : "#888888";
+        : concrete && isFreeform(concrete)
+          // Freeform has no single colour; its mean is what a switch back to
+          // "Solid" should land on, and what seeds a new field.
+          ? freeformAverage(concrete).color
+          : "#888888";
   // Every concrete paint carries an alpha, and it survives a change of kind:
   // a 50% solid becomes a 50% gradient and comes back a 50% solid.
   const alpha = concrete ? concrete.alpha : 1;
@@ -108,7 +140,6 @@ export default function ColorField({ label, value, onChange, bounds = null }: Pr
 
   // ---- gradient editing --------------------------------------------------
   // Remember the last gradient so toggling away and back keeps its ramp.
-  const lastGradient = useRef<GradientPaint | null>(null);
   if (gradientPaint) lastGradient.current = gradientPaint;
   const newGradient = () =>
     lastGradient.current ??
@@ -119,10 +150,20 @@ export default function ColorField({ label, value, onChange, bounds = null }: Pr
       alpha,
     });
 
+  // ---- freeform (scattered colour points) editing -------------------------
+  const freeformPaint = concrete && isFreeform(concrete) ? concrete : null;
+  // Remember the last freeform paint so toggling away and back keeps its points.
+  if (freeformPaint) lastFreeform.current = freeformPaint;
+  const newFreeform = () =>
+    // A ramp converts point-for-point; anything else starts from a default
+    // spread of the current colour, keeping its transparency as a ramp does.
+    gradientPaint
+      ? gradientToFreeform(gradientPaint)
+      : lastFreeform.current ?? freeform(defaultFreeformPoints(color), { alpha });
+
   // ---- pattern (raster fill) editing -------------------------------------
   const patternPaint = concrete && concrete.type === "pattern" ? concrete : null;
   // Remember the last chosen pattern so toggling away and back keeps its image.
-  const lastPattern = useRef<PatternPaint | null>(null);
   if (patternPaint) lastPattern.current = patternPaint;
   const patternAsset = patternPaint ? assets[patternPaint.assetId] : null;
   const patternUrl = patternAsset?.source.data ?? null;
@@ -141,11 +182,20 @@ export default function ColorField({ label, value, onChange, bounds = null }: Pr
     if (id) chooseAsset(id);
   };
 
-  const setKind = (next: "none" | "solid" | "gradient" | "pattern") => {
+  const setKind = (next: "none" | "solid" | "gradient" | "freeform" | "pattern") => {
     if (next === "none") return onChange(null);
     // Keep an existing document-colour link when "Solid" is (re)selected.
     if (next === "solid") return ref && linkedSwatch ? undefined : onChange(solid(color, alpha));
-    if (next === "gradient") return onChange(newGradient());
+    if (next === "gradient") {
+      // A field converts to a ramp only when there is no remembered ramp to
+      // go back to — a round trip should return the ramp you started from,
+      // not the lossy reduction of what it became (see `freeformToGradient`).
+      if (freeformPaint && !lastGradient.current) {
+        return onChange(freeformToGradient(freeformPaint));
+      }
+      return onChange(newGradient());
+    }
+    if (next === "freeform") return onChange(newFreeform());
     // Pattern: reuse a remembered image, else the first existing asset, else
     // import one now.
     const memo = patternPaint ?? lastPattern.current;
@@ -165,7 +215,9 @@ export default function ColorField({ label, value, onChange, bounds = null }: Pr
   const close = () => {
     setOpen(false);
     // Patterns have no meaningful colour; don't push the gray fallback.
-    if (enabled && value?.type !== "pattern") addRecentColor(color);
+    if (enabled && value?.type !== "pattern" && value?.type !== "freeform") {
+      addRecentColor(color);
+    }
   };
 
   usePopoverDismiss(
@@ -211,7 +263,9 @@ export default function ColorField({ label, value, onChange, bounds = null }: Pr
                   : color
                 : gradientPaint
                   ? GRADIENT_LABELS[gradientPaint.kind]
-                  : "Image"}
+                  : freeformPaint
+                    ? "Freeform"
+                    : "Image"}
         </span>
       </div>
 
@@ -223,7 +277,7 @@ export default function ColorField({ label, value, onChange, bounds = null }: Pr
             style={floatingStyles}
           >
           <div className="paint-type-row">
-            {(["none", "solid", "gradient", "pattern"] as const).map((t) => (
+            {(["none", "solid", "gradient", "freeform", "pattern"] as const).map((t) => (
               <button
                 key={t}
                 className={"paint-type-btn" + (kind === t ? " active" : "")}
@@ -235,7 +289,9 @@ export default function ColorField({ label, value, onChange, bounds = null }: Pr
                     ? "Solid"
                     : t === "gradient"
                       ? "Gradient"
-                      : "Image"}
+                      : t === "freeform"
+                        ? "Freeform"
+                        : "Image"}
               </button>
             ))}
           </div>
@@ -302,6 +358,14 @@ export default function ColorField({ label, value, onChange, bounds = null }: Pr
           {gradientPaint && (
             <GradientEditor
               value={gradientPaint}
+              onChange={onChange}
+              bounds={bounds}
+            />
+          )}
+
+          {freeformPaint && (
+            <FreeformEditor
+              value={freeformPaint}
               onChange={onChange}
               bounds={bounds}
             />

@@ -52,6 +52,11 @@ additional effects, or other feature expansion.
   obstacle-union cache keyed on the document revision), curve re-fitting of the
   polygon boundary, artboard edges as region bounds, recolor of strokes/brushes
   on click, glyph outlines instead of text line boxes as ink
+- [ ] Freeform gradients (docs/freeform-gradients.md) — SVG **import** has no
+  counterpart to read back (an exported field returns as a raster pattern);
+  no interpolating RBF (thin-plate) method, which would let a point's colour
+  survive the `gaussian` blend; the on-canvas pad has no marquee/multi-select
+  for points, and a point cannot be bound to a document parameter
 - [ ] Pattern paint — rotation for `fill`/`fit` (tile-only today); `scale` means
   "×natural" for tile but "×cover/contain baseline" for fill/fit, so switching
   modes changes the visual basis (consider resetting scale to 1 on mode change);
@@ -263,4 +268,3 @@ additional effects, or other feature expansion.
 - [x] path modifier適用対象拡張 (rect/ellipse/line, v33)
 - [ ] pencil の交差トリム
 - [ ] Brush はfillなのかstrokeなのか問題
-- [ ] ハンドルが回転に追従しない

@@ -8,9 +8,15 @@
 // ===========================================================================
 
 import { rgba } from "./color";
+import { type FreeformPaint, freeformToCss } from "./freeform";
 import { type GradientPaint, gradientToCss } from "./gradient";
 import type { Bounds, Swatch, Vec2 } from "./types";
 
+export type {
+  FreeformMethod,
+  FreeformPaint,
+  FreeformPoint,
+} from "./freeform";
 export type {
   GradientKind,
   GradientPaint,
@@ -108,7 +114,12 @@ export interface SwatchRefPaint {
   alpha: number;
 }
 
-export type Paint = SolidPaint | GradientPaint | PatternPaint | SwatchRefPaint;
+export type Paint =
+  | SolidPaint
+  | GradientPaint
+  | FreeformPaint
+  | PatternPaint
+  | SwatchRefPaint;
 
 /** The two paint slots every shape carries. */
 export type PaintTarget = "fill" | "stroke";
@@ -166,6 +177,11 @@ export function pattern(
   };
 }
 
+/** Whether a paint is a freeform gradient (see `freeform.ts`). */
+export function isFreeformPaint(paint: Paint): paint is FreeformPaint {
+  return paint.type === "freeform";
+}
+
 /** Whether a paint is a gradient (see `gradient.ts` for everything about it). */
 export function isGradient(paint: Paint): paint is GradientPaint {
   return paint.type === "gradient";
@@ -180,6 +196,8 @@ export function paintToCss(paint: Paint): string {
   // Swatch references are resolved by callers that can see the document; this
   // pure helper never receives one. Fall back to a neutral fill defensively.
   if (paint.type === "swatch") return "#8a9099";
+  // Approximate — CSS has no scattered interpolation; see `freeformToCss`.
+  if (paint.type === "freeform") return freeformToCss(paint);
   return gradientToCss(paint);
 }
 

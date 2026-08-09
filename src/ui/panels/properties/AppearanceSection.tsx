@@ -51,6 +51,9 @@ export default function AppearanceSection({
     hasSelection && selected.every((shape) => shape.type === "image");
 
   const paintBounds = selected.length === 1 && first ? shapeBounds(first) : null;
+  const paintMemoryKey = hasSelection
+    ? selected.map((shape) => shape.id).join("|")
+    : "defaults";
   const fill = hasSelection ? first.fill : style.fill;
   const stroke = hasSelection ? first.stroke : style.stroke;
   const strokeWidth = hasSelection ? first.strokeWidth : style.strokeWidth;
@@ -157,8 +160,20 @@ export default function AppearanceSection({
         <>
           {/* Gradients are placed over the shape's own box, so the field needs
               it; a defaults field (no selection) has none. */}
-          <ColorField label="Fill" value={fill} onChange={setFill} bounds={paintBounds} />
-          <ColorField label="Stroke" value={stroke} onChange={setStroke} bounds={paintBounds} />
+          <ColorField
+            label="Fill"
+            value={fill}
+            onChange={setFill}
+            bounds={paintBounds}
+            memoryKey={paintMemoryKey}
+          />
+          <ColorField
+            label="Stroke"
+            value={stroke}
+            onChange={setStroke}
+            bounds={paintBounds}
+            memoryKey={paintMemoryKey}
+          />
 
           <div className="field-inline">
             <label>Stroke width</label>

@@ -15,6 +15,7 @@ import { finishGuideDrag, onGuideMove } from "./tools/guideTool";
 import { bucketFillAt } from "./tools/bucketTool";
 import {
   finishGradient,
+  onFreeformPointMove,
   onGradientAxisMove,
   onGradientDown,
   onGradientHandleMove,
@@ -52,6 +53,8 @@ export interface ToolDownInput {
   screen: Vec2;
   world: Vec2;
   shift: boolean;
+  /** Alt on press; the gradient tool removes a freeform colour point with it. */
+  alt: boolean;
   /** Pen pressure for this contact; 1 for mouse and touch. */
   pressure: number;
   beginTextEdit: BeginTextEdit;
@@ -61,7 +64,7 @@ export interface ToolDownInput {
 export function startToolInteraction(
   ctx: ToolContext,
   state: EditorState,
-  { screen, world, shift, pressure, beginTextEdit }: ToolDownInput
+  { screen, world, shift, alt, pressure, beginTextEdit }: ToolDownInput
 ): void {
   switch (state.tool) {
     case "select":
@@ -83,7 +86,7 @@ export function startToolInteraction(
       startEraser(ctx, world);
       return;
     case "gradient":
-      onGradientDown(ctx, state, screen, world);
+      onGradientDown(ctx, state, screen, world, alt);
       return;
     case "bucket":
       // A plain click commits (or toasts) immediately; no drag interaction.
@@ -186,6 +189,9 @@ export function dispatchToolMove(
     case "gradient-handle":
       onGradientHandleMove(ctx, state, inter, screen, shift);
       break;
+    case "freeform-point":
+      onFreeformPointMove(ctx, state, inter, screen);
+      break;
   }
 }
 
@@ -269,6 +275,7 @@ export function finishToolInteraction(
       break;
     case "gradient-axis":
     case "gradient-handle":
+    case "freeform-point":
       finishGradient(ctx, state, inter);
       break;
   }

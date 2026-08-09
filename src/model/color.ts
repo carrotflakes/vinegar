@@ -30,13 +30,41 @@ export function rgba(color: string, alpha: number): string {
  */
 export type InterpolationSpace = "srgb" | "oklab";
 
-const srgbToLinear = (c: number) =>
+/** sRGB channel (0..1) to linear light. Exported for per-pixel work. */
+export const srgbToLinear = (c: number) =>
   c <= 0.04045 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4);
-const linearToSrgb = (c: number) =>
+/** Linear light back to an sRGB channel (0..1). */
+export const linearToSrgb = (c: number) =>
   c <= 0.0031308 ? c * 12.92 : 1.055 * Math.pow(c, 1 / 2.4) - 0.055;
 
+/**
+ * Linear light to an 8-bit sRGB channel, through a lookup table.
+ *
+ * {@link linearToSrgb} costs a `Math.pow` per channel, which is fine once per
+ * colour and ruinous per pixel — it is 6× the whole cost of rasterising a
+ * freeform gradient field. The table is sampled linearly, so the result is
+ * within a fraction of an output level of the exact curve, and the output is
+ * only 8 bits anyway. Values outside 0..1 (an out-of-gamut Oklab colour) clamp.
+ */
+const SRGB_LUT_SIZE = 4096;
+let srgbLut: Float32Array | null = null;
+export function linearToSrgb255(v: number): number {
+  if (!srgbLut) {
+    srgbLut = new Float32Array(SRGB_LUT_SIZE + 1);
+    for (let i = 0; i <= SRGB_LUT_SIZE; i++) {
+      srgbLut[i] = linearToSrgb(i / SRGB_LUT_SIZE) * 255;
+    }
+  }
+  if (!(v > 0)) return 0; // also catches NaN
+  if (v >= 1) return 255;
+  const x = v * SRGB_LUT_SIZE;
+  const i = x | 0;
+  const f = x - i;
+  return srgbLut[i]! + (srgbLut[i + 1]! - srgbLut[i]!) * f;
+}
+
 /** Linear-light sRGB to Oklab (Björn Ottosson's matrices). */
-function linearToOklab(r: number, g: number, b: number): [number, number, number] {
+export function linearToOklab(r: number, g: number, b: number): [number, number, number] {
   const l = Math.cbrt(0.4122214708 * r + 0.5363325363 * g + 0.0514459929 * b);
   const m = Math.cbrt(0.2119034982 * r + 0.6806995451 * g + 0.1073969566 * b);
   const s = Math.cbrt(0.0883024619 * r + 0.2817188376 * g + 0.6299787005 * b);
@@ -48,7 +76,7 @@ function linearToOklab(r: number, g: number, b: number): [number, number, number
 }
 
 /** Oklab back to linear-light sRGB. */
-function oklabToLinear(L: number, a: number, b: number): [number, number, number] {
+export function oklabToLinear(L: number, a: number, b: number): [number, number, number] {
   const l = (L + 0.3963377774 * a + 0.2158037573 * b) ** 3;
   const m = (L - 0.1055613458 * a - 0.0638541728 * b) ** 3;
   const s = (L - 0.0894841775 * a - 1.291485548 * b) ** 3;

@@ -6,6 +6,7 @@ import {
   type PatternPaint,
 } from "@/model/paint";
 import { suppressesStrokeCaps } from "@/model/marker";
+import { freeformStyle } from "./freeform";
 import { gradientStyle } from "./gradient";
 import {
   normalizeStrokeDash,
@@ -69,6 +70,7 @@ export function resolveStyle(
 ): string | CanvasGradient | CanvasPattern | null {
   if (paint.type === "pattern") return resolvePattern(ctx, paint, bounds, assets);
   if (paint.type === "gradient") return gradientStyle(ctx, paint, bounds, overflow);
+  if (paint.type === "freeform") return freeformStyle(ctx, paint, bounds, overflow);
   // A swatch reference is resolved by the caller before it reaches here.
   if (paint.type === "swatch") return null;
   return rgba(paint.color, paint.alpha);

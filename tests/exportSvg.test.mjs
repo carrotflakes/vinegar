@@ -10,6 +10,8 @@ let exportSvg;
 let pattern;
 let gradient;
 let gradientStop;
+let freeform;
+let freeformPoint;
 
 before(async () => {
   server = await createServer({ server: { middlewareMode: true } });
@@ -21,6 +23,8 @@ before(async () => {
     await server.ssrLoadModule("/src/model/paint.ts"));
   ({ gradient, gradientStop } =
     await server.ssrLoadModule("/src/model/gradient.ts"));
+  ({ freeform, freeformPoint } =
+    await server.ssrLoadModule("/src/model/freeform.ts"));
   ({ exportSvg } = await server.ssrLoadModule("/src/io/exportSvg.ts"));
 });
 
@@ -196,6 +200,59 @@ test("SVG gradients export their placement as a unit-space gradientTransform", (
     svg,
     /<radialGradient id="grad1" gradientUnits="userSpaceOnUse" gradientTransform="matrix\(100,0,0,50,100,50\)" spreadMethod="reflect" cx="0" cy="0" r="1">/
   );
+});
+
+test("SVG freeform rasters cover the full stroke instead of repeating", () => {
+  const doc = createEmptyDocument();
+  doc.nodes.line = {
+    id: "line",
+    name: "Freeform line",
+    type: "line",
+    ...SHAPE_BASE,
+    ...NODE_BASE,
+    x1: 0,
+    y1: 0,
+    x2: 100,
+    y2: 0,
+    transform: [1, 0, 0, 1, 0, 0],
+    transformOrigin: null,
+    opacity: 1,
+    fill: null,
+    stroke: freeform([
+      freeformPoint("#ff0000", { x: 0, y: 0 }),
+      freeformPoint("#0000ff", { x: 1, y: 1 }),
+    ]),
+    strokeWidth: 20,
+  };
+  doc.rootIds = ["line"];
+
+  const previousDocument = globalThis.document;
+  const PreviousImageData = globalThis.ImageData;
+  globalThis.document = {
+    createElement: () => ({
+      width: 0,
+      height: 0,
+      getContext: () => ({ putImageData: () => {} }),
+      toDataURL: () => "data:image/png;base64,AA==",
+    }),
+  };
+  globalThis.ImageData = class ImageData {
+    constructor(data, width, height) {
+      this.data = data;
+      this.width = width;
+      this.height = height;
+    }
+  };
+  try {
+    const svg = exportSvg(doc, { margin: 0 });
+    assert.match(
+      svg,
+      /<pattern id="ff0" patternUnits="userSpaceOnUse" x="-11" y="-11" width="122" height="22">/
+    );
+  } finally {
+    globalThis.document = previousDocument;
+    globalThis.ImageData = PreviousImageData;
+  }
 });
 
 test("a conic gradient falls back to a wedge pattern SVG has a def for", () => {

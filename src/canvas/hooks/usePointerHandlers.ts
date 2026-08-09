@@ -322,6 +322,7 @@ export function usePointerHandlers(deps: PointerHandlerDeps): PointerHandlers {
       screen,
       world,
       shift: mod.shift,
+      alt: mod.alt,
       pressure: isPen ? e.pressure : 1,
       beginTextEdit,
     });

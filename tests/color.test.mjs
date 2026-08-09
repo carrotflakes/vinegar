@@ -6,12 +6,13 @@ let server;
 let hexToHsv;
 let hsvToHex;
 let normalizeHex;
+let linearToSrgb;
+let linearToSrgb255;
 
 before(async () => {
   server = await createServer({ server: { middlewareMode: true } });
-  ({ hexToHsv, hsvToHex, normalizeHex } = await server.ssrLoadModule(
-    "/src/model/color.ts"
-  ));
+  ({ hexToHsv, hsvToHex, normalizeHex, linearToSrgb, linearToSrgb255 } =
+    await server.ssrLoadModule("/src/model/color.ts"));
 });
 
 after(async () => {
@@ -44,4 +45,20 @@ test("normalizeHex accepts shorthand and rejects junk", () => {
   assert.equal(normalizeHex("  #ABCDEF "), "#abcdef");
   assert.equal(normalizeHex("#abcd"), null);
   assert.equal(normalizeHex("rebeccapurple"), null);
+});
+
+test("the tabled sRGB encode matches the exact curve to within an output level", () => {
+  // `linearToSrgb255` trades a per-pixel Math.pow for a lookup; the whole
+  // point is that the result is indistinguishable in 8 bits.
+  let worst = 0;
+  for (let i = 0; i <= 20000; i++) {
+    const v = i / 20000;
+    worst = Math.max(worst, Math.abs(linearToSrgb255(v) - linearToSrgb(v) * 255));
+  }
+  assert.ok(worst < 0.5, `worst error ${worst} of an output level`);
+  // Out-of-gamut input (an Oklab colour can produce it) clamps rather than
+  // running off the table.
+  assert.equal(linearToSrgb255(-0.2), 0);
+  assert.equal(linearToSrgb255(1.4), 255);
+  assert.equal(linearToSrgb255(NaN), 0);
 });

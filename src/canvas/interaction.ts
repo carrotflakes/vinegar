@@ -66,6 +66,23 @@ export type Interaction =
       origin: GradientPaint;
     }
   | {
+      /** Dragging one colour point of a freeform gradient, or its spread ring. */
+      kind: "freeform-point";
+      shapeId: string;
+      target: PaintTarget;
+      pointId: string;
+      /** `move` drags the point itself; `spread` sets its weight. */
+      mode: "move" | "spread";
+      /** Press point in screen space, to tell a drag from a click. */
+      startScreen: Vec2;
+      /**
+       * Alt was held: the point is duplicated once the press passes
+       * {@link CLICK_SLOP}, and the copy is what moves — so an Alt-*click*
+       * leaves no invisible duplicate stacked on the original.
+       */
+      duplicate: boolean;
+    }
+  | {
       kind: "pivot";
       shapeId?: string | undefined;
       groupId?: string | undefined;

@@ -9,8 +9,9 @@ import { usePreferences } from "../store/preferencesStore";
 import type { CanvasTheme } from "./canvasTheme";
 import { cornerRadiusControl } from "./cornerRadiusHandle";
 import { generatorControls } from "./generatorHandles";
-import { gradientControls, gradientTargetShape } from "./gradientHandles";
-import { useGradientTool } from "@/store/gradientToolStore";
+import { freeformControls } from "./freeformHandles";
+import { gradientControls } from "./gradientHandles";
+import { gradientTargetShape, useGradientTool } from "@/store/gradientToolStore";
 import {
   frameNodeSelectionFrame,
   getSelectionFrame,
@@ -36,6 +37,7 @@ import {
   drawFrameLabels,
   drawGuides,
   drawNodes,
+  drawFreeformAnnotator,
   drawGradientAnnotator,
   drawOverlay,
   drawPenDraft,
@@ -199,17 +201,15 @@ export function paintCanvas(input: PaintInput): void {
         : null,
   });
 
-  // The gradient tool's annotator, drawn over its shape.
+  // The gradient tool's annotator, drawn over its shape — the ramp's axis, or
+  // the scattered colour points of a freeform field.
   if (tool === "gradient") {
     const { target, stopId } = useGradientTool.getState();
-    const controls = gradientControls(
-      doc,
-      gradientTargetShape(doc, selection),
-      target,
-      viewport,
-      chrome
-    );
+    const shape = gradientTargetShape(doc, selection);
+    const controls = gradientControls(doc, shape, target, viewport, chrome);
     if (controls) drawGradientAnnotator(ctx2d, dpr, controls, stopId, chrome);
+    const freeform = freeformControls(doc, shape, target, viewport, stopId, chrome);
+    if (freeform) drawFreeformAnnotator(ctx2d, dpr, freeform, stopId, chrome);
   }
 
   // Frame name labels above each frame (scene scope only).

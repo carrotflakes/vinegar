@@ -16,6 +16,8 @@ let onGradientAxisMove;
 let addGradientStopAt;
 let finishGradient;
 let cancelActiveInteraction;
+let freeform;
+let freeformPoint;
 
 let ctx;
 
@@ -45,6 +47,8 @@ before(async () => {
   ({ useEditor } = await server.ssrLoadModule("/src/store/editorStore.ts"));
   ({ onGradientDown, onGradientAxisMove, addGradientStopAt, finishGradient } =
     await server.ssrLoadModule("/src/canvas/tools/gradientTool.ts"));
+  ({ freeform, freeformPoint } =
+    await server.ssrLoadModule("/src/model/freeform.ts"));
   ({ cancelActiveInteraction } = await server.ssrLoadModule(
     "/src/canvas/interactionLifecycle.ts"
   ));
@@ -122,6 +126,24 @@ test("double-clicking away from the ramp leaves the gradient alone", () => {
   // ramp but is nowhere near the line that is drawn.
   addGradientStopAt(ctx, useEditor.getState(), at(-3, 120));
   assert.equal(stopCount(), 2);
+});
+
+test("pressing another shape while editing a freeform field selects it", () => {
+  const a = rect("a");
+  a.fill = freeform([
+    freeformPoint("#ff0000", { x: 0, y: 0 }),
+    freeformPoint("#0000ff", { x: 1, y: 1 }),
+  ]);
+  const b = { ...rect("b"), x: 200 };
+  useEditor.getState().addShape(a, false);
+  useEditor.getState().addShape(b, false);
+  useEditor.getState().setSelection(["a"]);
+
+  onGradientDown(ctx, useEditor.getState(), at(210, 10), at(210, 10), false);
+
+  assert.deepEqual(useEditor.getState().selection, ["b"]);
+  assert.equal(ctx.interaction.current.kind, "none");
+  assert.equal(useEditor.getState().doc.nodes.a.fill.type, "freeform");
 });
 
 test("cancelling an axis drag rolls the fill back and closes the undo step", () => {

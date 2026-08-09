@@ -14,14 +14,25 @@ import {
   type GradientPaint,
   updateStop,
 } from "@/model/gradient";
-import { resolvePaintRef, type PaintTarget } from "@/model/paint";
+import {
+  addFreeformPointAt,
+  freeformPoint,
+  isFreeform,
+  updateFreeformPoint,
+} from "@/model/freeform";
+import { resolvePaintRef, type Paint, type PaintTarget } from "@/model/paint";
 import { isShape } from "@/model/scene";
 import type { Shape, Vec2 } from "@/model/types";
 import type { EditorState } from "@/store/state";
-import { useGradientTool } from "@/store/gradientToolStore";
+import { gradientTargetShape, useGradientTool } from "@/store/gradientToolStore";
+import {
+  freeformControls,
+  pickFreeformHandle,
+  screenToFreeformSpace,
+  spreadWeight,
+} from "../freeformHandles";
 import {
   gradientControls,
-  gradientTargetShape,
   pickGradientHandle,
   pickGradientRamp,
   screenToPaintSpace,
@@ -51,7 +62,7 @@ function setPaint(
   state: EditorState,
   shape: Shape,
   target: PaintTarget,
-  paint: GradientPaint
+  paint: Paint
 ): void {
   state.applyShapes({ [shape.id]: { ...shape, [target]: paint } });
 }
@@ -64,7 +75,9 @@ export function onGradientDown(
   ctx: ToolContext,
   state: EditorState,
   screen: Vec2,
-  world: Vec2
+  world: Vec2,
+  /** Alt duplicates the colour point being dragged (freeform fields only). */
+  alt = false
 ): void {
   const { target } = useGradientTool.getState();
   let shape = gradientTargetShape(state.doc, state.selection);
@@ -94,6 +107,23 @@ export function onGradientDown(
     return;
   }
 
+  // A freeform field is a set of points, not a ramp: dragging places one
+  // rather than an axis, so it takes over the whole press.
+  if (shape && isFreeform(shape[target])) {
+    if (onFreeformDown(ctx, state, shape, target, screen, world, alt)) return;
+    // A press away from the current field is for picking another shape, not
+    // for replacing this field with a newly seeded ramp. Keep blank-canvas
+    // presses inert and make selecting artwork a press-only operation, as it
+    // is when the tool has no current target below.
+    const hitId = pickShape(ctx, world);
+    const picked = hitId ? state.doc.nodes[hitId] : undefined;
+    if (isShape(picked) && !picked.locked && picked.id !== shape.id) {
+      state.setSelection([picked.id]);
+      ctx.scheduleDraw();
+    }
+    return;
+  }
+
   if (!shape) {
     const hitId = pickShape(ctx, world);
     if (!hitId) return;
@@ -101,6 +131,13 @@ export function onGradientDown(
     if (!isShape(picked) || picked.locked) return;
     state.setSelection([hitId]);
     shape = picked;
+    // The press that picks a shape only picks it. On a freeform field the
+    // next press is what adds a colour point — selecting artwork must not
+    // paint on it.
+    if (isFreeform(shape[target])) {
+      ctx.scheduleDraw();
+      return;
+    }
   }
 
   // Anywhere else: drag out a new axis, in the shape's own coordinates so it
@@ -122,6 +159,158 @@ export function onGradientDown(
     placed: false,
   };
   ctx.scheduleDraw();
+}
+
+/**
+ * A press while the target paint is a freeform field. Returns whether it was
+ * consumed: a point (or its spread ring) was grabbed, or a point was added —
+ * the last one only when the press landed on the shape itself, so a press out
+ * on the canvas still falls through to picking another shape.
+ */
+function onFreeformDown(
+  ctx: ToolContext,
+  state: EditorState,
+  shape: Shape,
+  target: PaintTarget,
+  screen: Vec2,
+  world: Vec2,
+  alt: boolean
+): boolean {
+  const { stopId } = useGradientTool.getState();
+  const controls = freeformControls(
+    state.doc,
+    shape,
+    target,
+    state.viewport,
+    stopId,
+    ctx.hitScale()
+  );
+  if (!controls) return false;
+  const hit = pickFreeformHandle(controls, screen, HANDLE_HIT * ctx.hitScale());
+  if (hit) {
+    return beginFreeformDrag(ctx, state, shape, target, hit.id, screen, {
+      mode: hit.type === "spread" ? "spread" : "move",
+      // Alt duplicates the point on the way, as it does for a selection move.
+      duplicate: hit.type === "point" && alt,
+    });
+  }
+  // Adding needs a place *on* the artwork; elsewhere the press means "pick".
+  if (pickShape(ctx, world) !== shape.id) return false;
+  const p = screenToFreeformSpace(state.doc, shape, controls.paint, state.viewport, screen);
+  if (!p) return false;
+  const { paint, point } = addFreeformPointAt(controls.paint, p);
+  const started = beginFreeformDrag(ctx, state, shape, target, point.id, screen, {
+    mode: "move",
+    duplicate: false,
+    label: "Add color point",
+  });
+  if (started) setPaint(state, shape, target, paint);
+  ctx.scheduleDraw();
+  return started;
+}
+
+function beginFreeformDrag(
+  ctx: ToolContext,
+  state: EditorState,
+  shape: Shape,
+  target: PaintTarget,
+  pointId: string,
+  startScreen: Vec2,
+  opts: { mode: "move" | "spread"; duplicate: boolean; label?: string }
+): boolean {
+  useGradientTool.getState().setStopId(pointId);
+  state.beginInteraction(
+    opts.label ??
+      (opts.duplicate
+        ? "Duplicate color point"
+        : opts.mode === "spread"
+          ? "Edit color point spread"
+          : "Move color point")
+  );
+  ctx.interaction.current = {
+    kind: "freeform-point",
+    shapeId: shape.id,
+    target,
+    pointId,
+    mode: opts.mode,
+    startScreen,
+    duplicate: opts.duplicate,
+  };
+  ctx.scheduleDraw();
+  return true;
+}
+
+/**
+ * Drag a colour point to the pointer, or its spread ring to a new weight.
+ *
+ * An Alt-drag duplicates the point the first time the press travels past the
+ * click slop and then moves the copy, so the original stays put and the whole
+ * thing lands as one undo step — the same bargain `promotePendingMove` strikes
+ * for a selection.
+ */
+export function onFreeformPointMove(
+  ctx: ToolContext,
+  state: EditorState,
+  inter: Extract<Interaction, { kind: "freeform-point" }>,
+  screen: Vec2
+): void {
+  const shape = state.doc.nodes[inter.shapeId];
+  if (!isShape(shape)) return;
+  const paint = shape[inter.target];
+  if (!isFreeform(paint)) return;
+
+  if (inter.mode === "spread") {
+    const center = freeformPointScreen(state, shape, inter.target, inter.pointId);
+    if (!center) return;
+    const radius = Math.hypot(screen.x - center.x, screen.y - center.y);
+    setPaint(
+      state,
+      shape,
+      inter.target,
+      updateFreeformPoint(paint, inter.pointId, {
+        weight: spreadWeight(radius, ctx.hitScale()),
+      })
+    );
+    ctx.scheduleDraw();
+    return;
+  }
+
+  let current = paint;
+  let pointId = inter.pointId;
+  if (inter.duplicate) {
+    const travel = Math.hypot(
+      screen.x - inter.startScreen.x,
+      screen.y - inter.startScreen.y
+    );
+    if (travel <= CLICK_SLOP) return; // still a click: nothing to duplicate yet
+    const source = paint.points.find((p) => p.id === pointId);
+    if (!source) return;
+    const copy = freeformPoint(source.color, source.position, {
+      alpha: source.alpha,
+      weight: source.weight,
+    });
+    current = { ...paint, points: [...paint.points, copy] };
+    pointId = copy.id;
+    inter.duplicate = false;
+    inter.pointId = copy.id;
+    useGradientTool.getState().setStopId(copy.id);
+  }
+
+  const p = screenToFreeformSpace(state.doc, shape, current, state.viewport, screen);
+  if (!p) return;
+  setPaint(state, shape, inter.target, updateFreeformPoint(current, pointId, { position: p }));
+  ctx.scheduleDraw();
+}
+
+/** Screen position of one colour point — the centre a spread drag measures from. */
+function freeformPointScreen(
+  state: EditorState,
+  shape: Shape,
+  target: PaintTarget,
+  pointId: string
+): Vec2 | null {
+  const controls = freeformControls(state.doc, shape, target, state.viewport);
+  return controls?.points.find((p) => p.id === pointId)?.point ?? null;
 }
 
 function snapped(start: Vec2, p: Vec2): Vec2 {

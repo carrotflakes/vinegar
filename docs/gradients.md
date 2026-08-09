@@ -1,5 +1,9 @@
 # Gradients
 
+> A fill can also be a **freeform gradient** — scattered colour points instead of a ramp. It shares
+> this file's `bounds`/`local` placement vocabulary and its interpolation spaces, but nothing else;
+> see [freeform-gradients.md](freeform-gradients.md).
+
 A gradient fill or stroke is a **unit-space ramp plus a matrix**. Everything about where a gradient sits —
 its start and end points, its ellipse, whether it follows a resize — folds into that matrix, so a renderer
 only has to know how to draw three ramps and how to apply a transform.

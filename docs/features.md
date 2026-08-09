@@ -53,7 +53,9 @@ Related design notes: [path-unification.md](path-unification.md), [path-modifier
 
 ## Appearance
 
-- **Paint model** for fill/stroke: solid colors with **per-color alpha** and **gradients** (linear, radial and conic, placed with an on-canvas gradient tool: axis, ellipse and focal handles, stop chips with blend midpoints, pad/repeat/reflect spread and sRGB or OkLab blending), plus raster **patterns** with tile / fill / fit / stretch placement modes, scale, offset and (for tiles) rotation — rendered on Canvas and exported to SVG using embedded images and `<pattern>`.
+- **Paint model** for fill/stroke: solid colors with **per-color alpha** and **gradients** (linear, radial and conic, placed with an on-canvas gradient tool: axis, ellipse and focal handles, stop chips with blend midpoints, pad/repeat/reflect spread and sRGB or OkLab blending), **freeform gradients**
+  (scattered colour points blended by inverse-distance or radial-basis
+  interpolation, dragged on the canvas or in the color popover's pad), plus raster **patterns** with tile / fill / fit / stretch placement modes, scale, offset and (for tiles) rotation — rendered on Canvas and exported to SVG using embedded images and `<pattern>`.
   Swatch popover with preset palette, recent colors, saved swatches, hex input, "none" and the **eyedropper**.
 - Stroke width plus **dash pattern/offset, cap, join and inside/center/outside alignment** (closed vectors and text), opacity, and per-node **blend modes** (multiply, screen, overlay, … — shapes and groups)
 - **End markers** on lines and open paths: arrow, triangle, circle, square, diamond and bar, each solid or hollow and flippable, sized as a multiple of the stroke width and painted with the stroke paint. Every open end of every subpath is marked; markers can be preset for the next line/path drawn, follow the modifier stack and export to SVG as real geometry. See [markers.md](markers.md)

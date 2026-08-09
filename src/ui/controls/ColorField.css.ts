@@ -47,10 +47,12 @@ globalStyle(".color-popover", {
 globalStyle(".paint-type-row", {
   display: "flex",
   gap: "4px",
+  // Five paint kinds do not fit one 220 px row; they wrap rather than clip.
+  flexWrap: "wrap",
 });
 
 globalStyle(".paint-type-btn", {
-  flex: "1",
+  flex: "1 1 52px",
   padding: "5px 2px",
   border: `1px solid ${vars.border}`,
   borderRadius: "6px",

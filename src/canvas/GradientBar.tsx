@@ -7,11 +7,18 @@ import {
   updateStop,
   withGradientKind,
 } from "@/model/gradient";
+import {
+  freeformToGradient,
+  gradientToFreeform,
+  isFreeform,
+  removeFreeformPoint,
+  updateFreeformPoint,
+} from "@/model/freeform";
 import { shapeBounds } from "@/model/geometry/bounds";
 import { useEditor } from "../store/editorStore";
-import { useGradientTool } from "../store/gradientToolStore";
+import { gradientTargetShape, useGradientTool } from "../store/gradientToolStore";
+import type { Paint } from "@/model/paint";
 import ColorInput from "@/ui/controls/ColorInput";
-import { gradientTargetShape } from "./gradientHandles";
 import "./GradientBar.css";
 
 const KINDS: { id: GradientKind; label: string }[] = [
@@ -41,10 +48,15 @@ export default function GradientBar() {
   const shape = gradientTargetShape(doc, selection);
   const paint = shape ? shape[target] : null;
   const gradient = isGradientPaint(paint) ? paint : null;
+  const free = isFreeform(paint) ? paint : null;
   const stops = gradient ? sortedStops(gradient.stops) : [];
   const stop = stops.find((s) => s.id === stopId) ?? stops[0] ?? null;
-  const apply = (next: NonNullable<typeof gradient>) =>
-    updateSelectedStyle({ [target]: next });
+  // `stopId` names the active sub-object of whichever paint is being edited:
+  // a ramp stop, or a freeform colour point.
+  const point = free
+    ? free.points.find((p) => p.id === stopId) ?? free.points[0] ?? null
+    : null;
+  const apply = (next: Paint) => updateSelectedStyle({ [target]: next });
 
   // Never take focus: a focused button would swallow the canvas shortcuts.
   const keepFocus = (e: { preventDefault: () => void }) => e.preventDefault();
@@ -76,16 +88,29 @@ export default function GradientBar() {
           className={
             "gradient-tool-btn" + (gradient?.kind === k.id ? " active" : "")
           }
-          disabled={!gradient}
+          disabled={!gradient && !free}
           title={`${k.label} gradient`}
           onPointerDown={keepFocus}
-          onClick={() =>
-            gradient && shape && apply(withGradientKind(gradient, k.id, shapeBounds(shape, doc)))
-          }
+          onClick={() => {
+            if (!shape) return;
+            // Coming from a freeform field, the points flatten onto a ramp
+            // first; the kind then applies to that ramp.
+            const ramp = gradient ?? (free ? freeformToGradient(free) : null);
+            if (ramp) apply(withGradientKind(ramp, k.id, shapeBounds(shape, doc)));
+          }}
         >
           {k.label}
         </button>
       ))}
+      <button
+        className={"gradient-tool-btn" + (free ? " active" : "")}
+        disabled={!gradient && !free}
+        title="Freeform gradient — scattered color points"
+        onPointerDown={keepFocus}
+        onClick={() => gradient && apply(gradientToFreeform(gradient))}
+      >
+        Freeform
+      </button>
 
       {gradient && stop && (
         <>
@@ -121,9 +146,40 @@ export default function GradientBar() {
         </>
       )}
 
-      {!gradient && (
+      {free && point && (
+        <>
+          <span className="gradient-tool-sep" />
+          <ColorInput
+            className="gradient-tool-color"
+            value={point.color}
+            onChange={(color) => apply(updateFreeformPoint(free, point.id, { color }))}
+            alpha={point.alpha}
+            onAlphaChange={(alpha) => apply(updateFreeformPoint(free, point.id, { alpha }))}
+            title="Selected color point"
+          />
+          <button
+            className="gradient-tool-btn"
+            title="Remove the selected color point"
+            disabled={free.points.length <= 1}
+            onPointerDown={keepFocus}
+            onClick={() => {
+              apply(removeFreeformPoint(free, point.id));
+              setStopId(null);
+            }}
+          >
+            −
+          </button>
+        </>
+      )}
+
+      {!gradient && !free && (
         <span className="gradient-tool-hint">
           {shape ? "Drag across the shape" : "Select a shape"}
+        </span>
+      )}
+      {free && (
+        <span className="gradient-tool-hint">
+          Click to add · Alt-drag to duplicate · Del to remove
         </span>
       )}
     </div>

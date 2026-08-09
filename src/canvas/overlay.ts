@@ -23,6 +23,7 @@ import {
   nodeSubpaths,
   type NodeEditShape,
 } from "./nodes";
+import type { FreeformControls } from "./freeformHandles";
 import type { GradientControls } from "./gradientHandles";
 import type { PenHover } from "./interaction";
 
@@ -282,6 +283,60 @@ export function drawGradientAnnotator(
         break;
       }
     }
+  }
+}
+
+/**
+ * The gradient tool's freeform annotator: one chip per colour point, in its
+ * own colour, with the active one ringed. There is no axis to draw — the field
+ * is the points. Screen space throughout; `canvas/freeformHandles.ts` has
+ * already projected it.
+ */
+export function drawFreeformAnnotator(
+  ctx: CanvasRenderingContext2D,
+  dpr: number,
+  controls: FreeformControls,
+  activePointId: string | null,
+  scale: number
+): void {
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  const size = HANDLE_SIZE * scale;
+
+  // The active point's spread ring, drawn under the chips: a dashed circle
+  // whose radius stands for the point's weight, with a knob to drag it by.
+  const ring = controls.spread;
+  if (ring) {
+    ctx.setLineDash([4, 3]);
+    ctx.strokeStyle = "rgba(0,0,0,0.35)";
+    ctx.lineWidth = 2;
+    dot(ctx, ring.center, ring.radius);
+    ctx.stroke();
+    ctx.strokeStyle = PARAM_ACCENT;
+    ctx.lineWidth = 1;
+    ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.fillStyle = "#ffffff";
+    ctx.strokeStyle = PARAM_ACCENT;
+    ctx.lineWidth = 1.5;
+    dot(ctx, ring.knob, size * 0.4);
+    ctx.fill();
+    ctx.stroke();
+  }
+
+  for (const p of controls.points) {
+    const active = p.id === activePointId;
+    const r = size * (active ? 0.62 : 0.52);
+    ctx.fillStyle = p.color;
+    ctx.strokeStyle = active ? ACCENT : "#ffffff";
+    ctx.lineWidth = active ? 2.5 : 2;
+    dot(ctx, p.point, r);
+    ctx.fill();
+    ctx.stroke();
+    // A thin dark ring keeps a white point visible on white artwork.
+    ctx.strokeStyle = "rgba(0,0,0,0.45)";
+    ctx.lineWidth = 1;
+    dot(ctx, p.point, r + (active ? 1.5 : 1));
+    ctx.stroke();
   }
 }
 

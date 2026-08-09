@@ -12,6 +12,11 @@ import {
 } from "../model/clippingMask";
 import { hasEffects, SHADOW_BLUR_TO_STDDEV } from "../model/effects";
 import { applyMatrix, isIdentity } from "@/model/geometry/matrix";
+import {
+  freeformAverage,
+  type FreeformPaint,
+  freeformRaster,
+} from "@/model/freeform";
 import { gradientToSvgDef } from "@/model/gradient";
 import {
   hexToRgb,
@@ -29,6 +34,7 @@ import { ellipseSubpath } from "../model/ellipse";
 import {
   effectiveStrokeAlignment,
   normalizeStrokeDash,
+  strokeOutset,
   STROKE_MITER_LIMIT,
 } from "../model/stroke";
 import type {
@@ -72,7 +78,8 @@ interface Defs {
   paintAttrs(
     paint: Paint,
     kind: PaintTarget,
-    bounds: Bounds
+    bounds: Bounds,
+    overflow?: number
   ): string[];
   clipPath(shape: ClippingMaskShape): string;
   strokeClip(markup: string): string;
@@ -139,6 +146,17 @@ function makeDefs(doc: Document): Defs {
   const nextId = (prefix: string) => `${prefix}${id++}`;
   const imageIds = new Map<string, string>();
   const patternIds = new Map<string, string>();
+  const freeformIds = new Map<string, string>();
+  const freeformId = (paint: FreeformPaint, bounds: Bounds, overflow: number) => {
+    const key = JSON.stringify([paint, bounds, overflow]);
+    const existing = freeformIds.get(key);
+    if (existing) return existing;
+    const markup = freeformToSvg(paint, nextId("ff"), bounds, overflow);
+    if (!markup) return null;
+    freeformIds.set(key, markup.id);
+    items.push(markup.def);
+    return markup.id;
+  };
   const imageId = (asset: DocumentAsset, size: ImageSize) => {
     const key = asset.source.data;
     const existing = imageIds.get(key);
@@ -179,13 +197,26 @@ function makeDefs(doc: Document): Defs {
   return {
     items,
     nextId,
-    paintAttrs(paint, kind, bounds) {
+    paintAttrs(paint, kind, bounds, overflow = 0) {
       // Bake `swatch` references to concrete paint; a dangling ref emits
       // `${kind}="none"` (harmless for stroke; suppresses the default black fill).
       const resolved = resolvePaintRef(paint, doc.swatches);
       if (!resolved) return [`${kind}="none"`];
       paint = resolved;
       if (paint.type === "solid") return paintToSvgAttrs(paint, kind);
+      if (paint.type === "freeform") {
+        const id = freeformId(paint, bounds, overflow);
+        // No canvas to rasterise into (a headless export): the mean colour is
+        // the honest flat stand-in.
+        if (!id) {
+          const avg = freeformAverage(paint);
+          return paintToSvgAttrs(
+            { type: "solid", color: avg.color, alpha: avg.alpha * paint.alpha },
+            kind
+          );
+        }
+        return [`${kind}="url(#${id})"`];
+      }
       if (paint.type === "pattern") {
         const asset = doc.assets[paint.assetId];
         const size = asset ? intrinsicImageSize(asset) : null;
@@ -263,6 +294,60 @@ function imageToSvg(
       size.height
     )}" preserveAspectRatio="none" href="${escapeXml(asset.source.data)}"/>`
   );
+}
+
+/** Largest exported raster per side; the field is smooth, so this is ample. */
+const FREEFORM_EXPORT_SIDE = 512;
+/** How far past the shape's box the raster reaches, as a fraction of it. */
+const FREEFORM_PAD = 0.08;
+
+/**
+ * A freeform gradient as a one-tile `<pattern>` holding the rasterised field —
+ * SVG has no scattered-interpolation paint server, the same reason a conic
+ * ramp goes out as flat wedges. The pixels come from `freeformRaster`, so the
+ * export shows exactly what the canvas showed. Returns null where there is no
+ * canvas to rasterise into (SSR/headless), leaving the caller a flat fallback.
+ */
+function freeformToSvg(
+  paint: FreeformPaint,
+  id: string,
+  bounds: Bounds,
+  overflow: number
+): { id: string; def: string } | null {
+  if (typeof document === "undefined" || paint.points.length === 0) return null;
+  // The tile is padded past the shape so a stroke, which paints outside the
+  // box the field is laid out over, still lands on real pixels.
+  // SVG patterns repeat outside their tile. Cover the complete painted
+  // stroke/marker reach so no adjacent copy can become visible.
+  const padX = Math.max(bounds.width * FREEFORM_PAD, overflow + 1, 1);
+  const padY = Math.max(bounds.height * FREEFORM_PAD, overflow + 1, 1);
+  const rect: Bounds = {
+    x: bounds.x - padX,
+    y: bounds.y - padY,
+    width: Math.max(bounds.width + padX * 2, 1),
+    height: Math.max(bounds.height + padY * 2, 1),
+  };
+  const long = Math.max(rect.width, rect.height);
+  const w = Math.max(1, Math.round((rect.width / long) * FREEFORM_EXPORT_SIDE));
+  const h = Math.max(1, Math.round((rect.height / long) * FREEFORM_EXPORT_SIDE));
+  const canvas = document.createElement("canvas");
+  canvas.width = w;
+  canvas.height = h;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) return null;
+  ctx.putImageData(new ImageData(freeformRaster(paint, rect, bounds, w, h), w, h), 0, 0);
+  const href = canvas.toDataURL("image/png");
+  return {
+    id,
+    def:
+      `<pattern id="${id}" patternUnits="userSpaceOnUse" x="${num(rect.x)}" y="${num(
+        rect.y
+      )}" width="${num(rect.width)}" height="${num(rect.height)}">` +
+      `<image href="${escapeXml(href)}" x="0" y="0" width="${num(
+        rect.width
+      )}" height="${num(rect.height)}" preserveAspectRatio="none"/>` +
+      `</pattern>`,
+  };
 }
 
 function patternToSvg(
@@ -381,10 +466,13 @@ function markerSvg(doc: Document, shape: Shape, defs: Defs): string {
   return contours
     .map((contour) => {
       const attrs = contour.filled
-        ? [...defs.paintAttrs(shape.stroke!, "fill", bounds), `stroke="none"`]
+        ? [
+            ...defs.paintAttrs(shape.stroke!, "fill", bounds, strokeOutset(shape)),
+            `stroke="none"`,
+          ]
         : [
             `fill="none"`,
-            ...defs.paintAttrs(shape.stroke!, "stroke", bounds),
+            ...defs.paintAttrs(shape.stroke!, "stroke", bounds, strokeOutset(shape)),
             `stroke-width="${num(shape.strokeWidth)}"`,
             `stroke-linecap="${shape.strokeCap}"`,
             // Round joins, not the shape's: see paintMarkers.
@@ -402,8 +490,15 @@ function strokeSvgAttrs(
   doc?: Document
 ): string[] {
   if (!shape.stroke) return [];
+  const penOutset =
+    (width / 2) * (shape.strokeJoin === "miter" ? STROKE_MITER_LIMIT : 1);
   const parts = [
-    ...defs.paintAttrs(shape.stroke, "stroke", shapeBounds(shape, doc)),
+    ...defs.paintAttrs(
+      shape.stroke,
+      "stroke",
+      shapeBounds(shape, doc),
+      Math.max(strokeOutset(shape), penOutset)
+    ),
     `stroke-width="${num(width)}"`,
     `stroke-linecap="${suppressesStrokeCaps(shape) ? "butt" : shape.strokeCap}"`,
     `stroke-linejoin="${shape.strokeJoin}"`,

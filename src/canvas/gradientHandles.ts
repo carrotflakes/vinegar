@@ -7,12 +7,12 @@ import { shapeBounds } from "@/model/geometry/bounds";
 import { applyMatrix, invertMatrix, multiply, shapeWorldMatrix } from "@/model/geometry/matrix";
 import {
   type GradientPaint,
+  type GradientSpace,
   gradientAngle,
   isGradientPaint,
   sortedStops,
 } from "@/model/gradient";
 import type { PaintTarget } from "@/model/paint";
-import { isShape } from "@/model/scene";
 import type { Bounds, Document, Matrix, Shape, Vec2 } from "@/model/types";
 import { worldToScreen, screenToWorld, type Viewport } from "@/model/geometry/viewport";
 
@@ -58,18 +58,19 @@ export interface GradientControls {
   handles: GradientHandlePoint[];
 }
 
-/** The shape the gradient tool acts on: the single selected one, if any. */
-export function gradientTargetShape(doc: Document, selection: string[]): Shape | null {
-  if (selection.length !== 1) return null;
-  const node = doc.nodes[selection[0]!];
-  return isShape(node) && !node.locked ? node : null;
+/**
+ * Maps a paint's own space to the shape's local space. Gradients and freeform
+ * gradients share the `bounds`/`local` vocabulary, so they share this too.
+ */
+export function spaceMatrix(space: GradientSpace, bounds: Bounds): Matrix {
+  return space === "bounds"
+    ? [bounds.width, 0, 0, bounds.height, bounds.x, bounds.y]
+    : [1, 0, 0, 1, 0, 0];
 }
 
 /** Maps the gradient's own space to the shape's local space. */
 export function paintSpaceMatrix(paint: GradientPaint, bounds: Bounds): Matrix {
-  return paint.space === "bounds"
-    ? [bounds.width, 0, 0, bounds.height, bounds.x, bounds.y]
-    : [1, 0, 0, 1, 0, 0];
+  return spaceMatrix(paint.space, bounds);
 }
 
 /** Gradient paint space -> world, for a paint about to be applied to `shape`. */
