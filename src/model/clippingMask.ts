@@ -15,7 +15,6 @@ import type {
   PathShape,
   RectShape,
   SceneNode,
-  Shape,
 } from "./types";
 import { hasActiveModifiers, resolvedSubpaths } from "./path/pathModifiers";
 
@@ -90,13 +89,6 @@ export function clippingContentIds(doc: Document, group: Group): string[] {
   return clippingMask(doc, group)
     ? group.childIds.slice(0, -1)
     : group.childIds;
-}
-
-/** Fill rule used by the shared Canvas, SVG, and hit-test mask geometry. */
-export function shapeFillRule(shape: Shape): "nonzero" | "evenodd" {
-  if (shape.type === "compoundPath") return "evenodd";
-  if (shape.type === "path") return shape.fillRule ?? "nonzero";
-  return "nonzero";
 }
 
 /**

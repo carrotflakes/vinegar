@@ -3,12 +3,10 @@ import * as paperNs from "paper";
 // either on the namespace itself or on its `default`.
 const paper: typeof paperNs =
   (paperNs as { default?: typeof paperNs }).default ?? paperNs;
-import { compoundChildren } from "./compoundPath";
-import { ellipseSubpath } from "../ellipse";
 import { IDENTITY } from "@/model/geometry/matrix";
-import { roundedRectSubpath } from "../roundedRect";
 import { strokeDetailFields } from "../stroke";
-import { modifiedSubpaths, resolvedSubpaths } from "./pathModifiers";
+import { hasActiveModifiers } from "./pathModifiers";
+import { shapeFillRule, shapeSubpaths } from "./shapeGeometry";
 import {
   baseNodeDefaults,
   makeId,
@@ -56,96 +54,42 @@ function compound(paths: paper.Path[]): paper.PathItem | null {
   return new paper.CompoundPath({ children: paths, insert: false });
 }
 
-function pathsOf(item: paper.PathItem | null): paper.Path[] {
-  if (!item) return [];
-  return item instanceof paper.CompoundPath
-    ? (item.children as paper.Path[])
-    : [item as paper.Path];
-}
-
 /**
  * Convert a shape into paper.js geometry in its parent's coordinate space
  * (the shape's own transform baked in), or null if it encloses no area.
  * Curves are preserved exactly — no flattening.
  */
 function shapeToGeom(shape: Shape, doc?: Document): paper.PathItem | null {
-  let item: paper.PathItem | null;
-  const modified = modifiedSubpaths(shape);
-  if (modified) {
-    // Modifiers already produced the silhouette; force the implicit fill close
-    // exactly as the path branch does.
-    item = compound(
-      modified
-        .filter((sp) => sp.anchors.length >= 2)
-        .map((sp) => {
-          const path = subpathToPath(sp);
-          path.closed = true;
-          return path;
-        })
-    );
-    if (!item) return null;
-    item.fillRule = "nonzero";
-    item.transform(toPaperMatrix(shape.transform));
-    return item;
-  }
-  switch (shape.type) {
-    case "rect": {
-      item = subpathToPath(roundedRectSubpath(shape));
-      break;
-    }
-    case "ellipse": {
-      item = subpathToPath(ellipseSubpath(shape));
-      break;
-    }
-    case "path":
-      item = compound(
-        resolvedSubpaths(shape)
-          .filter((sp) => sp.anchors.length >= 2)
-          .map((sp) => {
-            // Force the implicit fill close paper.js needs to see an area.
-            const path = subpathToPath(sp);
-            path.closed = true;
-            return path;
-          })
-      );
-      if (item) item.fillRule = shape.fillRule ?? "nonzero";
-      break;
-    case "compoundPath":
-      item = compound(
-        (doc ? compoundChildren(doc, shape) : [])
-          .flatMap((component) => pathsOf(shapeToGeom(component, doc)))
-      );
-      if (item) item.fillRule = "evenodd";
-      break;
-    case "line":
-    case "image":
-    case "text":
-    case "brush":
-      return null;
-  }
+  if (!isAreal(shape)) return null;
+  const item = compound(
+    (shapeSubpaths(shape, doc) ?? [])
+      .filter((sp) => sp.anchors.length >= 2)
+      .map((sp) => {
+        // Force the implicit fill close paper.js needs to see an area: an open
+        // contour still fills as if closed everywhere else in the editor.
+        const path = subpathToPath(sp);
+        path.closed = true;
+        return path;
+      })
+  );
   if (!item) return null;
+  item.fillRule = shapeFillRule(shape);
   item.transform(toPaperMatrix(shape.transform));
   return item;
 }
 
 /** Whether a shape encloses an area and can take part in boolean operations. */
 export function isAreal(shape: Shape): boolean {
-  // An outline or offset modifier gives even a line real area.
-  const modified = modifiedSubpaths(shape);
-  if (modified) return modified.some((sp) => sp.anchors.length >= 2);
-  switch (shape.type) {
-    case "rect":
-    case "ellipse":
-    case "compoundPath":
-      return true;
-    case "path":
-      return resolvedSubpaths(shape).some((sp) => sp.anchors.length >= 2);
-    case "line":
-    case "image":
-    case "text":
-    case "brush":
-      return false;
-  }
+  // A brush is an area, but its width profile is not recoverable from a
+  // boolean result, so it stays out (Convert to Path first).
+  if (shape.type === "brush") return false;
+  // Compound components are area-bearing by construction, and answering this
+  // must not require the document to resolve them.
+  if (shape.type === "compoundPath") return true;
+  // An outline or offset modifier gives even a line real area, so an
+  // unmodified line is the only primitive that never encloses one.
+  if (shape.type === "line" && !hasActiveModifiers(shape)) return false;
+  return (shapeSubpaths(shape) ?? []).some((sp) => sp.anchors.length >= 2);
 }
 
 const OP_NAME: Record<BoolOp, string> = {

@@ -1,11 +1,7 @@
 import ClipperLib, { type PolyNode } from "clipper-lib";
-import { flattenSubpath } from "./path";
-import { modifiedSubpaths, resolvedSubpaths } from "./pathModifiers";
-import { shapeBounds } from "@/model/geometry/bounds";
-import { compoundChildren } from "./compoundPath";
 import { contours, intPath, SCALE, treeToPolys } from "./clipperPaths";
 import { applyMatrix } from "@/model/geometry/matrix";
-import { roundedRectPolyline } from "../roundedRect";
+import { shapePolylines, type Polyline } from "./shapeGeometry";
 import {
   effectiveStrokeAlignment,
   normalizeStrokeDash,
@@ -13,77 +9,18 @@ import {
 } from "../stroke";
 import type { Document, Shape, Vec2 } from "../types";
 
-interface Polyline {
-  points: Vec2[];
-  closed: boolean;
-}
-
 function withTransform(shape: Shape, points: Vec2[]): Vec2[] {
   return points.map((p) => applyMatrix(shape.transform, p));
 }
 
 /** The stroked centerline(s) of a shape, before rotation. */
 function centerlines(shape: Shape, doc?: Document): Polyline[] {
-  const modified = modifiedSubpaths(shape);
-  if (modified) {
-    return modified.map((sp) => ({
-      points: flattenSubpath(sp),
-      closed: sp.closed,
-    }));
-  }
-  switch (shape.type) {
-    case "line":
-      return [
-        {
-          points: [
-            { x: shape.x1, y: shape.y1 },
-            { x: shape.x2, y: shape.y2 },
-          ],
-          closed: false,
-        },
-      ];
-    case "rect": {
-      return [
-        {
-          points: roundedRectPolyline(shape),
-          closed: true,
-        },
-      ];
-    }
-    case "ellipse": {
-      const b = shapeBounds(shape);
-      const cx = b.x + b.width / 2;
-      const cy = b.y + b.height / 2;
-      const rx = b.width / 2;
-      const ry = b.height / 2;
-      const pts: Vec2[] = [];
-      for (let i = 0; i < 64; i++) {
-        const a = (i / 64) * Math.PI * 2;
-        pts.push({ x: cx + Math.cos(a) * rx, y: cy + Math.sin(a) * ry });
-      }
-      return [{ points: pts, closed: true }];
-    }
-    case "path":
-      return resolvedSubpaths(shape).map((sp) => ({
-        points: flattenSubpath(sp),
-        closed: sp.closed,
-      }));
-    case "compoundPath":
-      return (doc ? compoundChildren(doc, shape) : []).flatMap((component) =>
-        centerlines(component, doc).map((line) => ({
-          ...line,
-          points: line.points.map((point) => applyMatrix(component.transform, point)),
-        }))
-      );
-    case "image":
-    case "text":
-      // Images never stroke.
-      return [];
-    case "brush":
-      // Brush width lives in the filled envelope, not a stroked centerline;
-      // outlining a brush into a polygon is deferred (see docs/brush-strokes.md).
-      return [];
-  }
+  // Brush width lives in the filled envelope, not a stroked centerline;
+  // outlining a brush into a polygon is deferred (see docs/brush-strokes.md).
+  // Images and text never stroke, and `shapePolylines` already returns nothing
+  // for them.
+  if (shape.type === "brush") return [];
+  return shapePolylines(shape, doc);
 }
 
 function samePoint(a: Vec2, b: Vec2): boolean {

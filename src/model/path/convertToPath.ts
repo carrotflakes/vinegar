@@ -1,7 +1,6 @@
-import { compoundChildren } from "./compoundPath";
 import { convertBrushToCenterlinePath } from "@/model/brush/convertBrush";
-import { transformSubpath } from "./path";
-import { applyPathModifiers, resolvedSubpaths } from "./pathModifiers";
+import { applyPathModifiers } from "./pathModifiers";
+import { shapeFillRule, shapeSubpaths } from "./shapeGeometry";
 import { remapModifierBindings } from "../params";
 import { markerFields } from "../marker";
 import { strokeDetailFields } from "../stroke";
@@ -45,19 +44,13 @@ export function convertShapeToPath(
   doc: Document
 ): PathShape {
   if (shape.type === "brush") return convertBrushToCenterlinePath(shape);
-  const subpaths = shape.type === "compoundPath"
-    ? compoundChildren(doc, shape).flatMap((child) =>
-        resolvedSubpaths(child).map((subpath) =>
-          transformSubpath(child.transform, subpath)
-        )
-      )
-    : resolvedSubpaths(shape);
+  const subpaths = shapeSubpaths(shape, doc) ?? [];
   return {
     id: shape.id,
     name: shape.name,
     type: "path",
     subpaths,
-    fillRule: shape.type === "compoundPath" ? "evenodd" : "nonzero",
+    fillRule: shapeFillRule(shape),
     fill: shape.fill,
     stroke: shape.stroke,
     strokeWidth: shape.strokeWidth,

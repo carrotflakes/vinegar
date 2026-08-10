@@ -5,7 +5,8 @@ import {
 } from "@/model/geometry/bounds";
 import { isIdentity, transformBounds } from "@/model/geometry/matrix";
 import { cachedBrushEnvelope } from "@/model/brush/brushOutline";
-import { clippingContentIds, clippingMask, shapeFillRule } from "@/model/clippingMask";
+import { clippingContentIds, clippingMask } from "@/model/clippingMask";
+import { shapeFillRule } from "@/model/path/shapeGeometry";
 import { effectsMargin, hasEffects } from "@/model/effects";
 import { hasMarkers, strokeEndContours } from "@/model/marker";
 import { isSwatchRef, resolvePaintRef } from "@/model/paint";

@@ -4,7 +4,7 @@ import { isShape } from "@/model/scene";
 import type { Bounds, Document, Shape, Vec2 } from "@/model/types";
 import { worldToScreen, type Viewport } from "@/model/geometry/viewport";
 import { cachedShapePath, tracePath } from "./render/path";
-import { modifiedSubpaths, resolvedSubpaths } from "@/model/path/pathModifiers";
+import { isClosedGeometry } from "@/model/path/shapeGeometry";
 
 const HIGHLIGHT = "#3b82f6";
 /**
@@ -82,16 +82,9 @@ function traceLeaf(
  * alone. Compound-path components are always closed.
  */
 function fillable(shape: Shape): boolean {
-  const modified = modifiedSubpaths(shape);
-  if (modified) {
-    return modified.length > 0 && modified.every((sp) => sp.closed);
-  }
-  if (shape.type === "line") return false;
-  if (shape.type === "path") {
-    const subpaths = resolvedSubpaths(shape);
-    return subpaths.length > 0 && subpaths.every((sp) => sp.closed);
-  }
-  return true;
+  // An image is traced as its box, which is a closed region even though the
+  // image itself carries no outline.
+  return shape.type === "image" || isClosedGeometry(shape);
 }
 
 /** Outline one leaf along its real geometry, in world space. */

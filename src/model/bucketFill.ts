@@ -15,16 +15,13 @@
 // ===========================================================================
 
 import ClipperLib, { type IntPoint, type PolyNode, type PolyTree } from "clipper-lib";
-import { flattenSubpath } from "@/model/path/path";
-import { modifiedSubpaths, resolvedSubpaths } from "@/model/path/pathModifiers";
-import { brushCenterlineSamples, cachedBrushEnvelope } from "@/model/brush/brushOutline";
+import { brushCenterlineSamples } from "@/model/brush/brushOutline";
 import { shapeBounds } from "@/model/geometry/bounds";
-import { compoundChildren } from "@/model/path/compoundPath";
+import { shapeFillRule, shapeRings } from "@/model/path/shapeGeometry";
 import { clippingContentIds, clippingMask } from "./clippingMask";
 import { contours, intPath, SCALE, treeToPolys } from "@/model/path/clipperPaths";
 import { applyMatrix, IDENTITY, multiply } from "@/model/geometry/matrix";
 import { strokeOutline } from "@/model/path/outlineStroke";
-import { roundedRectPolyline } from "./roundedRect";
 import { isGroup, isInstance, isShape, scopeRootIds } from "./scene";
 import type { Document, Matrix, Shape, Vec2 } from "./types";
 
@@ -59,90 +56,31 @@ function fillGeometry(
   shape: Shape,
   doc?: Document
 ): { rings: Vec2[][]; fillType: number } | null {
-  const evenOdd = ClipperLib.PolyFillType.pftEvenOdd;
-  const modified = modifiedSubpaths(shape);
-  if (modified) {
-    const rings = modified
-      .filter((sp) => sp.anchors.length >= 2)
-      .map((sp) => flattenSubpath(sp));
-    return rings.length
-      ? { rings, fillType: ClipperLib.PolyFillType.pftNonZero }
-      : null;
-  }
-  switch (shape.type) {
-    case "rect":
-      return { rings: [roundedRectPolyline(shape)], fillType: evenOdd };
-    case "ellipse": {
-      const b = shapeBounds(shape);
-      const cx = b.x + b.width / 2;
-      const cy = b.y + b.height / 2;
-      const pts: Vec2[] = [];
-      for (let i = 0; i < 64; i++) {
-        const a = (i / 64) * Math.PI * 2;
-        pts.push({
-          x: cx + (Math.cos(a) * b.width) / 2,
-          y: cy + (Math.sin(a) * b.height) / 2,
-        });
-      }
-      return { rings: [pts], fillType: evenOdd };
-    }
-    case "path":
-      const rings = resolvedSubpaths(shape)
-        .filter((sp) => sp.anchors.length >= 2)
-        .map((sp) => flattenSubpath(sp));
-      return rings.length
-        ? {
-            rings,
-            fillType: shape.fillRule === "evenodd"
-              ? evenOdd
-              : ClipperLib.PolyFillType.pftNonZero,
-          }
-        : null;
-    case "compoundPath": {
-      const rings = (doc ? compoundChildren(doc, shape) : []).flatMap((component) => {
-        const geom = fillGeometry(component, doc);
-        return geom
-          ? geom.rings.map((ring) =>
-              ring.map((p) => applyMatrix(component.transform, p))
-            )
-          : [];
-      });
-      return rings.length ? { rings, fillType: evenOdd } : null;
-    }
-    case "image":
-      return {
-        rings: [
-          [
-            { x: shape.x, y: shape.y },
-            { x: shape.x + shape.width, y: shape.y },
-            { x: shape.x + shape.width, y: shape.y + shape.height },
-            { x: shape.x, y: shape.y + shape.height },
-          ],
+  // Images and text have no outline of their own; their box stands in for the
+  // silhouette (for text that is deliberately coarse — the measured line box
+  // rather than the glyph outlines).
+  if (shape.type === "image" || shape.type === "text") {
+    const b = shapeBounds(shape);
+    return {
+      rings: [
+        [
+          { x: b.x, y: b.y },
+          { x: b.x + b.width, y: b.y },
+          { x: b.x + b.width, y: b.y + b.height },
+          { x: b.x, y: b.y + b.height },
         ],
-        fillType: evenOdd,
-      };
-    case "text":
-      // Coarse: the measured line box stands in for the glyph outlines.
-      return {
-        rings: [
-          [
-            { x: shape.x, y: shape.y },
-            { x: shape.x + shape.width, y: shape.y },
-            { x: shape.x + shape.width, y: shape.y + shape.height },
-            { x: shape.x, y: shape.y + shape.height },
-          ],
-        ],
-        fillType: evenOdd,
-      };
-    case "brush": {
-      const ring = cachedBrushEnvelope(shape);
-      return ring.length >= 3
-        ? { rings: [ring], fillType: ClipperLib.PolyFillType.pftNonZero }
-        : null;
-    }
-    case "line":
-      return null;
+      ],
+      fillType: ClipperLib.PolyFillType.pftEvenOdd,
+    };
   }
+  const rings = shapeRings(shape, doc);
+  if (!rings.length) return null;
+  return {
+    rings,
+    fillType: shapeFillRule(shape) === "evenodd"
+      ? ClipperLib.PolyFillType.pftEvenOdd
+      : ClipperLib.PolyFillType.pftNonZero,
+  };
 }
 
 /**

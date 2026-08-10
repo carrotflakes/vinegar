@@ -1,15 +1,13 @@
 import { subpathSegments } from "@/model/path/path";
-import { modifiedSubpaths, resolvedSubpaths } from "@/model/path/pathModifiers";
+import { hasActiveModifiers } from "@/model/path/pathModifiers";
 import { shapeBounds } from "@/model/geometry/bounds";
-import { cachedBrushEnvelope } from "@/model/brush/brushOutline";
-import { compoundChildren } from "@/model/path/compoundPath";
 import { getAssetImage } from "../imageCache";
 import {
   clippingContentIds,
   clippingMask,
-  shapeFillRule,
   type ClippingMaskShape,
 } from "../model/clippingMask";
+import { shapeFillRule, shapeSubpaths } from "@/model/path/shapeGeometry";
 import { hasEffects, SHADOW_BLUR_TO_STDDEV } from "../model/effects";
 import { applyMatrix, isIdentity } from "@/model/geometry/matrix";
 import {
@@ -29,8 +27,7 @@ import {
 } from "../model/paint";
 import { strokeEndContours, suppressesStrokeCaps } from "../model/marker";
 import { isGroup, isShape } from "../model/scene";
-import { effectiveRectCornerRadius, roundedRectSubpath } from "../model/roundedRect";
-import { ellipseSubpath } from "../model/ellipse";
+import { effectiveRectCornerRadius } from "../model/roundedRect";
 import {
   effectiveStrokeAlignment,
   normalizeStrokeDash,
@@ -38,7 +35,6 @@ import {
   STROKE_MITER_LIMIT,
 } from "../model/stroke";
 import type {
-  PathShape,
   PathSubpath,
   Bounds,
   Document,
@@ -47,9 +43,9 @@ import type {
   ColorOverlayEffect,
   Effect,
   Matrix,
-  PrimitiveShape,
   SceneNode,
   Shape,
+  Vec2,
 } from "../model/types";
 import { contentBounds } from "./exportBounds";
 import {
@@ -598,11 +594,12 @@ function shapeToSvg(doc: Document, shape: Shape, defs: Defs): string {
 }
 
 function shapeGeometryToSvg(doc: Document, shape: Shape, attrs: string): string {
-  // Modifiers have no SVG counterpart, so a modified primitive is baked into
-  // path data rather than emitted as <rect>/<ellipse>/<line>.
-  const modified = modifiedSubpaths(shape);
-  if (modified) {
-    return `<path d="${subpathsData(modified)}" ${attrs} />`;
+  // Primitive SVG elements below are an output-form fast path, not a second
+  // geometry derivation: they only apply while the shape still *is* that
+  // primitive. A modifier has no SVG counterpart, so it falls through to the
+  // canonical `<path>` route.
+  if (hasActiveModifiers(shape)) {
+    return `<path d="${geometryPathData(shape, doc)}" ${attrs} />`;
   }
   switch (shape.type) {
     case "text": {
@@ -636,104 +633,48 @@ function shapeGeometryToSvg(doc: Document, shape: Shape, attrs: string): string 
       return `<line x1="${num(shape.x1)}" y1="${num(shape.y1)}" x2="${num(
         shape.x2
       )}" y2="${num(shape.y2)}" ${attrs} />`;
-    case "path": {
-      const rule = shape.fillRule ? ` fill-rule="${shape.fillRule}"` : "";
-      return `<path d="${pathData(shape)}"${rule} ${attrs} />`;
+    case "path":
+    case "brush":
+    case "compoundPath": {
+      const d = geometryPathData(shape, doc);
+      if (!d) return "";
+      // A path only states its rule when it stores one; the other two always
+      // carry the rule their geometry is defined under.
+      const rule = shape.type === "path"
+        ? (shape.fillRule ? ` fill-rule="${shape.fillRule}"` : "")
+        : ` fill-rule="${shapeFillRule(shape)}"`;
+      return `<path d="${d}"${rule} ${attrs} />`;
     }
-    case "brush": {
-      const ring = cachedBrushEnvelope(shape);
-      if (ring.length < 3) return "";
-      const d =
-        "M " + ring.map((p) => `${num(p.x)} ${num(p.y)}`).join(" L ") + " Z";
-      return `<path d="${d}" fill-rule="nonzero" ${attrs} />`;
-    }
-    case "compoundPath":
-      return `<path d="${compoundChildren(doc, shape)
-        .map((component) => primitivePathData(component, component.transform))
-        .join(" ")}" fill-rule="evenodd" ${attrs} />`;
     case "image":
       return "";
   }
 }
 
-function primitivePathData(shape: PrimitiveShape, matrix: Matrix): string {
-  const point = (p: { x: number; y: number }) => {
-    const out = applyMatrix(matrix, p);
+/** Path data for a shape's canonical geometry, optionally under a matrix. */
+function geometryPathData(
+  shape: Shape,
+  doc: Document,
+  matrix?: Matrix
+): string {
+  return subpathsData(shapeSubpaths(shape, doc) ?? [], matrix);
+}
+
+function subpathsData(subpaths: PathSubpath[], matrix?: Matrix): string {
+  const at = (p: Vec2) => {
+    const out = matrix ? applyMatrix(matrix, p) : p;
     return `${num(out.x)} ${num(out.y)}`;
   };
-  const polygon = (points: { x: number; y: number }[], closed: boolean) =>
-    points.length
-      ? `M ${point(points[0])}${points.slice(1).map((p) => ` L ${point(p)}`).join("")}${closed ? " Z" : ""}`
-      : "";
-  const modified = modifiedSubpaths(shape);
-  if (modified) {
-    return modified.map((sp) => {
-      if (!sp.anchors.length) return "";
-      let d = `M ${point(sp.anchors[0].p)}`;
-      for (const segment of subpathSegments(sp)) {
-        d += ` C ${point(segment.c1)} ${point(segment.c2)} ${point(segment.p1)}`;
-      }
-      return d + (sp.closed ? " Z" : "");
-    }).join(" ");
-  }
-  switch (shape.type) {
-    case "rect": {
-      if (effectiveRectCornerRadius(shape) > 0) {
-        const subpath = roundedRectSubpath(shape);
-        const segments = subpathSegments(subpath);
-        if (!segments.length) return "";
-        return `M ${point(segments[0].p0)} ${segments
-          .map((segment) =>
-            `C ${point(segment.c1)} ${point(segment.c2)} ${point(segment.p1)}`
-          )
-          .join(" ")} Z`;
-      }
-      const b = shapeBounds(shape);
-      return polygon([
-        { x: b.x, y: b.y },
-        { x: b.x + b.width, y: b.y },
-        { x: b.x + b.width, y: b.y + b.height },
-        { x: b.x, y: b.y + b.height },
-      ], true);
-    }
-    case "ellipse": {
-      const segments = subpathSegments(ellipseSubpath(shape));
-      if (!segments.length) return "";
-      return `M ${point(segments[0].p0)} ${segments
-        .map((segment) =>
-          `C ${point(segment.c1)} ${point(segment.c2)} ${point(segment.p1)}`
-        )
-        .join(" ")} Z`;
-    }
-    case "line":
-      return `M ${point({ x: shape.x1, y: shape.y1 })} L ${point({ x: shape.x2, y: shape.y2 })}`;
-    case "path":
-      return resolvedSubpaths(shape).map((sp) => {
-        if (!sp.anchors.length) return "";
-        let d = `M ${point(sp.anchors[0].p)}`;
-        for (const segment of subpathSegments(sp)) {
-          d += ` C ${point(segment.c1)} ${point(segment.c2)} ${point(segment.p1)}`;
-        }
-        return d + (sp.closed ? " Z" : "");
-      }).join(" ");
-  }
-}
-
-function pathData(shape: PathShape): string {
-  return subpathsData(resolvedSubpaths(shape));
-}
-
-function subpathsData(subpaths: PathSubpath[]): string {
   const parts: string[] = [];
   for (const sp of subpaths) {
-    const segs = subpathSegments(sp);
     if (sp.anchors.length === 0) continue;
-    const start = sp.anchors[0].p;
-    let d = `M ${num(start.x)} ${num(start.y)}`;
-    for (const s of segs) {
-      d += ` C ${num(s.c1.x)} ${num(s.c1.y)} ${num(s.c2.x)} ${num(
-        s.c2.y
-      )} ${num(s.p1.x)} ${num(s.p1.y)}`;
+    let d = `M ${at(sp.anchors[0].p)}`;
+    for (const s of subpathSegments(sp)) {
+      // Straight segments carry their handles on the endpoints; emitting them
+      // as cubics would bloat the file for no visual difference.
+      d += s.c1.x === s.p0.x && s.c1.y === s.p0.y &&
+        s.c2.x === s.p1.x && s.c2.y === s.p1.y
+        ? ` L ${at(s.p1)}`
+        : ` C ${at(s.c1)} ${at(s.c2)} ${at(s.p1)}`;
     }
     if (sp.closed) d += " Z";
     parts.push(d);
@@ -747,19 +688,7 @@ function subpathsData(subpaths: PathSubpath[]): string {
  * flag deliberately never enter the definition.
  */
 function maskShapeToSvg(doc: Document, shape: ClippingMaskShape): string {
-  let d = "";
-  switch (shape.type) {
-    case "rect":
-    case "ellipse":
-    case "path":
-      d = primitivePathData(shape, [1, 0, 0, 1, 0, 0]);
-      break;
-    case "compoundPath":
-      d = compoundChildren(doc, shape)
-        .map((component) => primitivePathData(component, component.transform))
-        .join(" ");
-      break;
-  }
+  const d = geometryPathData(shape, doc);
   const rule = shapeFillRule(shape);
   const attrs = [
     `d="${d}"`,

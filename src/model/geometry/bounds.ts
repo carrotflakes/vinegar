@@ -1,8 +1,7 @@
-import { flattenPath, flattenSubpaths } from "@/model/path/path";
-import { modifiedSubpaths } from "@/model/path/pathModifiers";
-import { cachedBrushEnvelope } from "@/model/brush/brushOutline";
+import { flattenSubpaths } from "@/model/path/path";
+import { hasActiveModifiers } from "@/model/path/pathModifiers";
+import { shapeSubpaths } from "@/model/path/shapeGeometry";
 import { clippingMask } from "../clippingMask";
-import { compoundChildren } from "@/model/path/compoundPath";
 import { nodeWorldMatrix, shapeWorldMatrix, transformBounds } from "./matrix";
 import { isFrame, isGroup, isInstance, isShape } from "../scene";
 import type { Bounds, Document, FrameNode, Shape, SymbolInstance, Vec2 } from "../types";
@@ -39,42 +38,31 @@ export function normalizeRect(
 
 /** Axis-aligned bounding box of a single shape (ignores stroke width). */
 export function shapeBounds(shape: Shape, doc?: Document): Bounds {
-  // Modifiers reshape a primitive's silhouette, so its own x/y/width/height no
-  // longer bound what is painted.
-  const modified = modifiedSubpaths(shape);
-  if (modified) return pointsBounds(flattenSubpaths(modified));
-  switch (shape.type) {
-    case "rect":
-    case "ellipse":
-    case "image":
-    case "text":
-      return normalizeRect(shape.x, shape.y, shape.width, shape.height);
-    case "line":
-      return normalizeRect(
-        shape.x1,
-        shape.y1,
-        shape.x2 - shape.x1,
-        shape.y2 - shape.y1
-      );
-    case "path":
-      return pointsBounds(flattenPath(shape));
-    case "brush":
-      // The envelope already includes the stroke width and end caps.
-      return pointsBounds(cachedBrushEnvelope(shape));
-    case "compoundPath": {
-      if (!doc) return { x: 0, y: 0, width: 0, height: 0 };
-      const children = compoundChildren(doc, shape);
-      if (children.length === 0) return { x: 0, y: 0, width: 0, height: 0 };
-      const bounds = children.map((component) =>
-        transformBounds(shapeBounds(component, doc), component.transform)
-      );
-      const x = Math.min(...bounds.map((b) => b.x));
-      const y = Math.min(...bounds.map((b) => b.y));
-      const right = Math.max(...bounds.map((b) => b.x + b.width));
-      const bottom = Math.max(...bounds.map((b) => b.y + b.height));
-      return { x, y, width: right - x, height: bottom - y };
+  // Stored extents, where the shape's own fields *are* its bounds. Modifiers
+  // reshape a primitive's silhouette, so its x/y/width/height no longer bound
+  // what is painted and the geometry below answers instead.
+  if (!hasActiveModifiers(shape)) {
+    switch (shape.type) {
+      case "rect":
+      case "ellipse":
+      case "image":
+      case "text":
+        return normalizeRect(shape.x, shape.y, shape.width, shape.height);
+      case "line":
+        return normalizeRect(
+          shape.x1,
+          shape.y1,
+          shape.x2 - shape.x1,
+          shape.y2 - shape.y1
+        );
     }
   }
+  // Everything else measures its canonical geometry. A brush envelope already
+  // includes the stroke width and end caps; a compound path's components
+  // arrive with their own transforms baked in.
+  const subpaths = shapeSubpaths(shape, doc);
+  if (!subpaths?.length) return { x: 0, y: 0, width: 0, height: 0 };
+  return pointsBounds(flattenSubpaths(subpaths));
 }
 
 /** Axis-aligned world bounds after shape and ancestor transforms. */

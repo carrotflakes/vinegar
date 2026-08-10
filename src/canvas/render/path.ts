@@ -1,9 +1,9 @@
 import { shapeBounds } from "@/model/geometry/bounds";
-import { cachedBrushEnvelope } from "@/model/brush/brushOutline";
 import { isCompoundChild } from "@/model/path/compoundPath";
 import { subpathSegments } from "@/model/path/path";
-import { modifiedSubpaths, resolvedSubpaths } from "@/model/path/pathModifiers";
-import { effectiveRectCornerRadius, roundedRectSubpath } from "@/model/roundedRect";
+import { hasActiveModifiers } from "@/model/path/pathModifiers";
+import { shapeSubpaths } from "@/model/path/shapeGeometry";
+import { effectiveRectCornerRadius } from "@/model/roundedRect";
 import { isShape } from "@/model/scene";
 import type { Document, PathSubpath, Shape } from "@/model/types";
 import { renderCachesDisabled } from "@/debug/renderFlags";
@@ -47,37 +47,16 @@ function appendSubpaths(target: PathTarget, subpaths: PathSubpath[]): void {
 
 /** Append non-compound geometry to either a live canvas path or a Path2D. */
 function appendPath(target: PathTarget, shape: Shape): void {
-  // A modified primitive has no primitive silhouette left to draw.
-  const modified = modifiedSubpaths(shape);
-  if (modified) {
-    appendSubpaths(target, modified);
-    return;
-  }
-  switch (shape.type) {
-    case "rect": {
+  // Canvas primitives, not a second derivation of the geometry: `rect` and
+  // `ellipse` hand the exact conic to the rasteriser instead of a flattened
+  // stand-in. A modifier leaves no primitive silhouette, so they drop out then.
+  if (!hasActiveModifiers(shape)) {
+    if (shape.type === "rect" && effectiveRectCornerRadius(shape) <= 0) {
       const b = shapeBounds(shape);
-      if (effectiveRectCornerRadius(shape) <= 0) {
-        target.rect(b.x, b.y, b.width, b.height);
-        break;
-      }
-      const subpath = roundedRectSubpath(shape);
-      const segments = subpathSegments(subpath);
-      if (!segments.length) break;
-      target.moveTo(segments[0].p0.x, segments[0].p0.y);
-      for (const segment of segments) {
-        target.bezierCurveTo(
-          segment.c1.x,
-          segment.c1.y,
-          segment.c2.x,
-          segment.c2.y,
-          segment.p1.x,
-          segment.p1.y
-        );
-      }
-      target.closePath();
-      break;
+      target.rect(b.x, b.y, b.width, b.height);
+      return;
     }
-    case "ellipse": {
+    if (shape.type === "ellipse") {
       const b = shapeBounds(shape);
       // CanvasRenderingContext2D.ellipse() connects from the current point to
       // the arc start. Compound paths already have a current point from the
@@ -92,33 +71,13 @@ function appendPath(target: PathTarget, shape: Shape): void {
         0,
         Math.PI * 2
       );
-      break;
+      return;
     }
-    case "line": {
-      target.moveTo(shape.x1, shape.y1);
-      target.lineTo(shape.x2, shape.y2);
-      break;
-    }
-    case "path": {
-      appendSubpaths(target, resolvedSubpaths(shape));
-      break;
-    }
-    case "brush": {
-      const ring = cachedBrushEnvelope(shape);
-      if (ring.length >= 2) {
-        target.moveTo(ring[0].x, ring[0].y);
-        for (let i = 1; i < ring.length; i++) {
-          target.lineTo(ring[i].x, ring[i].y);
-        }
-        target.closePath();
-      }
-      break;
-    }
-    case "compoundPath":
-    case "image":
-    case "text":
-      break;
   }
+  // A compound path is assembled from its components' own cached paths by the
+  // callers below, so it contributes nothing of its own here.
+  if (shape.type === "compoundPath") return;
+  appendSubpaths(target, shapeSubpaths(shape) ?? []);
 }
 
 /** Trace loose contours (end markers) onto a live canvas path. */

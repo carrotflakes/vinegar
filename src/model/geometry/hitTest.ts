@@ -1,7 +1,10 @@
-import { flattenSubpath } from "@/model/path/path";
-import { modifiedSubpaths, resolvedSubpaths } from "@/model/path/pathModifiers";
-import { cachedBrushEnvelope } from "@/model/brush/brushOutline";
-import { compoundChildren } from "@/model/path/compoundPath";
+import { hasActiveModifiers } from "@/model/path/pathModifiers";
+import {
+  shapeFillRule,
+  shapePolylines,
+  shapeRings,
+  type Polyline,
+} from "@/model/path/shapeGeometry";
 import {
   expandBounds,
   instanceWorldBounds,
@@ -14,14 +17,13 @@ import {
   clippingMaskAncestors,
   isClippingMaskNode,
   isNodeVisibleForHitTesting,
-  shapeFillRule,
   type ClippingMaskShape,
 } from "../clippingMask";
 import { invertMatrix, matrixScale, nodeWorldMatrix, shapeWorldMatrix, transformBounds } from "./matrix";
 import { isInstance, isShape, symbolLeafIds } from "../scene";
 import { pointInRoundedRect, roundedRectPolyline } from "../roundedRect";
 import { effectiveStrokeAlignment, strokeOutset } from "../stroke";
-import type { Bounds, Document, PathSubpath, Shape, SymbolInstance, Vec2 } from "../types";
+import type { Bounds, Document, Shape, SymbolInstance, Vec2 } from "../types";
 import { applyMatrix } from "./matrix";
 
 /** Even-odd point-in-polygon test. */
@@ -93,17 +95,6 @@ function distToPolyline(p: Vec2, pts: Vec2[], closed: boolean): number {
   return best;
 }
 
-function containsTransformedGeometry(
-  shape: Shape,
-  p: Vec2,
-  rule: "nonzero" | "evenodd",
-  doc?: Document
-): boolean {
-  const inverse = invertMatrix(shape.transform);
-  if (!inverse) return false;
-  return containsGeometry(shape, applyMatrix(inverse, p), rule, doc);
-}
-
 /** Fill containment using geometry only: paint and visibility are ignored. */
 function containsGeometry(
   shape: Shape,
@@ -111,69 +102,27 @@ function containsGeometry(
   rule: "nonzero" | "evenodd",
   doc?: Document
 ): boolean {
-  const modified = modifiedSubpaths(shape);
-  if (modified) {
-    return containsRings(
-      modified
-        .filter((subpath) => subpath.anchors.length >= 2)
-        .map((subpath) => flattenSubpath(subpath)),
-      p,
-      rule
-    );
-  }
-  switch (shape.type) {
-    case "rect": {
-      return pointInRoundedRect(shape, p);
-    }
-    case "ellipse": {
+  // Analytic fast paths: exact, and cheaper than flattening. They only hold
+  // while no modifier has reshaped the primitive.
+  if (!hasActiveModifiers(shape)) {
+    if (shape.type === "rect") return pointInRoundedRect(shape, p);
+    if (shape.type === "ellipse") {
       const b = shapeBounds(shape);
       const rx = b.width / 2, ry = b.height / 2;
       if (rx <= 0 || ry <= 0) return false;
       const nx = (p.x - b.x - rx) / rx, ny = (p.y - b.y - ry) / ry;
       return nx * nx + ny * ny <= 1;
     }
-    case "path":
-      return containsRings(
-        resolvedSubpaths(shape)
-          .filter((subpath) => subpath.anchors.length >= 2)
-          // Wrap the call: `.map(flattenSubpath)` would leak the array index
-          // into `perSegment`, collapsing the first ring to a single point.
-          .map((subpath) => flattenSubpath(subpath)),
-        p,
-        rule
-      );
-    case "brush":
-      // The envelope fills with nonzero winding regardless of the caller's rule.
-      return containsRings([cachedBrushEnvelope(shape)], p, "nonzero");
-    case "compoundPath":
-      return (doc ? compoundChildren(doc, shape) : []).reduce(
-        (inside, component) =>
-          inside !== containsTransformedGeometry(component, p, "evenodd", doc),
-        false
-      );
-    case "line":
-    case "image":
-    case "text":
-      return false;
   }
-}
-
-function strokesLocal(
-  shape: Shape,
-  p: Vec2,
-  tolerance: number,
-  doc?: Document
-): boolean {
-  const inverse = invertMatrix(shape.transform);
-  if (!inverse) return false;
-  p = applyMatrix(inverse, p);
-  tolerance /= matrixScale(shape.transform);
-  if (shape.type === "compoundPath") {
-    return (doc ? compoundChildren(doc, shape) : [])
-      .some((component) => strokesLocal(component, p, tolerance, doc));
-  }
-  return localPolylines(shape, doc).some(
-    (line) => distToPolyline(p, line.points, line.closed) <= tolerance
+  const rings = shapeRings(shape, doc);
+  if (!rings.length) return false;
+  // A brush envelope and a compound path carry their own winding rule; a path
+  // (or a modified primitive) answers under the rule the caller asked for.
+  const own = shapeFillRule(shape);
+  return containsRings(
+    rings,
+    p,
+    shape.type === "brush" || shape.type === "compoundPath" ? own : rule
   );
 }
 
@@ -254,50 +203,42 @@ export function hitTestShape(
     return alignment === "inside" ? inside : !inside;
   };
 
-  const hitsSubpaths = (
-    subpaths: PathSubpath[],
+  const hitsPolylines = (
+    lines: Polyline[],
     rule: "nonzero" | "evenodd"
   ): boolean => {
-    const rings = subpaths
-      .filter((subpath) => subpath.anchors.length >= 2)
-      .map((subpath) => flattenSubpath(subpath));
+    const rings = lines
+      .filter((line) => line.points.length >= 3)
+      .map((line) => line.points);
     const inside = containsRings(rings, p, rule);
     if (hasFill && inside) return true;
-    return subpaths.some((sp) =>
-      hitsStroke(distToPolyline(p, flattenSubpath(sp), sp.closed), inside)
+    return lines.some((line) =>
+      hitsStroke(distToPolyline(p, line.points, line.closed), inside)
     );
   };
 
-  const modified = modifiedSubpaths(shape);
-  if (modified) return hitsSubpaths(modified, "nonzero");
+  // Bounds-shaped content: images are opaque, and text stands in for its
+  // glyphs with the measured line box.
+  if (shape.type === "text" || shape.type === "image") {
+    const b = shapeBounds(shape);
+    return (
+      p.x >= b.x - tol &&
+      p.x <= b.x + b.width + tol &&
+      p.y >= b.y - tol &&
+      p.y <= b.y + b.height + tol
+    );
+  }
 
-  switch (shape.type) {
-    case "text": {
-      const b = shapeBounds(shape);
-      return (
-        p.x >= b.x - tol &&
-        p.x <= b.x + b.width + tol &&
-        p.y >= b.y - tol &&
-        p.y <= b.y + b.height + tol
-      );
-    }
-    case "image": {
-      // Images are opaque content: anywhere inside the rect hits.
-      const b = shapeBounds(shape);
-      return (
-        p.x >= b.x - tol &&
-        p.x <= b.x + b.width + tol &&
-        p.y >= b.y - tol &&
-        p.y <= b.y + b.height + tol
-      );
-    }
-    case "rect": {
+  // Analytic fast paths, exact where flattening only approximates. A modifier
+  // replaces the silhouette, so they only hold for an unmodified primitive.
+  if (!hasActiveModifiers(shape)) {
+    if (shape.type === "rect") {
       const inside = pointInRoundedRect(shape, p);
       const distance = distToPolyline(p, roundedRectPolyline(shape), true);
       if (hasFill && (inside || distance <= tol)) return true;
       return hitsStroke(distance, inside);
     }
-    case "ellipse": {
+    if (shape.type === "ellipse") {
       const b = shapeBounds(shape);
       const cx = b.x + b.width / 2;
       const cy = b.y + b.height / 2;
@@ -312,7 +253,7 @@ export function hitTestShape(
       const distance = Math.abs(Math.sqrt(d) - 1) * Math.min(rx, ry);
       return hitsStroke(distance, inside);
     }
-    case "line": {
+    if (shape.type === "line") {
       return hitsStroke(
         distToSegment(
           p,
@@ -322,32 +263,19 @@ export function hitTestShape(
         false
       );
     }
-    case "path":
-      return hitsSubpaths(resolvedSubpaths(shape), shape.fillRule ?? "nonzero");
-    case "brush": {
-      // The whole nonzero-filled envelope is the visible mark; `tol` adds a
-      // pick band. Width is already baked into the ring, so ignore strokeReach.
-      const ring = cachedBrushEnvelope(shape);
-      if (ring.length < 3) return false;
-      if (containsRings([ring], p, "nonzero")) return true;
-      return distToPolyline(p, ring, true) <= tol;
-    }
-    case "compoundPath": {
-      const inside = compoundChildren(doc, shape).reduce(
-        (inside, component) =>
-          inside !== containsTransformedGeometry(component, p, "evenodd", doc),
-        false
-      );
-      if (hasFill && inside) return true;
-      const sideMatches = alignment === "center" ||
-        (alignment === "inside" ? inside : !inside);
-      return shape.stroke !== null && shape.strokeWidth > 0 &&
-        sideMatches &&
-        compoundChildren(doc, shape).some((component) =>
-          strokesLocal(component, p, pickTol, doc)
-        );
-    }
   }
+
+  if (shape.type === "brush") {
+    // The whole nonzero-filled envelope is the visible mark, painted or not;
+    // `tol` adds a pick band. Width is already baked into the ring, so the
+    // stroke reach plays no part.
+    const ring = shapeRings(shape)[0];
+    if (!ring) return false;
+    if (containsRings([ring], p, "nonzero")) return true;
+    return distToPolyline(p, ring, true) <= tol;
+  }
+
+  return hitsPolylines(shapePolylines(shape, doc), shapeFillRule(shape));
 }
 
 /**
@@ -577,69 +505,21 @@ function rectsIntersect(a: Bounds, b: Bounds): boolean {
 }
 
 function localPolylines(shape: Shape, doc?: Document): WorldPolyline[] {
-  const modified = modifiedSubpaths(shape);
-  if (modified) {
-    return modified.map((sp) => ({
-      points: flattenSubpath(sp),
-      closed: sp.closed,
-    }));
+  // Images and text have no outline of their own, so their box is the edge a
+  // marquee can catch.
+  if (shape.type === "image" || shape.type === "text") {
+    const b = shapeBounds(shape);
+    return [{
+      points: [
+        { x: b.x, y: b.y },
+        { x: b.x + b.width, y: b.y },
+        { x: b.x + b.width, y: b.y + b.height },
+        { x: b.x, y: b.y + b.height },
+      ],
+      closed: true,
+    }];
   }
-  switch (shape.type) {
-    case "image":
-    case "text": {
-      const b = shapeBounds(shape);
-      return [{
-        points: [
-          { x: b.x, y: b.y },
-          { x: b.x + b.width, y: b.y },
-          { x: b.x + b.width, y: b.y + b.height },
-          { x: b.x, y: b.y + b.height },
-        ],
-        closed: true,
-      }];
-    }
-    case "rect":
-      return [{ points: roundedRectPolyline(shape), closed: true }];
-    case "ellipse": {
-      const b = shapeBounds(shape);
-      const cx = b.x + b.width / 2;
-      const cy = b.y + b.height / 2;
-      const rx = b.width / 2;
-      const ry = b.height / 2;
-      return [{
-        points: Array.from({ length: 64 }, (_, i) => {
-          const angle = (i / 64) * Math.PI * 2;
-          return {
-            x: cx + Math.cos(angle) * rx,
-            y: cy + Math.sin(angle) * ry,
-          };
-        }),
-        closed: true,
-      }];
-    }
-    case "line":
-      return [{
-        points: [
-          { x: shape.x1, y: shape.y1 },
-          { x: shape.x2, y: shape.y2 },
-        ],
-        closed: false,
-      }];
-    case "path":
-      return resolvedSubpaths(shape).map((sp) => ({
-        points: flattenSubpath(sp),
-        closed: sp.closed,
-      }));
-    case "brush":
-      return [{ points: cachedBrushEnvelope(shape), closed: true }];
-    case "compoundPath":
-      return (doc ? compoundChildren(doc, shape) : []).flatMap((component) =>
-        localPolylines(component, doc).map((line) => ({
-          ...line,
-          points: line.points.map((point) => applyMatrix(component.transform, point)),
-        }))
-      );
-  }
+  return shapePolylines(shape, doc);
 }
 
 /** Liang–Barsky segment/axis-aligned-rectangle intersection. */
