@@ -44,6 +44,7 @@ after(async () => server.close());
  * reading painted geometry. Each entry states why resolving would be wrong.
  */
 const NON_READERS = {
+  "src/canvas/toolDispatch.ts": "branches on the active tool id, not a shape",
   "src/canvas/tools/shapeTools.ts": "authors base fields while drawing/editing",
   "src/io/serialize.ts": "validates the persisted base fields",
   "src/model/geometry/transforms.ts": "writes base fields under a transform",

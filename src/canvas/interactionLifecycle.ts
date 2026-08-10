@@ -1,6 +1,6 @@
 import { useEditor } from "../store/editorStore";
 import { setReadout } from "../store/pointerStore";
-import type { ToolContext } from "./interaction";
+import { unhandledInteraction, type ToolContext } from "./interaction";
 import { cancelBrush } from "./tools/brushTool";
 import { cancelEraser } from "./tools/eraserTool";
 import { resetPencilStroke } from "./tools/shapeTools";
@@ -57,6 +57,7 @@ export function cancelActiveInteraction(ctx: ToolContext): void {
       break;
     case "gradient-axis":
     case "gradient-handle":
+    case "freeform-point":
       state.cancelInteraction();
       break;
     case "frame-create":
@@ -97,8 +98,15 @@ export function cancelActiveInteraction(ctx: ToolContext): void {
       ctx.marquee.current = null;
       state.setEditNodes(inter.original);
       break;
-    // "pan" / "pen-anchor" / "select-pending" / "none": nothing to undo — a
-    // pending press never opened an undo step or touched the document.
+    case "pan":
+    case "pen-anchor":
+    case "select-pending":
+    case "none":
+      // Nothing to undo — a pending press never opened an undo step or
+      // touched the document.
+      break;
+    default:
+      unhandledInteraction(inter);
   }
   ctx.scheduleDraw();
 }

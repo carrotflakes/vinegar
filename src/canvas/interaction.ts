@@ -232,6 +232,16 @@ export type Interaction =
       created: boolean;
     };
 
+/**
+ * Exhaustiveness guard for the dispatch switches in `toolDispatch.ts`. Those
+ * return `void`, so a newly added interaction kind would otherwise slip
+ * through them silently — a drag that quietly does nothing. Passing the
+ * uncovered value here makes it a compile error instead.
+ */
+export function unhandledInteraction(inter: never): void {
+  void inter;
+}
+
 /** Precomputed snap data for a frame-create drag: alignment lines from other
  * frames + scene shapes, and other frames' AABBs for equal-spacing. */
 export interface FrameSnap {

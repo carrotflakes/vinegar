@@ -8,6 +8,7 @@ import type { EditorState } from "../store/editorStore";
 import type { TextShape, Vec2 } from "../model/types";
 import { screenToWorld } from "@/model/geometry/viewport";
 import type { Interaction, StrokeSample, ToolContext } from "./interaction";
+import { unhandledInteraction } from "./interaction";
 import { pickShape } from "./picking";
 import { finishFrame, onFrameDown, onFrameMove } from "./tools/frameTool";
 import { finishBrush, onBrushMove, startBrush } from "./tools/brushTool";
@@ -48,6 +49,11 @@ import { finishTextCreate, moveTextCreate, startTextCreate } from "./tools/textT
 
 /** Opening a text shape for editing; owned by `hooks/useTextEditing`. */
 type BeginTextEdit = (shape: TextShape, original: TextShape | null) => void;
+
+/** Exhaustiveness guard: see {@link unhandledInteraction}. */
+function unhandledTool(tool: never): void {
+  void tool;
+}
 
 export interface ToolDownInput {
   screen: Vec2;
@@ -102,9 +108,15 @@ export function startToolInteraction(
       else startTextCreate(ctx, world);
       return;
     }
-    default:
-      // rect / ellipse / line
+    case "rect":
+    case "ellipse":
+    case "line":
       startShape(ctx, state, world);
+      return;
+    default:
+      // A new tool must say what a press does; falling through to "draw a
+      // shape" would be a silently wrong guess.
+      unhandledTool(state.tool);
   }
 }
 
@@ -192,6 +204,10 @@ export function dispatchToolMove(
     case "freeform-point":
       onFreeformPointMove(ctx, state, inter, screen);
       break;
+    case "none":
+      break;
+    default:
+      unhandledInteraction(inter);
   }
 }
 
@@ -278,5 +294,10 @@ export function finishToolInteraction(
     case "freeform-point":
       finishGradient(ctx, state, inter);
       break;
+    case "none":
+    case "pan":
+      break;
+    default:
+      unhandledInteraction(inter);
   }
 }
