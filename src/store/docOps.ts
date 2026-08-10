@@ -120,6 +120,52 @@ export function removeRoots(doc: Document, roots: string[]): Document {
   return { ...next, nodes };
 }
 
+/**
+ * Swap one node for the node(s) an operation produced, in its own slot.
+ *
+ * `added` is every node the result needs (the replacements themselves plus any
+ * nodes they contain); `slotIds` are the ones that take the source's place in
+ * the parent's child list, so paint order survives the swap. The source and its
+ * subtree are dropped unless `added` re-states them — which is how an op that
+ * wraps the original in a new container keeps it alive.
+ */
+export function replaceNodeWith(
+  doc: Document,
+  id: string,
+  added: SceneNode[],
+  slotIds: string[]
+): Document {
+  const nodes = { ...doc.nodes };
+  const kept = new Set(added.map((node) => node.id));
+  if (!kept.has(id)) {
+    for (const gone of [id, ...descendantNodeIds(doc, id)]) delete nodes[gone];
+  }
+  for (const node of added) nodes[node.id] = node;
+  const parent = parentIdOf(doc, id);
+  const order = [...childIdsOf(doc, parent)];
+  order.splice(order.indexOf(id), 1, ...slotIds);
+  return withChildIds({ ...doc, nodes }, parent, order);
+}
+
+/**
+ * The child list after several consumed siblings collapse into one result
+ * node, which takes the frontmost consumed slot so the result keeps the paint
+ * order its inputs had.
+ */
+export function collapseSiblings(
+  siblings: string[],
+  consumed: Set<string>,
+  ordered: string[],
+  resultId: string
+): string[] {
+  const order = siblings.filter((id) => !consumed.has(id));
+  const at = siblings
+    .slice(0, siblings.indexOf(ordered[0]))
+    .filter((id) => !consumed.has(id)).length;
+  order.splice(at, 0, resultId);
+  return order;
+}
+
 /** Snapshot the selection as a payload whose roots carry world transforms. */
 export function copyPayload(
   doc: Document,

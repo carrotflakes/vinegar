@@ -50,9 +50,15 @@ import {
   makeId,
   type Document,
   type PathShape,
+  type SceneNode,
   type Shape,
 } from "../model/types";
-import { groupNode, replaceChildren } from "./docOps";
+import {
+  collapseSiblings,
+  groupNode,
+  replaceChildren,
+  replaceNodeWith,
+} from "./docOps";
 import {
   clearTransient,
   type ShapeOpsActions,
@@ -88,26 +94,91 @@ function combineBlockedFlags(doc: Document, consumed: string[]): string | null {
   return null;
 }
 
+/** The selected roots in paint order, with the parent they share. */
+interface OrderedSelection {
+  parent: string | null;
+  siblings: string[];
+  /** The roots, back-to-front. */
+  ordered: string[];
+}
+
 /**
- * The child list after several consumed siblings collapse into one result node,
- * which takes the frontmost consumed slot so the result keeps the paint order
- * the inputs had.
+ * The selected roots as one ordered group, or null when they cannot act as one
+ * — fewer than `min`, not all siblings, or failing `accepts`. Every op that
+ * collapses a selection into a single result starts here.
  */
-function collapseSiblings(
-  siblings: string[],
-  consumed: Set<string>,
-  ordered: string[],
-  resultId: string
-): string[] {
-  const order = siblings.filter((id) => !consumed.has(id));
-  const at = siblings
-    .slice(0, siblings.indexOf(ordered[0]))
-    .filter((id) => !consumed.has(id)).length;
-  order.splice(at, 0, resultId);
-  return order;
+function orderedSelection(
+  doc: Document,
+  selection: string[],
+  min: number,
+  accepts?: (node: SceneNode | undefined) => boolean
+): OrderedSelection | null {
+  const roots = selectionRoots(doc, selection);
+  if (roots.length < min) return null;
+  if (accepts && !roots.every((id) => accepts(doc.nodes[id]))) return null;
+  const parent = parentIdOf(doc, roots[0]);
+  if (!roots.every((id) => parentIdOf(doc, id) === parent)) return null;
+  const siblings = childIdsOf(doc, parent);
+  const selected = new Set(roots);
+  const ordered = siblings.filter((id) => selected.has(id));
+  if (ordered.length !== roots.length) return null;
+  return { parent, siblings, ordered };
 }
 
 export function createShapeOpsActions({ set, get, transact }: StoreCtx): ShapeOpsActions {
+  /**
+   * Commit an op that collapsed the selection into one result node, which takes
+   * the frontmost consumed slot: validate, land one undo step, select the
+   * result, and report any effects the collapse dropped.
+   *
+   * `consumed` ids leave the parent's child list. They are also deleted unless
+   * `removed` narrows that — Make Compound Path consumes its inputs from the
+   * parent but keeps them alive as the compound's children.
+   */
+  const commitCollapse = (
+    doc: Document,
+    { parent, siblings, ordered }: OrderedSelection,
+    op: {
+      consumed: string[];
+      removed?: string[];
+      added: SceneNode[];
+      resultId: string;
+      label: string;
+    }
+  ): void => {
+    const effectsRemoved = op.consumed.some(
+      (id) => !!doc.nodes[id]?.effects.length
+    );
+    const nodes = { ...doc.nodes };
+    for (const id of op.removed ?? op.consumed) delete nodes[id];
+    for (const node of op.added) nodes[node.id] = node;
+    const next = replaceChildren(
+      { ...doc, nodes },
+      parent,
+      collapseSiblings(siblings, new Set(op.consumed), ordered, op.resultId)
+    );
+    if (!hasValidSceneContainers(next)) return;
+    transact(next, { label: op.label });
+    set({ selection: [op.resultId], ...clearTransient });
+    if (effectsRemoved) notifyEffectsRemoved();
+  };
+
+  /**
+   * Commit an op that rewrote nodes one at a time (see `replaceNodeWith`).
+   * Does nothing when the op produced no nodes or an illegal document.
+   */
+  const commitReplacements = (
+    doc: Document,
+    selection: string[],
+    label: string,
+    effectsRemoved = false
+  ): void => {
+    if (!selection.length || !hasValidSceneContainers(doc)) return;
+    transact(doc, { label });
+    set({ selection, ...clearTransient });
+    if (effectsRemoved) notifyEffectsRemoved();
+  };
+
   return {
     convertSelectedToPaths: () => {
       const doc = get().doc;
@@ -145,27 +216,24 @@ export function createShapeOpsActions({ set, get, transact }: StoreCtx): ShapeOp
         if (!canConvertPathToBrush(shape)) continue;
         const result = convertPathToBrush(shape);
         if (!result) continue;
-        const parent = parentIdOf(doc, id);
-        const siblings = childIdsOf(doc, parent);
-        const nodes = { ...doc.nodes };
-        delete nodes[id];
-        for (const brush of result.brushes) nodes[brush.id] = brush;
-        if (result.group) nodes[result.group.id] = result.group;
         // A single contour replaces the source in place; several arrive wrapped
         // in a group that takes the slot (a brush cannot hold sub-brushes).
         const replacement = result.group
           ? [result.group.id]
           : result.brushes.map((brush) => brush.id);
-        const order = [...siblings];
-        order.splice(siblings.indexOf(id), 1, ...replacement);
-        doc = replaceChildren({ ...doc, nodes }, parent, order);
+        doc = replaceNodeWith(
+          doc,
+          id,
+          [...result.brushes, ...(result.group ? [result.group] : [])],
+          replacement
+        );
         selected.push(...replacement);
       }
-      if (!selected.length || !hasValidSceneContainers(doc)) return;
-      transact(doc, {
-        label: selected.length === 1 ? "Convert to brush" : "Convert to brushes",
-      });
-      set({ selection: selected, ...clearTransient });
+      commitReplacements(
+        doc,
+        selected,
+        selected.length === 1 ? "Convert to brush" : "Convert to brushes"
+      );
     },
     convertSelectedBrushesToOutline: () => {
       const doc = get().doc;
@@ -193,104 +261,115 @@ export function createShapeOpsActions({ set, get, transact }: StoreCtx): ShapeOp
       set(clearTransient);
     },
     outlineStrokeSelected: () => {
-      let doc = get().doc; const selected: string[] = []; let effectsRemoved = false; let maskSkipped = false;
+      let doc = get().doc;
+      const selected: string[] = [];
+      let effectsRemoved = false;
+      let maskSkipped = false;
       for (const id of selectionRoots(doc, get().selection)) {
-        const shape = doc.nodes[id]; if (!isShape(shape) || !shape.stroke || shape.strokeWidth <= 0) continue;
+        const shape = doc.nodes[id];
+        if (!isShape(shape) || !shape.stroke || shape.strokeWidth <= 0) continue;
         // A filled areal shape keeps its fill by wrapping the outline in a group,
         // which would replace a clipping mask with a non-mask container and leave
         // the clip group without a valid mask (see maskMultiNodeError).
-        if (isAreal(shape) && shape.fill && isClippingMaskNode(doc, id)) { maskSkipped = true; continue; }
-        const polys = strokeOutline(shape, undefined, doc); if (!polys?.length) continue;
-        const outline: Shape = { id: makeId("path"), name: "Outline", type: "path", fillRule: "evenodd", subpaths: ringsToSubpaths(polys.flat()), ...baseShapeDefaults(), fill: shape.stroke, ...baseNodeDefaults(), opacity: shape.opacity, blendMode: shape.blendMode, transform: [...IDENTITY] };
-        const parent = parentIdOf(doc, id); const siblings = childIdsOf(doc, parent); const at = siblings.indexOf(id); const nodes = { ...doc.nodes };
-        if (isAreal(shape) && shape.fill) { const gid = makeId("group"); nodes[id] = { ...shape, stroke: null }; nodes[outline.id] = outline; nodes[gid] = groupNode(gid, [id, outline.id]); const order = [...siblings]; order.splice(at, 1, gid); doc = replaceChildren({ ...doc, nodes }, parent, order); selected.push(gid); }
-        else { effectsRemoved ||= shape.effects.length > 0; for (const removed of [id, ...descendantNodeIds(doc, id)]) delete nodes[removed]; nodes[outline.id] = outline; const order = [...siblings]; order.splice(at, 1, outline.id); doc = replaceChildren({ ...doc, nodes }, parent, order); selected.push(outline.id); }
+        const wraps = isAreal(shape) && !!shape.fill;
+        if (wraps && isClippingMaskNode(doc, id)) {
+          maskSkipped = true;
+          continue;
+        }
+        const polys = strokeOutline(shape, undefined, doc);
+        if (!polys?.length) continue;
+        const outline: Shape = {
+          id: makeId("path"),
+          name: "Outline",
+          type: "path",
+          fillRule: "evenodd",
+          subpaths: ringsToSubpaths(polys.flat()),
+          ...baseShapeDefaults(),
+          fill: shape.stroke,
+          ...baseNodeDefaults(),
+          opacity: shape.opacity,
+          blendMode: shape.blendMode,
+          transform: [...IDENTITY],
+        };
+        if (wraps) {
+          // Re-stating the source keeps it (and any subtree) alive inside the
+          // new group, which takes its slot.
+          const gid = makeId("group");
+          doc = replaceNodeWith(
+            doc,
+            id,
+            [{ ...shape, stroke: null }, outline, groupNode(gid, [id, outline.id])],
+            [gid]
+          );
+          selected.push(gid);
+        } else {
+          effectsRemoved ||= shape.effects.length > 0;
+          doc = replaceNodeWith(doc, id, [outline], [outline.id]);
+          selected.push(outline.id);
+        }
       }
-      if (selected.length && hasValidSceneContainers(doc)) { transact(doc, { label: "Outline stroke" }); set({ selection: selected, ...clearTransient }); if (effectsRemoved) notifyEffectsRemoved(); }
+      commitReplacements(doc, selected, "Outline stroke", effectsRemoved);
       if (maskSkipped) notify.error(maskMultiNodeError("outlined"));
     },
     booleanSelected: (op) => {
       const doc = get().doc;
-      const roots = selectionRoots(doc, get().selection);
-      if (roots.length < 2 || !roots.every((id) => isShape(doc.nodes[id]))) return;
-      const parent = parentIdOf(doc, roots[0]);
-      if (!roots.every((id) => parentIdOf(doc, id) === parent)) return;
-      const siblings = childIdsOf(doc, parent);
-      const selected = new Set(roots);
-      const ordered = siblings.filter((id) => selected.has(id));
-      const effectsRemoved = ordered.some((id) => !!doc.nodes[id]?.effects.length);
-      const result = booleanShapes(ordered.map((id) => doc.nodes[id] as Shape), op, doc);
-      if (!result) return;
-      const nodes = { ...doc.nodes };
-      for (const id of roots.flatMap((root) => [root, ...descendantNodeIds(doc, root)])) delete nodes[id];
-      nodes[result.id] = result;
-      const next = replaceChildren(
-        { ...doc, nodes },
-        parent,
-        collapseSiblings(siblings, selected, ordered, result.id)
+      const sel = orderedSelection(doc, get().selection, 2, isShape);
+      if (!sel) return;
+      const result = booleanShapes(
+        sel.ordered.map((id) => doc.nodes[id] as Shape),
+        op,
+        doc
       );
-      if (!hasValidSceneContainers(next)) return;
-      transact(next, { label: `Boolean ${op}` });
-      set({ selection: [result.id], ...clearTransient });
-      if (effectsRemoved) notifyEffectsRemoved();
+      if (!result) return;
+      commitCollapse(doc, sel, {
+        consumed: sel.ordered.flatMap((id) => [id, ...descendantNodeIds(doc, id)]),
+        added: [result],
+        resultId: result.id,
+        label: `Boolean ${op}`,
+      });
     },
     divideSelected: () => {
       const doc = get().doc;
-      const roots = selectionRoots(doc, get().selection);
-      if (
-        roots.length < 2 ||
-        !roots.every((id) => {
-          const node = doc.nodes[id];
-          return isShape(node) && isAreal(node);
-        })
-      )
-        return;
-      const parent = parentIdOf(doc, roots[0]);
-      if (!roots.every((id) => parentIdOf(doc, id) === parent)) return;
-      const siblings = childIdsOf(doc, parent);
-      const selected = new Set(roots);
-      const ordered = siblings.filter((id) => selected.has(id));
+      const sel = orderedSelection(
+        doc,
+        get().selection,
+        2,
+        (node) => !!node && isShape(node) && isAreal(node)
+      );
+      if (!sel) return;
       // Divide wraps its faces in a group, which would replace a clipping mask
       // with a non-mask container and leave the clip group without a valid mask
       // (see maskMultiNodeError).
-      if (ordered.some((id) => isClippingMaskNode(doc, id))) {
+      if (sel.ordered.some((id) => isClippingMaskNode(doc, id))) {
         notify.error(maskMultiNodeError("divided"));
         return;
       }
-      if (ordered.length > DIVIDE_MAX_INPUTS) {
+      if (sel.ordered.length > DIVIDE_MAX_INPUTS) {
         notify.error(
           `Divide is limited to ${DIVIDE_MAX_INPUTS} shapes at once.`
         );
         return;
       }
-      const effectsRemoved = ordered.some((id) => !!doc.nodes[id]?.effects.length);
-      const faces = divideShapes(ordered.map((id) => doc.nodes[id] as Shape), doc);
-      if (!faces) return;
-      const nodes = { ...doc.nodes };
-      for (const id of ordered.flatMap((r) => [r, ...descendantNodeIds(doc, r)]))
-        delete nodes[id];
-      for (const face of faces) nodes[face.id] = face;
-      const gid = makeId("group");
-      nodes[gid] = groupNode(gid, faces.map((face) => face.id));
-      const next = replaceChildren(
-        { ...doc, nodes },
-        parent,
-        collapseSiblings(siblings, selected, ordered, gid)
+      const faces = divideShapes(
+        sel.ordered.map((id) => doc.nodes[id] as Shape),
+        doc
       );
-      if (!hasValidSceneContainers(next)) return;
-      transact(next, { label: "Divide" });
-      set({ selection: [gid], ...clearTransient });
-      if (effectsRemoved) notifyEffectsRemoved();
+      if (!faces) return;
+      const gid = makeId("group");
+      commitCollapse(doc, sel, {
+        consumed: sel.ordered.flatMap((id) => [id, ...descendantNodeIds(doc, id)]),
+        added: [...faces, groupNode(gid, faces.map((face) => face.id))],
+        resultId: gid,
+        label: "Divide",
+      });
     },
     combineSelected: () => {
       const doc = get().doc;
       const selection = get().selection;
       if (!canCombineSelection(doc, selection)) return;
-      const roots = selectionRoots(doc, selection);
-      const parent = parentIdOf(doc, roots[0]);
-      const siblings = childIdsOf(doc, parent);
-      const selected = new Set(roots);
-      const ordered = siblings.filter((id) => selected.has(id));
+      const sel = orderedSelection(doc, selection, 1);
+      if (!sel) return;
+      const { parent, ordered } = sel;
       // A selected group is consumed whole, so its contents count too.
       const consumed = ordered.flatMap((id) => [id, ...descendantNodeIds(doc, id)]);
       // Combining the mask with anything would leave the clip group without a
@@ -310,7 +389,6 @@ export function createShapeOpsActions({ set, get, transact }: StoreCtx): ShapeOp
       }
       const inputs = combineInputs(doc, ordered, parent);
       if (!inputs) return;
-      const effectsRemoved = consumed.some((id) => !!doc.nodes[id]?.effects.length);
       const combined = combineShapes(inputs);
       if (!combined) return;
       // A consumed group's opacity applied to its flattened contents as a
@@ -322,47 +400,35 @@ export function createShapeOpsActions({ set, get, transact }: StoreCtx): ShapeOp
       const result = groupOpacity === 1
         ? combined
         : { ...combined, opacity: combined.opacity * groupOpacity };
-      const nodes = { ...doc.nodes };
-      for (const id of consumed) delete nodes[id];
-      nodes[result.id] = result;
-      const next = replaceChildren(
-        { ...doc, nodes },
-        parent,
-        collapseSiblings(siblings, selected, ordered, result.id)
-      );
-      if (!hasValidSceneContainers(next)) return;
-      transact(next, { label: "Combine paths" });
-      set({ selection: [result.id], ...clearTransient });
-      if (effectsRemoved) notifyEffectsRemoved();
+      commitCollapse(doc, sel, {
+        consumed,
+        added: [result],
+        resultId: result.id,
+        label: "Combine paths",
+      });
     },
     joinSelected: () => {
       const doc = get().doc;
-      const roots = selectionRoots(doc, get().selection);
-      const pathRoots = roots.filter((id) => doc.nodes[id]?.type === "path");
-      if (!pathRoots.length || pathRoots.length !== roots.length) return;
-      const parent = parentIdOf(doc, pathRoots[0]);
-      if (!pathRoots.every((id) => parentIdOf(doc, id) === parent)) return;
-      const siblings = childIdsOf(doc, parent);
-      const selected = new Set(pathRoots);
-      const ordered = siblings.filter((id) => selected.has(id));
-      const effectsRemoved = ordered.some((id) => !!doc.nodes[id]?.effects.length);
-      const result = joinShapes(ordered.map((id) => doc.nodes[id] as PathShape));
+      const sel = orderedSelection(
+        doc,
+        get().selection,
+        1,
+        (node) => node?.type === "path"
+      );
+      if (!sel) return;
+      const result = joinShapes(
+        sel.ordered.map((id) => doc.nodes[id] as PathShape)
+      );
       if (!result) {
         notify.error("No path ends were close enough to join.");
         return;
       }
-      const nodes = { ...doc.nodes };
-      for (const id of ordered) delete nodes[id];
-      nodes[result.id] = result;
-      const next = replaceChildren(
-        { ...doc, nodes },
-        parent,
-        collapseSiblings(siblings, selected, ordered, result.id)
-      );
-      if (!hasValidSceneContainers(next)) return;
-      transact(next, { label: "Join path" });
-      set({ selection: [result.id], ...clearTransient });
-      if (effectsRemoved) notifyEffectsRemoved();
+      commitCollapse(doc, sel, {
+        consumed: sel.ordered,
+        added: [result],
+        resultId: result.id,
+        label: "Join path",
+      });
     },
     splitSubpathsSelected: () => {
       let doc = get().doc;
@@ -381,70 +447,56 @@ export function createShapeOpsActions({ set, get, transact }: StoreCtx): ShapeOp
         }
         const result = splitSubpaths(shape);
         if (!result) continue;
-        const parent = parentIdOf(doc, id);
-        const siblings = childIdsOf(doc, parent);
-        const nodes = { ...doc.nodes };
-        delete nodes[id];
         // Subpaths are drawn back-to-front, matching childIds order, so the
         // pieces keep their order in the slot the source held. They normally
         // arrive wrapped in a group; a compound path parent takes them flat
         // because it accepts areal leaves only.
-        const flat = isCompoundPath(doc.nodes[parent ?? ""])
+        const flat = isCompoundPath(doc.nodes[parentIdOf(doc, id) ?? ""])
           ? flattenSplitPieces(result)
           : null;
-        const inserted = flat ?? result.pieces;
-        for (const piece of inserted) nodes[piece.id] = piece;
-        if (!flat) nodes[result.group.id] = result.group;
-        const order = [...siblings];
-        order.splice(
-          siblings.indexOf(id),
-          1,
-          ...(flat ? flat.map((piece) => piece.id) : [result.group.id])
+        const slotIds = flat
+          ? flat.map((piece) => piece.id)
+          : [result.group.id];
+        doc = replaceNodeWith(
+          doc,
+          id,
+          flat ?? [...result.pieces, result.group],
+          slotIds
         );
-        doc = replaceChildren({ ...doc, nodes }, parent, order);
-        selected.push(...(flat ? flat.map((piece) => piece.id) : [result.group.id]));
+        selected.push(...slotIds);
       }
       if (maskSkipped) notify.error(maskMultiNodeError("split"));
-      if (!selected.length || !hasValidSceneContainers(doc)) return;
-      transact(doc, { label: "Split subpaths" });
-      set({ selection: selected, ...clearTransient });
+      commitReplacements(doc, selected, "Split subpaths");
     },
     makeCompoundPathSelected: () => {
       const doc = get().doc;
-      const roots = selectionRoots(doc, get().selection);
-      if (!canMakeCompoundPathSelection(doc, roots)) return;
-      const parent = parentIdOf(doc, roots[0]);
-      const siblings = childIdsOf(doc, parent);
-      const selected = new Set(roots);
-      const ordered = siblings.filter((id) => selected.has(id));
-      const effectsRemoved = ordered.some((id) => !!doc.nodes[id]?.effects.length);
-      const compound = makeCompoundPath(ordered.map((id) => doc.nodes[id] as Shape));
-      if (!compound) return;
-      const nodes = { ...doc.nodes };
-      for (const id of ordered) {
-        const node = nodes[id];
-        if (!isCompoundPath(node)) continue;
-        for (const childId of node.childIds) {
-          const child = nodes[childId];
-          if (child) {
-            nodes[childId] = {
-              ...child,
-              transform: multiply(node.transform, child.transform),
-            };
-          }
-        }
-        delete nodes[id];
-      }
-      nodes[compound.id] = compound;
-      const next = replaceChildren(
-        { ...doc, nodes },
-        parent,
-        collapseSiblings(siblings, selected, ordered, compound.id)
+      const sel = orderedSelection(doc, get().selection, 1);
+      if (!sel || !canMakeCompoundPathSelection(doc, sel.ordered)) return;
+      const compound = makeCompoundPath(
+        sel.ordered.map((id) => doc.nodes[id] as Shape)
       );
-      if (!hasValidSceneContainers(next)) return;
-      transact(next, { label: "Make compound path" });
-      set({ selection: [compound.id], ...clearTransient });
-      if (effectsRemoved) notifyEffectsRemoved();
+      if (!compound) return;
+      // A selected compound is absorbed rather than nested: its container goes
+      // away, so its children have to carry the transform it was applying.
+      const rebased = sel.ordered.flatMap((id) => {
+        const node = doc.nodes[id];
+        if (!isCompoundPath(node)) return [];
+        return node.childIds.flatMap((childId) => {
+          const child = doc.nodes[childId];
+          return child
+            ? [{ ...child, transform: multiply(node.transform, child.transform) }]
+            : [];
+        });
+      });
+      commitCollapse(doc, sel, {
+        consumed: sel.ordered,
+        // The inputs live on as the compound's children; only an absorbed
+        // compound container itself goes away.
+        removed: sel.ordered.filter((id) => isCompoundPath(doc.nodes[id])),
+        added: [...rebased, compound],
+        resultId: compound.id,
+        label: "Make compound path",
+      });
     },
     releaseCompoundPathSelected: () => {
       let doc = get().doc;
@@ -456,9 +508,6 @@ export function createShapeOpsActions({ set, get, transact }: StoreCtx): ShapeOp
       for (const id of roots) {
         const compound = doc.nodes[id];
         if (!compound || compound.type !== "compoundPath") continue;
-        const parent = parentIdOf(doc, id);
-        const siblings = childIdsOf(doc, parent);
-        const at = siblings.indexOf(id);
         const released = releaseCompoundPath(doc, compound);
         // Releasing a mask into several shapes would rewrite the clip (see
         // maskMultiNodeError). A lone child replaces the mask one-for-one, so
@@ -468,20 +517,12 @@ export function createShapeOpsActions({ set, get, transact }: StoreCtx): ShapeOp
           continue;
         }
         effectsRemoved ||= compound.effects.length > 0;
-        const nodes = { ...doc.nodes };
-        delete nodes[id];
-        for (const shape of released) nodes[shape.id] = shape;
-        const order = [...siblings];
-        order.splice(at, 1, ...released.map((shape) => shape.id));
-        doc = replaceChildren({ ...doc, nodes }, parent, order);
-        selected.push(...released.map((shape) => shape.id));
+        const ids = released.map((shape) => shape.id);
+        doc = replaceNodeWith(doc, id, released, ids);
+        selected.push(...ids);
       }
       if (maskSkipped) notify.error(maskMultiNodeError("released"));
-      if (selected.length && hasValidSceneContainers(doc)) {
-        transact(doc, { label: "Release compound path" });
-        set({ selection: selected, ...clearTransient });
-        if (effectsRemoved) notifyEffectsRemoved();
-      }
+      commitReplacements(doc, selected, "Release compound path", effectsRemoved);
     },
   };
 }
