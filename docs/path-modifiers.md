@@ -70,11 +70,16 @@ type Modifier =
   contour), and `resolvedSubpaths(shape)` applies the enabled stack over it.
   The resolved geometry is what every downstream reader consumes. Cached
   (see below).
-- `modifiedSubpaths(node)` returns the resolved geometry **only** when a stage
-  is actually active on a non-path shape, and `null` otherwise. It is the guard
-  every type-branching reader opens with, so a bare rect keeps its analytic
-  fast path (`ctx.rect`, `<rect>`, exact rounded-rect containment) and only a
-  modified one pays for the generic contour route.
+- Readers do not call these directly any more: `model/path/shapeGeometry.ts`
+  wraps them (together with brush envelopes and compound components) as the
+  single geometry derivation the whole editor reads — see
+  [architecture.md](architecture.md#shape-geometry-one-derivation). The few
+  readers that keep an analytic or output-form fast path (`ctx.rect`, `<rect>`,
+  exact rounded-rect containment) guard it with `hasActiveModifiers(shape)`, so
+  a bare rect stays cheap and a modified one takes the generic contour route.
+- `modifiedSubpaths(node)` is the older form of that guard — the resolved
+  geometry when a stage is active on a non-path shape, `null` otherwise. It is
+  still exported, but new code should reach for `shapeSubpaths` instead.
 - Generators stay as the `generator` link producing stage-0 `subpaths`; a node
   can have *both* a generator and modifiers (generate → modify).
 
@@ -117,12 +122,13 @@ Every current reader of `.subpaths` must be classified as **base** or
   `model/outlineStroke.ts` — operate on resolved ink/silhouette
 - `model/convertToPath.ts` — "Apply modifiers / Convert" bakes resolved
 
-Readers that branch per shape type (`render/path.ts`, `bounds.ts`,
-`hitTest.ts`, `bucketFill.ts`, `outlineStroke.ts`, `boolean.ts`,
-`clippingMask.ts`, `stroke.ts`, `exportSvg.ts`, `highlight.ts`) each open with
-the `modifiedSubpaths` guard before their `switch`. That guard is a convention
-the type system cannot enforce, so `tests/modifierReaders.test.mjs` holds it up
-from two sides:
+Those readers no longer branch per shape type at all: they call
+`shapeSubpaths`/`shapePolylines`/`shapeRings`, which resolve the stack for
+them. Only the four fast paths listed in
+[architecture.md](architecture.md#shape-geometry-one-derivation) still branch,
+each guarded by `hasActiveModifiers`. That guard is a convention the type
+system cannot enforce, so `tests/modifierReaders.test.mjs` holds it up from two
+sides:
 
 1. every `src/` file branching on `rect`/`ellipse`/`line` must either consult
    resolved geometry or be listed as a base-geometry author (`NON_READERS`,

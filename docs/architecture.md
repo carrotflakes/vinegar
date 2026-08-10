@@ -27,6 +27,31 @@ The deliberate exception is an anchor's optional linkage tag `t`; old and genera
 
 See [document-model.md](document-model.md).
 
+## Shape geometry: one derivation
+
+Rendering, hit-testing, bucket fill, boolean ops, stroke outlining, bounds and SVG export all have to describe the *same* outline, so a shape's geometry is derived in exactly one place: **`src/model/path/shapeGeometry.ts`** (`shapeSubpaths` → `shapePolylines` → `shapeRings`, plus `shapeFillRule` and `isClosedGeometry`).
+It resolves modifier stacks, brush envelopes and compound components — everything a reader would otherwise re-derive with its own `switch (shape.type)`.
+
+A reader may keep a *fast path* only when its reason is **not** geometry, and it must be guarded on the shape still being an unmodified primitive (`!hasActiveModifiers(shape)`). The complete list:
+
+| reader | fast path | why |
+| --- | --- | --- |
+| `canvas/render/path.ts` | `ctx.rect()`, `ctx.ellipse()` | hands the exact conic to the rasteriser |
+| `io/exportSvg.ts` | `<rect>` / `<ellipse>` / `<line>` / `<text>` | output form; readable, editable SVG |
+| `model/geometry/hitTest.ts` | `pointInRoundedRect`, the analytic ellipse | exact where flattening approximates |
+| `model/geometry/bounds.ts` | a primitive's stored `x/y/width/height` | those fields *are* the bounds |
+
+`tests/shapeGeometry.test.mjs` pins each fast path to the canonical geometry, and `tests/modifierReaders.test.mjs` fails the build if a new file branches on `rect`/`ellipse`/`line` without resolving modifiers first.
+
+## Store: slices vs standalone stores
+
+Two kinds of state live in `src/store/`, and the split is not stylistic:
+
+- **Slices of the one editor store** (`*Slice.ts`, composed by `editorStore.ts`, declared in `state.ts`) — anything that *is* the document or a view of it: nodes, selection, focus, viewport. Document mutations go through `transact` / `beginInteraction`, so they are undoable.
+- **Standalone `create()` stores** (`brushStore`, `pencilStore`, `gradientToolStore`, `penDraftStore`, `bucketStore`, `pointerStore`, `highlightStore`, `uiStore`, `menuStore`, `toastStore`, `documentFileStore`, `preferencesStore`, …) — session state that is never serialized and never undoable: tool options, in-flight drag scratch state, dialog visibility, the file handle, toasts.
+
+When adding state, ask whether Undo should bring it back. If yes it belongs in a slice; if no it belongs in its own store, and putting it in a slice would push non-document data into history patches.
+
 ## Project layout
 
 ```
