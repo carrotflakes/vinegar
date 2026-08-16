@@ -7,16 +7,17 @@ role, the way iPad painting apps have taught people to expect:
 | Contact | Role |
 | --- | --- |
 | Pen (`pointerType === "pen"`) | Draws and edits — the content device |
-| One finger | Navigates: pans, or drives the tool when finger drawing is on |
+| One finger | Navigates: pans, or drives the tool when finger drawing is on; **double tap = double-click** |
 | Two fingers | Pinch zoom / twist / pan; **tap = undo** |
 | Three fingers | **Tap = redo** |
 | Mouse | Unchanged desktop behaviour |
 
 The *policy* — what a contact means — lives in `src/canvas/inputRouting.ts` as
-pure functions (`routeContact`, `judgeTap`), so it can be read and tested
+pure functions (`routeContact`, `judgeTap`, `isDoubleTap`), so it can be read and tested
 without a DOM (`tests/inputRouting.test.mjs`). The *mechanics* — capture,
 bookkeeping, dispatch — live in `src/canvas/hooks/usePointerHandlers.ts`, with
-the tap run in `useTouchTapGesture.ts` and the pinch in `useCanvasGestures.ts`.
+the tap run in `useTouchTapGesture.ts`, the double tap in `useTouchDoubleTap.ts`
+and the pinch in `useCanvasGestures.ts`.
 Put new rules in `inputRouting.ts` and let the hook ask.
 
 Tool modules never see `pointerType`: by the time a tool is called, the contact
@@ -104,6 +105,37 @@ than doing nothing: silence reads as a gesture that failed to register. The
 gestures themselves are advertised in the status-bar hint on coarse pointers,
 and in the toast raised when a pen is first detected — nothing else on screen
 suggests they exist.
+
+## One-finger double tap
+
+The canvas sets `touch-action: none`, so browsers never synthesise `dblclick`
+from touch — without a gesture of its own, everything double-clicking does
+(drill into a group, enter a symbol instance, start editing a text, close a pen
+draft, add a gradient stop) would be mouse-only. A double tap therefore runs
+`runDoubleActivate`, the same body the `dblclick` handler calls.
+
+The rules mirror the mouse: both taps must be lone, short (300 ms) and still —
+still meaning within the tools' own click slop (`CLICK_SLOP * hitScale`, ~7 px
+on touch), not the 16 px the multi-finger taps allow. A press past that slop has
+already promoted into a drag: it nudged the selection, dragged a handle, or
+duplicated it under a sticky Alt, and a press that changed the document must not
+also drill. The two taps must then land within 24 px of each other inside
+300 ms — wider, because a finger is blunt and the second tap is aimed from
+memory. It fires *after* the release has been handed to the tools, so
+the second tap selects first and drills after, exactly as click-then-double-click
+does. A fired pair closes the run, so a third tap starts a fresh one instead of
+drilling a level per tap.
+
+Shift suppresses the drill (both here and for `dblclick`): the two presses have
+already extended the selection, and drilling would throw that away. On touch
+Shift is a sticky on-screen toggle, so it is easy to be holding it without
+meaning to. The pivot-handle reset is judged before that guard — it is a handle,
+not a selection change.
+
+It cannot collide with the multi-finger taps: a contact landing while another
+finger is on the glass drops the pending double tap at `down`. A `dblclick` that
+somehow arrives within 700 ms of a fired double tap is ignored, so a browser
+that does synthesise one cannot drill twice.
 
 ## Why a second finger never gets rejected mid-stroke
 

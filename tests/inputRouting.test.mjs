@@ -8,6 +8,10 @@ let judgeTap;
 let exceedsTapTolerance;
 let PEN_COOLDOWN_MS;
 let TAP_MAX_MS;
+let isDoubleTap;
+let travelExceeds;
+let DOUBLE_TAP_MAX_GAP_MS;
+let DOUBLE_TAP_TOLERANCE;
 
 before(async () => {
   server = await createServer({ server: { middlewareMode: true } });
@@ -17,6 +21,10 @@ before(async () => {
     exceedsTapTolerance,
     PEN_COOLDOWN_MS,
     TAP_MAX_MS,
+    isDoubleTap,
+    travelExceeds,
+    DOUBLE_TAP_MAX_GAP_MS,
+    DOUBLE_TAP_TOLERANCE,
   } = await server.ssrLoadModule("/src/canvas/inputRouting.ts"));
 });
 
@@ -119,4 +127,38 @@ test("tap tolerance measures straight-line travel", () => {
   assert.equal(exceedsTapTolerance(origin, { x: 15, y: 0 }), false);
   assert.equal(exceedsTapTolerance(origin, { x: 12, y: 12 }), true);
   assert.equal(exceedsTapTolerance(origin, { x: 0, y: -20 }), true);
+});
+
+test("a second tap soon after and near the first is a double tap", () => {
+  const first = { screen: { x: 100, y: 100 }, time: 1000 };
+  assert.equal(
+    isDoubleTap(first, { screen: { x: 108, y: 106 }, time: 1200 }),
+    true
+  );
+  // A finger is blunt, but the pair still has to land on the same thing.
+  assert.equal(
+    isDoubleTap(first, {
+      screen: { x: 100 + DOUBLE_TAP_TOLERANCE + 1, y: 100 },
+      time: 1200,
+    }),
+    false
+  );
+  assert.equal(
+    isDoubleTap(first, {
+      screen: { x: 100, y: 100 },
+      time: 1000 + DOUBLE_TAP_MAX_GAP_MS + 1,
+    }),
+    false,
+    "two deliberate taps are two selections, not a drill"
+  );
+});
+
+test("travel is measured against whatever tolerance the caller uses", () => {
+  const origin = { x: 0, y: 0 };
+  // The double tap runs on the tools' click slop, which is much tighter than
+  // the multi-finger tap tolerance: a wobble that would nudge the selection
+  // must not still count as a tap.
+  assert.equal(travelExceeds(origin, { x: 8, y: 0 }, 6.6), true);
+  assert.equal(travelExceeds(origin, { x: 8, y: 0 }, 16), false);
+  assert.equal(travelExceeds(origin, { x: 3, y: 4 }, 5), false, "exactly at it");
 });

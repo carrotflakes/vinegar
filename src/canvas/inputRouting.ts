@@ -84,10 +84,45 @@ export function judgeTap(run: TapRunSummary): "undo" | "redo" | null {
   return null;
 }
 
+/** How long a second finger tap may wait before it stops being a double tap. */
+export const DOUBLE_TAP_MAX_GAP_MS = 300;
+/** How far apart the two taps of a double tap may land. Wider than
+ *  `TAP_TOLERANCE`: a finger is blunt, and the second tap is aimed by memory. */
+export const DOUBLE_TAP_TOLERANCE = 24;
+
+export interface SingleTap {
+  /** Where the contact landed. */
+  screen: { x: number; y: number };
+  /** When it lifted. */
+  time: number;
+}
+
+/**
+ * Whether `next` completes a double tap started by `prev` — the touch stand-in
+ * for a mouse double-click. Both taps must already qualify as single taps
+ * (lone finger, short, still); this only judges the pair.
+ */
+export function isDoubleTap(prev: SingleTap, next: SingleTap): boolean {
+  if (next.time - prev.time > DOUBLE_TAP_MAX_GAP_MS) return false;
+  return (
+    Math.hypot(next.screen.x - prev.screen.x, next.screen.y - prev.screen.y) <=
+    DOUBLE_TAP_TOLERANCE
+  );
+}
+
+/** Whether a contact has strayed further than `tolerance` from where it landed. */
+export function travelExceeds(
+  from: { x: number; y: number },
+  to: { x: number; y: number },
+  tolerance: number
+): boolean {
+  return Math.hypot(to.x - from.x, to.y - from.y) > tolerance;
+}
+
 /** Whether a contact has strayed far enough to stop being part of a tap. */
 export function exceedsTapTolerance(
   from: { x: number; y: number },
   to: { x: number; y: number }
 ): boolean {
-  return Math.hypot(to.x - from.x, to.y - from.y) > TAP_TOLERANCE;
+  return travelExceeds(from, to, TAP_TOLERANCE);
 }

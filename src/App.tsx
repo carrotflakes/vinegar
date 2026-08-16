@@ -108,7 +108,7 @@ const TOOL_HINTS: Record<ToolId, string> = {
  * touch user finds out they exist. See docs/pen-and-touch.md.
  */
 const TOUCH_HINT =
-  "Two-finger tap: undo · three-finger: redo · pinch to zoom";
+  "Double tap: enter group · two-finger tap: undo · three-finger: redo · pinch to zoom";
 
 /** Per-tool usage hint for the status bar. */
 function ToolHint() {

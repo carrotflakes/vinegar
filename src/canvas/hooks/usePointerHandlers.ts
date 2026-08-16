@@ -10,11 +10,11 @@ import { drillScopeRoot, expandToGroups } from "../../model/groups";
 import { isGroup } from "../../model/scene";
 import type { Vec2 } from "../../model/types";
 import { screenToWorld } from "@/model/geometry/viewport";
-import { currentFocusRoot, useEditor } from "../../store/editorStore";
+import { currentFocusRoot, useEditor, type EditorState } from "../../store/editorStore";
 import { readModifiers } from "../../store/inputStore";
 import { setPointer, setReadout } from "../../store/pointerStore";
 import { resolveCursor } from "../cursor";
-import { type ToolContext } from "../interaction";
+import { CLICK_SLOP, type ToolContext } from "../interaction";
 import { cancelActiveInteraction } from "../interactionLifecycle";
 import { pickShape } from "../picking";
 import { onGuideDown } from "../tools/guideTool";
@@ -30,6 +30,7 @@ import {
 } from "../toolDispatch";
 import { useCanvasContextMenu } from "./useCanvasContextMenu";
 import type { CanvasGestures } from "./useCanvasGestures";
+import { useTouchDoubleTap } from "./useTouchDoubleTap";
 import { useTouchTapGesture } from "./useTouchTapGesture";
 import type { TextEditing } from "./useTextEditing";
 import { useBrush } from "../../store/brushStore";
@@ -74,8 +75,17 @@ export function usePointerHandlers(deps: PointerHandlerDeps): PointerHandlers {
     },
   });
 
+  // A tap that travelled past the click slop has already dragged something —
+  // the tools' own threshold, so "it moved nothing" and "it was a tap" cannot
+  // disagree.
+  const doubleTap = useTouchDoubleTap({
+    moveTolerance: () => CLICK_SLOP * ctx.hitScale(),
+  });
+
   /** A pen is on the glass right now. */
   const penDownRef = useRef(false);
+  /** When a touch double tap last ran, to swallow a synthesised `dblclick`. */
+  const touchActivatedAtRef = useRef(0);
   /** When the pen last reported anything, for the post-stroke cooldown. */
   const penSeenAtRef = useRef(0);
   /** Touch contacts rejected at pointerdown; their later events are dead. */
@@ -219,6 +229,7 @@ export function usePointerHandlers(deps: PointerHandlerDeps): PointerHandlers {
       // drop a live pinch and any touch-driven drag rather than fight them.
       contextMenu.cancelTouch();
       tap.reset();
+      doubleTap.reset();
       if (gestureRef.current) {
         gestureRef.current = null;
         pointersRef.current.clear();
@@ -238,6 +249,8 @@ export function usePointerHandlers(deps: PointerHandlerDeps): PointerHandlers {
       // two-finger undo" is not swallowed by palm rejection.
       if (route === "reject-palm") tap.reset();
       else tap.down(e.pointerId, screenPoint(e));
+      // Either way the contact never reaches a tool, so it cannot drill.
+      doubleTap.reset();
       return;
     }
     const activeTextId = textEditRef.current?.shape.id;
@@ -255,6 +268,9 @@ export function usePointerHandlers(deps: PointerHandlerDeps): PointerHandlers {
     // up/down interleave — be miscounted as a second finger and hijack the
     // fresh stroke into a two-finger gesture.
     if (isTouch) {
+      // A double tap is one finger twice; a contact landing next to another is
+      // the start of a gesture, never half of one.
+      doubleTap.down(e.pointerId, screen, pointersRef.current.size === 0);
       pointersRef.current.set(e.pointerId, screen);
       tap.down(e.pointerId, screen);
       if (route === "gesture") {
@@ -343,7 +359,10 @@ export function usePointerHandlers(deps: PointerHandlerDeps): PointerHandlers {
     }
 
     contextMenu.moveTouch(e.pointerId, e.clientX, e.clientY);
-    if (e.pointerType === "touch") tap.move(e.pointerId, screen);
+    if (e.pointerType === "touch") {
+      tap.move(e.pointerId, screen);
+      doubleTap.move(e.pointerId, screen);
+    }
     if (pointersRef.current.has(e.pointerId)) {
       pointersRef.current.set(e.pointerId, screen);
     }
@@ -408,6 +427,11 @@ export function usePointerHandlers(deps: PointerHandlerDeps): PointerHandlers {
     // pen cooldown is still part of its run, so this is judged before the
     // rejected contacts drop out.
     const tapped = e.pointerType === "touch" && tap.up(e.pointerId);
+    // Judged here too, so the run is closed even when the release returns
+    // early below; the drill itself waits until the tools are done with it.
+    const doubleTapped =
+      e.pointerType === "touch" && doubleTap.up(e.pointerId, screenPoint(e));
+    if (tapped) doubleTap.reset();
     if (rejectedTouchRef.current.delete(e.pointerId) && !tapped) return;
 
     contextMenu.endTouch(e.pointerId);
@@ -444,12 +468,20 @@ export function usePointerHandlers(deps: PointerHandlerDeps): PointerHandlers {
     ctx.spacings.current = [];
     setReadout(null);
 
+    const screen = screenPoint(e);
     finishToolInteraction(ctx, state, inter, {
-      screen: screenPoint(e),
+      screen,
       noReparent: e.metaKey || e.ctrlKey,
       canvasSize: sizeRef.current,
       beginTextEdit,
     });
+
+    // The second tap has selected what it landed on by now, exactly as the
+    // second click of a double-click does; drilling comes after.
+    if (doubleTapped) {
+      touchActivatedAtRef.current = performance.now();
+      runDoubleActivate(useEditor.getState(), screen, readModifiers(e).shift);
+    }
   };
 
   const onPointerCancel = (e: ReactPointerEvent<HTMLCanvasElement>) => {
@@ -458,7 +490,10 @@ export function usePointerHandlers(deps: PointerHandlerDeps): PointerHandlers {
       penSeenAtRef.current = performance.now();
     }
     // A cancelled contact can never have been a clean tap.
-    if (e.pointerType === "touch") tap.reset();
+    if (e.pointerType === "touch") {
+      tap.reset();
+      doubleTap.reset();
+    }
     if (rejectedTouchRef.current.delete(e.pointerId)) return;
     contextMenu.endTouch(e.pointerId);
     const canvas = canvasRef.current!;
@@ -477,11 +512,23 @@ export function usePointerHandlers(deps: PointerHandlerDeps): PointerHandlers {
     cancelActiveInteraction(ctx);
   };
 
-  const onDoubleClick = (e: ReactMouseEvent<HTMLCanvasElement>) => {
-    const state = useEditor.getState();
-    const screen = screenPoint(e);
+  /**
+   * What a double-click means for the active tool. A one-finger double tap
+   * runs the same thing: the canvas takes `touch-action: none`, so touch never
+   * produces a `dblclick` and drilling into a group would be mouse-only.
+   */
+  const runDoubleActivate = (
+    state: EditorState,
+    screen: Vec2,
+    shift: boolean
+  ) => {
     if (state.tool === "select") {
       if (onSelectDoubleClick(ctx, state, screen)) return;
+      // Shift means "extend the selection", and the two presses have already
+      // done that (adding, then removing what they landed on). Drilling on top
+      // would throw that selection away — and on touch Shift is a sticky
+      // toggle, so it is easy to be holding it without meaning to.
+      if (shift) return;
       const world = screenToWorld(state.viewport, screen);
       const hitId = pickShape(ctx, world);
       if (!hitId) return;
@@ -522,6 +569,13 @@ export function usePointerHandlers(deps: PointerHandlerDeps): PointerHandlers {
       addGradientStopAt(ctx, state, screen);
       ctx.scheduleDraw();
     }
+  };
+
+  const onDoubleClick = (e: ReactMouseEvent<HTMLCanvasElement>) => {
+    // Should a browser ever synthesise a click pair out of the double tap we
+    // already acted on, ignore it rather than drill a second level.
+    if (performance.now() - touchActivatedAtRef.current < 700) return;
+    runDoubleActivate(useEditor.getState(), screenPoint(e), readModifiers(e).shift);
   };
 
   // Dropping onto the canvas places files at the drop point. (Assets/symbols
