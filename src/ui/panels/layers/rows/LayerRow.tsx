@@ -1,7 +1,7 @@
 // One row of the Layers panel. Every kind of node renders through here; what
 // makes a group a group and an instance an instance is in rowSpec.ts.
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   LuChevronDown,
   LuChevronRight,
@@ -32,12 +32,28 @@ interface NameEditorProps {
 }
 
 function NameEditor({ current, commit, done }: NameEditorProps) {
+  const inputRef = useRef<HTMLInputElement | null>(null);
+  // A rename started from the row's context menu mounts this input in the same
+  // commit that closes the menu, and the menu hands focus back to whatever held
+  // it before — after this input mounts. So the field claims focus a frame
+  // later rather than with `autoFocus`, and a blur before it ever had focus is
+  // that hand-back, not the user leaving the field: committing there would end
+  // the rename the moment it began.
+  const focused = useRef(false);
+  useEffect(() => {
+    const raf = requestAnimationFrame(() => inputRef.current?.focus());
+    return () => cancelAnimationFrame(raf);
+  }, []);
   return (
     <input
+      ref={inputRef}
       className="layer-name-input"
-      autoFocus
       defaultValue={current}
+      onFocus={() => {
+        focused.current = true;
+      }}
       onBlur={(e) => {
+        if (!focused.current) return;
         commit(e.target.value.trim() || current);
         done();
       }}
