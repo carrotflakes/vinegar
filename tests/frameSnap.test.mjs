@@ -88,37 +88,46 @@ test("boundsSnapTargets on an empty list yields no candidates", () => {
 test("pickFrameBorder hits near an edge but misses the interior", () => {
   const doc = frameDoc(frame("a", 0, 0, 100, 100));
   // On the left edge, within tolerance.
-  assert.equal(pickFrameBorder(doc, { x: 1, y: 50 }, 3), "a");
+  assert.equal(pickFrameBorder(doc, { x: 1, y: 50 }, 3, null), "a");
   // Deep interior: no border hit (falls through to marquee / picking).
-  assert.equal(pickFrameBorder(doc, { x: 50, y: 50 }, 3), null);
+  assert.equal(pickFrameBorder(doc, { x: 50, y: 50 }, 3, null), null);
   // Well outside the outer tolerance band.
-  assert.equal(pickFrameBorder(doc, { x: 200, y: 50 }, 3), null);
+  assert.equal(pickFrameBorder(doc, { x: 200, y: 50 }, 3, null), null);
 });
 
 test("pickFrameBorder accepts a point just outside the outline", () => {
   const doc = frameDoc(frame("a", 0, 0, 100, 100));
-  assert.equal(pickFrameBorder(doc, { x: -2, y: 50 }, 3), "a");
-  assert.equal(pickFrameBorder(doc, { x: -5, y: 50 }, 3), null);
+  assert.equal(pickFrameBorder(doc, { x: -2, y: 50 }, 3, null), "a");
+  assert.equal(pickFrameBorder(doc, { x: -5, y: 50 }, 3, null), null);
 });
 
 test("pickFrameBorder returns the topmost overlapping frame", () => {
   const doc = frameDoc(frame("under", 0, 0, 100, 100), frame("over", 90, 0, 100, 100));
   // x=91 is interior of "under" but on the left border of "over"; the
   // front-to-back scan picks the later (topmost) frame.
-  assert.equal(pickFrameBorder(doc, { x: 91, y: 50 }, 3), "over");
+  assert.equal(pickFrameBorder(doc, { x: 91, y: 50 }, 3, null), "over");
 });
 
 test("pickFrameBorder skips hidden and locked frames", () => {
   for (const flag of ["hidden", "locked"]) {
     const doc = frameDoc({ ...frame("a", 0, 0, 100, 100), [flag]: true });
-    assert.equal(pickFrameBorder(doc, { x: 1, y: 50 }, 3), null, flag);
+    assert.equal(pickFrameBorder(doc, { x: 1, y: 50 }, 3, null), null, flag);
   }
   // An unlocked frame behind a locked one still takes the hit.
   const doc = frameDoc(
     frame("under", 0, 0, 100, 100),
     { ...frame("over", 90, 0, 100, 100), locked: true }
   );
-  assert.equal(pickFrameBorder(doc, { x: 99, y: 50 }, 3), "under");
+  assert.equal(pickFrameBorder(doc, { x: 99, y: 50 }, 3, null), "under");
+});
+
+test("pickFrameBorder ignores frames outside the focus scope", () => {
+  const doc = frameDoc(frame("a", 0, 0, 100, 100), frame("b", 200, 0, 100, 100));
+  // Focused on "a": neither its own border nor a sibling's may be grabbed,
+  // since frames are top-level and so never inside a focus scope.
+  assert.equal(pickFrameBorder(doc, { x: 1, y: 50 }, 3, "a"), null);
+  assert.equal(pickFrameBorder(doc, { x: 201, y: 50 }, 3, "a"), null);
+  assert.equal(pickFrameBorder(doc, { x: 201, y: 50 }, 3, null), "b");
 });
 
 // ---- frameDropTarget --------------------------------------------------------

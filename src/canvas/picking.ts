@@ -6,6 +6,7 @@ import { hitTestNode } from "@/model/geometry/hitTest";
 import {
   isInstance,
   isNodeHidden,
+  isNodeInScope,
   isNodeLocked,
   isShape,
   scopeLeafIds,
@@ -106,17 +107,22 @@ export function selectionFrame(): SelectionFrame | null {
  * so the test runs in frame-local space.
  *
  * Hidden and locked frames are unpickable, like any other node — select them
- * from the Layers panel instead.
+ * from the Layers panel instead. So are frames outside `scope`: while a
+ * container is focused its siblings are not drawn, so their borders must not
+ * be grabbable either (frames are top-level only, so any focus scope excludes
+ * all of them).
  */
 export function pickFrameBorder(
   doc: Document,
   world: Vec2,
-  tol: number
+  tol: number,
+  scope: string | null
 ): string | null {
   const frames = framesInPaintOrder(doc);
   for (let i = frames.length - 1; i >= 0; i--) {
     const frame = frames[i];
     if (frame.hidden || frame.locked) continue;
+    if (!isNodeInScope(doc, frame.id, scope)) continue;
     const inverse = invertMatrix(nodeWorldMatrix(doc, frame.id));
     if (!inverse) continue;
     const p = applyMatrix(inverse, world);

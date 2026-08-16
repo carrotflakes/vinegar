@@ -162,7 +162,9 @@ This stays **in place** — the focused subtree paints at its true world positio
   `sceneIndex`, so their coordinates agree with rendering. Point and marquee
   hit-testing stop ancestor-mask traversal at the focus root: clipping owned by
   the focused subtree remains active, while clipping outside it is ignored just
-  as it is by focused rendering.
+  as it is by focused rendering. Frame borders (`pickFrameBorder`) take the
+  scope too — frames are top-level only, so inside any focus scope none of them
+  is grabbable, including the focused frame itself.
 - Guides, rulers, the grid and `activeFrameId` keep meaning what they meant,
   because the world origin never moves.
 - Export is unaffected: it renders the whole scene and never sets the option.

@@ -270,7 +270,7 @@ additional effects, or other feature expansion.
 - [ ] pencil の交差トリム
 - [ ] Brush はfillなのかstrokeなのか問題
 - [ ] paintのコピペ
-- [ ] フレームにフォーカスしているときに他のフレームを選択できてしまう
+- [x] フレームにフォーカスしているときに他のフレームを選択できてしまう
 - [x] パネルのタイトルバーを全パネルで sticky に（`.layers-title` → `.panel-title`)
 - [ ] Layers 以外のパネル行にもコンテキストメニュー（Assets / Symbols /
   Global colors / Generators）。タッチの右スワイプは useTouchDrag 側にあるので流用できる

@@ -445,7 +445,7 @@ export function onSelectDown(
   // ordinary nodes, so this is a normal selection move — children follow).
   const borderTol =
     ((HANDLE_SIZE / 2 + 3) * ctx.hitScale()) / state.viewport.scale;
-  const borderFrame = pickFrameBorder(state.doc, world, borderTol);
+  const borderFrame = pickFrameBorder(state.doc, world, borderTol, focusRoot);
   if (borderFrame) {
     if (activeGroup) state.setActiveGroup(null);
     if (!state.selection.includes(borderFrame)) state.setSelection([borderFrame]);
@@ -595,7 +595,7 @@ export function resolveSelectHover(
   }
   const borderTol =
     ((HANDLE_SIZE / 2 + 3) * ctx.hitScale()) / state.viewport.scale;
-  const borderFrame = pickFrameBorder(state.doc, world, borderTol);
+  const borderFrame = pickFrameBorder(state.doc, world, borderTol, focusRoot);
   return borderFrame || lockedId
     ? { targetId: borderFrame, lockedMovable: false, lockedId }
     : NO_HOVER;
