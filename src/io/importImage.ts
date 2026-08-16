@@ -3,24 +3,45 @@
 import { loadAssetImage } from "../imageCache";
 import { makeId, type DocumentAsset } from "../model/types";
 
-/** Image MIME types the browser can decode and we accept for placement. */
-export const IMAGE_ACCEPT = "image/png,image/jpeg,image/gif,image/webp,image/svg+xml,image/bmp";
+/** MIME types offered in the file picker. Not the acceptance test — see `isImageFile`. */
+export const IMAGE_ACCEPT =
+  "image/png,image/jpeg,image/gif,image/webp,image/svg+xml,image/bmp,image/avif,image/heic,image/heif,image/tiff";
 
+/** Extensions we treat as images when the platform hands us a file with no MIME type. */
+const IMAGE_EXTENSIONS = /\.(png|jpe?g|gif|webp|svgz?|bmp|avif|heic|heif|tiff?)$/i;
+
+/**
+ * Whether a file is worth *trying* to decode. Deliberately permissive: the
+ * clipboard hands over types no allow-list anticipates (HEIC from an iPad's
+ * photo library, TIFF from macOS Preview, an empty type from Safari), and
+ * silently dropping them here is indistinguishable from a broken paste. The
+ * real gate is `importImageFile`, which reports a failed decode to the user.
+ */
 export function isImageFile(file: File): boolean {
-  return IMAGE_ACCEPT.split(",").includes(file.type);
+  if (file.type) return file.type.startsWith("image/");
+  return IMAGE_EXTENSIONS.test(file.name);
 }
 
 /**
- * Pull decodable image files out of a clipboard (or drag) payload. Pasted
+ * Pull candidate image files out of a clipboard (or drag) payload. Pasted
  * screenshots arrive as a `file` item with a synthetic name; `placeImageFiles`
- * supplies a fallback name for those.
+ * supplies a fallback name for those. Some browsers populate only `files` on a
+ * paste, so that is the fallback when `items` yields nothing.
  */
 export function imageFilesFromData(data: DataTransfer | null): File[] {
   if (!data) return [];
-  return [...data.items]
+  const fromItems = [...data.items]
     .filter((it) => it.kind === "file")
     .map((it) => it.getAsFile())
-    .filter((f): f is File => f != null && isImageFile(f));
+    .filter((f): f is File => f != null);
+  const files = fromItems.length ? fromItems : [...data.files];
+  return files.filter(isImageFile);
+}
+
+/** Whether the payload carries any file at all — an image we rejected, or something else. */
+export function hasFileData(data: DataTransfer | null): boolean {
+  if (!data) return false;
+  return [...data.types].includes("Files") || data.files.length > 0;
 }
 
 /** Open a native file picker and resolve with the selected image files. */

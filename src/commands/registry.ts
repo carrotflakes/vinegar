@@ -44,6 +44,7 @@ import { useBrush } from "../store/brushStore";
 import { deleteActiveFreeformPoint } from "../store/gradientToolStore";
 import { currentFocusRoot, useEditor } from "../store/editorStore";
 import { groupEditNodesByShape } from "../store/state";
+import { notify } from "../store/toastStore";
 import type { EditorState } from "../store/state";
 import {
   canvasCenter,
@@ -52,6 +53,12 @@ import {
   placeSvgFitted,
 } from "./canvasPlacement";
 import { FILE_COMMANDS } from "./fileCommands";
+import {
+  canReadSystemClipboard,
+  NOTHING_TO_PASTE,
+  pasteClipboardContent,
+  readSystemClipboard,
+} from "./pasteClipboard";
 import type { Command, CommandContext, KeyStroke } from "./types";
 import { VIEW_COMMANDS } from "./viewCommands";
 import { TOOL_DEFINITIONS, toolKeyStroke } from "../toolDefinitions";
@@ -309,8 +316,16 @@ export const COMMANDS: Command[] = [
     label: "Paste",
     group: "Edit",
     keys: [{ key: "v", mod: true }],
-    enabled: (s) => s.clipboard != null,
-    run: (s, ctx) => void s.paste(ctx?.at),
+    // The system clipboard's contents can only be learned asynchronously, so
+    // where we can read it the command stays available and reports at run time.
+    enabled: (s) => s.clipboard != null || canReadSystemClipboard(),
+    run: async (_s, ctx) => {
+      const content = await readSystemClipboard();
+      if (content && pasteClipboardContent(content, ctx?.at)) return;
+      // Read refused or empty — the in-memory clipboard is still good.
+      if (useEditor.getState().paste(ctx?.at)) return;
+      notify.error(NOTHING_TO_PASTE);
+    },
   },
   {
     id: "edit.duplicate",

@@ -3,16 +3,11 @@ import { LuCommand, LuMinus, LuPanelRight, LuPlus, LuRedo2, LuUndo2 } from "reac
 import "./App.css";
 import CanvasView from "./canvas/CanvasView";
 import {
-  commandEnabled,
-  matchKeydown,
-  pasteForeignPayload,
-  placeImagesFitted,
-  placeSvgFitted,
-  runCommand,
-} from "./commands/registry";
-import { imageFilesFromData } from "./io/importImage";
-import { importSvg } from "./io/importSvg";
-import { isOwnCopy, payloadFromSvg, svgTextFromClipboard } from "./io/systemClipboard";
+  clipboardContentFromEvent,
+  NOTHING_TO_PASTE,
+  pasteClipboardContent,
+} from "./commands/pasteClipboard";
+import { commandEnabled, matchKeydown, runCommand } from "./commands/registry";
 import {
   clearDocumentRecovery,
   startDocumentAutosave,
@@ -23,6 +18,7 @@ import { anyMenuOpen } from "./store/menuStore";
 import { usePointer } from "./store/pointerStore";
 import { usePreferences } from "./store/preferencesStore";
 import { useRecoveryStatus } from "./store/recoveryStore";
+import { notify } from "./store/toastStore";
 import { useUi } from "./store/uiStore";
 import { barButton } from "./ui/AppBar.css";
 import CommandPalette from "./ui/CommandPalette";
@@ -284,32 +280,17 @@ export default function App() {
       ) {
         return;
       }
-      const images = imageFilesFromData(e.clipboardData);
-      if (images.length) {
+      const content = clipboardContentFromEvent(e);
+      if (pasteClipboardContent(content)) {
         e.preventDefault();
-        void placeImagesFitted(images);
         return;
       }
-      const s = useEditor.getState();
-      const svg = svgTextFromClipboard(e.clipboardData);
-      if (svg) {
+      // A file came in that we could not use and there was nothing to fall back
+      // on. Say so: an unsupported type is otherwise indistinguishable from a
+      // paste shortcut that does not work at all.
+      if (content.unusableFile) {
         e.preventDefault();
-        // Our own copy in this tab pastes from memory for full fidelity; a
-        // copy from another tab restores the payload embedded in the SVG;
-        // anything else (or a payload this document can't take) comes in as
-        // plain vector geometry.
-        if (s.clipboard && isOwnCopy(svg)) s.paste();
-        else {
-          const payload = payloadFromSvg(svg);
-          if (!payload || !pasteForeignPayload(payload)) {
-            placeSvgFitted(importSvg(svg, "Pasted SVG"));
-          }
-        }
-        return;
-      }
-      if (s.clipboard) {
-        e.preventDefault();
-        s.paste();
+        notify.error(NOTHING_TO_PASTE);
       }
     };
     window.addEventListener("paste", onPaste);
