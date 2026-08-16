@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { LuCommand, LuMinus, LuPanelRight, LuPlus, LuRedo2, LuUndo2 } from "react-icons/lu";
+import { LuCommand, LuPanelRight, LuRedo2, LuUndo2 } from "react-icons/lu";
 import "./App.css";
 import CanvasView from "./canvas/CanvasView";
 import {
@@ -365,21 +365,7 @@ export default function App() {
             <LuRedo2 aria-hidden />
           </button>
           <span className="appbar-sep" />
-          <button
-            className={barButton({ icon: true })}
-            onClick={() => runCommand("view.zoomOut")}
-            title="Zoom out"
-          >
-            <LuMinus aria-hidden />
-          </button>
           <ZoomMenu />
-          <button
-            className={barButton({ icon: true })}
-            onClick={() => runCommand("view.zoomIn")}
-            title="Zoom in"
-          >
-            <LuPlus aria-hidden />
-          </button>
           <span className="appbar-sep" />
           <button
             className={barButton({ icon: true })}
