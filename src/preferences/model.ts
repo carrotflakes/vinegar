@@ -8,11 +8,11 @@ export const SUPPORTED_LOCALES = ["en"] as const;
 export type UiLocale = (typeof SUPPORTED_LOCALES)[number];
 
 /**
- * Where the rulers count from: the active frame's top-left ("artboard", the
- * Illustrator default) or the document's world origin ("world").
+ * Where the rulers count from: the active frame's top-left ("frame", matching
+ * Illustrator's artboard rulers) or the document's world origin ("world").
  * See docs/rulers-and-guides.md.
  */
-export const RULER_ORIGINS = ["artboard", "world"] as const;
+export const RULER_ORIGINS = ["frame", "world"] as const;
 export type RulerOriginPreference = (typeof RULER_ORIGINS)[number];
 
 /**
@@ -121,7 +121,7 @@ export function createDefaultPreferences(): PreferencesV1 {
     canvas: {
       rotationEnabled: true,
       rotationSnap: true,
-      rulerOrigin: "artboard",
+      rulerOrigin: "frame",
       fingerDrawing: true,
       penDetected: false,
       showAllHandles: false,

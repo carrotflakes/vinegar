@@ -75,7 +75,7 @@ test("valid v1 preferences load while unknown fields are ignored", () => {
     canvas: {
       rotationEnabled: true,
       rotationSnap: true,
-      rulerOrigin: "artboard",
+      rulerOrigin: "frame",
       fingerDrawing: true,
       penDetected: false,
       showAllHandles: false,
@@ -112,7 +112,7 @@ test("invalid fields fall back independently", () => {
     canvas: {
       rotationEnabled: true,
       rotationSnap: true,
-      rulerOrigin: "artboard",
+      rulerOrigin: "frame",
       fingerDrawing: true,
       penDetected: false,
       showAllHandles: false,
@@ -161,7 +161,7 @@ test("canvas rotation preferences load and fall back per field", () => {
   assert.deepEqual(loaded.canvas, {
     rotationEnabled: false,
     rotationSnap: true,
-    rulerOrigin: "artboard",
+    rulerOrigin: "frame",
     fingerDrawing: true,
     penDetected: false,
     showAllHandles: false,
@@ -178,7 +178,7 @@ test("the preference store updates canvas rotation toggles", () => {
   const expected = {
     rotationEnabled: false,
     rotationSnap: false,
-    rulerOrigin: "artboard",
+    rulerOrigin: "frame",
     fingerDrawing: true,
     penDetected: false,
     showAllHandles: false,
@@ -196,7 +196,7 @@ test("the first pen contact disables finger drawing exactly once", () => {
   assert.deepEqual(store.getState().canvas, {
     rotationEnabled: true,
     rotationSnap: true,
-    rulerOrigin: "artboard",
+    rulerOrigin: "frame",
     fingerDrawing: false,
     penDetected: true,
     showAllHandles: false,
@@ -259,7 +259,7 @@ test("the preference store persists complete updates and resets", () => {
     canvas: {
       rotationEnabled: true,
       rotationSnap: true,
-      rulerOrigin: "artboard",
+      rulerOrigin: "frame",
       fingerDrawing: true,
       penDetected: false,
       showAllHandles: false,

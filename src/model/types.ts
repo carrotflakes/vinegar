@@ -595,7 +595,7 @@ export interface Group extends BaseNode {
 }
 
 /**
- * A frame (formerly "artboard"): an export/layout container node. Structurally
+ * A frame: an export/layout container node. Structurally
  * a Group with a fixed content box `[0,0,width,height]` in local space (an
  * SVG-viewport), a background, and children authored in frame-local
  * coordinates. Moving the frame moves its children through the transform chain

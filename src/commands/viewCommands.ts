@@ -154,17 +154,17 @@ export const VIEW_COMMANDS: Command[] = [
     // Only meaningful while an active frame is actually driving the rulers.
     enabled: (state) =>
       state.activeFrameId !== null &&
-      usePreferences.getState().canvas.rulerOrigin === "artboard",
+      usePreferences.getState().canvas.rulerOrigin === "frame",
     run: (state) => state.setActiveFrame(null),
   },
   {
     id: "view.toggleRulerOrigin",
-    label: "Toggle ruler origin (artboard / document)",
+    label: "Toggle ruler origin (frame / document)",
     group: "View",
     run: () => {
       const preferences = usePreferences.getState();
       preferences.setRulerOrigin(
-        preferences.canvas.rulerOrigin === "artboard" ? "world" : "artboard"
+        preferences.canvas.rulerOrigin === "frame" ? "world" : "frame"
       );
     },
   },

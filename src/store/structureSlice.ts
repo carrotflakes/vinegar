@@ -139,7 +139,7 @@ export function createStructureActions({ set, get, transact }: StoreCtx): Struct
     const state = get();
     const { doc } = state;
     const roots = selectionRoots(doc, state.selection);
-    // A frame is the document's viewport/artboard rather than artwork. Its
+    // A frame is a layout viewport rather than artwork. Its
     // box and label assume an ordinary top-left origin, so flipping it would
     // make the editor chrome disagree with the document transform.
     if (!roots.length || roots.some((id) => isFrame(doc.nodes[id]))) return;

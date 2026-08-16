@@ -474,7 +474,7 @@ test("the ruler origin preference switches the origin and is resettable", () => 
 
   const reset = commands.find((c) => c.id === "view.resetRulerOrigin");
   const toggle = commands.find((c) => c.id === "view.toggleRulerOrigin");
-  assert.equal(usePreferences.getState().canvas.rulerOrigin, "artboard");
+  assert.equal(usePreferences.getState().canvas.rulerOrigin, "frame");
   assert.equal(reset.enabled(useEditor.getState()), true);
 
   // Document-origin mode: the reset command has nothing to do.
@@ -485,7 +485,7 @@ test("the ruler origin preference switches the origin and is resettable", () => 
   assert.equal(useEditor.getState().activeFrameId, frameId);
 
   toggle.run(useEditor.getState());
-  assert.equal(usePreferences.getState().canvas.rulerOrigin, "artboard");
+  assert.equal(usePreferences.getState().canvas.rulerOrigin, "frame");
   reset.run(useEditor.getState());
   assert.equal(useEditor.getState().activeFrameId, null);
   assert.deepEqual(rulerOrigin(useEditor.getState().doc, null), { x: 0, y: 0 });

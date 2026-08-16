@@ -16,7 +16,7 @@ For the feature catalogue see [features.md](features.md); for the persisted form
 
 The persisted `Document` is a **unified scene tree**: a flat `nodes` map keyed by id, with `rootIds` and each group/frame/compound-path container's `childIds` as the only source of hierarchy and back-to-front paint order.
 Every node carries a Canvas/SVG-compatible affine `transform` into its parent space plus a `transformOrigin`; parents, world matrices and leaf shapes are derived (not stored).
-Frames are ordinary nodes in that tree (top-level only), so there is no separate artboard list.
+Frames are ordinary nodes in that tree (top-level only), so there is no separate list of page/canvas containers.
 The document also holds `symbols`, global-color `swatches` (with a `swatchOrder`), `assets` (embedded raster images), `settings` (unit, dpi, grid size), document-local generator `scripts`, `metadata` and namespaced `extensions`.
 
 The file wrapper is versioned by `CURRENT_FILE_VERSION` in `src/io/serialize.ts`.

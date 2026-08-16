@@ -65,7 +65,7 @@ Related design notes: [path-unification.md](path-unification.md), [path-modifier
 ## Reuse and content
 
 - **Symbols** (reusable components): create from a selection, place instances (the panel's + button or drag a row onto the canvas), edit in an isolated view (double-click an instance), detach / rename / delete
-- **Frames** (formerly artboards): real **container nodes** in the scene tree — a frame owns its children, has its own local coordinate space (an SVG-like viewport), a background color (transparent frames show an editor-only checkerboard) and an optional **Clip content** toggle.
+- **Frames**: real **container nodes** in the scene tree — a frame owns its children, has its own local coordinate space (an SVG-like viewport), a background color (transparent frames show an editor-only checkerboard) and an optional **Clip content** toggle.
   Create/move/resize with the Frame tool (resizing changes the content box only, so contents stay put); frames live at the top level and never nest.
   Dragging a selection over a frame **re-homes it into that frame** (world position preserved, same undo step; Cmd/Ctrl on release opts out), and a frame is a selection boundary — its contents are picked directly while the frame itself is grabbed by its border or the Layers panel.
   There is no separate frames panel — frames are nodes, so the Layers tree lists them and their z-order there is the export order; fit-to-frame and per-frame PNG/SVG export sit in the selection context menu, plus all-frames PNG export.

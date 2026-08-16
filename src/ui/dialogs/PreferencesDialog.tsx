@@ -52,7 +52,7 @@ const LOCALE_LABELS: Record<UiLocale, string> = {
 };
 
 const RULER_ORIGIN_LABELS: Record<RulerOriginPreference, string> = {
-  artboard: "Active artboard",
+  frame: "Active frame",
   world: "Document origin",
 };
 
@@ -347,7 +347,7 @@ export default function PreferencesDialog({ open, onClose }: Props) {
         />
         <Row
           title="Ruler origin"
-          description="Count the rulers from the active artboard, or always from the document origin."
+          description="Count the rulers from the active frame, or always from the document origin."
           control={
             <select
               className="pref-select"

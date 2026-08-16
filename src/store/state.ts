@@ -118,7 +118,7 @@ export interface EditorData {
    */
   activeGroupId: string | null;
   /**
-   * The frame the rulers count from (Illustrator's "active artboard"). It
+   * The frame the rulers count from — the "active frame". It
    * follows deliberate acts only — selecting a frame or something inside one,
    * or creating a frame — never panning or zooming, and stays put when the
    * selection is cleared. Null means the rulers count from the world origin.

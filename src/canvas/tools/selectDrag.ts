@@ -191,7 +191,7 @@ function dragResize(
       inter.from.width / inter.from.height
     );
   }
-  // Frames are artboards rather than artwork. Normalize only after aspect
+  // Frames are layout containers rather than artwork. Normalize only after aspect
   // constraint so a crossed handle still follows the pointer without leaving
   // a reflected frame transform behind.
   if (soloFrame) {

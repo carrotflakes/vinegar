@@ -18,7 +18,7 @@ additional effects, or other feature expansion.
   reattach the handle across a reload, and a "Save a copy" that does not
   re-point the attached file
 - [ ] Rulers/guides follow-ups (docs/rulers-and-guides.md) — numeric entry
-  (double-click a guide), per-artboard guides, a user-draggable ruler origin,
+  (double-click a guide), per-frame guides, a user-draggable ruler origin,
   activating a frame by clicking its empty background, diagonal guides, "make
   guides from selection", guides inside symbol definitions, ticks under an
   arbitrary canvas rotation (currently only multiples of 90°)
@@ -50,7 +50,7 @@ additional effects, or other feature expansion.
 - [ ] Effects (docs/effects.md) — inner/outer glow, feather (needs offscreen
   `destination-in`), Fill/Stroke effects on text and images (they have no
   outline today, so those entries are inert), per-fill/stroke effects, effects
-  on artboards/layers, rotating drop-shadow offset with the object,
+  on frames/layers, rotating drop-shadow offset with the object,
   group-effect export bounds beyond the per-leaf approximation
 - [ ] End markers (docs/markers.md) — arbitrary nodes/symbols as markers
   (`{ kind: "builtin" } | { kind: "symbol", id }`), mid-path markers, an
@@ -62,7 +62,7 @@ additional effects, or other feature expansion.
   outline-on-export, fixed-height clipping boxes, Google Fonts loading
 - [ ] Bucket fill (docs/bucket-fill.md) — hover preview of the region (needs an
   obstacle-union cache keyed on the document revision), curve re-fitting of the
-  polygon boundary, artboard edges as region bounds, recolor of strokes/brushes
+  polygon boundary, frame edges as region bounds, recolor of strokes/brushes
   on click, glyph outlines instead of text line boxes as ink
 - [ ] Freeform gradients (docs/freeform-gradients.md) — SVG **import** has no
   counterpart to read back (an exported field returns as a raster pattern);

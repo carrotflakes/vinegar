@@ -6,7 +6,7 @@ and guide snapping alongside the existing object/grid snapping.
 
 ## Decisions up front
 
-- **Guides belong to the document, not to an artboard.** `doc.guides` is a flat
+- **Guides belong to the document, not to a frame.** `doc.guides` is a flat
   list of world-space lines. Frame-owned guides (Illustrator's per-artboard
   model) would have to follow their frame when it moves and be re-parented on
   drop; that is a second, parallel positioning story for no v1 benefit. Frames
@@ -23,17 +23,17 @@ and guide snapping alongside the existing object/grid snapping.
 - **The active frame is explicit state, not a guess from the viewport.**
   `EditorData.activeFrameId` follows deliberate acts — selecting a frame or
   anything inside one, or creating a frame — and is otherwise sticky: panning,
-  zooming and clearing the selection leave it alone. This is Illustrator's
+  zooming and clearing the selection leave it alone. This mirrors Illustrator's
   active-artboard rule. An earlier version derived the origin from whichever
   frame sat under the viewport centre, which meant the numbers changed as you
   scrolled past a frame edge; deriving it from the viewport is exactly the thing
   a ruler origin must not do.
-- **Artboard vs. document origin is a preference.** `canvas.rulerOrigin`
-  (`"artboard"` default / `"world"`) in the Preferences dialog mirrors
+- **Frame vs. document origin is a preference.** `canvas.rulerOrigin`
+  (`"frame"` default / `"world"`) in the Preferences dialog mirrors
   Illustrator's Artboard Rulers vs. Global Rulers. `"world"` ignores
   `activeFrameId` entirely at paint time; the state keeps tracking so switching
   back needs no re-selection. `view.resetRulerOrigin` clears `activeFrameId`
-  without leaving artboard mode (`setActiveFrame(null)`), for when the origin is
+  without leaving frame mode (`setActiveFrame(null)`), for when the origin is
   parked on a frame you are no longer working in.
 - **Guides are not scene nodes.** They never appear in the Layers panel, are not
   part of `selection`, and have no transform/appearance. Selection is a single
@@ -123,7 +123,7 @@ grabbed the cursor would be baffling).
 ## Deferred
 
 - Numeric entry / double-click to place a guide at an exact coordinate.
-- Per-artboard guides, and a ruler origin the user can drag to an arbitrary
+- Per-frame guides, and a ruler origin the user can drag to an arbitrary
   point (Illustrator's corner-box drag).
 - Other ways to activate a frame: clicking a frame's empty background, or a
   frame-list UI. Today only selection and creation do it.
