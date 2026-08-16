@@ -133,13 +133,19 @@ export interface ColorAdjustEffect extends EffectBase {
 }
 
 /**
- * Solid-colour tint, masked by the node's own alpha and mixed over its content
- * by `alpha` (0 = untouched, 1 = fully recoloured within the silhouette). Maps
- * to a canvas `source-atop` fill for preview and a single `feColorMatrix` for
- * SVG export; being unitless it adds nothing to the effect margin.
+ * Solid-colour tint of whatever the stack has produced so far, masked by its
+ * alpha and mixed in by `alpha` (0 = untouched, 1 = fully recoloured within the
+ * silhouette). Maps to a canvas `source-atop` fill for preview and a single
+ * `feColorMatrix` for SVG export; being unitless it adds nothing to the margin.
+ *
+ * A colour *filter*, not a colour *source*: it can only repaint pixels that are
+ * already there, which is what separates it from {@link FillEffect}. That also
+ * makes it the only way to recolour content with no outline to fill — an image,
+ * live text, a whole group — or to tint a blur's soft halo without stamping a
+ * hard edge over it.
  */
-export interface ColorOverlayEffect extends EffectBase {
-  type: "color-overlay";
+export interface TintEffect extends EffectBase {
+  type: "tint";
   /** Overlay colour (`#rrggbb`). */
   color: string;
   /** 0..1 mix amount. */
@@ -188,7 +194,7 @@ export type Effect =
   | DropShadowEffect
   | BlurEffect
   | ColorAdjustEffect
-  | ColorOverlayEffect
+  | TintEffect
   | FillEffect
   | StrokeEffect;
 
@@ -199,7 +205,7 @@ export const EFFECT_TYPES = [
   "drop-shadow",
   "blur",
   "color-adjust",
-  "color-overlay",
+  "tint",
   "fill",
   "stroke",
 ] as const;

@@ -21,7 +21,7 @@ import Section from "../Section";
 function effectLabel(type: Effect["type"]): string {
   if (type === "blur") return "Blur";
   if (type === "color-adjust") return "Color Adjust";
-  if (type === "color-overlay") return "Color Overlay";
+  if (type === "tint") return "Tint";
   if (type === "fill") return "Fill";
   if (type === "stroke") return "Stroke";
   return "Drop Shadow";
@@ -168,13 +168,13 @@ export default function EffectsSection({ node }: { node: SceneNode }) {
                 { step: 1 }
               )}
             </div>
-          ) : effect.type === "color-overlay" ? (
+          ) : effect.type === "tint" ? (
             <div className="field-inline">
               <label>Color</label>
               <div className="num-suffix">
                 <ColorInput
                   value={effect.color}
-                  title="Overlay color"
+                  title="Tint color"
                   onChange={(hex) => replace(index, { ...effect, color: hex })}
                 />
                 <ScrubbableNumber
@@ -186,7 +186,7 @@ export default function EffectsSection({ node }: { node: SceneNode }) {
                   onChange={(value) =>
                     replace(index, { ...effect, alpha: value / 100 })
                   }
-                  aria-label="Overlay opacity"
+                  aria-label="Tint amount"
                 />
                 <span className="unit">%</span>
               </div>
@@ -341,12 +341,19 @@ export default function EffectsSection({ node }: { node: SceneNode }) {
           }}
         >
           <option value="">Add effect…</option>
-          <option value="drop-shadow">Drop Shadow</option>
-          <option value="blur">Blur</option>
-          <option value="color-adjust">Color Adjust</option>
-          <option value="color-overlay">Color Overlay</option>
-          <option value="fill">Fill</option>
-          <option value="stroke">Stroke</option>
+          {/* The two families do different things — one reworks the pixels
+              below it, the other adds paint from the node's outline — so the
+              menu says which is which rather than listing six flat entries. */}
+          <optgroup label="Filter what is below">
+            <option value="drop-shadow">Drop Shadow</option>
+            <option value="blur">Blur</option>
+            <option value="color-adjust">Color Adjust</option>
+            <option value="tint">Tint</option>
+          </optgroup>
+          <optgroup label="Paint the outline">
+            <option value="fill">Fill</option>
+            <option value="stroke">Stroke</option>
+          </optgroup>
         </select>
       </div>
     </Section>

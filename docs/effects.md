@@ -35,7 +35,7 @@ moves into the stack.
 
 | | pixel effects | geometry effects |
 | --- | --- | --- |
-| entries | `blur`, `drop-shadow`, `color-adjust`, `color-overlay` | `fill`, `stroke` |
+| entries | `blur`, `drop-shadow`, `color-adjust`, `tint` | `fill`, `stroke` |
 | input | the pixels produced so far | the node's **own outline** |
 | canvas | a filter/composite into a new offscreen layer | painted onto the layer in hand |
 | SVG | `<filter>` primitives | sibling elements with the same geometry |
@@ -59,9 +59,25 @@ Two blend modes are in play and they are not the same thing: the effect's
 `blendMode` mixes it with the node's own artwork inside the stack, while
 `node.blendMode` mixes the finished result with the rest of the scene.
 
-`color-overlay` looks similar to a fill effect but is not: it is a pixel tint
-masked by the accumulated alpha, so it recolours a blur's soft edge and works on
-a group. A fill effect always paints the crisp outline.
+### Tint is not a fill
+
+`tint` and a solid `fill` agree on one case — a single flat colour over an
+opaque shape — and diverge everywhere else. The line between them is the same
+one that separates the two families: **a colour *filter* versus a colour
+*source*.**
+
+| | Tint | Fill |
+| --- | --- | --- |
+| adds coverage | **no** — repaints pixels that are already there | **yes** — paints the whole interior, empty or not |
+| applies to | every node: images, live text, a whole group | only nodes with an outline |
+| paint | one solid colour | any paint, plus a blend mode |
+| a blur's soft halo | tinted in proportion to its falloff | a hard geometry edge stamped over it |
+
+The first two rows are the ones that matter. Tint is the only way to recolour
+content that has no outline to fill, and the only way to recolour a stack's
+result without redrawing the silhouette over it. Neither absorbs the other, and
+the name says which is which — it was called `color-overlay` until `fill`
+arrived and made the overlap read as duplication.
 
 ### Nodes with no outline
 

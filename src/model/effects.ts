@@ -4,7 +4,7 @@
 // with the node's transform chain (like stroke width).
 //
 // Two kinds share the stack:
-//   * pixel effects (blur, drop shadow, colour adjust/overlay) filter whatever
+//   * pixel effects (blur, drop shadow, colour adjust, tint) filter whatever
 //     the stack has produced so far;
 //   * geometry effects (fill, stroke) paint the node's *own outline* on top of
 //     it, so they are a no-op on nodes that have no outline (see
@@ -18,7 +18,7 @@ import { makeId } from "./types";
 import type {
   BlurEffect,
   ColorAdjustEffect,
-  ColorOverlayEffect,
+  TintEffect,
   Document,
   DropShadowEffect,
   Effect,
@@ -59,8 +59,8 @@ const DEFAULT_COLOR_ADJUST: EffectDefaults<ColorAdjustEffect> = {
   hue: 0,
 };
 
-const DEFAULT_COLOR_OVERLAY: EffectDefaults<ColorOverlayEffect> = {
-  type: "color-overlay",
+const DEFAULT_TINT: EffectDefaults<TintEffect> = {
+  type: "tint",
   color: "#ff3366",
   alpha: 1,
 };
@@ -73,8 +73,8 @@ export function defaultEffect(type: Effect["type"]): Effect {
       return { id, ...DEFAULT_BLUR };
     case "color-adjust":
       return { id, ...DEFAULT_COLOR_ADJUST };
-    case "color-overlay":
-      return { id, ...DEFAULT_COLOR_OVERLAY };
+    case "tint":
+      return { id, ...DEFAULT_TINT };
     case "fill":
       // A fresh paint per effect: paints are replaced wholesale, never mutated,
       // but sharing one object across effects would still alias undo patches.
@@ -176,7 +176,7 @@ export function effectsMargin(effects: Effect[]): number {
     } else if (effect.type === "stroke") {
       margin += strokeEffectOutset(effect);
     }
-    // color-adjust / color-overlay / fill are unitless or bounded by the
+    // color-adjust / tint / fill are unitless or bounded by the
     // geometry: they never extend the bounds.
   }
   return margin;

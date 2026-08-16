@@ -7397,7 +7397,7 @@
         "effects": [
           {
             "id": "fx_fx_overlay_0",
-            "type": "color-overlay",
+            "type": "tint",
             "color": "#f4a259",
             "alpha": 0.8
           }

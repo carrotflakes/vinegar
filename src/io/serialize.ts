@@ -136,7 +136,7 @@ const isEffect = (value: unknown): boolean => {
       isNumber(value.saturation) && value.saturation >= 0 &&
       isNumber(value.hue);
   }
-  if (value.type === "color-overlay") {
+  if (value.type === "tint") {
     return typeof value.color === "string" &&
       isNumber(value.alpha) && value.alpha >= 0 && value.alpha <= 1;
   }

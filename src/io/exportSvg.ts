@@ -49,7 +49,7 @@ import type {
   Document,
   DocumentAsset,
   ColorAdjustEffect,
-  ColorOverlayEffect,
+  TintEffect,
   Effect,
   GeometryEffect,
   Matrix,
@@ -102,8 +102,8 @@ function effectPrimitive(effect: Effect): string {
   if (effect.type === "color-adjust") {
     return colorAdjustPrimitives(effect);
   }
-  if (effect.type === "color-overlay") {
-    return colorOverlayPrimitive(effect);
+  if (effect.type === "tint") {
+    return tintPrimitive(effect);
   }
   if (effect.type === "drop-shadow") {
     return `<feDropShadow dx="${num(effect.offsetX)}" dy="${num(
@@ -136,11 +136,11 @@ function colorAdjustPrimitives(effect: ColorAdjustEffect): string {
 }
 
 /**
- * Colour overlay as a single `feColorMatrix` computing `mix(src, colour, alpha)`
- * per channel while preserving the source alpha — the sRGB counterpart of the
- * canvas `source-atop` tint.
+ * Tint as a single `feColorMatrix` computing `mix(src, colour, alpha)` per
+ * channel while preserving the source alpha — the sRGB counterpart of the
+ * canvas `source-atop` fill.
  */
-function colorOverlayPrimitive(effect: ColorOverlayEffect): string {
+function tintPrimitive(effect: TintEffect): string {
   const { r, g, b } = hexToRgb(effect.color);
   const a = Math.max(0, Math.min(1, effect.alpha));
   const k = num(1 - a);

@@ -226,7 +226,7 @@ export function compositeEffects(
         `brightness(${effect.brightness}) contrast(${effect.contrast}) ` +
         `saturate(${effect.saturation}) hue-rotate(${effect.hue}deg)`;
       nctx.drawImage(src.canvas, sourceX, sourceY);
-    } else if (effect.type === "color-overlay") {
+    } else if (effect.type === "tint") {
       // Tint masked by the content's own alpha: source-atop keeps the layer's
       // silhouette while mixing in `alpha` worth of the flood colour.
       nctx.drawImage(src.canvas, sourceX, sourceY);
