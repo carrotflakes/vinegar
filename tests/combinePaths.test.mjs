@@ -121,7 +121,7 @@ test("appearance comes from the backmost input; effects are dropped", () => {
     fillRule: "evenodd",
     opacity: 0.4,
     blendMode: "multiply",
-    effects: [{ type: "blur", radius: 3 }],
+    effects: [{ id: "fx_blur", type: "blur", radius: 3 }],
   });
   const front = pathShape("front", [openSeg({ x: 0, y: 50 }, { x: 10, y: 50 })], {
     stroke: solid("#00ff00"),

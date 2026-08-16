@@ -40,7 +40,7 @@ const appearance = (patch = {}) => ({
   strokeAlignment: "inside",
   opacity: 0.6,
   blendMode: "multiply",
-  effects: [{ type: "blur", radius: 2 }],
+  effects: [{ id: "fx_blur", type: "blur", radius: 2 }],
   transform: [0, 1, -1, 0, 80, 30],
   transformOrigin: { x: 4, y: 5 },
   ...patch,

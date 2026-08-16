@@ -94,7 +94,7 @@ test("open and closed contours keep their own state; effects ride the group", ()
       { p: { x: 10, y: 0 }, hIn: { x: 7, y: 0 }, hOut: null },
     ],
   };
-  const effects = [{ type: "blur", radius: 4 }];
+  const effects = [{ id: "fx_blur", type: "blur", radius: 4 }];
   const shape = pathShape([square(0, 0, 10), open], { effects, hidden: true });
   const { group, pieces } = splitSubpaths(shape);
   assert.equal(pieces[0].subpaths[0].closed, true);

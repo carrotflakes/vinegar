@@ -1,6 +1,6 @@
 {
   "app": "vinegar",
-  "version": 36,
+  "version": 37,
   "document": {
     "nodes": {
       "cover_backdrop": {
@@ -125,6 +125,7 @@
         "blendMode": "normal",
         "effects": [
           {
+            "id": "fx_cover_glow_0",
             "type": "blur",
             "radius": 24
           }
@@ -300,6 +301,7 @@
         "blendMode": "normal",
         "effects": [
           {
+            "id": "fx_cover_title_0",
             "type": "drop-shadow",
             "color": "#f4a259",
             "alpha": 0.55,
@@ -437,6 +439,7 @@
         "blendMode": "normal",
         "effects": [
           {
+            "id": "fx_cover_photo_0",
             "type": "drop-shadow",
             "color": "#1b2430",
             "alpha": 0.35,
@@ -517,6 +520,7 @@
         "blendMode": "normal",
         "effects": [
           {
+            "id": "fx_cover_badge_0",
             "type": "drop-shadow",
             "color": "#1b2430",
             "alpha": 0.3,
@@ -4832,6 +4836,7 @@
         "blendMode": "normal",
         "effects": [
           {
+            "id": "fx_struct_instance_b_0",
             "type": "color-adjust",
             "brightness": 1,
             "contrast": 1,
@@ -6307,6 +6312,7 @@
         "blendMode": "normal",
         "effects": [
           {
+            "id": "fx_fx_shadow_0",
             "type": "drop-shadow",
             "color": "#000000",
             "alpha": 0.55,
@@ -6669,6 +6675,7 @@
         "blendMode": "normal",
         "effects": [
           {
+            "id": "fx_fx_blur_0",
             "type": "blur",
             "radius": 5
           }
@@ -7027,6 +7034,7 @@
         "blendMode": "normal",
         "effects": [
           {
+            "id": "fx_fx_adjust_0",
             "type": "color-adjust",
             "brightness": 1.1,
             "contrast": 1.3,
@@ -7388,6 +7396,7 @@
         "blendMode": "normal",
         "effects": [
           {
+            "id": "fx_fx_overlay_0",
             "type": "color-overlay",
             "color": "#f4a259",
             "alpha": 0.8
@@ -7747,10 +7756,12 @@
         "blendMode": "lighten",
         "effects": [
           {
+            "id": "fx_fx_stack_0",
             "type": "blur",
             "radius": 2
           },
           {
+            "id": "fx_fx_stack_1",
             "type": "color-adjust",
             "brightness": 1,
             "contrast": 1,
@@ -7758,6 +7769,7 @@
             "hue": 0
           },
           {
+            "id": "fx_fx_stack_2",
             "type": "drop-shadow",
             "color": "#4361ee",
             "alpha": 0.9,

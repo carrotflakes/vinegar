@@ -8,7 +8,14 @@ import {
   type ClippingMaskShape,
 } from "../model/clippingMask";
 import { shapeFillRule, shapeSubpaths } from "@/model/path/shapeGeometry";
-import { hasEffects, SHADOW_BLUR_TO_STDDEV } from "../model/effects";
+import {
+  hasEffects,
+  isGeometryEffect,
+  paintsGeometryEffects,
+  pixelEffects,
+  strokeEffectOutset,
+  SHADOW_BLUR_TO_STDDEV,
+} from "../model/effects";
 import { applyMatrix, isIdentity } from "@/model/geometry/matrix";
 import {
   freeformAverage,
@@ -33,15 +40,18 @@ import {
   normalizeStrokeDash,
   strokeOutset,
   STROKE_MITER_LIMIT,
+  supportsStrokeAlignment,
 } from "../model/stroke";
 import type {
   PathSubpath,
+  BlendMode,
   Bounds,
   Document,
   DocumentAsset,
   ColorAdjustEffect,
   ColorOverlayEffect,
   Effect,
+  GeometryEffect,
   Matrix,
   SceneNode,
   Shape,
@@ -95,11 +105,16 @@ function effectPrimitive(effect: Effect): string {
   if (effect.type === "color-overlay") {
     return colorOverlayPrimitive(effect);
   }
-  return `<feDropShadow dx="${num(effect.offsetX)}" dy="${num(
-    effect.offsetY
-  )}" stdDeviation="${num(effect.blur * SHADOW_BLUR_TO_STDDEV)}" flood-color="${
-    effect.color
-  }" flood-opacity="${num(effect.alpha)}" />`;
+  if (effect.type === "drop-shadow") {
+    return `<feDropShadow dx="${num(effect.offsetX)}" dy="${num(
+      effect.offsetY
+    )}" stdDeviation="${num(
+      effect.blur * SHADOW_BLUR_TO_STDDEV
+    )}" flood-color="${effect.color}" flood-opacity="${num(effect.alpha)}" />`;
+  }
+  // Geometry effects are sibling elements, not filter primitives; `shapeToSvg`
+  // splits them out of the stack before it ever builds a filter.
+  return "";
 }
 
 /**
@@ -416,17 +431,22 @@ function baseAttrs(shape: Shape): string[] {
   return parts;
 }
 
-/** `filter="url(#…)"` for a node's effect stack, or empty when it has none. */
+/**
+ * `filter="url(#…)"` for a node's pixel effects, or empty when it has none.
+ * Geometry effects never reach a filter: `shapeToSvg` emits them as elements,
+ * and a node with no outline drops them entirely.
+ */
 function filterAttr(node: SceneNode, defs: Defs): string {
-  return hasEffects(node.effects) ? `filter="url(#${defs.filter(node.effects)})"` : "";
+  const pixel = pixelEffects(node.effects);
+  return hasEffects(pixel) ? `filter="url(#${defs.filter(pixel)})"` : "";
 }
 
 function commonAttrs(
   doc: Document,
   shape: Shape,
   defs: Defs,
-  /** Off when a wrapping <g> already carries opacity / blend / transform / filter. */
-  includeBase = true
+  /** Outer attributes to fold in; empty when a wrapping <g> carries them. */
+  outer: string[] = []
 ): string {
   const parts: string[] = [];
   const bounds = shapeBounds(shape, doc);
@@ -441,11 +461,7 @@ function commonAttrs(
   if (shape.stroke && shape.strokeWidth > 0) {
     parts.push(...strokeSvgAttrs(shape, defs, shape.strokeWidth, doc));
   }
-  if (includeBase) {
-    parts.push(...baseAttrs(shape));
-    const fx = filterAttr(shape, defs);
-    if (fx) parts.push(fx);
-  }
+  parts.push(...outer);
   return parts.join(" ");
 }
 
@@ -526,12 +542,142 @@ function expandedBounds(bounds: Bounds, amount: number): Bounds {
   };
 }
 
+/**
+ * A shape and its effect stack. Pixel effects become one `<filter>`, but a
+ * geometry effect is an *element* painted over the artwork, so a stack that
+ * mixes the two splits into runs: each run of pixel effects wraps everything
+ * emitted so far in its own filtered `<g>`, and each fill/stroke effect appends
+ * a sibling drawn from the same geometry. Nesting the wrappers is what keeps
+ * "blur, then add a stroke" distinct from "add a stroke, then blur it".
+ */
 function shapeToSvg(doc: Document, shape: Shape, defs: Defs): string {
+  const geometryEffects =
+    shape.effects.some(isGeometryEffect) && paintsGeometryEffects(shape, doc);
+  if (!geometryEffects) {
+    return shapeContentSvg(
+      doc,
+      shape,
+      defs,
+      [...baseAttrs(shape), filterAttr(shape, defs)].filter(Boolean)
+    );
+  }
+  let markup = shapeContentSvg(doc, shape, defs, []);
+  let pending: Effect[] = [];
+
+  const flushFilter = () => {
+    if (!pending.length) return;
+    markup = `<g filter="url(#${defs.filter(pending)})">${markup}</g>`;
+    pending = [];
+  };
+  for (const effect of shape.effects) {
+    if (isGeometryEffect(effect)) {
+      flushFilter();
+      markup += geometryEffectSvg(doc, shape, effect, defs);
+    } else {
+      pending.push(effect);
+    }
+  }
+  flushFilter();
+  const attrs = isolatedBaseAttrs(shape).join(" ");
+  return `<g${attrs ? " " + attrs : ""}>${markup}</g>`;
+}
+
+/**
+ * `baseAttrs` plus `isolation: isolate`, so a blending geometry effect mixes
+ * with the node's own artwork and stops there. Canvas gets this for free — the
+ * effect stack runs on a layer holding nothing but the node — while SVG would
+ * otherwise let `mix-blend-mode` reach the page behind it.
+ */
+function isolatedBaseAttrs(shape: Shape): string[] {
+  const parts = baseAttrs(shape);
+  const styled = parts.findIndex((part) => part.startsWith("style="));
+  const isolate = `isolation:isolate`;
+  if (styled < 0) return [...parts, `style="${isolate}"`];
+  parts[styled] = `style="mix-blend-mode:${shape.blendMode};${isolate}"`;
+  return parts;
+}
+
+/** `style="mix-blend-mode:…"`, or empty for the default. */
+function blendAttr(blendMode: BlendMode): string {
+  return blendMode === "normal" ? "" : `style="mix-blend-mode:${blendMode}"`;
+}
+
+/**
+ * One fill or stroke effect as elements drawn from the shape's own geometry.
+ * Stroke alignment uses the same clip/mask construction as a shape's own
+ * off-centre stroke, since SVG has no interoperable stroke positioning.
+ */
+function geometryEffectSvg(
+  doc: Document,
+  shape: Shape,
+  effect: GeometryEffect,
+  defs: Defs
+): string {
+  const paint = effect.paint;
+  if (!paint) return "";
+  const bounds = shapeBounds(shape, doc);
+  const blend = blendAttr(effect.blendMode);
+  if (effect.type === "fill") {
+    const attrs = [
+      ...defs.paintAttrs(paint, "fill", bounds),
+      `stroke="none"`,
+      blend,
+    ].filter(Boolean);
+    return shapeGeometryToSvg(doc, shape, attrs.join(" "));
+  }
+  if (effect.width <= 0) return "";
+  const outset = strokeEffectOutset(effect);
+  const strokeAttrs = (width: number) =>
+    [
+      `fill="none"`,
+      ...defs.paintAttrs(paint, "stroke", bounds, outset),
+      `stroke-width="${num(width)}"`,
+      `stroke-linecap="${effect.cap}"`,
+      `stroke-linejoin="${effect.join}"`,
+      `stroke-miterlimit="${STROKE_MITER_LIMIT}"`,
+    ].join(" ");
+  const alignment = supportsStrokeAlignment(shape) ? effect.alignment : "center";
+  if (alignment === "center") {
+    return shapeGeometryToSvg(
+      doc,
+      shape,
+      [strokeAttrs(effect.width), blend].filter(Boolean).join(" ")
+    );
+  }
+  // Off-centre: the clipped/masked group blends as a whole, so the pass never
+  // mixes with the half of itself that alignment cuts away.
+  const stroke = shapeGeometryToSvg(doc, shape, strokeAttrs(effect.width * 2));
+  const silhouette = shapeGeometryToSvg(
+    doc,
+    shape,
+    `fill="black" stroke="none"${
+      shapeFillRule(shape) === "evenodd" ? ` clip-rule="evenodd"` : ""
+    }`
+  );
+  if (alignment === "inside") {
+    const clip = `clip-path="url(#${defs.strokeClip(silhouette)})"`;
+    return `<g ${[clip, blend].filter(Boolean).join(" ")}>${stroke}</g>`;
+  }
+  // Region padding matches the conservative outset policy; an undersized mask
+  // clips miters.
+  const pad = Math.max(1, effect.width * STROKE_MITER_LIMIT);
+  const mask = defs.strokeMask(silhouette, expandedBounds(bounds, pad));
+  const masked = `mask="url(#${mask})"`;
+  return `<g ${[masked, blend].filter(Boolean).join(" ")}>${stroke}</g>`;
+}
+
+/** The shape's own artwork, with `outer` on its outermost element. */
+function shapeContentSvg(
+  doc: Document,
+  shape: Shape,
+  defs: Defs,
+  outer: string[]
+): string {
   if (shape.type === "image") {
     const asset = doc.assets[shape.assetId];
     if (!asset) return "";
     const b = shapeBounds(shape);
-    const attrs = [...baseAttrs(shape), filterAttr(shape, defs)].filter(Boolean).join(" ");
+    const attrs = outer.join(" ");
     return `<image x="${num(b.x)}" y="${num(b.y)}" width="${num(
       b.width
     )}" height="${num(b.height)}" preserveAspectRatio="none" href="${
@@ -547,21 +693,19 @@ function shapeToSvg(doc: Document, shape: Shape, defs: Defs): string {
     } else {
       parts.push(`fill="none"`);
     }
-    parts.push(...baseAttrs(shape));
-    const fx = filterAttr(shape, defs);
-    if (fx) parts.push(fx);
+    parts.push(...outer);
     return shapeGeometryToSvg(doc, shape, parts.join(" "));
   }
   const markers = markerSvg(doc, shape, defs);
   const alignment = effectiveStrokeAlignment(shape);
   if (!shape.stroke || shape.strokeWidth <= 0 || alignment === "center") {
     if (!markers) {
-      return shapeGeometryToSvg(doc, shape, commonAttrs(doc, shape, defs));
+      return shapeGeometryToSvg(doc, shape, commonAttrs(doc, shape, defs, outer));
     }
     // Markers make the node several elements, so opacity / blend / transform /
     // filter move to the wrapper they share.
-    const line = shapeGeometryToSvg(doc, shape, commonAttrs(doc, shape, defs, false));
-    const wrapper = [...baseAttrs(shape), filterAttr(shape, defs)].filter(Boolean).join(" ");
+    const line = shapeGeometryToSvg(doc, shape, commonAttrs(doc, shape, defs));
+    const wrapper = outer.join(" ");
     return `<g${wrapper ? " " + wrapper : ""}>${line}${markers}</g>`;
   }
 
@@ -589,7 +733,7 @@ function shapeToSvg(doc: Document, shape: Shape, defs: Defs): string {
         const mask = defs.strokeMask(silhouette, expandedBounds(shapeBounds(shape, doc), pad));
         return `<g mask="url(#${mask})">${stroke}</g>`;
       })();
-  const wrapper = [...baseAttrs(shape), filterAttr(shape, defs)].filter(Boolean).join(" ");
+  const wrapper = outer.join(" ");
   return `<g${wrapper ? " " + wrapper : ""}>${fill}${limitedStroke}${markers}</g>`;
 }
 

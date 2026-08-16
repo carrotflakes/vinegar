@@ -149,12 +149,17 @@ undoable like any document op:
 - `deleteSwatch(id)` — bake every reference to concrete paint across all nodes,
   then remove from `swatches`/`swatchOrder`.
 - `reorderSwatch(id, index)` — panel drag.
-- `swatchUsageCount(id)` — count referencing fill/stroke for the panel + delete
+- `swatchUsageCount(id)` — count references for the panel + delete
   confirmation.
 
-Reference discovery walks `doc.nodes` (and `path` children) checking
-`fill`/`stroke` for `type === "swatch" && swatchId === id`. Brush/text/compound
-nodes carry the same `fill`/`stroke` fields, so one walk covers all.
+Reference discovery walks `doc.nodes` through `nodePaints(node)`
+(`model/scene.ts`), which yields a shape's `fill`/`stroke` **and** the paint of
+every fill/stroke effect on any node — a group's effect paint included, inert
+though it is. Writers go through the matching `mapNodePaints`. Do not walk
+`fill`/`stroke` directly: a reference the walk misses is one that `deleteSwatch`
+fails to bake, leaving a dangling ref that silently paints nothing. `unlinkPaint`
+is the one targeted case — it addresses a shape's own slot, so effect paints
+stay linked.
 
 ## UI
 

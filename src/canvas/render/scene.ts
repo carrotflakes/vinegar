@@ -7,18 +7,31 @@ import { isIdentity, transformBounds } from "@/model/geometry/matrix";
 import { cachedBrushEnvelope } from "@/model/brush/brushOutline";
 import { clippingContentIds, clippingMask } from "@/model/clippingMask";
 import { shapeFillRule } from "@/model/path/shapeGeometry";
-import { effectsMargin, hasEffects } from "@/model/effects";
+import {
+  effectsMargin,
+  hasEffects,
+  paintsGeometryEffects,
+  pixelEffects,
+  strokeEffectOutset,
+} from "@/model/effects";
 import { hasMarkers, strokeEndContours } from "@/model/marker";
-import { isSwatchRef, resolvePaintRef } from "@/model/paint";
+import { isSwatchRef, resolvePaintRef, type Paint } from "@/model/paint";
 import { ancestorIds, isFrame, isGroup, isInstance, isShape } from "@/model/scene";
-import { effectiveStrokeAlignment, strokeOutset, STROKE_MITER_LIMIT } from "@/model/stroke";
+import {
+  effectiveStrokeAlignment,
+  strokeOutset,
+  STROKE_MITER_LIMIT,
+  supportsStrokeAlignment,
+} from "@/model/stroke";
 import type {
   Bounds,
   Document,
   DocumentAsset,
   FrameNode,
+  GeometryEffect,
   ImageShape,
   Shape,
+  StrokeAlignment,
 } from "@/model/types";
 import { getAssetImage } from "@/imageCache";
 import { layoutTextWithCanvas } from "../textLayout";
@@ -93,7 +106,12 @@ function paintNodeInternal(
   if (isShape(node)) {
     if (node.hidden || node.id === hiddenShapeId) return;
     const shape = preview?.id === node.id ? preview : node;
-    if (!hasEffects(shape.effects)) {
+    // An image or live text has no outline for a fill/stroke effect to paint,
+    // so those entries drop out here rather than costing an isolation layer.
+    const effects = paintsGeometryEffects(shape, doc)
+      ? shape.effects
+      : pixelEffects(shape.effects);
+    if (!hasEffects(effects)) {
       paintShape(ctx, shape, doc.assets, doc, preview);
       return;
     }
@@ -121,7 +139,7 @@ function paintNodeInternal(
       contentBounds
         ? expandBounds(
             deviceBounds(ctx, transformBounds(contentBounds, shape.transform)),
-            effectsMargin(shape.effects) * effectScale
+            effectsMargin(effects) * effectScale
           )
         : undefined
     );
@@ -141,9 +159,23 @@ function paintNodeInternal(
       ctx,
       layer,
       effectScale,
-      shape.effects,
+      effects,
       shape.opacity,
-      shape.blendMode
+      shape.blendMode,
+      // A fill/stroke effect paints the shape's own outline into whichever
+      // layer the stack has reached, so it needs that layer put back into the
+      // shape's world space first.
+      (target, effect) => {
+        setLayerTransform(target, ctx);
+        paintGeometryEffect(
+          target.lctx,
+          shape,
+          effect,
+          doc.assets,
+          doc,
+          preview
+        );
+      }
     );
     return;
   }
@@ -213,7 +245,10 @@ function paintNodeInternal(
   };
   const alpha = node.opacity ?? 1;
   const blend = node.blendMode && node.blendMode !== "normal" ? node.blendMode : null;
-  const effects = hasEffects(node.effects) ? node.effects : null;
+  // A container has no outline, so fill/stroke entries in its stack do nothing —
+  // and an empty run of them must not cost it an isolation layer.
+  const containerEffects = pixelEffects(node.effects);
+  const effects = hasEffects(containerEffects) ? containerEffects : null;
   if (alpha >= 1 && !blend && !effects) {
     applyMask(ctx);
     const childTraversal =
@@ -472,34 +507,50 @@ function paintText(
   }
 }
 
-function paintVectorStroke(
+/** One pen pass along a shape's geometry, whatever it came from. */
+interface StrokePass {
+  paint: Paint;
+  width: number;
+  alignment: StrokeAlignment;
+  /** How far the pen reaches past the geometry; lays out gradients/patterns. */
+  outset: number;
+  /** Node opacity a pattern's own alpha folds into. */
+  opacity: number;
+  /** Sets lineWidth / cap / join / dash for one pass at the given width. */
+  applyLineStyle: (target: CanvasRenderingContext2D, width: number) => void;
+}
+
+/**
+ * Stroke a shape's geometry with one pass, honouring inside/outside alignment.
+ * SVG-style alignment does not exist in Canvas, so both off-centre cases stroke
+ * at double width and cut the wrong half away — inside by clipping to the
+ * silhouette, outside by punching it out of a temporary layer. The shape's own
+ * stroke and every stroke effect share this so they can never drift apart.
+ */
+function strokeShapeGeometry(
   ctx: CanvasRenderingContext2D,
   shape: Shape,
+  pass: StrokePass,
   bounds: Bounds,
   assets: Record<string, DocumentAsset>,
   path: Path2D | null,
   doc?: Document,
   preview?: Shape | null
 ): void {
-  if (!shape.stroke) return;
-  const alignment = effectiveStrokeAlignment(shape);
-  if (alignment === "outside") {
-    const strokeBounds = expandBounds(
-      bounds,
-      shape.strokeWidth * STROKE_MITER_LIMIT
-    );
+  if (pass.alignment === "outside") {
+    const strokeBounds = expandBounds(bounds, pass.width * STROKE_MITER_LIMIT);
     const acq = acquireLayer(ctx, deviceBounds(ctx, strokeBounds));
     if (!acq) return;
     const layer = acq;
     const { lctx } = layer;
     setLayerTransform(layer, ctx);
-    const style = resolveStyle(lctx, shape.stroke, bounds, assets, strokeOutset(shape));
+    const style = resolveStyle(lctx, pass.paint, bounds, assets, pass.outset);
     if (!style) {
       releaseLayer(layer);
       return;
     }
     lctx.strokeStyle = style;
-    applyStrokeStyle(lctx, shape, shape.strokeWidth * 2);
+    pass.applyLineStyle(lctx, pass.width * 2);
     if (path) lctx.stroke(path);
     else {
       tracePath(lctx, shape, true, doc, preview);
@@ -513,16 +564,18 @@ function paintVectorStroke(
       tracePath(lctx, shape, true, doc, preview);
       lctx.fill(shapeFillRule(shape));
     }
-    withPaintAlpha(ctx, shape.opacity, shape.stroke, () => drawLayerInDeviceSpace(ctx, layer));
+    withPaintAlpha(ctx, pass.opacity, pass.paint, () =>
+      drawLayerInDeviceSpace(ctx, layer)
+    );
     releaseLayer(layer);
     return;
   }
 
-  const style = resolveStyle(ctx, shape.stroke, bounds, assets, strokeOutset(shape));
+  const style = resolveStyle(ctx, pass.paint, bounds, assets, pass.outset);
   if (!style) return;
-  withPaintAlpha(ctx, shape.opacity, shape.stroke, () => {
+  withPaintAlpha(ctx, pass.opacity, pass.paint, () => {
     ctx.save();
-    if (alignment === "inside") {
+    if (pass.alignment === "inside") {
       if (path) ctx.clip(path, shapeFillRule(shape));
       else {
         tracePath(ctx, shape, true, doc, preview);
@@ -531,15 +584,118 @@ function paintVectorStroke(
       }
     }
     ctx.strokeStyle = style;
-    applyStrokeStyle(
+    pass.applyLineStyle(
       ctx,
-      shape,
-      alignment === "inside" ? shape.strokeWidth * 2 : shape.strokeWidth
+      pass.alignment === "inside" ? pass.width * 2 : pass.width
     );
     if (path) ctx.stroke(path);
     else ctx.stroke();
     ctx.restore();
   });
+}
+
+function paintVectorStroke(
+  ctx: CanvasRenderingContext2D,
+  shape: Shape,
+  bounds: Bounds,
+  assets: Record<string, DocumentAsset>,
+  path: Path2D | null,
+  doc?: Document,
+  preview?: Shape | null
+): void {
+  if (!shape.stroke) return;
+  strokeShapeGeometry(
+    ctx,
+    shape,
+    {
+      paint: shape.stroke,
+      width: shape.strokeWidth,
+      alignment: effectiveStrokeAlignment(shape),
+      outset: strokeOutset(shape),
+      opacity: shape.opacity,
+      applyLineStyle: (target, width) => applyStrokeStyle(target, shape, width),
+    },
+    bounds,
+    assets,
+    path,
+    doc,
+    preview
+  );
+}
+
+/**
+ * Paint one geometry effect (an extra fill or stroke along the node's own
+ * outline) onto a layer that already holds everything below it in the stack.
+ * Works in the shape's local space, exactly like `paintShape` — the effect's
+ * lengths are local units, so they scale with the node's transform chain.
+ */
+export function paintGeometryEffect(
+  ctx: CanvasRenderingContext2D,
+  shape: Shape,
+  effect: GeometryEffect,
+  assets: Record<string, DocumentAsset> = {},
+  doc?: Document,
+  preview?: Shape | null
+): void {
+  if (!paintsGeometryEffects(shape, doc)) return;
+  const paint = resolvePaintRef(effect.paint, doc?.swatches ?? {});
+  if (!paint) return;
+  ctx.save();
+  // The layer in hand may carry a preceding pixel effect's filter and the
+  // caller's compositing state; only the effect's own blend mode survives.
+  ctx.filter = "none";
+  ctx.globalCompositeOperation =
+    effect.blendMode === "normal"
+      ? "source-over"
+      : (effect.blendMode as GlobalCompositeOperation);
+  ctx.globalAlpha = 1;
+  if (!isIdentity(shape.transform)) ctx.transform(...shape.transform);
+  const path = cachedShapePath(shape, doc, preview);
+  const bounds = shapeBounds(shape, doc);
+  if (effect.type === "fill") {
+    const style = resolveStyle(ctx, paint, bounds, assets);
+    // A null style is a pattern still decoding; skip until the cache repaints.
+    if (style) {
+      withPaintAlpha(ctx, 1, paint, () => {
+        ctx.fillStyle = style;
+        if (path) ctx.fill(path, shapeFillRule(shape));
+        else {
+          tracePath(ctx, shape, true, doc, preview);
+          ctx.fill(shapeFillRule(shape));
+        }
+      });
+    }
+  } else if (effect.width > 0) {
+    strokeShapeGeometry(
+      ctx,
+      shape,
+      {
+        paint,
+        width: effect.width,
+        // Inside/outside is meaningless on open geometry, as for a shape's own
+        // stroke (`effectiveStrokeAlignment`).
+        alignment: supportsStrokeAlignment(shape) ? effect.alignment : "center",
+        outset: strokeEffectOutset(effect),
+        opacity: 1,
+        applyLineStyle: (target, width) => {
+          target.lineWidth = width;
+          target.lineCap = effect.cap;
+          target.lineJoin = effect.join;
+          target.miterLimit = STROKE_MITER_LIMIT;
+          // The dash pattern belongs to the shape's own stroke, not to an
+          // effect drawn along the same outline.
+          if (typeof target.setLineDash === "function") target.setLineDash([]);
+          target.lineDashOffset = 0;
+        },
+      },
+      bounds,
+      assets,
+      path,
+      doc,
+      preview
+    );
+  }
+  ctx.restore();
 }
 
 function paintTextStroke(

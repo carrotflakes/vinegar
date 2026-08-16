@@ -1,25 +1,53 @@
 import { LuChevronDown, LuChevronUp, LuX } from "react-icons/lu";
-import { defaultEffect } from "../../../model/effects";
+import { defaultEffect, paintsGeometryEffects } from "../../../model/effects";
+import { shapeBounds } from "@/model/geometry/bounds";
+import { isShape } from "@/model/scene";
+import { supportsStrokeAlignment } from "@/model/stroke";
 import type {
   DropShadowEffect,
   Effect,
   SceneNode,
+  StrokeAlignment,
+  StrokeCap,
+  StrokeJoin,
 } from "../../../model/types";
 import { useEditor } from "../../../store/editorStore";
+import ColorField from "@/ui/controls/ColorField";
 import ColorInput from "@/ui/controls/ColorInput";
 import ScrubbableNumber from "@/ui/controls/ScrubbableNumber";
+import { BlendModeField } from "./StyleFields";
 import Section from "../Section";
 
 function effectLabel(type: Effect["type"]): string {
   if (type === "blur") return "Blur";
   if (type === "color-adjust") return "Color Adjust";
   if (type === "color-overlay") return "Color Overlay";
+  if (type === "fill") return "Fill";
+  if (type === "stroke") return "Stroke";
   return "Drop Shadow";
+}
+
+/** Shown on a fill/stroke effect that has no outline to paint. */
+function GeometryNote() {
+  return (
+    <p className="effect-note">
+      No effect here — Fill and Stroke paint the node's own outline, which
+      groups, frames, images and live text do not have.
+    </p>
+  );
 }
 
 export default function EffectsSection({ node }: { node: SceneNode }) {
   const setNodeEffects = useEditor((state) => state.setNodeEffects);
   const effects = node.effects;
+  const doc = useEditor((state) => state.doc);
+  // Fill / Stroke paint the node's own outline, so they do nothing on a node
+  // that has none. The controls still render (the entry is real and reorderable)
+  // with a note saying so.
+  const shape = isShape(node) ? node : null;
+  const geometryEffective = !!shape && paintsGeometryEffects(shape, doc);
+  const paintBounds = shape ? shapeBounds(shape, doc) : null;
+  const alignmentEnabled = !!shape && supportsStrokeAlignment(shape);
 
   const replace = (index: number, next: Effect) =>
     setNodeEffects(
@@ -68,7 +96,7 @@ export default function EffectsSection({ node }: { node: SceneNode }) {
   return (
     <Section title="Effects">
       {effects.map((effect, index) => (
-        <div className="effect-card" key={index}>
+        <div className="effect-card" key={effect.id}>
           <div className="field-row effect-head">
             <span className="effect-name">
               {effectLabel(effect.type)}
@@ -163,6 +191,99 @@ export default function EffectsSection({ node }: { node: SceneNode }) {
                 <span className="unit">%</span>
               </div>
             </div>
+          ) : effect.type === "fill" ? (
+            <>
+              <ColorField
+                label="Paint"
+                value={effect.paint}
+                onChange={(paint) => replace(index, { ...effect, paint })}
+                bounds={paintBounds}
+                memoryKey={`${node.id}:effect:${effect.id}`}
+              />
+              <BlendModeField
+                label="Blend"
+                value={effect.blendMode}
+                onChange={(blendMode) => replace(index, { ...effect, blendMode })}
+              />
+              {!geometryEffective && <GeometryNote />}
+            </>
+          ) : effect.type === "stroke" ? (
+            <>
+              <ColorField
+                label="Paint"
+                value={effect.paint}
+                onChange={(paint) => replace(index, { ...effect, paint })}
+                bounds={paintBounds}
+                memoryKey={`${node.id}:effect:${effect.id}`}
+              />
+              <div className="geometry-grid">
+                {numField(
+                  "Width",
+                  effect.width,
+                  (value) => replace(index, { ...effect, width: Math.max(0, value) }),
+                  { min: 0, step: 0.5 }
+                )}
+              </div>
+              <div className="stroke-detail-grid">
+                <label>
+                  <span>Alignment</span>
+                  <select
+                    className="blend-select"
+                    value={alignmentEnabled ? effect.alignment : "center"}
+                    onChange={(event) =>
+                      replace(index, {
+                        ...effect,
+                        alignment: event.target.value as StrokeAlignment,
+                      })
+                    }
+                  >
+                    <option value="inside" disabled={!alignmentEnabled}>Inside</option>
+                    <option value="center">Center</option>
+                    <option value="outside" disabled={!alignmentEnabled}>Outside</option>
+                  </select>
+                </label>
+                <label>
+                  <span>Cap</span>
+                  <select
+                    className="blend-select"
+                    value={effect.cap}
+                    onChange={(event) =>
+                      replace(index, {
+                        ...effect,
+                        cap: event.target.value as StrokeCap,
+                      })
+                    }
+                  >
+                    <option value="butt">Butt</option>
+                    <option value="round">Round</option>
+                    <option value="square">Square</option>
+                  </select>
+                </label>
+                <label>
+                  <span>Join</span>
+                  <select
+                    className="blend-select"
+                    value={effect.join}
+                    onChange={(event) =>
+                      replace(index, {
+                        ...effect,
+                        join: event.target.value as StrokeJoin,
+                      })
+                    }
+                  >
+                    <option value="miter">Miter</option>
+                    <option value="round">Round</option>
+                    <option value="bevel">Bevel</option>
+                  </select>
+                </label>
+              </div>
+              <BlendModeField
+                label="Blend"
+                value={effect.blendMode}
+                onChange={(blendMode) => replace(index, { ...effect, blendMode })}
+              />
+              {!geometryEffective && <GeometryNote />}
+            </>
           ) : (
             <>
               <div className="geometry-grid">
@@ -224,6 +345,8 @@ export default function EffectsSection({ node }: { node: SceneNode }) {
           <option value="blur">Blur</option>
           <option value="color-adjust">Color Adjust</option>
           <option value="color-overlay">Color Overlay</option>
+          <option value="fill">Fill</option>
+          <option value="stroke">Stroke</option>
         </select>
       </div>
     </Section>

@@ -1,7 +1,7 @@
 import { clippingMask } from "../model/clippingMask";
 import { hasValidParams } from "../model/params";
 import { isCompoundChild } from "@/model/path/compoundPath";
-import { referencedAssetIds } from "../model/scene";
+import { nodePaints, referencedAssetIds } from "../model/scene";
 import {
   BLEND_MODES,
   EFFECT_TYPES,
@@ -14,7 +14,7 @@ import {
   type ShapeType,
 } from "../model/types";
 
-export const CURRENT_FILE_VERSION = 36 as const;
+export const CURRENT_FILE_VERSION = 37 as const;
 /** Older schemas accepted directly by the current document validator.
  *  v33 and below stored gradients as `linear`/`radial` paints with no geometry
  *  beyond an angle, which the placed-gradient model cannot express. */
@@ -122,6 +122,7 @@ const isSolidPaint = (value: unknown): boolean =>
 const isPaintOrNull = (value: unknown): boolean => value === null || isPaint(value);
 const isEffect = (value: unknown): boolean => {
   if (!isObject(value) || !EFFECT_TYPES.includes(value.type as never)) return false;
+  if (typeof value.id !== "string" || !value.id) return false;
   if (value.type === "blur") return isNumber(value.radius) && value.radius >= 0;
   if (value.type === "drop-shadow") {
     return typeof value.color === "string" &&
@@ -139,10 +140,27 @@ const isEffect = (value: unknown): boolean => {
     return typeof value.color === "string" &&
       isNumber(value.alpha) && value.alpha >= 0 && value.alpha <= 1;
   }
+  if (value.type === "fill") {
+    return isPaintOrNull(value.paint) &&
+      BLEND_MODES.includes(value.blendMode as never);
+  }
+  if (value.type === "stroke") {
+    return isPaintOrNull(value.paint) &&
+      isNumber(value.width) && value.width >= 0 &&
+      STROKE_ALIGNMENTS.includes(value.alignment as never) &&
+      STROKE_CAPS.includes(value.cap as never) &&
+      STROKE_JOINS.includes(value.join as never) &&
+      BLEND_MODES.includes(value.blendMode as never);
+  }
   return false;
 };
-const isEffects = (value: unknown): boolean =>
-  Array.isArray(value) && value.every(isEffect);
+const isEffects = (value: unknown): boolean => {
+  if (!Array.isArray(value) || !value.every(isEffect)) return false;
+  // Ids address an entry within its node (bindings, coalescing keys), so a
+  // duplicate would make that address ambiguous.
+  const ids = new Set(value.map((effect) => effect.id));
+  return ids.size === value.length;
+};
 const isPathModifier = (value: unknown): boolean => {
   if (!isObject(value) || !PATH_MODIFIER_TYPES.includes(value.type as never)) return false;
   if (value.enabled !== undefined && typeof value.enabled !== "boolean") return false;
@@ -389,11 +407,11 @@ function validateTree(doc: Document): void {
     if (node.type === "image" && !doc.assets[node.assetId]) {
       throw new Error(`Image references missing asset: ${node.assetId}.`);
     }
-    if (node.type !== "group" && node.type !== "frame") {
-      for (const paint of [node.fill, node.stroke]) {
-        if (paint?.type === "pattern" && !doc.assets[paint.assetId]) {
-          throw new Error(`Pattern references missing asset: ${paint.assetId}.`);
-        }
+    // Every paint the node carries, effect paints included — a dangling one
+    // would silently paint nothing instead of failing the load.
+    for (const paint of nodePaints(node)) {
+      if (paint?.type === "pattern" && !doc.assets[paint.assetId]) {
+        throw new Error(`Pattern references missing asset: ${paint.assetId}.`);
       }
     }
     if (node.type === "compoundPath") {

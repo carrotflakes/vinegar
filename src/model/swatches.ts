@@ -4,38 +4,29 @@
 // concrete paint in place. See docs/global-colors.md.
 
 import { isSwatchRef, resolvePaintRef, type PaintTarget } from "./paint";
-import type { Document, SceneNode, Shape } from "./types";
-import { isShape } from "./scene";
+import type { Document, SceneNode } from "./types";
+import { mapNodePaints, nodePaints } from "./scene";
 
 export type { PaintTarget } from "./paint";
 
-/** Whether a node's `target` paint references swatch `id`. */
-function refsSwatch(node: SceneNode, target: PaintTarget, id: string): boolean {
-  if (!isShape(node)) return false;
-  const paint = node[target];
-  return isSwatchRef(paint) && paint.swatchId === id;
-}
-
-/** Count fill/stroke references to a single swatch across all nodes. */
+/** Count references to a single swatch across every paint in the document. */
 export function swatchUsageCount(doc: Document, id: string): number {
-  let n = 0;
-  for (const node of Object.values(doc.nodes)) {
-    if (refsSwatch(node, "fill", id)) n++;
-    if (refsSwatch(node, "stroke", id)) n++;
-  }
-  return n;
+  return swatchUsageCounts(doc).get(id) ?? 0;
 }
 
-/** Fill/stroke reference counts for every swatch, in one scan (panel display). */
+/**
+ * Reference counts for every swatch, in one scan (panel display). Counts every
+ * paint a node carries — a fill/stroke effect's paint included, so deleting the
+ * swatch cannot silently blank one out.
+ */
 export function swatchUsageCounts(doc: Document): Map<string, number> {
   const counts = new Map<string, number>();
-  const bump = (paint: Shape["fill"]) => {
-    if (isSwatchRef(paint)) counts.set(paint.swatchId, (counts.get(paint.swatchId) ?? 0) + 1);
-  };
   for (const node of Object.values(doc.nodes)) {
-    if (!isShape(node)) continue;
-    bump(node.fill);
-    bump(node.stroke);
+    for (const paint of nodePaints(node)) {
+      if (isSwatchRef(paint)) {
+        counts.set(paint.swatchId, (counts.get(paint.swatchId) ?? 0) + 1);
+      }
+    }
   }
   return counts;
 }
@@ -45,32 +36,28 @@ export function swatchUsageCounts(doc: Document): Map<string, number> {
  * swatch id, and/or a set of node ids and target) baked to its concrete paint.
  * A dangling reference resolves to `null` (no paint). Returns the same map when
  * nothing changed so callers can skip a no-op transaction.
+ *
+ * `target` addresses a shape's own fill/stroke, so unlinking one leaves effect
+ * paints alone; an untargeted bake (deleting a swatch) covers everything.
  */
 export function bakeSwatchRefs(
   doc: Document,
   opts: { swatchId?: string; nodeIds?: Iterable<string>; target?: PaintTarget } = {}
 ): Record<string, SceneNode> {
   const ids = opts.nodeIds ? [...opts.nodeIds] : Object.keys(doc.nodes);
-  const targets: PaintTarget[] = opts.target ? [opts.target] : ["fill", "stroke"];
   let nodes = doc.nodes;
-  let changed = false;
   for (const nodeId of ids) {
     const node = doc.nodes[nodeId];
-    if (!isShape(node)) continue;
-    let next = node;
-    for (const target of targets) {
-      const paint = next[target];
-      if (!isSwatchRef(paint)) continue;
-      if (opts.swatchId && paint.swatchId !== opts.swatchId) continue;
-      next = { ...next, [target]: resolvePaintRef(paint, doc.swatches) } as Shape;
-    }
-    if (next !== node) {
-      if (!changed) {
-        nodes = { ...doc.nodes };
-        changed = true;
-      }
-      nodes[nodeId] = next;
-    }
+    if (!node) continue;
+    const next = mapNodePaints(node, (paint, slot) => {
+      if (!isSwatchRef(paint)) return paint;
+      if (opts.swatchId && paint.swatchId !== opts.swatchId) return paint;
+      if (opts.target && slot !== opts.target) return paint;
+      return resolvePaintRef(paint, doc.swatches);
+    });
+    if (next === node) continue;
+    if (nodes === doc.nodes) nodes = { ...doc.nodes };
+    nodes[nodeId] = next;
   }
   return nodes;
 }

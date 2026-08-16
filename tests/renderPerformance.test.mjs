@@ -264,7 +264,7 @@ test("effect compositing borrows tight bucketed layers", () => {
   withCanvasFactory((createdCanvases) => {
     const doc = createEmptyDocument();
     doc.nodes.effect = rect("effect", 40, 40, 20, 20, {
-      effects: [{ type: "blur", radius: 4 }],
+      effects: [{ id: "fx_blur", type: "blur", radius: 4 }],
     });
     doc.rootIds = ["effect"];
 
@@ -292,7 +292,7 @@ test("an effect layer covers the halo under a non-uniform shape transform", () =
     // vertically and clip the halo.
     doc.nodes.effect = rect("effect", 20, 200, 40, 100, {
       transform: [1, 0, 0, 0.1, 0, 0],
-      effects: [{ type: "blur", radius: 30 }],
+      effects: [{ id: "fx_blur", type: "blur", radius: 30 }],
     });
     doc.rootIds = ["effect"];
 

@@ -119,7 +119,7 @@ active tool, selection, viewport and undo history does not belong in the file.
   document, and a binding whose field path no longer addresses anything is
   pruned there. See [parameters.md](parameters.md).
 
-The current file version is v36 and it is the only version loading accepts.
+The current file version is v37 and it is the only version loading accepts.
 Persisted model changes require a version review and, when incompatible, a
 migration.
 
@@ -138,7 +138,7 @@ Rendering, bounds, hit-testing, snapping, editing and export must all use the
 same composed matrix. A partially applied transform is invalid document state.
 
 **Lengths are node-local too.** `strokeWidth`, `strokeDash`/`strokeDashOffset`,
-effect radii and offsets, and a brush anchor's width all live in the node's own
+effect radii, offsets and stroke-effect widths, and a brush anchor's width all live in the node's own
 units and are scaled by the transform chain, exactly like the geometry — the
 renderer applies `node.transform` and *then* sets `ctx.lineWidth`. So a node's
 stored `strokeWidth` is not its rendered thickness unless its world matrix has

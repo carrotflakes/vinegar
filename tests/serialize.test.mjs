@@ -327,7 +327,7 @@ test("compound paths own real children, cut even-odd holes, and release", () => 
     stroke: { type: "solid", color: "#222222", alpha: 1 }, strokeWidth: 2,
     opacity: 0.8, transform: [1, 0, 0, 1, 0, 0], transformOrigin: null,
   };
-  const outerEffects = [{ type: "blur", radius: 1 }];
+  const outerEffects = [{ id: "fx_outer", type: "blur", radius: 1 }];
   doc.nodes.outer = {
     id: "outer", type: "rect", ...SHAPE_BASE, cornerRadius: 0, ...NODE_BASE, x: 0, y: 0, width: 100, height: 100, ...base,
     effects: outerEffects,
@@ -442,8 +442,8 @@ test("compound paths own real children, cut even-odd holes, and release", () => 
     fill: { type: "solid", color: "#abcdef", alpha: 1 },
     transform: [1, 0, 0, 1, 10, 5],
   });
-  const childEffects = [{ type: "blur", radius: 2 }];
-  const compoundEffects = [{ type: "blur", radius: 9 }];
+  const childEffects = [{ id: "fx_child", type: "blur", radius: 2 }];
+  const compoundEffects = [{ id: "fx_compound", type: "blur", radius: 9 }];
   useEditor.getState().setNodeEffects("inner", childEffects);
   useEditor.getState().setNodeEffects(compoundId, compoundEffects);
   useToasts.setState({ toasts: [] });

@@ -1,6 +1,7 @@
 import { expandBounds, intersectBounds } from "@/model/geometry/bounds";
 import { transformBounds } from "@/model/geometry/matrix";
-import type { Bounds, Effect } from "@/model/types";
+import { isGeometryEffect } from "@/model/effects";
+import type { Bounds, Effect, GeometryEffect } from "@/model/types";
 
 export interface RenderLayer {
   canvas: HTMLCanvasElement;
@@ -169,10 +170,22 @@ function rgba(color: string, alpha: number): string {
 }
 
 /**
+ * Paints one geometry effect (fill / stroke) directly onto `target`, which
+ * already holds everything the stack has produced so far. Supplied by the
+ * caller, which is the only side that knows the node's outline; omitting it
+ * makes fill/stroke entries inert (groups and other outline-less nodes).
+ */
+export type GeometryEffectPainter = (
+  target: RenderLayer,
+  effect: GeometryEffect
+) => void;
+
+/**
  * Composite a fully-rendered content `layer` onto `ctx`, running the effect
- * stack first (each producing a new offscreen layer in device space), then
- * drawing the result 1:1 with the node's opacity and blend mode. `effects` may
- * be null to composite the bare layer (opacity/blend only).
+ * stack first (each pixel effect producing a new offscreen layer in device
+ * space, each geometry effect painting onto the current one), then drawing the
+ * result 1:1 with the node's opacity and blend mode. `effects` may be null to
+ * composite the bare layer (opacity/blend only).
  */
 export function compositeEffects(
   ctx: CanvasRenderingContext2D,
@@ -180,7 +193,8 @@ export function compositeEffects(
   scale: number,
   effects: Effect[] | null,
   alpha: number,
-  blendMode: string | undefined
+  blendMode: string | undefined,
+  paintGeometry?: GeometryEffectPainter
 ): void {
   let src = layer;
   const intermediates: RenderLayer[] = [];
@@ -191,6 +205,13 @@ export function compositeEffects(
     height: layer.canvas.height,
   };
   for (const effect of effects ?? []) {
+    if (isGeometryEffect(effect)) {
+      // Geometry effects add paint rather than transform pixels, so they go
+      // straight onto the layer in hand — no extra allocation, and the next
+      // pixel effect sees them as part of its input.
+      paintGeometry?.(src, effect);
+      continue;
+    }
     const next = acquireLayer(ctx, bounds);
     if (!next) break;
     const nctx = next.lctx;

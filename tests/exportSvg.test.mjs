@@ -332,7 +332,7 @@ test("SVG color-adjust exports a chained feColorMatrix filter in sRGB", () => {
     stroke: null,
     strokeWidth: 0,
     effects: [
-      { type: "color-adjust", brightness: 1.2, contrast: 1.1, saturation: 0.5, hue: 30 },
+      { id: "fx_adjust", type: "color-adjust", brightness: 1.2, contrast: 1.1, saturation: 0.5, hue: 30 },
     ],
   };
   doc.rootIds = ["rect"];
@@ -367,7 +367,9 @@ test("SVG color-overlay exports a mix feColorMatrix preserving alpha", () => {
     fill: { type: "solid", color: "#ffffff", alpha: 1 },
     stroke: null,
     strokeWidth: 0,
-    effects: [{ type: "color-overlay", color: "#0000ff", alpha: 0.5 }],
+    effects: [
+      { id: "fx_overlay", type: "color-overlay", color: "#0000ff", alpha: 0.5 },
+    ],
   };
   doc.rootIds = ["rect"];
 
@@ -379,4 +381,161 @@ test("SVG color-overlay exports a mix feColorMatrix preserving alpha", () => {
   );
   assert.match(svg, /color-interpolation-filters="sRGB"/);
   assert.match(svg, /filter="url\(#fx0\)"/);
+});
+
+function effectRect(effects) {
+  const doc = createEmptyDocument();
+  doc.nodes.rect = {
+    id: "rect",
+    name: "Decorated",
+    type: "rect",
+    ...SHAPE_BASE, cornerRadius: 0,
+    ...NODE_BASE,
+    x: 0,
+    y: 0,
+    width: 100,
+    height: 100,
+    transform: [1, 0, 0, 1, 0, 0],
+    fill: { type: "solid", color: "#ff0000", alpha: 1 },
+    effects,
+  };
+  doc.rootIds = ["rect"];
+  return doc;
+}
+
+const GREEN_FILL = {
+  id: "fx_fill",
+  type: "fill",
+  paint: { type: "solid", color: "#00ff00", alpha: 1 },
+  blendMode: "normal",
+};
+
+test("SVG fill and stroke effects paint extra elements from the same geometry", () => {
+  const svg = exportSvg(
+    effectRect([
+      GREEN_FILL,
+      {
+        id: "fx_stroke",
+        type: "stroke",
+        paint: { type: "solid", color: "#0000ff", alpha: 1 },
+        width: 4,
+        alignment: "outside",
+        cap: "round",
+        join: "miter",
+        blendMode: "normal",
+      },
+    ]),
+    { margin: 0 }
+  );
+  // No pixel effects, so the stack produces no <filter> at all.
+  assert.doesNotMatch(svg, /<filter/);
+  // The shape's own artwork, then the fill effect over it.
+  assert.match(svg, /fill="#ff0000"[\s\S]*fill="#00ff00" stroke="none"/);
+  // Outside alignment: double width, masked back to outside the silhouette.
+  assert.match(svg, /<g mask="url\(#strokeMask\d+\)">/);
+  assert.match(svg, /stroke="#0000ff" stroke-width="8"/);
+});
+
+test("a stroke effect honours center alignment without a mask", () => {
+  const svg = exportSvg(
+    effectRect([
+      {
+        id: "fx_stroke",
+        type: "stroke",
+        paint: { type: "solid", color: "#0000ff", alpha: 1 },
+        width: 4,
+        alignment: "center",
+        cap: "butt",
+        join: "bevel",
+        blendMode: "normal",
+      },
+    ]),
+    { margin: 0 }
+  );
+  assert.match(
+    svg,
+    /stroke="#0000ff" stroke-width="4" stroke-linecap="butt" stroke-linejoin="bevel"/
+  );
+  assert.doesNotMatch(svg, /mask=/);
+});
+
+test("a geometry effect splits the filter chain at its own position", () => {
+  // blur, then fill: the fill is a sibling of the filtered artwork.
+  const after = exportSvg(
+    effectRect([{ id: "fx_blur", type: "blur", radius: 2 }, GREEN_FILL]),
+    { margin: 0 }
+  );
+  assert.match(
+    after,
+    /<g filter="url\(#fx0\)"><rect [^>]*\/><\/g><rect [^>]*fill="#00ff00"/
+  );
+
+  // fill, then blur: the filter wraps both, so the added fill is blurred too.
+  const before = exportSvg(
+    effectRect([GREEN_FILL, { id: "fx_blur", type: "blur", radius: 2 }]),
+    { margin: 0 }
+  );
+  assert.match(
+    before,
+    /<g filter="url\(#fx0\)"><rect [^>]*\/><rect [^>]*fill="#00ff00"[^>]*\/><\/g>/
+  );
+});
+
+test("fill and stroke effects are inert on a node with no outline", () => {
+  const doc = effectRect([]);
+  doc.nodes.group = {
+    id: "group",
+    name: "Group",
+    type: "group",
+    clipsToMask: false,
+    ...NODE_BASE,
+    childIds: ["rect"],
+    transform: [1, 0, 0, 1, 0, 0],
+    effects: [GREEN_FILL],
+  };
+  doc.rootIds = ["group"];
+
+  const svg = exportSvg(doc, { margin: 0 });
+  assert.doesNotMatch(svg, /#00ff00/);
+  // A geometry-only stack must not leave an empty filter behind: SVG renders a
+  // childless <filter> as transparent black, which would erase the group.
+  assert.doesNotMatch(svg, /<filter/);
+  assert.doesNotMatch(svg, /filter="url/);
+  assert.match(svg, /fill="#ff0000"/);
+});
+
+test("a blending geometry effect exports mix-blend-mode inside an isolated group", () => {
+  const svg = exportSvg(
+    effectRect([
+      { ...GREEN_FILL, blendMode: "multiply" },
+      {
+        id: "fx_stroke",
+        type: "stroke",
+        paint: { type: "solid", color: "#0000ff", alpha: 1 },
+        width: 4,
+        alignment: "inside",
+        cap: "round",
+        join: "round",
+        blendMode: "screen",
+      },
+    ]),
+    { margin: 0 }
+  );
+  assert.match(svg, /fill="#00ff00" stroke="none" style="mix-blend-mode:multiply"/);
+  // Off-centre alignment blends the clipped group as a whole.
+  assert.match(
+    svg,
+    /<g clip-path="url\(#strokeClip\d+\)" style="mix-blend-mode:screen">/
+  );
+  // Without isolation the blend would reach the artwork behind the node.
+  assert.match(svg, /<g style="isolation:isolate">/);
+});
+
+test("a node blend mode survives the isolation added for geometry effects", () => {
+  const doc = effectRect([GREEN_FILL]);
+  doc.nodes.rect.blendMode = "overlay";
+  const svg = exportSvg(doc, { margin: 0 });
+  assert.match(svg, /<g style="mix-blend-mode:overlay;isolation:isolate">/);
+  // A normal-blend effect stays attribute-free.
+  assert.doesNotMatch(svg, /fill="#00ff00"[^>]*mix-blend-mode/);
 });

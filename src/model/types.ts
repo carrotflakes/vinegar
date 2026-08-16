@@ -80,12 +80,23 @@ export const BLEND_MODES = [
 export type BlendMode = (typeof BLEND_MODES)[number];
 
 /**
+ * Fields every effect carries. `id` is stable for the life of the entry:
+ * reordering the stack must never move a parameter binding, a live input's
+ * state, or an undo coalescing key onto a different effect — which an array
+ * index would. Unique within a node; nothing reads it across nodes, so a
+ * duplicated node keeps its copies' ids.
+ */
+export interface EffectBase {
+  id: string;
+}
+
+/**
  * A non-destructive appearance effect (Illustrator's Effect menu). Effects are
  * an ordered stack rendered after the node's content but before its opacity/
  * blend composite. Their lengths are in the node's local space, like geometry
  * and stroke width, so they scale with the node's transform chain.
  */
-export interface DropShadowEffect {
+export interface DropShadowEffect extends EffectBase {
   type: "drop-shadow";
   /** Shadow colour (`#rrggbb`). */
   color: string;
@@ -97,7 +108,7 @@ export interface DropShadowEffect {
   offsetY: number;
 }
 
-export interface BlurEffect {
+export interface BlurEffect extends EffectBase {
   type: "blur";
   /** Gaussian standard deviation in local units. */
   radius: number;
@@ -109,7 +120,7 @@ export interface BlurEffect {
  * change; `hue` is a rotation in degrees. Being unitless, it does not scale with
  * the node's transform and adds nothing to the effect margin.
  */
-export interface ColorAdjustEffect {
+export interface ColorAdjustEffect extends EffectBase {
   type: "color-adjust";
   /** RGB multiplier, ≥ 0 (1 = unchanged). */
   brightness: number;
@@ -127,7 +138,7 @@ export interface ColorAdjustEffect {
  * to a canvas `source-atop` fill for preview and a single `feColorMatrix` for
  * SVG export; being unitless it adds nothing to the effect margin.
  */
-export interface ColorOverlayEffect {
+export interface ColorOverlayEffect extends EffectBase {
   type: "color-overlay";
   /** Overlay colour (`#rrggbb`). */
   color: string;
@@ -135,17 +146,62 @@ export interface ColorOverlayEffect {
   alpha: number;
 }
 
+/**
+ * An extra fill pass painted from the node's **own geometry**, over whatever the
+ * stack has produced so far. Unlike the pixel effects above it needs an outline
+ * to paint, so it is a no-op on nodes that have none — groups, frames,
+ * instances, images and live text. Its paint is a full {@link Paint}, laid out
+ * over the same local-space bounds as the shape's own fill.
+ */
+export interface FillEffect extends EffectBase {
+  type: "fill";
+  /** Null paints nothing, exactly like a shape's own `fill`. */
+  paint: Paint | null;
+  /** How it composites onto what the stack has produced below it. */
+  blendMode: BlendMode;
+}
+
+/**
+ * An extra stroke pass along the node's own geometry, with a width, alignment
+ * and corner style of its own — independent of the shape's `stroke*` fields.
+ * Same geometry requirement as {@link FillEffect}.
+ */
+export interface StrokeEffect extends EffectBase {
+  type: "stroke";
+  /** Null paints nothing, exactly like a shape's own `stroke`. */
+  paint: Paint | null;
+  /** Pen width in local units, so it scales with the node's transform chain. */
+  width: number;
+  /** Falls back to "center" on open geometry, like the shape's own stroke. */
+  alignment: StrokeAlignment;
+  cap: StrokeCap;
+  join: StrokeJoin;
+  /**
+   * How the finished pass composites onto what the stack has produced below it.
+   * The pass is composited as a whole, so an off-centre stroke does not blend
+   * with the half of itself that alignment cuts away.
+   */
+  blendMode: BlendMode;
+}
+
 export type Effect =
   | DropShadowEffect
   | BlurEffect
   | ColorAdjustEffect
-  | ColorOverlayEffect;
+  | ColorOverlayEffect
+  | FillEffect
+  | StrokeEffect;
+
+/** The effects that paint the node's outline instead of filtering pixels. */
+export type GeometryEffect = FillEffect | StrokeEffect;
 
 export const EFFECT_TYPES = [
   "drop-shadow",
   "blur",
   "color-adjust",
   "color-overlay",
+  "fill",
+  "stroke",
 ] as const;
 
 /**

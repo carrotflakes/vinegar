@@ -1,4 +1,5 @@
-import type { Paint } from "./paint";
+import { isGeometryEffect } from "./effects";
+import type { Paint, PaintTarget } from "./paint";
 import type {
   CompoundPathNode,
   Document,
@@ -431,10 +432,61 @@ const paintAssetId = (paint: Paint | null): string | null =>
   paint && paint.type === "pattern" ? paint.assetId : null;
 
 /**
- * All asset ids a document references: `image` nodes plus every pattern
- * fill/stroke (including on compound-path components). Drives export
- * pre-decode and save-time orphan pruning so a texture's asset survives even
- * when no image node uses it.
+ * Where a paint sits on a node: one of a shape's own slots, or inside a
+ * fill/stroke effect. Effects can hold any paint, so a reader that only looks
+ * at `fill`/`stroke` under-reports references — which is how an asset used by
+ * one gets pruned on save. Everything that walks paints goes through
+ * {@link nodePaints} / {@link mapNodePaints} instead.
+ */
+export type PaintSlot = PaintTarget | "effect";
+
+/** Every paint a node carries, own slots first, then effect paints in order. */
+export function nodePaints(node: SceneNode): (Paint | null)[] {
+  const paints: (Paint | null)[] = isShape(node)
+    ? [node.fill, node.stroke]
+    : [];
+  for (const effect of node.effects) {
+    if (isGeometryEffect(effect)) paints.push(effect.paint);
+  }
+  return paints;
+}
+
+/**
+ * Rewrite every paint a node carries. `fn` sees each non-null paint with the
+ * slot it came from and returns its replacement (or null to clear it). Returns
+ * the very same node when nothing changed, so callers can skip a no-op
+ * transaction.
+ */
+export function mapNodePaints(
+  node: SceneNode,
+  fn: (paint: Paint, slot: PaintSlot) => Paint | null
+): SceneNode {
+  let next = node;
+  if (isShape(next)) {
+    for (const target of ["fill", "stroke"] as const) {
+      const paint = next[target];
+      if (!paint) continue;
+      const mapped = fn(paint, target);
+      if (mapped !== paint) next = { ...next, [target]: mapped } as Shape;
+    }
+  }
+  let effects = node.effects;
+  for (const [index, effect] of node.effects.entries()) {
+    if (!isGeometryEffect(effect) || !effect.paint) continue;
+    const mapped = fn(effect.paint, "effect");
+    if (mapped === effect.paint) continue;
+    if (effects === node.effects) effects = [...effects];
+    effects[index] = { ...effect, paint: mapped };
+  }
+  if (effects !== node.effects) next = { ...next, effects };
+  return next;
+}
+
+/**
+ * All asset ids a document references: `image` nodes plus every pattern paint
+ * (fill, stroke or fill/stroke effect, including on compound-path components).
+ * Drives export pre-decode and save-time orphan pruning so a texture's asset
+ * survives even when no image node uses it.
  */
 export function referencedAssetIds(doc: Document): Set<string> {
   return new Set(assetReferenceCounts(doc).keys());
@@ -444,21 +496,20 @@ export function referencedAssetIds(doc: Document): Set<string> {
 export function referencedAssetIdsOf(nodes: Iterable<SceneNode>): Set<string> {
   const out = new Set<string>();
   for (const node of nodes) {
-    if (!isShape(node)) continue;
-    if (node.type === "image") out.add(node.assetId);
-    for (const id of [paintAssetId(node.fill), paintAssetId(node.stroke)]) {
+    if (isShape(node) && node.type === "image") out.add(node.assetId);
+    for (const paint of nodePaints(node)) {
+      const id = paintAssetId(paint);
       if (id) out.add(id);
     }
   }
   return out;
 }
 
-/** Global-colour ids referenced by the given nodes' fills/strokes. */
+/** Global-colour ids referenced by the given nodes' paints. */
 export function referencedSwatchIds(nodes: Iterable<SceneNode>): Set<string> {
   const out = new Set<string>();
   for (const node of nodes) {
-    if (!isShape(node)) continue;
-    for (const paint of [node.fill, node.stroke]) {
+    for (const paint of nodePaints(node)) {
       if (paint?.type === "swatch") out.add(paint.swatchId);
     }
   }
@@ -466,20 +517,20 @@ export function referencedSwatchIds(nodes: Iterable<SceneNode>): Set<string> {
 }
 
 /**
- * How many shapes reference each asset (image nodes + pattern fill/stroke,
+ * How many nodes reference each asset (image nodes + every pattern paint,
  * recursing into compound-path components). The single source of truth behind
  * {@link referencedAssetIds}; the Assets panel uses the counts directly.
  */
 export function assetReferenceCounts(doc: Document): Map<string, number> {
   const counts = new Map<string, number>();
   const bump = (id: string) => counts.set(id, (counts.get(id) ?? 0) + 1);
-  const addShape = (shape: Shape) => {
-    if (shape.type === "image") bump(shape.assetId);
-    for (const id of [paintAssetId(shape.fill), paintAssetId(shape.stroke)]) {
+  for (const node of Object.values(doc.nodes)) {
+    if (isShape(node) && node.type === "image") bump(node.assetId);
+    for (const paint of nodePaints(node)) {
+      const id = paintAssetId(paint);
       if (id) bump(id);
     }
-  };
-  for (const node of Object.values(doc.nodes)) if (isShape(node)) addShape(node);
+  }
   return counts;
 }
 

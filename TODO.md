@@ -36,10 +36,11 @@ additional effects, or other feature expansion.
 - [ ] Clipping masks — alpha / luminance masks (soft, gradient & image masks),
   multi-object masks, mask a raw shape without a wrapping group, anti-aliased
   clip via offscreen `destination-in`
-- [ ] Effects — inner/outer glow, feather (needs offscreen `destination-in`),
-  per-fill/stroke effects, effects on artboards/layers, rotating drop-shadow
-  offset with the object, group-effect export bounds beyond the per-leaf
-  approximation
+- [ ] Effects (docs/effects.md) — inner/outer glow, feather (needs offscreen
+  `destination-in`), Fill/Stroke effects on text and images (they have no
+  outline today, so those entries are inert), per-fill/stroke effects, effects
+  on artboards/layers, rotating drop-shadow offset with the object,
+  group-effect export bounds beyond the per-leaf approximation
 - [ ] End markers (docs/markers.md) — arbitrary nodes/symbols as markers
   (`{ kind: "builtin" } | { kind: "symbol", id }`), mid-path markers, an
   independent marker colour, SVG **import** of `marker-start`/`marker-end`,

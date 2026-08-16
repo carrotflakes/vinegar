@@ -169,6 +169,13 @@ globalStyle(".effect-name", {
   fontWeight: "600",
 });
 
+globalStyle(".effect-note", {
+  margin: 0,
+  fontSize: "11.5px",
+  lineHeight: 1.4,
+  color: vars.muted,
+});
+
 globalStyle(".effect-card .geo-field > span", {
   width: "auto",
   minWidth: "12px",
