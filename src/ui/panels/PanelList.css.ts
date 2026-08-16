@@ -10,7 +10,20 @@ globalStyle(".layers", {
   minHeight: "120px",
   display: "flex",
   flexDirection: "column",
-  overflow: "hidden",
+  // Deliberately not a scroll container: the dock body is what scrolls the
+  // panel, and clipping here would make the sticky header stick to this box
+  // (which never scrolls) instead of to the viewport it scrolls out of.
+  overflow: "visible",
+});
+
+// The title and the focus breadcrumb stay put while the rows scroll past: the
+// panel's actions, and which container the tree is showing, are needed most in
+// a long list — exactly when they would otherwise be scrolled away.
+globalStyle(".layers-header", {
+  position: "sticky",
+  top: "0",
+  zIndex: "1",
+  background: vars.panel,
 });
 
 globalStyle(".layers-title", {
@@ -25,6 +38,17 @@ globalStyle(".layers-title", {
    inflate the title row past its plain-text height in other panels. */
 globalStyle(".title-add", {
   flex: "none",
+  marginBlock: "-6px",
+});
+
+/* Several trailing actions: they keep the title's plain-text height the same
+   way `title-add` does, but stay grouped at the end rather than being spread
+   out by the title's space-between. */
+globalStyle(".title-actions", {
+  flex: "none",
+  display: "flex",
+  alignItems: "center",
+  gap: "2px",
   marginBlock: "-6px",
 });
 
@@ -130,6 +154,13 @@ globalStyle(".layer-icon-btn", {
 globalStyle(".layer-icon-btn:hover", {
   background: vars.hover,
   color: vars.text,
+});
+
+// A latched toggle (the title bar's multi-select), as opposed to the momentary
+// buttons around it.
+globalStyle(".layer-icon-btn.active", {
+  background: vars.accentWeak,
+  color: vars.accent,
 });
 
 globalStyle(".layer-state-btn.state-idle", {

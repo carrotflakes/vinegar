@@ -17,6 +17,8 @@ export interface LayerRowCtx {
   /** Row the keyboard cursor sits on; gets a focus ring while the list is focused. */
   cursor: string | null;
   collapsed: Set<string>;
+  /** While on, a row tap (and a menu on an unselected row) adds rather than replaces. */
+  multiSelect: boolean;
   /** The row being renamed, if any. */
   editing: string | null;
   /** Container the pending drop would go inside, if any. */

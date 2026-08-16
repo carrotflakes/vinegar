@@ -1,7 +1,8 @@
 import { create } from "zustand";
 
 /**
- * Which containers are folded shut in the Layers panel.
+ * The Layers panel's own view state: which containers are folded shut, and
+ * whether tapping rows adds to the selection.
  *
  * Deliberately outside the panel component: the dock renders only the active
  * tab, so switching tabs (or moving the panel between dock groups) unmounts
@@ -14,6 +15,13 @@ import { create } from "zustand";
  */
 export interface LayersViewState {
   collapsed: Set<string>;
+  /**
+   * While on, a row tap toggles that row in the selection instead of replacing
+   * it — Ctrl/Cmd+click for touch, which has no modifier keys of its own.
+   */
+  multiSelect: boolean;
+  setMultiSelect: (on: boolean) => void;
+  toggleMultiSelect: () => void;
   toggleCollapsed: (id: string) => void;
   /** Unfold containers, e.g. to reveal a row selected elsewhere. */
   expand: (ids: string[]) => void;
@@ -23,6 +31,9 @@ export interface LayersViewState {
 
 export const useLayersView = create<LayersViewState>((set, get) => ({
   collapsed: new Set(),
+  multiSelect: false,
+  setMultiSelect: (on) => set({ multiSelect: on }),
+  toggleMultiSelect: () => set({ multiSelect: !get().multiSelect }),
   toggleCollapsed: (id) => {
     const next = new Set(get().collapsed);
     if (next.has(id)) next.delete(id);

@@ -80,9 +80,11 @@ export function LayerRow({
     ...selectionMenu(),
   ];
 
-  // A menu acts on the selection, so a row menued from outside it takes over.
+  // A menu acts on the selection, so a row menued from outside it takes over —
+  // except while multi-select is on, where a selection is being built up and
+  // replacing it would undo that work; there the row joins instead.
   const openRowMenu = (x: number, y: number) => {
-    if (!ctx.selection.includes(id)) ctx.selectIds([id], false);
+    if (!ctx.selection.includes(id)) ctx.selectIds([id], ctx.multiSelect);
     openContextMenu(x, y, menuEntries());
   };
 

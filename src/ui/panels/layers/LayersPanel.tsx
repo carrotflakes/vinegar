@@ -1,5 +1,5 @@
-import { useEffect, useState } from "react";
-import { LuChevronLeft, LuChevronsDownUp } from "react-icons/lu";
+import { useEffect, useRef, useState } from "react";
+import { LuChevronLeft, LuChevronsDownUp, LuListChecks } from "react-icons/lu";
 import {
   ancestorIds,
   enclosingSymbolId,
@@ -59,6 +59,9 @@ export default function LayersPanel() {
   // tab in its group is shown, so this state lives in a store.
   const collapsed = useLayersView((s) => s.collapsed);
   const toggleCollapsed = useLayersView((s) => s.toggleCollapsed);
+  const multiSelect = useLayersView((s) => s.multiSelect);
+  const toggleMultiSelect = useLayersView((s) => s.toggleMultiSelect);
+  const setMultiSelect = useLayersView((s) => s.setMultiSelect);
   const expandContainers = useLayersView((s) => s.expand);
   const setCollapsed = useLayersView((s) => s.setCollapsed);
   // Range selection keeps two marks, like any list: `anchor` is where a range
@@ -120,9 +123,10 @@ export default function LayersPanel() {
    * the range — selecting a group *and* its children means nothing downstream.
    *
    * Shift comes from `readModifiers`, so the on-screen Shift toggle counts as
-   * well: that is the only way to reach a range on touch, where every gesture a
-   * row could use is already spoken for (tap selects, long-press drags, a
-   * vertical swipe scrolls, a rightward swipe opens the row's context menu).
+   * well, and the panel's multi-select mode stands in for Ctrl/Cmd. Both exist
+   * because touch has no modifier keys and every gesture a row could use is
+   * already spoken for (tap selects, long-press drags, a vertical swipe
+   * scrolls, a rightward swipe opens the row's context menu).
    * See canvas/ModifierBar.tsx.
    */
   const rowClick = (id: string, e: React.MouseEvent) => {
@@ -137,7 +141,10 @@ export default function LayersPanel() {
       }
     }
     // Ctrl+click is the macOS secondary click, so there Cmd alone toggles.
-    selectIds([id], shift || e.metaKey || (!isMac && e.ctrlKey));
+    selectIds(
+      [id],
+      multiSelect || shift || e.metaKey || (!isMac && e.ctrlKey)
+    );
   };
 
   /**
@@ -219,6 +226,19 @@ export default function LayersPanel() {
     setReveal(null);
   }, [reveal, collapsed, doc, rowHeight]);
 
+  // Multi-select is a way to build a selection up, so it ends when that
+  // selection is gone — deselected row by row here, or dropped from anywhere
+  // else. A mode that outlives its purpose is the kind that surprises the next
+  // tap. Turning it on with nothing selected is not that case, hence the
+  // "had something" mark rather than a plain emptiness test.
+  const hadSelection = useRef(selection.length > 0);
+  useEffect(() => {
+    if (multiSelect && hadSelection.current && selection.length === 0) {
+      setMultiSelect(false);
+    }
+    hadSelection.current = selection.length > 0;
+  }, [selection, multiSelect]);
+
   // A selection made anywhere else (canvas, a command, undo) points at a row
   // that may be scrolled away or folded shut; a drag is excluded so rows never
   // move under the pointer mid-drop.
@@ -243,6 +263,7 @@ export default function LayersPanel() {
     selection,
     cursor,
     collapsed,
+    multiSelect,
     editing,
     dropInside: dnd.drop?.inside,
     setEditing,
@@ -299,32 +320,51 @@ export default function LayersPanel() {
 
   return (
     <div className={"layers" + (dnd.dragging ? " dragging" : "")}>
-      <div className="section-title layers-title">
-        Layers
-        <DropdownMenu
-          entries={foldMenu()}
-          placement="bottom-end"
-          renderTrigger={({ ref, open, props }) => (
+      {/* Title and scope travel together: it is the dock body that scrolls the
+          panel, so they are one sticky block rather than two. */}
+      <div className="layers-header">
+        <div className="section-title layers-title">
+          Layers
+          <div className="title-actions">
             <button
-              ref={ref}
-              className="layer-icon-btn title-add"
-              title="Expand / collapse"
-              aria-label="Expand and collapse options"
-              aria-haspopup="menu"
-              aria-expanded={open}
-              {...props}
+              className={"layer-icon-btn" + (multiSelect ? " active" : "")}
+              title={
+                multiSelect
+                  ? "Multi-select on — a tap adds or removes a layer"
+                  : "Multi-select: tap layers to add them to the selection"
+              }
+              aria-label="Multi-select"
+              aria-pressed={multiSelect}
+              onClick={toggleMultiSelect}
             >
-              <LuChevronsDownUp aria-hidden />
+              <LuListChecks aria-hidden />
             </button>
-          )}
-        />
+            <DropdownMenu
+              entries={foldMenu()}
+              placement="bottom-end"
+              renderTrigger={({ ref, open, props }) => (
+                <button
+                  ref={ref}
+                  className="layer-icon-btn"
+                  title="Expand / collapse"
+                  aria-label="Expand and collapse options"
+                  aria-haspopup="menu"
+                  aria-expanded={open}
+                  {...props}
+                >
+                  <LuChevronsDownUp aria-hidden />
+                </button>
+              )}
+            />
+          </div>
+        </div>
+        {scopeName !== null && (
+          <button className="layers-scope" onClick={exitFocus}>
+            <LuChevronLeft aria-hidden />
+            <span>{scopeName}</span>
+          </button>
+        )}
       </div>
-      {scopeName !== null && (
-        <button className="layers-scope" onClick={exitFocus}>
-          <LuChevronLeft aria-hidden />
-          <span>{scopeName}</span>
-        </button>
-      )}
       <div
         className="layers-list"
         ref={listRef}

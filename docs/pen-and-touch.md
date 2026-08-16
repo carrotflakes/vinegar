@@ -143,11 +143,15 @@ toggles (`ModifierBar`, shown only on coarse pointers) and every reader goes
 through `readModifiers(event)` — the physical key OR the toggle.
 
 The Layers panel reads it too: with the on-screen Shift on, tapping a row takes
-a contiguous range from the last one, the same as Shift+click. That is the only
-gesture budget left in the list — tap selects, long-press drags, a vertical
-swipe scrolls, and a rightward swipe opens the row's context menu (touch has no
-right-click; see [drag-and-drop.md](drag-and-drop.md)) — so any new touch-only
-selection affordance should start here rather than inventing a gesture.
+a contiguous range from the last one, the same as Shift+click. Ctrl/Cmd+click
+has no such shared toggle, so the panel carries its own **multi-select** button
+in its title bar: while it is on, a plain tap adds or removes that row.
+
+Both are buttons rather than gestures because the list has no gesture budget
+left — tap selects, long-press drags, a vertical swipe scrolls, and a rightward
+swipe opens the row's context menu (touch has no right-click; see
+[drag-and-drop.md](drag-and-drop.md)). Any further touch-only affordance in the
+list should be a control too.
 
 ## Not implemented
 
