@@ -132,6 +132,13 @@ globalStyle(".layer-row.selected", {
   background: vars.accentWeak,
 });
 
+// Hovering a selected row deepens its accent rather than falling back to the
+// plain hover grey — that rule carries the higher specificity, so without this
+// the pointer would paint over the very state the row is reporting.
+globalStyle(".layers:not(.dragging) .layer-row.selected:hover", {
+  background: vars.accentSoft,
+});
+
 globalStyle(".layer-row.drop-inside", {
   background: vars.accentWeak,
   outline: `2px solid ${vars.accent}`,
