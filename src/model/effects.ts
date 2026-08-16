@@ -101,6 +101,25 @@ export function isGeometryEffect(effect: Effect): effect is GeometryEffect {
 }
 
 /**
+ * Whether a stack has to run on an isolated offscreen layer, or can be painted
+ * straight onto the target in order.
+ *
+ * A pixel effect filters what is below it, so it needs those pixels alone on a
+ * layer. A geometry effect only *adds* paint — unless it blends, which must mix
+ * with the node's own artwork and stop there (SVG spells that `isolation:
+ * isolate`; on canvas the layer *is* the isolation). Everything else paints
+ * directly, which is what keeps an ordinary stroke effect off the layer pool.
+ *
+ * The node's own opacity and blend mode are the caller's business: they also
+ * force isolation, because they composite the finished stack as one group.
+ */
+export function needsEffectIsolation(effects: Effect[]): boolean {
+  return effects.some(
+    (effect) => !isGeometryEffect(effect) || effect.blendMode !== "normal"
+  );
+}
+
+/**
  * The entries that actually filter pixels. Readers that can only apply those —
  * a node with no outline, or an SVG `<filter>` — take this rather than the whole
  * stack, so a geometry-only stack stays a no-op instead of becoming an empty

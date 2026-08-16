@@ -224,6 +224,24 @@ recently used size bucket. Without that, a session that visits many bucket
 sizes — or resizes the target, which changes the size clamp — would retain a
 canvas per size for the life of the page.
 
+### 3b. Only isolate the stacks that need it (implemented)
+
+Having an effect stack and needing an isolation layer are two different things.
+`needsEffectIsolation` (`model/effects.ts`) draws the line: pixel effects (blur,
+shadow, colour) filter what is below them and so need those pixels alone on a
+layer, while geometry effects (fill, stroke) only *add* paint and can go
+straight onto the target — unless one blends, which must mix with the node's own
+artwork and stop there. The node's own opacity and blend mode force isolation
+too, because they composite the finished stack as one group (as SVG export does
+with them, so the direct route would make the two disagree).
+
+A shape with an ordinary stroke effect therefore acquires **no** layer at all —
+only its own alignment layer if the stroke is inside/outside. This matters more
+than it looks: [effects.md](effects.md) is heading toward the shape's own
+`fill`/`stroke` moving into the stack, at which point *every* shape would carry
+effects. Gating on "has entries" would have put the entire scene through the
+layer pool. `tests/renderPerformance.test.mjs` pins the layer counts.
+
 ### 4. Static-scene snapshot during interactions
 
 During drags, pen drawing and marquees only a few shapes change, yet the whole

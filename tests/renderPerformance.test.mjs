@@ -309,3 +309,67 @@ test("an effect layer covers the halo under a non-uniform shape transform", () =
     assert.equal(sample.acquiredLayerPixels, 100 * 64 * 2);
   });
 });
+
+const strokeEffect = (extra = {}) => ({
+  id: "fx_stroke",
+  type: "stroke",
+  paint: { type: "solid", color: "#0000ff", alpha: 1 },
+  width: 4,
+  alignment: "center",
+  cap: "round",
+  join: "round",
+  blendMode: "normal",
+  ...extra,
+});
+
+test("a plain geometry-effect stack paints without an isolation layer", () => {
+  withCanvasFactory(() => {
+    const doc = createEmptyDocument();
+    doc.nodes.decorated = rect("decorated", 40, 40, 20, 20, {
+      effects: [
+        { id: "fx_fill", type: "fill", paint: null, blendMode: "normal" },
+        strokeEffect(),
+      ],
+    });
+    doc.rootIds = ["decorated"];
+
+    // Nothing filters pixels and nothing blends, so the passes go straight onto
+    // the target — the whole point of keeping fill/stroke off the layer pool.
+    assert.equal(render(doc).sample.acquireLayerCalls, 0);
+  });
+});
+
+test("an off-centre stroke effect takes only its own alignment layer", () => {
+  withCanvasFactory(() => {
+    const doc = createEmptyDocument();
+    doc.nodes.decorated = rect("decorated", 40, 40, 20, 20, {
+      effects: [strokeEffect({ alignment: "outside" })],
+    });
+    doc.rootIds = ["decorated"];
+
+    // One layer to punch the inside half out of, not the isolation pair.
+    assert.equal(render(doc).sample.acquireLayerCalls, 1);
+  });
+});
+
+test("blending or grouping a geometry effect brings the isolation layer back", () => {
+  withCanvasFactory(() => {
+    const blended = createEmptyDocument();
+    blended.nodes.decorated = rect("decorated", 40, 40, 20, 20, {
+      effects: [strokeEffect({ blendMode: "multiply" })],
+    });
+    blended.rootIds = ["decorated"];
+    // A blend has to mix with the node's own artwork and stop there.
+    assert.equal(render(blended).sample.acquireLayerCalls, 1);
+
+    const faded = createEmptyDocument();
+    faded.nodes.decorated = rect("decorated", 40, 40, 20, 20, {
+      opacity: 0.5,
+      effects: [strokeEffect()],
+    });
+    faded.rootIds = ["decorated"];
+    // Node opacity composites the finished stack as one group, as SVG export
+    // does with it — painting the passes directly would fade each separately.
+    assert.equal(render(faded).sample.acquireLayerCalls, 1);
+  });
+});

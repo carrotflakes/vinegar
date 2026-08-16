@@ -10,6 +10,8 @@ import { shapeFillRule } from "@/model/path/shapeGeometry";
 import {
   effectsMargin,
   hasEffects,
+  isGeometryEffect,
+  needsEffectIsolation,
   paintsGeometryEffects,
   pixelEffects,
   strokeEffectOutset,
@@ -113,6 +115,24 @@ function paintNodeInternal(
       : pixelEffects(shape.effects);
     if (!hasEffects(effects)) {
       paintShape(ctx, shape, doc.assets, doc, preview);
+      return;
+    }
+    // A stack that only adds paint, on a node that composites plainly, needs no
+    // isolation: paint the content and then each pass straight onto the target.
+    // Opacity and blend mode are excluded because they composite the finished
+    // stack as one group — which is also what SVG export does with them, so
+    // taking the direct route there would make the two disagree.
+    if (
+      !needsEffectIsolation(effects) &&
+      shape.opacity >= 1 &&
+      (!shape.blendMode || shape.blendMode === "normal")
+    ) {
+      paintShape(ctx, shape, doc.assets, doc, preview);
+      for (const effect of effects) {
+        if (isGeometryEffect(effect)) {
+          paintGeometryEffect(ctx, shape, effect, doc.assets, doc, preview);
+        }
+      }
       return;
     }
     // Effects need the shape composited as a layer, so its own opacity/blend is

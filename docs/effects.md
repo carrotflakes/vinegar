@@ -96,6 +96,27 @@ sibling drawn from the same geometry. Nesting the wrappers is what keeps
 [fill, blur]  →  <g><g filter="url(#fx0)">ART FILL</g></g>
 ```
 
+## Isolation
+
+Carrying an effect stack does not by itself mean the node needs an isolated
+offscreen layer. `needsEffectIsolation(effects)` says when it does:
+
+| stack | painted |
+| --- | --- |
+| any pixel effect | on a layer — it filters the pixels below it |
+| a geometry effect with a non-normal blend | on a layer — the blend must stop at the node's own artwork |
+| geometry effects, all `normal` | straight onto the target, in order |
+
+The node's own opacity and blend mode force isolation as well, since they
+composite the finished stack as one group — which is what SVG export does with
+them too, so painting the passes directly would make the two disagree.
+
+This is what keeps an ordinary stroke effect off the layer pool, and it is a
+precondition for ever moving the shape's own `fill`/`stroke` into the stack: at
+that point every shape would carry effects, and gating on "has entries" would
+route the whole scene through offscreen layers. See
+[render-performance.md](render-performance.md#3b-only-isolate-the-stacks-that-need-it-implemented).
+
 ## Shared mechanics
 
 - **Geometry** comes from the canonical derivation only — `cachedShapePath` /
