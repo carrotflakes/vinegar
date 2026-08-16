@@ -7,7 +7,10 @@ globalStyle(".layer-row.hidden .layer-name,\n.layer-row.hidden .layer-type", {
 
 globalStyle(".layers", {
   flex: "1 1 auto",
-  minHeight: "120px",
+  // Fill the dock body even when the rows do not: the space under the last row
+  // is then part of the list, which is what lets a drag drop there (bottom of
+  // the root) instead of falling outside the panel onto nothing.
+  minHeight: "100%",
   display: "flex",
   flexDirection: "column",
   // Deliberately not a scroll container: the dock body is what scrolls the
