@@ -1,10 +1,41 @@
+import { execFileSync } from "node:child_process";
+import { createRequire } from "node:module";
 import { fileURLToPath } from "node:url";
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import { vanillaExtractPlugin } from "@vanilla-extract/vite-plugin";
 import { VitePWA } from "vite-plugin-pwa";
 
+const require = createRequire(import.meta.url);
+const { version } = require("./package.json") as { version: string };
+
+/**
+ * The commit the bundle was built from, as `abc1234` (plus `-dirty` when the
+ * tree had uncommitted changes). Falls back to "unknown" wherever git is not
+ * available — a source archive, a container without the `.git` directory.
+ */
+function gitCommit(): string {
+  const git = (...args: string[]) =>
+    execFileSync("git", args, {
+      cwd: fileURLToPath(new URL(".", import.meta.url)),
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "ignore"],
+    }).trim();
+  try {
+    const head = git("rev-parse", "--short", "HEAD");
+    return git("status", "--porcelain") ? `${head}-dirty` : head;
+  } catch {
+    return "unknown";
+  }
+}
+
 export default defineConfig({
+  // Build identity, shown in Preferences → About (src/buildInfo.ts).
+  define: {
+    __APP_VERSION__: JSON.stringify(version),
+    __GIT_COMMIT__: JSON.stringify(gitCommit()),
+    __BUILD_TIME__: JSON.stringify(new Date().toISOString()),
+  },
   plugins: [
     react(),
     vanillaExtractPlugin(),

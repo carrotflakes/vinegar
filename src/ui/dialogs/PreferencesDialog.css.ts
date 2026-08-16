@@ -132,6 +132,69 @@ globalStyle(".pref-section-title", {
   textTransform: "uppercase",
 });
 
+/* --- About masthead ----------------------------------------------------- */
+
+globalStyle(".about-hero", {
+  display: "flex",
+  flexDirection: "column",
+  gap: "4px",
+  padding: "6px 0 18px",
+});
+
+globalStyle(".about-name", {
+  color: vars.text,
+  fontSize: "26px",
+  fontWeight: "600",
+  letterSpacing: "0.01em",
+  lineHeight: "1.1",
+});
+
+globalStyle(".about-version", {
+  display: "flex",
+  alignItems: "center",
+  gap: "8px",
+  color: vars.muted,
+  fontFamily: "ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
+  fontSize: "13px",
+});
+
+/* Marks a build that is not a release, so a screenshot of this panel is never
+ * mistaken for one. */
+globalStyle(".about-tag", {
+  padding: "1px 6px",
+  borderRadius: "999px",
+  background: vars.accentSoft,
+  color: vars.accent,
+  // The version beside it is monospace; the tag is a label, not data.
+  fontFamily:
+    "system-ui, -apple-system, \"Segoe UI\", Roboto, \"Helvetica Neue\", Arial, sans-serif",
+  fontSize: "11px",
+  letterSpacing: "0.04em",
+  textTransform: "uppercase",
+});
+
+/* Build identity reads as data, not prose: monospace, and selectable so it can
+ * be quoted by hand as well as through the copy button. */
+globalStyle(".pref-build-value", {
+  fontFamily: "ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
+  fontSize: "12px",
+  color: vars.text,
+  userSelect: "text",
+});
+
+globalStyle(".pref-link", {
+  display: "inline-flex",
+  alignItems: "center",
+  gap: "6px",
+  color: vars.accent,
+  fontSize: "12px",
+  textDecoration: "none",
+});
+
+globalStyle(".pref-link:hover", {
+  textDecoration: "underline",
+});
+
 globalStyle(".preferences-foot", {
   justifyContent: "space-between",
 });

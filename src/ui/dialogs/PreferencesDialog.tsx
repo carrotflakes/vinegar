@@ -1,11 +1,20 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
+  LuGithub,
+  LuInfo,
   LuPalette,
   LuPencilRuler,
   LuSave,
   LuWrench,
   LuX,
 } from "react-icons/lu";
+import {
+  BUILD_INFO,
+  REPOSITORY_URL,
+  buildReport,
+  commitUrl,
+  formatBuildTime,
+} from "../../buildInfo";
 import {
   isPositiveSafeInteger,
   isRulerOrigin,
@@ -19,6 +28,7 @@ import {
 } from "../../preferences/model";
 import { anyMenuOpen } from "../../store/menuStore";
 import { usePreferences } from "../../store/preferencesStore";
+import { notify } from "../../store/toastStore";
 import { useDock } from "../dock/dockStore";
 import "../Modal.css";
 import "./DialogForm.css";
@@ -63,6 +73,7 @@ const CATEGORIES = [
   { id: "canvas", label: "Canvas & Editing", icon: LuPencilRuler },
   { id: "files", label: "Files & Recovery", icon: LuSave },
   { id: "advanced", label: "Advanced", icon: LuWrench },
+  { id: "about", label: "About", icon: LuInfo },
 ] as const;
 
 type CategoryId = (typeof CATEGORIES)[number]["id"];
@@ -199,6 +210,14 @@ export default function PreferencesDialog({ open, onClose }: Props) {
   }, [open, onClose]);
 
   if (!open) return null;
+
+  /** Copy the build identity plus the user agent, for pasting into a report. */
+  const copyBuildInfo = () => {
+    void navigator.clipboard
+      .writeText(buildReport())
+      .then(() => notify.success("Build information copied."))
+      .catch(() => notify.error("Could not copy the build information."));
+  };
 
   const sections: Record<CategoryId, React.ReactNode> = {
     interface: (
@@ -388,6 +407,78 @@ export default function PreferencesDialog({ open, onClose }: Props) {
           </select>
         }
       />
+    ),
+    about: (
+      <>
+        {/* The app's identity is a masthead rather than a labelled row: the
+         * name and version are what the reader came for, and a "Version" label
+         * beside the number would only repeat it. */}
+        <div className="about-hero">
+          <span className="about-name">Vinegar</span>
+          <span className="about-version">
+            {BUILD_INFO.version}
+            {!BUILD_INFO.production && (
+              <span className="about-tag" title="Running from the dev server">
+                dev
+              </span>
+            )}
+          </span>
+        </div>
+        <Row
+          title="Commit"
+          description="The revision this build was made from."
+          control={
+            commitUrl() ? (
+              <a
+                className="pref-build-value pref-link"
+                href={commitUrl() ?? undefined}
+                target="_blank"
+                rel="noreferrer noopener"
+              >
+                {BUILD_INFO.commit}
+              </a>
+            ) : (
+              <span className="pref-build-value">{BUILD_INFO.commit}</span>
+            )
+          }
+        />
+        <Row
+          title="Built"
+          control={
+            <span className="pref-build-value">
+              {formatBuildTime(BUILD_INFO.builtAt)}
+            </span>
+          }
+        />
+        <Row
+          title="Repository"
+          description="Source code, releases and the issue tracker."
+          control={
+            <a
+              className="pref-link"
+              href={REPOSITORY_URL}
+              target="_blank"
+              rel="noreferrer noopener"
+            >
+              <LuGithub aria-hidden />
+              github.com/carrotflakes/vinegar
+            </a>
+          }
+        />
+        <Row
+          title="Report a problem"
+          description="Copy the version, commit, build time and browser details, then open an issue."
+          control={
+            <button
+              type="button"
+              className="preferences-button"
+              onClick={copyBuildInfo}
+            >
+              Copy build info
+            </button>
+          }
+        />
+      </>
     ),
   };
 
