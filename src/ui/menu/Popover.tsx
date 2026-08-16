@@ -57,7 +57,14 @@ export function Popover({
   });
 
   const click = useClick(context);
-  const dismiss = useDismiss(context);
+  // A popover opened *by* something in this panel (the number pad) portals to
+  // the body, so its keys would otherwise read as a press outside and close the
+  // panel that owns the field being edited.
+  const dismiss = useDismiss(context, {
+    outsidePress: (event) =>
+      !(event.target instanceof Element) ||
+      !event.target.closest("[data-nested-popover]"),
+  });
   const { getReferenceProps, getFloatingProps } = useInteractions([click, dismiss]);
 
   // Track open state so the app's global Escape handler yields to the popover.

@@ -39,7 +39,7 @@ const RATIO_MULTIPLIER: Record<ScrubModifier, number> = {
  * division reintroduces (0.30000000000000004), so only clean values are
  * committed.
  */
-function snapTo(raw: number, quantum: number): number {
+export function snapTo(raw: number, quantum: number): number {
   const snapped = Math.round(raw / quantum) * quantum;
   const decimals = (String(quantum).split(".")[1] ?? "").length;
   return Number(snapped.toFixed(decimals));

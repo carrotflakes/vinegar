@@ -80,6 +80,7 @@ test("valid v1 preferences load while unknown fields are ignored", () => {
       penDetected: false,
       showAllHandles: false,
     },
+    input: { numberPad: "auto" },
     recovery: { enabled: false, maxWaitMs: 12345 },
     history: { limit: 75 },
   });
@@ -115,9 +116,20 @@ test("invalid fields fall back independently", () => {
       penDetected: false,
       showAllHandles: false,
     },
+    input: { numberPad: "auto" },
     recovery: { enabled: true, maxWaitMs: 5000 },
     history: { limit: 100 },
   });
+});
+
+test("the number pad preference loads and falls back to auto", () => {
+  const load = (input) =>
+    parsePreferences(JSON.stringify({ version: 1, input })).input;
+
+  assert.deepEqual(load({ numberPad: "always" }), { numberPad: "always" });
+  assert.deepEqual(load({ numberPad: "never" }), { numberPad: "never" });
+  assert.deepEqual(load({ numberPad: "sometimes" }), { numberPad: "auto" });
+  assert.deepEqual(load(undefined), { numberPad: "auto" });
 });
 
 test("canvas rotation preferences load and fall back per field", () => {
@@ -235,6 +247,7 @@ test("the preference store persists complete updates and resets", () => {
       penDetected: false,
       showAllHandles: false,
     },
+    input: { numberPad: "auto" },
     recovery: { enabled: false, maxWaitMs: 12345 },
     history: { limit: 75 },
   });
@@ -246,6 +259,7 @@ test("the preference store persists complete updates and resets", () => {
     version: store.getState().version,
     general: store.getState().general,
     canvas: store.getState().canvas,
+    input: store.getState().input,
     recovery: store.getState().recovery,
     history: store.getState().history,
   }, createDefaultPreferences());
@@ -265,6 +279,7 @@ test("storage failures do not prevent in-memory preference changes", () => {
     version: store.getState().version,
     general: store.getState().general,
     canvas: store.getState().canvas,
+    input: store.getState().input,
     recovery: store.getState().recovery,
     history: store.getState().history,
   }, createDefaultPreferences());

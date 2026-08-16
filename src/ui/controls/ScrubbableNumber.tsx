@@ -1,4 +1,7 @@
-import { useRef } from "react";
+import { useRef, useState } from "react";
+import { usePreferences } from "@/store/preferencesStore";
+import { useCoarsePointer } from "@/ui/useCoarsePointer";
+import NumberPad from "./NumberPad";
 import { isScrub, scrubbedValue, type ScrubScale } from "./scrub";
 
 type Props = {
@@ -41,6 +44,13 @@ export default function ScrubbableNumber({
   "aria-label": ariaLabel,
 }: Props) {
   const inputRef = useRef<HTMLInputElement>(null);
+  const [padOpen, setPadOpen] = useState(false);
+  const numberPad = usePreferences((s) => s.input.numberPad);
+  const coarse = useCoarsePointer();
+  // "auto" is the case the pad was built for: a finger on an iPad, where the
+  // OS keyboard would shift the whole viewport.
+  const usePad =
+    !disabled && (numberPad === "always" || (numberPad === "auto" && coarse));
   // Drag bookkeeping kept in a ref so listeners see the latest without re-render.
   const drag = useRef<{
     startX: number;
@@ -96,6 +106,9 @@ export default function ScrubbableNumber({
     if (d.scrubbing) {
       inputRef.current?.releasePointerCapture(d.pointerId);
       onScrubEnd?.();
+    } else if (usePad) {
+      // A plain tap opens the pad — and taps it shut again.
+      setPadOpen((open) => !open);
     } else {
       // A plain click/tap: focus for text editing.
       inputRef.current?.focus();
@@ -113,32 +126,56 @@ export default function ScrubbableNumber({
   const onDoubleClick = () => {
     if (defaultValue == null) return;
     onChange(clamp(defaultValue));
+    setPadOpen(false);
     inputRef.current?.blur();
   };
 
   return (
-    <input
-      ref={inputRef}
-      type="number"
-      className={className}
-      // touchAction none: keep the horizontal scrub gesture from scrolling the
-      // panel and cancelling the pointer mid-drag on touch devices.
-      style={{ cursor: disabled ? "default" : "ew-resize", touchAction: "none" }}
-      disabled={disabled}
-      min={min}
-      max={max}
-      step={step}
-      value={value}
-      aria-label={ariaLabel}
-      onPointerDown={onPointerDown}
-      onPointerMove={onPointerMove}
-      onPointerUp={onPointerUp}
-      onPointerCancel={onPointerCancel}
-      onDoubleClick={onDoubleClick}
-      onChange={(e) => {
-        const v = Number(e.target.value);
-        if (Number.isFinite(v)) onChange(clamp(v));
-      }}
-    />
+    <>
+      <input
+        ref={inputRef}
+        type="number"
+        // Read-only while the pad owns entry: an editable field is what raises
+        // the software keyboard, and the pad exists to avoid it. The type stays
+        // `number` — as text the field would claim a 20-character default width
+        // and widen every panel it sits in.
+        {...(usePad ? { readOnly: true } : {})}
+        className={className}
+        // touchAction none: keep the horizontal scrub gesture from scrolling the
+        // panel and cancelling the pointer mid-drag on touch devices.
+        style={{ cursor: disabled ? "default" : "ew-resize", touchAction: "none" }}
+        disabled={disabled}
+        min={min}
+        max={max}
+        step={step}
+        value={value}
+        aria-label={ariaLabel}
+        onPointerDown={onPointerDown}
+        onPointerMove={onPointerMove}
+        onPointerUp={onPointerUp}
+        onPointerCancel={onPointerCancel}
+        onDoubleClick={onDoubleClick}
+        onChange={(e) => {
+          const v = Number(e.target.value);
+          if (Number.isFinite(v)) onChange(clamp(v));
+        }}
+      />
+      {padOpen && (
+        <NumberPad
+          anchor={inputRef.current}
+          value={value}
+          min={min}
+          max={max}
+          step={step}
+          label={ariaLabel}
+          onCommit={(v) => {
+            // One committed entry, so one undo step — never a value per keypress.
+            onChange(clamp(v));
+            setPadOpen(false);
+          }}
+          onCancel={() => setPadOpen(false)}
+        />
+      )}
+    </>
   );
 }

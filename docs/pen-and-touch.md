@@ -168,6 +168,34 @@ mapped to full pressure (`1`) at the call site. Fast strokes drain
 `getCoalescedEvents()` so sample density survives; see
 [brush-strokes.md](brush-strokes.md).
 
+## Number entry without the OS keyboard
+
+Number fields (`ScrubbableNumber`) are built for scrubbing, and a tap falls back
+to text entry — which on an iPad summons the software keyboard, shifts the whole
+viewport and hides the artwork the value belongs to. So a tap can open an in-app
+keypad instead: `NumberPad`, anchored under the field, portalled to `<body>` and
+dismissed like any other popover (`usePopoverDismiss`).
+
+- **When** is the `input.numberPad` preference (Preferences → Interface):
+  `auto` (the default — whenever the primary pointer is coarse), `always` or
+  `never`. Scrubbing, ↑/↓ and the double-click reset are unaffected in every
+  mode; only what a *plain tap* does changes.
+- While the pad owns entry the field is `readOnly`: an editable field is what
+  raises the software keyboard. It stays `type="number"` — as text it would
+  claim the browser's 20-character default width and widen every panel it sits
+  in (the zoom menu grew by 113 px).
+- The pad portals to `<body>`, above every surface a number field can live in
+  (`z-index: 300`). Popovers that *contain* number fields — the colour popover,
+  the bind menu, the AppBar `Popover` — must not read a press on its keys as an
+  outside press, so they all exempt `[data-nested-popover]` from dismissal.
+- The entry is committed **as a whole** (one `onChange`, so one undo step);
+  Cancel, Escape or an outside press leaves the value alone. A hardware keyboard
+  still types into the pad, and those keys are swallowed so they cannot reach the
+  editor's shortcuts.
+- The digit buffer is pure and tested separately (`numberPad.ts`,
+  `tests/numberPad.test.mjs`), the same split as `scrub.ts` — the component only
+  draws keys.
+
 ## Modifiers reach beyond the canvas
 
 Touch has no modifier keys, so `inputStore` carries sticky on-screen Shift/Alt

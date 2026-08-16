@@ -4,6 +4,7 @@ import {
   isPositiveSafeInteger,
   readPreferences,
   writePreferences,
+  type NumberPadPreference,
   type PreferencesStorage,
   type PreferencesV1,
   type RulerOriginPreference,
@@ -26,6 +27,7 @@ export interface PreferencesActions {
    * caller can tell the user about it.
    */
   notePenInput: () => boolean;
+  setNumberPad: (mode: NumberPadPreference) => void;
   setRecoveryEnabled: (enabled: boolean) => void;
   setRecoveryMaxWaitMs: (maxWaitMs: number) => void;
   setUndoHistoryLimit: (limit: number) => void;
@@ -40,6 +42,7 @@ function snapshot(state: PreferencesState): PreferencesV1 {
     version: state.version,
     general: state.general,
     canvas: state.canvas,
+    input: state.input,
     recovery: state.recovery,
     history: state.history,
   };
@@ -86,6 +89,7 @@ export function createPreferencesStore(storage?: PreferencesStorage) {
         });
         return autoDisabled;
       },
+      setNumberPad: (numberPad) => patch("input", { ...get().input, numberPad }),
       setRecoveryEnabled: (enabled) =>
         patch("recovery", { ...get().recovery, enabled }),
       setRecoveryMaxWaitMs: (maxWaitMs) => {

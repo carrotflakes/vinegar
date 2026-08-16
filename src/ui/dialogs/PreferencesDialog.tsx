@@ -18,10 +18,12 @@ import {
 import {
   isPositiveSafeInteger,
   isRulerOrigin,
+  NUMBER_PAD_PREFERENCES,
   RULER_ORIGINS,
   SUPPORTED_LOCALES,
   THEME_PREFERENCES,
   isUiLocale,
+  type NumberPadPreference,
   type RulerOriginPreference,
   type ThemePreference,
   type UiLocale,
@@ -52,6 +54,12 @@ const LOCALE_LABELS: Record<UiLocale, string> = {
 const RULER_ORIGIN_LABELS: Record<RulerOriginPreference, string> = {
   artboard: "Active artboard",
   world: "Document origin",
+};
+
+const NUMBER_PAD_LABELS: Record<NumberPadPreference, string> = {
+  auto: "On touch",
+  always: "Always",
+  never: "Never",
 };
 
 const RECOVERY_INTERVAL_OPTIONS = [
@@ -134,6 +142,7 @@ export default function PreferencesDialog({ open, onClose }: Props) {
   );
   const general = usePreferences((state) => state.general);
   const canvas = usePreferences((state) => state.canvas);
+  const input = usePreferences((state) => state.input);
   const recovery = usePreferences((state) => state.recovery);
   const undoHistoryLimit = usePreferences((state) => state.history.limit);
   const setTheme = usePreferences((state) => state.setTheme);
@@ -147,6 +156,7 @@ export default function PreferencesDialog({ open, onClose }: Props) {
   const setRulerOrigin = usePreferences((state) => state.setRulerOrigin);
   const setFingerDrawing = usePreferences((state) => state.setFingerDrawing);
   const setShowAllHandles = usePreferences((state) => state.setShowAllHandles);
+  const setNumberPad = usePreferences((state) => state.setNumberPad);
   const setRecoveryEnabled = usePreferences((state) => state.setRecoveryEnabled);
   const setRecoveryMaxWaitMs = usePreferences(
     (state) => state.setRecoveryMaxWaitMs
@@ -261,6 +271,27 @@ export default function PreferencesDialog({ open, onClose }: Props) {
                 </option>
               ))}
             </select>
+          }
+        />
+        <Row
+          title="Number pad"
+          description="Tap a number field to enter a value on an in-app keypad, instead of the system keyboard."
+          control={
+            <div className="pref-segmented" role="group" aria-label="Number pad">
+              {NUMBER_PAD_PREFERENCES.map((mode) => (
+                <button
+                  key={mode}
+                  type="button"
+                  className={
+                    "pref-seg" + (input.numberPad === mode ? " active" : "")
+                  }
+                  aria-pressed={input.numberPad === mode}
+                  onClick={() => setNumberPad(mode)}
+                >
+                  {NUMBER_PAD_LABELS[mode]}
+                </button>
+              ))}
+            </div>
           }
         />
       </>

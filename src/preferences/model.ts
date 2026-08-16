@@ -15,6 +15,14 @@ export type UiLocale = (typeof SUPPORTED_LOCALES)[number];
 export const RULER_ORIGINS = ["artboard", "world"] as const;
 export type RulerOriginPreference = (typeof RULER_ORIGINS)[number];
 
+/**
+ * When a number field opens the in-app number pad instead of focusing for text
+ * entry. "auto" means whenever the primary pointer is coarse — the case the pad
+ * exists for, since the OS keyboard shifts the whole viewport on an iPad.
+ */
+export const NUMBER_PAD_PREFERENCES = ["auto", "always", "never"] as const;
+export type NumberPadPreference = (typeof NUMBER_PAD_PREFERENCES)[number];
+
 export interface PreferencesV1 {
   version: typeof PREFERENCES_VERSION;
   general: {
@@ -43,6 +51,10 @@ export interface PreferencesV1 {
      * keeps unseen handles from being grabbed. See docs/anchor-types.md.
      */
     showAllHandles: boolean;
+  };
+  input: {
+    /** When tapping a number field opens the number pad. */
+    numberPad: NumberPadPreference;
   };
   recovery: {
     enabled: boolean;
@@ -79,6 +91,13 @@ export function isRulerOrigin(value: unknown): value is RulerOriginPreference {
     RULER_ORIGINS.some((origin) => origin === value);
 }
 
+export function isNumberPadPreference(
+  value: unknown
+): value is NumberPadPreference {
+  return typeof value === "string" &&
+    NUMBER_PAD_PREFERENCES.some((mode) => mode === value);
+}
+
 export function isPositiveSafeInteger(value: unknown): value is number {
   return typeof value === "number" && Number.isSafeInteger(value) && value > 0;
 }
@@ -98,6 +117,9 @@ export function createDefaultPreferences(): PreferencesV1 {
       penDetected: false,
       showAllHandles: false,
     },
+    input: {
+      numberPad: "auto",
+    },
     recovery: {
       enabled: true,
       maxWaitMs: 5000,
@@ -112,6 +134,7 @@ function validateV1(value: Record<string, unknown>): PreferencesV1 {
   const defaults = createDefaultPreferences();
   const general = isObject(value.general) ? value.general : {};
   const canvas = isObject(value.canvas) ? value.canvas : {};
+  const input = isObject(value.input) ? value.input : {};
   const recovery = isObject(value.recovery) ? value.recovery : {};
   const history = isObject(value.history) ? value.history : {};
 
@@ -144,6 +167,11 @@ function validateV1(value: Record<string, unknown>): PreferencesV1 {
       showAllHandles: typeof canvas.showAllHandles === "boolean"
         ? canvas.showAllHandles
         : defaults.canvas.showAllHandles,
+    },
+    input: {
+      numberPad: isNumberPadPreference(input.numberPad)
+        ? input.numberPad
+        : defaults.input.numberPad,
     },
     recovery: {
       enabled: typeof recovery.enabled === "boolean"

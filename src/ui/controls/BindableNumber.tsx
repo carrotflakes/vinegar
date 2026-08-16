@@ -60,7 +60,10 @@ export default function BindableNumber({
   const wrapRef = useRef<HTMLDivElement>(null);
   usePopoverDismiss(
     open,
-    (target) => !!wrapRef.current?.contains(target),
+    (target) =>
+      !!wrapRef.current?.contains(target) ||
+      // The number pad portals to <body> but belongs to the field in here.
+      (target instanceof Element && !!target.closest("[data-nested-popover]")),
     () => setOpen(false)
   );
 

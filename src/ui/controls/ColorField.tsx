@@ -227,7 +227,8 @@ export default function ColorField({
       // The popover lives in a portal, and nested picker popovers (gradient
       // stops) portal to <body> as well.
       !!refs.floating.current?.contains(t) ||
-      (t instanceof Element && !!t.closest("[data-color-popover]")),
+      (t instanceof Element &&
+        !!t.closest("[data-color-popover], [data-nested-popover]")),
     close
   );
 
