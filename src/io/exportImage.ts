@@ -15,6 +15,13 @@ export type ExportSizeMode = "scale" | "width" | "height";
 
 export type ExportFormat = "png" | "jpeg" | "webp";
 
+/**
+ * Where a finished export goes. `clipboard` and `share` depend on browser
+ * capabilities the UI probes at runtime, so a persisted value may be
+ * unavailable in the current browser and fall back to `file`.
+ */
+export type ExportOutput = "file" | "clipboard" | "asset" | "share";
+
 interface FormatInfo {
   label: string;
   mimeType: string;
@@ -36,6 +43,7 @@ export const EXPORT_FORMATS = Object.keys(FORMAT_INFO) as ExportFormat[];
 export interface ExportImageSettings {
   format: ExportFormat;
   scope: ExportScope;
+  output: ExportOutput;
   sizeMode: ExportSizeMode;
   /** Multiplier for `sizeMode === "scale"`. */
   scale: number;
@@ -53,6 +61,7 @@ export interface ExportImageSettings {
 export const DEFAULT_EXPORT_SETTINGS: ExportImageSettings = {
   format: "png",
   scope: "content",
+  output: "file",
   sizeMode: "scale",
   scale: 2,
   pixelSize: 1000,

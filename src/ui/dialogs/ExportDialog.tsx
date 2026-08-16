@@ -19,6 +19,7 @@ import {
   toPngOptions,
   type ExportFormat,
   type ExportImageSettings,
+  type ExportOutput,
   type ExportRegionContext,
   type ExportScope,
   type ExportSizeMode,
@@ -44,6 +45,28 @@ const SCOPE_LABELS: Record<ExportScope, string> = {
   selection: "Selection",
 };
 
+const OUTPUT_LABELS: Record<ExportOutput, string> = {
+  file: "File",
+  clipboard: "Clipboard",
+  asset: "Asset",
+  share: "Share",
+};
+
+/** Verb on the confirm button for each output. */
+const OUTPUT_ACTIONS: Record<ExportOutput, string> = {
+  file: "Export",
+  clipboard: "Copy",
+  asset: "Add to asset",
+  share: "Share",
+};
+
+const OUTPUT_HINTS: Record<ExportOutput, string> = {
+  file: "Download the image as a file.",
+  clipboard: "Copy the image to the system clipboard — always PNG.",
+  asset: "Keep the image inside this document as an asset.",
+  share: "Hand the image to the system share sheet.",
+};
+
 const SIZE_MODE_LABELS: Record<ExportSizeMode, string> = {
   scale: "Scale",
   width: "Width",
@@ -53,12 +76,45 @@ const SIZE_MODE_LABELS: Record<ExportSizeMode, string> = {
 // Longest preview edge, in device pixels — keeps preview rendering cheap.
 const PREVIEW_MAX_EDGE = 460;
 
+/**
+ * Whether this browser can share files at all. `navigator.share` alone is not
+ * enough — some implementations take text but refuse files — so probe with an
+ * empty stand-in file of the type we would actually send.
+ */
+function canShareFiles(): boolean {
+  if (typeof navigator.canShare !== "function") return false;
+  try {
+    return navigator.canShare({
+      files: [new File([], "export.png", { type: "image/png" })],
+    });
+  } catch {
+    return false;
+  }
+}
+
 export default function ExportDialog({ open, onClose }: Props) {
   const doc = useEditor((s) => s.doc);
   const selection = useEditor((s) => s.selection);
   const addImageAsset = useEditor((s) => s.addImageAsset);
 
   const [settings, setSettings] = useState<ExportImageSettings>(loadExportSettings);
+  // Clipboard and share are browser capabilities, not user choices: outputs the
+  // browser cannot do are dropped from the row rather than shown disabled.
+  const canShare = useMemo(canShareFiles, []);
+  const canCopy = useMemo(
+    () =>
+      typeof ClipboardItem !== "undefined" &&
+      typeof navigator.clipboard?.write === "function",
+    []
+  );
+  const outputs = useMemo(
+    () =>
+      (Object.keys(OUTPUT_LABELS) as ExportOutput[]).filter(
+        (output) =>
+          (output !== "clipboard" || canCopy) && (output !== "share" || canShare)
+      ),
+    [canCopy, canShare]
+  );
 
   // Export scope "frame" targets a lone selected frame node.
   const frame = useMemo(() => {
@@ -80,15 +136,19 @@ export default function ExportDialog({ open, onClose }: Props) {
   const scopeAvailable = (scope: ExportScope) =>
     scope === "frame" ? hasFrame : scope === "selection" ? hasSelection : true;
 
-  // On open, keep the remembered scope but fall back to Content when the stored
-  // scope has nothing to export in the current selection state.
+  // On open, keep the remembered scope and output but fall back when the stored
+  // scope has nothing to export in the current selection state, or the stored
+  // output is not something this browser can do.
   useEffect(() => {
     if (!open) return;
-    setSettings((prev) =>
-      scopeAvailable(prev.scope) ? prev : { ...prev, scope: "content" }
-    );
+    setSettings((prev) => {
+      const next = { ...prev };
+      if (!scopeAvailable(prev.scope)) next.scope = "content";
+      if (!outputs.includes(prev.output)) next.output = "file";
+      return next.scope === prev.scope && next.output === prev.output ? prev : next;
+    });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, hasFrame, hasSelection]);
+  }, [open, hasFrame, hasSelection, outputs]);
 
   // Remember settings for next time.
   useEffect(() => {
@@ -158,22 +218,74 @@ export default function ExportDialog({ open, onClose }: Props) {
 
   if (!open) return null;
 
-  const doExport = async (destination: "file" | "asset") => {
+  // Copying an image to the system clipboard is PNG-only in every browser that
+  // supports it, so the chosen lossy format does not apply to this path.
+  const doCopy = () => {
+    if (!bounds || !canExport) return;
+    const opts = toPngOptions(settings, bounds, frame);
+    // The ClipboardItem must be constructed synchronously inside the click
+    // handler (Safari drops the user gesture across an await), so hand it the
+    // pending blob rather than an awaited one.
+    const blob = exportPng(doc, { ...opts, mimeType: "image/png", quality: undefined });
+    navigator.clipboard
+      .write([new ClipboardItem({ "image/png": blob })])
+      .then(() => {
+        notify.success("Copied the image to the clipboard.");
+        onClose();
+      })
+      .catch((err: unknown) => {
+        notify.error(err instanceof Error ? err.message : String(err));
+      });
+  };
+
+  // Human-readable base name per scope; drives the asset name, the (slugified)
+  // download filename and the shared file's name.
+  const exportBaseName = () =>
+    settings.scope === "frame" && frame
+      ? frame.name
+      : settings.scope === "selection"
+      ? (selection.length === 1
+          ? doc.nodes[selection[0]]?.name ?? "Selection"
+          : "Selection")
+      : doc.metadata.name || "Drawing";
+
+  /**
+   * Hand the image to the OS share sheet — the natural "save" on iPadOS/Android,
+   * where a download link has no usable destination picker. `share()` cannot take
+   * a pending blob, so rendering has to finish first; when that costs the user
+   * gesture the browser rejects with NotAllowedError and we fall back to a
+   * download rather than leaving the user with nothing.
+   */
+  const doShare = async (blob: Blob, baseName: string): Promise<boolean> => {
+    const filename = exportFilename(settings, fileSlug(baseName));
+    const file = new File([blob], filename, {
+      type: FORMAT_INFO[settings.format].mimeType,
+    });
+    if (!navigator.canShare?.({ files: [file] })) {
+      downloadBlob(blob, filename);
+      return true;
+    }
+    try {
+      await navigator.share({ files: [file], title: baseName });
+      return true;
+    } catch (err) {
+      // Dismissing the sheet is not a failure — keep the dialog open.
+      if (err instanceof DOMException && err.name === "AbortError") return false;
+      downloadBlob(blob, filename);
+      notify.info("Sharing was unavailable — downloaded the file instead.");
+      return true;
+    }
+  };
+
+  const doExport = async (destination: Exclude<ExportOutput, "clipboard">) => {
     if (!bounds || !canExport) return;
     try {
       const blob = await exportPng(doc, toPngOptions(settings, bounds, frame));
-      // Human-readable base name per scope; drives both the asset name and the
-      // (slugified) download filename.
-      const baseName =
-        settings.scope === "frame" && frame
-          ? frame.name
-          : settings.scope === "selection"
-          ? (selection.length === 1
-              ? doc.nodes[selection[0]]?.name ?? "Selection"
-              : "Selection")
-          : doc.metadata.name || "Drawing";
+      const baseName = exportBaseName();
       if (destination === "asset") {
         await addImageAsset(blob, baseName, FORMAT_INFO[settings.format].mimeType);
+      } else if (destination === "share") {
+        if (!(await doShare(blob, baseName))) return;
       } else {
         downloadBlob(blob, exportFilename(settings, fileSlug(baseName)));
       }
@@ -181,6 +293,13 @@ export default function ExportDialog({ open, onClose }: Props) {
     } catch (err) {
       notify.error(err instanceof Error ? err.message : String(err));
     }
+  };
+
+  // The clipboard path stays synchronous up to the ClipboardItem, so it cannot
+  // share doExport's await-then-dispatch shape.
+  const confirm = () => {
+    if (settings.output === "clipboard") doCopy();
+    else void doExport(settings.output);
   };
 
   return (
@@ -305,13 +424,7 @@ export default function ExportDialog({ open, onClose }: Props) {
                   aria-label="Pixel size"
                 />
               )}
-            </div>
-          </div>
-
-          {settings.sizeMode === "scale" && (
-            <div className="pref-row">
-              <div className="pref-text" />
-              <div className="pref-control">
+              {settings.sizeMode === "scale" && (
                 <div className="pref-segmented" role="group" aria-label="Scale presets">
                   {SCALE_PRESETS.map((preset) => (
                     <button
@@ -327,9 +440,9 @@ export default function ExportDialog({ open, onClose }: Props) {
                     </button>
                   ))}
                 </div>
-              </div>
+              )}
             </div>
-          )}
+          </div>
 
           <div className="pref-row">
             <div className="pref-text">
@@ -387,37 +500,45 @@ export default function ExportDialog({ open, onClose }: Props) {
               </div>
             </div>
           )}
+
+          {/* Last row: the destination sits next to the button that acts on it. */}
+          <div className="pref-row">
+            <div className="pref-text">
+              <span className="pref-title">Output</span>
+            </div>
+            <div className="pref-control">
+              <div className="pref-segmented" role="group" aria-label="Output">
+                {outputs.map((output) => (
+                  <button
+                    key={output}
+                    type="button"
+                    className={
+                      "pref-seg" + (settings.output === output ? " active" : "")
+                    }
+                    aria-pressed={settings.output === output}
+                    title={OUTPUT_HINTS[output]}
+                    onClick={() => update({ output })}
+                  >
+                    {OUTPUT_LABELS[output]}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
         </div>
 
         <div className="modal-foot">
           <span className={"export-dims" + (tooLarge ? " over" : "")}>
             {dims ? `${dims.width} × ${dims.height} px` : ""}
           </span>
-          <div style={{ display: "flex", gap: "8px" }}>
-            <button
-              type="button"
-              className="preferences-button"
-              onClick={onClose}
-            >
-              Cancel
-            </button>
-            <button
-              type="button"
-              className="preferences-button"
-              disabled={!canExport}
-              onClick={() => doExport("asset")}
-            >
-              Add to asset
-            </button>
-            <button
-              type="button"
-              className="preferences-button primary"
-              disabled={!canExport}
-              onClick={() => doExport("file")}
-            >
-              Export
-            </button>
-          </div>
+          <button
+            type="button"
+            className="preferences-button primary"
+            disabled={!canExport}
+            onClick={confirm}
+          >
+            {OUTPUT_ACTIONS[settings.output]}
+          </button>
         </div>
       </div>
     </div>

@@ -2,16 +2,50 @@ import { globalStyle } from "@vanilla-extract/css";
 import { vars } from "../../styles/theme.css";
 
 globalStyle(".export-modal", {
-  width: "min(440px, calc(100vw - 32px))",
+  width: "min(520px, calc(100vw - 32px))",
 });
 
 globalStyle(".export-body", {
   display: "flex",
   flexDirection: "column",
-  gap: "18px",
+  gap: "10px",
   padding: "16px",
   maxHeight: "min(76vh, 640px)",
   overflowY: "auto",
+});
+
+/* The preview is the one element worth extra air. */
+globalStyle(".export-body .export-preview", {
+  marginBottom: "6px",
+});
+
+/* Controls stay on one line where they fit and wrap under their own label
+ * where they do not, instead of squeezing the label column to nothing. */
+/* Narrow viewports (phones, an iPad in split view): give every control the
+ * full width under its label rather than a cramped right-hand column. */
+globalStyle(".export-modal .pref-row", {
+  flexWrap: "wrap",
+  "@media": {
+    "(max-width: 480px)": {
+      alignItems: "flex-start",
+      flexDirection: "column",
+      gap: "6px",
+    },
+  },
+});
+
+globalStyle(".export-modal .pref-control", {
+  display: "flex",
+  flexWrap: "wrap",
+  justifyContent: "flex-end",
+  gap: "8px",
+  marginLeft: "auto",
+  "@media": {
+    "(max-width: 480px)": {
+      justifyContent: "flex-start",
+      marginLeft: "0",
+    },
+  },
 });
 
 /* --- Preview ------------------------------------------------------------ */
