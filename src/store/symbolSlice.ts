@@ -4,7 +4,7 @@
 // root group while a symbol is open. See docs/focus.md.
 
 import { symbolContentBounds } from "@/model/geometry/bounds";
-import { hasValidSceneContainers } from "../model/sceneValidation";
+import { acceptsScene } from "./sceneGuard";
 import { IDENTITY, translation as translationMatrix } from "@/model/geometry/matrix";
 import {
   ancestorIds,
@@ -76,7 +76,7 @@ export function createSymbolActions({ set, get, transact }: StoreCtx): SymbolAct
         symbols: { ...doc.symbols, [symbolId]: { id: symbolId, name, rootNodeId: rootId } },
       };
       next = replaceChildren(next, parent, rest);
-      if (!hasValidSceneContainers(next)) return;
+      if (!acceptsScene(next)) return;
       transact(next, { label: "Create symbol" }); set({ selection: [instId], ...clearTransient });
     },
     placeSymbolInstance: (symbolId, at) => {

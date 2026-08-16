@@ -26,7 +26,7 @@ import {
   convertBrushToOutlinePath,
   convertPathToBrush,
 } from "@/model/brush/convertBrush";
-import { hasValidSceneContainers } from "../model/sceneValidation";
+import { acceptsScene } from "./sceneGuard";
 import { IDENTITY, multiply } from "@/model/geometry/matrix";
 import { strokeOutline } from "@/model/path/outlineStroke";
 import { ringsToSubpaths } from "@/model/path/path";
@@ -157,7 +157,7 @@ export function createShapeOpsActions({ set, get, transact }: StoreCtx): ShapeOp
       parent,
       collapseSiblings(siblings, new Set(op.consumed), ordered, op.resultId)
     );
-    if (!hasValidSceneContainers(next)) return;
+    if (!acceptsScene(next)) return;
     transact(next, { label: op.label });
     set({ selection: [op.resultId], ...clearTransient });
     if (effectsRemoved) notifyEffectsRemoved();
@@ -173,7 +173,7 @@ export function createShapeOpsActions({ set, get, transact }: StoreCtx): ShapeOp
     label: string,
     effectsRemoved = false
   ): void => {
-    if (!selection.length || !hasValidSceneContainers(doc)) return;
+    if (!selection.length || !acceptsScene(doc)) return;
     transact(doc, { label });
     set({ selection, ...clearTransient });
     if (effectsRemoved) notifyEffectsRemoved();
@@ -200,7 +200,7 @@ export function createShapeOpsActions({ set, get, transact }: StoreCtx): ShapeOp
         }
       }
       const next = { ...doc, nodes };
-      if (!hasValidSceneContainers(next)) return;
+      if (!acceptsScene(next)) return;
       transact(next, {
         label: convertible.length === 1 ? "Convert to path" : "Convert to paths",
       });
@@ -254,7 +254,7 @@ export function createShapeOpsActions({ set, get, transact }: StoreCtx): ShapeOp
       }
       if (!converted) return;
       const next = { ...doc, nodes };
-      if (!hasValidSceneContainers(next)) return;
+      if (!acceptsScene(next)) return;
       transact(next, {
         label: converted === 1 ? "Convert to outline path" : "Convert to outline paths",
       });

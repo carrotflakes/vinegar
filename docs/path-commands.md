@@ -117,8 +117,16 @@ lost there.
 
 | Check | Runs | Catches |
 | --- | --- | --- |
-| `hasValidSceneContainers` (`model/sceneValidation.ts`) | structural ops call it before `transact`, and bail out if it fails | frames below the top level, non-areal or empty compound children, and (via `hasValidClippingMasks`) a clip group whose frontmost child cannot be a mask |
+| `acceptsScene` (`store/sceneGuard.ts`, over `sceneContainerViolation`) | structural ops call it before `transact`, and bail out if it fails; `transact` itself calls it too | frames below the top level, non-areal or empty compound children, and (via `hasValidClippingMasks`) a clip group whose frontmost child cannot be a mask |
 | `validateTree` (`io/serialize.ts`) | save / load | missing children, cycles, multiple or missing ownership |
+
+A rejected edit simply does nothing, which from inside a slice is
+indistinguishable from a bug. `acceptsScene` is where that silence is broken:
+with **developer mode** on (Preferences → Advanced) it raises a toast and a
+console warning naming the invariant that failed, and carries the offending
+document. A caller that already explains the refusal in its own words (the
+layer-move catch-all in `structureSlice`) passes `{ toast: false }`, keeping the
+console detail without a second toast.
 
 None of them catch a **still-valid but wrong** rewrite: a mask that got replaced
 by a different silhouette, or a demoted mask piece that is now painted content.

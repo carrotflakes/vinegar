@@ -3,7 +3,7 @@
 // generatorSlice, and image assets in assetSlice.
 
 import { expandBounds, instanceWorldBounds, intersectBounds, shapeBounds, worldShapeBounds } from "@/model/geometry/bounds";
-import { hasValidSceneContainers } from "../model/sceneValidation";
+import { acceptsScene } from "./sceneGuard";
 import { eraseBrush } from "@/model/brush/eraser";
 import { applyMatrix, applyWorldTransformToNode, boundsTransform, IDENTITY, invertMatrix, isIdentity, multiply, nodeWorldMatrix, shapeWorldMatrix, translation as translationMatrix } from "@/model/geometry/matrix";
 import { isMarkable } from "@/model/marker";
@@ -175,7 +175,7 @@ export function createShapeActions({ set, get, transact, replaceDocumentWithoutH
       transact(next, { label: "Erase brush strokes" });
       set({ selection: get().selection.filter((id) => next.nodes[id]), ...clearTransient });
     },
-    updateShape: (shape, select = true) => { const doc = get().doc; if (!isShape(doc.nodes[shape.id])) return; const next = { ...doc, nodes: { ...doc.nodes, [shape.id]: shape } }; if (!hasValidSceneContainers(next)) return; transact(next, { label: "Edit shape" }); if (select) set({ selection: [shape.id], ...clearTransient }); },
+    updateShape: (shape, select = true) => { const doc = get().doc; if (!isShape(doc.nodes[shape.id])) return; const next = { ...doc, nodes: { ...doc.nodes, [shape.id]: shape } }; if (!acceptsScene(next)) return; transact(next, { label: "Edit shape" }); if (select) set({ selection: [shape.id], ...clearTransient }); },
     updateTextShape: (id, patch) => {
       const doc = get().doc; const shape = doc.nodes[id];
       if (!isShape(shape) || shape.type !== "text") return;

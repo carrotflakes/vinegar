@@ -5,7 +5,7 @@
 import { createEmptyDocument, type Document } from "../model/types";
 import { syncParamBindings } from "../model/params";
 import { canMeasureText, remeasureDocumentText } from "../canvas/textLayout";
-import { hasValidSceneContainers } from "../model/sceneValidation";
+import { acceptsScene } from "./sceneGuard";
 import {
   isGroup,
   isNodeHidden,
@@ -226,7 +226,8 @@ export function createHistory(set: StoreSet, get: StoreGet): HistorySlice {
     // drift between `doc.params` and the fields they drive impossible — no
     // slice has to remember to re-resolve after touching a bound node.
     const next = syncParamBindings(input);
-    if (next === state.doc || !hasValidSceneContainers(next)) return;
+    if (next === state.doc) return;
+    if (!acceptsScene(next, label ?? "transact")) return;
     if (state._interaction) { resetCoalesce(); finishInteraction(); state = get(); }
     const now = Date.now(), last = state.history.past[state.history.past.length - 1];
     if (key && key === coalesceKey && coalesceBase && last?.afterRevision === coalesceAfterRevision && now - coalesceTime < 600) {
@@ -251,7 +252,7 @@ export function createHistory(set: StoreSet, get: StoreGet): HistorySlice {
     resetCoalesce();
     const next = syncParamBindings(input);
     const state = get();
-    if (next === state.doc || !hasValidSceneContainers(next)) { if (additionalState.gridSize !== undefined) set(additionalState); return; }
+    if (next === state.doc || !acceptsScene(next, "replaceDocumentWithoutHistory")) { if (additionalState.gridSize !== undefined) set(additionalState); return; }
     const maintenancePatches = diffDocument(state.doc, next).patches;
     let interaction = state._interaction;
     let revision: DocumentRevision;

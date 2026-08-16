@@ -2,24 +2,36 @@ import { hasValidClippingMasks } from "./clippingMask";
 import { isCompoundChild } from "@/model/path/compoundPath";
 import type { Document } from "./types";
 
-/** Whether every hierarchy-owning node preserves its structural invariant. */
-export function hasValidSceneContainers(doc: Document): boolean {
+/**
+ * Which structural invariant a document breaks, as a short phrase, or null when
+ * it holds up. Only the first violation found is named — this exists so a
+ * rejected edit can say *why* it was rejected (see `acceptsScene`), not to
+ * enumerate the damage.
+ */
+export function sceneContainerViolation(doc: Document): string | null {
   // Frames live only at the top level (never inside a group/symbol/other frame),
   // so no node's childIds may reference a frame. See docs/document-model.md.
-  const framesOnlyAtRoot = Object.values(doc.nodes).every(
+  const nestedFrame = Object.values(doc.nodes).some(
     (node) =>
-      node.type !== "group" && node.type !== "frame" && node.type !== "compoundPath"
-        ? true
-        : node.childIds.every((id) => doc.nodes[id]?.type !== "frame")
+      (node.type === "group" || node.type === "frame" ||
+        node.type === "compoundPath") &&
+      node.childIds.some((id) => doc.nodes[id]?.type === "frame")
   );
-  return framesOnlyAtRoot &&
-    hasValidClippingMasks(doc) &&
-    Object.values(doc.nodes).every(
-      (node) =>
-        node.type !== "compoundPath" ||
-        (node.childIds.length > 0 &&
-          node.childIds.every((id) => isCompoundChild(doc.nodes[id])))
-    );
+  if (nestedFrame) return "a frame is nested inside another container";
+  if (!hasValidClippingMasks(doc)) return "a clipping mask is malformed";
+  const badCompound = Object.values(doc.nodes).some(
+    (node) =>
+      node.type === "compoundPath" &&
+      (node.childIds.length === 0 ||
+        !node.childIds.every((id) => isCompoundChild(doc.nodes[id])))
+  );
+  if (badCompound) return "a compound path is empty or holds a non-path child";
+  return null;
+}
+
+/** Whether every hierarchy-owning node preserves its structural invariant. */
+export function hasValidSceneContainers(doc: Document): boolean {
+  return sceneContainerViolation(doc) === null;
 }
 
 /**

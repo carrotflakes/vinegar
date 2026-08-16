@@ -10,7 +10,7 @@ import {
   canReleaseClippingMaskSelection,
   isClippingGroup,
 } from "../model/clippingMask";
-import { hasValidSceneContainers } from "../model/sceneValidation";
+import { acceptsScene } from "./sceneGuard";
 import {
   applyMatrix,
   applyWorldTransformToNode,
@@ -129,7 +129,7 @@ export function createStructureActions({ set, get, transact }: StoreCtx): Struct
       }
       doc = replaceChildren(doc, parent, ids);
     }
-    if (!hasValidSceneContainers(doc)) return;
+    if (!acceptsScene(doc)) return;
     transact(doc, {
       label: forward ? "Bring forward" : "Send backward",
       coalesceKey: "layer-reorder",
@@ -198,7 +198,7 @@ export function createStructureActions({ set, get, transact }: StoreCtx): Struct
       const roots = selectionRoots(doc, get().selection);
       if (!roots.length) return;
       const next = removeRoots(doc, roots);
-      if (!hasValidSceneContainers(next)) return;
+      if (!acceptsScene(next)) return;
       transact(next, {
         label: roots.length === 1 ? "Delete shape" : `Delete ${roots.length} shapes`,
       });
@@ -217,7 +217,7 @@ export function createStructureActions({ set, get, transact }: StoreCtx): Struct
           ...ids.filter((id) => selected.has(id)),
         ]);
       }
-      if (!hasValidSceneContainers(doc)) return;
+      if (!acceptsScene(doc)) return;
       transact(doc, { label: "Bring to front" });
     },
     sendToBack: () => {
@@ -233,7 +233,7 @@ export function createStructureActions({ set, get, transact }: StoreCtx): Struct
           ...ids.filter((id) => !selected.has(id)),
         ]);
       }
-      if (!hasValidSceneContainers(doc)) return;
+      if (!acceptsScene(doc)) return;
       transact(doc, { label: "Send to back" });
     },
     // One-slot reorder, per parent. `childIds` is canonical back-to-front, so
@@ -249,7 +249,7 @@ export function createStructureActions({ set, get, transact }: StoreCtx): Struct
       const parent = parentIdOf(doc, roots[0]); if (!roots.every((id) => parentIdOf(doc, id) === parent)) return;
       const selected = new Set(roots); const siblings = childIdsOf(doc, parent); const members = siblings.filter((id) => selected.has(id)); const insert = siblings.indexOf(members[members.length - 1]); const rest = siblings.filter((id) => !selected.has(id)); const below = siblings.slice(0, insert).filter((id) => !selected.has(id)).length;
       const id = makeId("group"); rest.splice(below, 0, id);
-      let next = { ...doc, nodes: { ...doc.nodes, [id]: groupNode(id, members) } }; next = replaceChildren(next, parent, rest); if (!hasValidSceneContainers(next)) return; transact(next, { label: "Group selection" }); set({ selection: [id], ...clearTransient });
+      let next = { ...doc, nodes: { ...doc.nodes, [id]: groupNode(id, members) } }; next = replaceChildren(next, parent, rest); if (!acceptsScene(next)) return; transact(next, { label: "Group selection" }); set({ selection: [id], ...clearTransient });
     },
     ungroupSelected: () => {
       const state = get();
@@ -258,7 +258,7 @@ export function createStructureActions({ set, get, transact }: StoreCtx): Struct
         state.doc,
         roots
       );
-      if (!result.selected.length || !hasValidSceneContainers(result.doc)) return;
+      if (!result.selected.length || !acceptsScene(result.doc)) return;
       transact(result.doc, { label: "Ungroup selection" });
       set({
         selection: result.selected,
@@ -298,7 +298,7 @@ export function createStructureActions({ set, get, transact }: StoreCtx): Struct
         },
       };
       next = replaceChildren(next, parent, rest);
-      if (!hasValidSceneContainers(next)) return;
+      if (!acceptsScene(next)) return;
       transact(next, { label: "Make clipping mask" });
       set({ selection: [id], ...clearTransient });
     },
@@ -310,7 +310,7 @@ export function createStructureActions({ set, get, transact }: StoreCtx): Struct
         isClippingGroup(doc.nodes[id])
       );
       const result = releaseGroups(doc, roots);
-      if (!result.selected.length || !hasValidSceneContainers(result.doc)) return;
+      if (!result.selected.length || !acceptsScene(result.doc)) return;
       transact(result.doc, { label: "Release clipping mask" });
       set({
         selection: result.selected,
@@ -433,7 +433,9 @@ export function createStructureActions({ set, get, transact }: StoreCtx): Struct
         },
       };
 
-      if (!hasValidSceneContainers(next)) {
+      // The catch-all behind the specific refusals above: the message stays
+      // deliberately vague, so the guard still logs which invariant broke.
+      if (!acceptsScene(next, "Move layer", { toast: false })) {
         notify.error("That move would create an invalid scene container.");
         return;
       }

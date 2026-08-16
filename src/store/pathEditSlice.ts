@@ -16,7 +16,7 @@ import {
   scaleBrushAnchorWidths,
   setBrushAnchorWidths,
 } from "@/model/brush/brushWidth";
-import { hasValidSceneContainers } from "../model/sceneValidation";
+import { acceptsScene } from "./sceneGuard";
 import { isShape, selectionRoots } from "../model/scene";
 import type { AnchorType, PathModifier } from "../model/types";
 import { removeRoots } from "./docOps";
@@ -197,7 +197,7 @@ export function createPathEditActions({ set, get, transact }: StoreCtx): PathEdi
       if (!changed) return;
       let next = { ...doc, nodes };
       if (emptied.length > 0) next = removeRoots(next, emptied);
-      if (!hasValidSceneContainers(next)) return;
+      if (!acceptsScene(next)) return;
       transact(next, { label: "Delete path node" });
       // Keeping a neighbour selected lets Delete be pressed repeatedly to walk
       // back along a path, and stops the next press from falling through to
@@ -240,7 +240,7 @@ export function createPathEditActions({ set, get, transact }: StoreCtx): PathEdi
         changed = true;
       }
       const next = { ...doc, nodes };
-      if (changed && hasValidSceneContainers(next)) {
+      if (changed && acceptsScene(next)) {
         transact(next, { label: closed ? "Close path" : "Open path" });
       }
     },
@@ -271,7 +271,7 @@ export function createPathEditActions({ set, get, transact }: StoreCtx): PathEdi
         }
       }
       const next = { ...doc, nodes };
-      if (changed && hasValidSceneContainers(next)) transact(next, { label: PATH_OP_LABEL[op] });
+      if (changed && acceptsScene(next)) transact(next, { label: PATH_OP_LABEL[op] });
     },
     setPathModifiers: (id, modifiers, bindings) => {
       const doc = get().doc;
@@ -317,7 +317,7 @@ export function createPathEditActions({ set, get, transact }: StoreCtx): PathEdi
         changed = true;
       }
       const next = { ...doc, nodes };
-      if (changed && hasValidSceneContainers(next)) {
+      if (changed && acceptsScene(next)) {
         transact(next, { label: "Apply path modifiers" });
       }
     },

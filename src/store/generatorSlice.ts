@@ -4,7 +4,7 @@
 import { buildGenerator, compileGenerator, type CompileResult } from "@/model/generators/generatorClient";
 import { GENERATORS, defaultArgs, type ScriptMeta } from "@/model/generators/generators";
 import { solid } from "../model/paint";
-import { hasValidSceneContainers } from "../model/sceneValidation";
+import { acceptsScene } from "./sceneGuard";
 import { isShape } from "../model/scene";
 import { baseNodeDefaults, baseShapeDefaults, makeId, type PathShape, type Vec2 } from "../model/types";
 import { appendToScope, removeRoots } from "./docOps";
@@ -111,7 +111,7 @@ export function createGeneratorActions({ set, get, transact }: StoreCtx): Genera
       for (const shape of updated) if (!del.has(shape.id) && isShape(nodes[shape.id])) nodes[shape.id] = shape;
       for (const shape of created) nodes[shape.id] = shape;
       doc = { ...doc, nodes, rootIds: [...doc.rootIds, ...created.map((s) => s.id)] };
-      if (!hasValidSceneContainers(doc)) return;
+      if (!acceptsScene(doc)) return;
       transact(doc, { label: "Run script" }); set({ selection: [...updated.filter((s) => !del.has(s.id)).map((s) => s.id), ...created.map((s) => s.id)], ...clearTransient });
     },
     insertGenerator: (generatorId, at, previewArgs) => {
