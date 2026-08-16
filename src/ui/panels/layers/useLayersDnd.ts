@@ -13,6 +13,24 @@ interface Drag {
   ids: string[];
 }
 
+/**
+ * A row's own swipe callbacks. The swipe opens that row's context menu, whose
+ * entries only the row knows how to build, so the row hands them to the gesture
+ * rather than the panel routing the swipe back down.
+ */
+export interface RowSwipe {
+  /** Live rightward offset, 0 once the gesture ends. */
+  onMove: (dx: number) => void;
+  /** Released past the trigger distance, at the release point. */
+  onOpen: (x: number, y: number) => void;
+}
+
+/** What one row's pointer gesture carries: a drag payload plus its swipe. */
+interface RowGesture {
+  ids: string[];
+  swipe: RowSwipe;
+}
+
 export interface Drop {
   parent: string | null;
   index: number;
@@ -48,7 +66,13 @@ interface Options {
 export interface LayersDnd {
   dragging: boolean;
   drop: Drop | null;
-  rowDnd: (id: string, row: Row, flat: number, gid?: string) => RowDndProps;
+  rowDnd: (
+    id: string,
+    row: Row,
+    flat: number,
+    swipe: RowSwipe,
+    gid?: string
+  ) => RowDndProps;
 }
 
 export function useLayersDnd({
@@ -134,12 +158,16 @@ export function useLayersDnd({
   useEffect(() => stopEdgeScroll, []);
 
   // Pointer-based row drag (mouse + touch). Touch begins on a long-press so a
-  // quick swipe still scrolls the list. The drop target is hit-tested from the
-  // row under the pointer via its data attributes, mirroring the middle-third
-  // "into group" and before/after logic the old dragover used.
-  const startRowDrag = useTouchDrag<Drag>({
+  // quick swipe still scrolls the list, and a rightward swipe opens the row's
+  // context menu — touch has no right-click and long-press is spoken for. The
+  // drop target is hit-tested from the row under the pointer via its data
+  // attributes, mirroring the middle-third "into group" and before/after logic
+  // the old dragover used.
+  const startRowDrag = useTouchDrag<RowGesture>({
+    onSwipeMove: (d, dx) => d.swipe.onMove(dx),
+    onSwipe: (d, p) => d.swipe.onOpen(p.x, p.y),
     onStart: (d) => {
-      setDrag(d);
+      setDrag({ ids: d.ids });
       startEdgeScroll();
     },
     onMove: (d, { y, target }) => {
@@ -193,7 +221,7 @@ export function useLayersDnd({
   return {
     dragging: drag !== null,
     drop,
-    rowDnd: (id, row, flat, gid) => ({
+    rowDnd: (id, row, flat, swipe, gid) => ({
       "data-row-id": id,
       "data-row-flat": flat,
       "data-row-parent": row.parent ?? "",
@@ -202,7 +230,8 @@ export function useLayersDnd({
       onPointerDown:
         editing === id
           ? undefined
-          : (e: PointerEvent) => startRowDrag(e, { ids: draggedIds(id) }),
+          : (e: PointerEvent) =>
+              startRowDrag(e, { ids: draggedIds(id), swipe }),
     }),
   };
 }

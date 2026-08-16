@@ -121,8 +121,9 @@ export default function LayersPanel() {
    *
    * Shift comes from `readModifiers`, so the on-screen Shift toggle counts as
    * well: that is the only way to reach a range on touch, where every gesture a
-   * row could use is already spoken for (tap selects, long-press drags, swipe
-   * scrolls, double-tap renames). See canvas/ModifierBar.tsx.
+   * row could use is already spoken for (tap selects, long-press drags, a
+   * vertical swipe scrolls, a rightward swipe opens the row's context menu).
+   * See canvas/ModifierBar.tsx.
    */
   const rowClick = (id: string, e: React.MouseEvent) => {
     const { shift } = readModifiers(e);

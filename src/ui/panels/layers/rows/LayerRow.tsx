@@ -1,19 +1,26 @@
 // One row of the Layers panel. Every kind of node renders through here; what
 // makes a group a group and an instance an instance is in rowSpec.ts.
 
+import { useRef, useState } from "react";
 import {
   LuChevronDown,
   LuChevronRight,
+  LuEllipsisVertical,
   LuEye,
   LuEyeOff,
   LuLock,
   LuLockOpen,
 } from "react-icons/lu";
-import { openContextMenu } from "@/store/menuStore";
+import { openContextMenu, type MenuEntry } from "@/store/menuStore";
 import { selectionMenu } from "../../../menus";
 import type { Row } from "../tree";
 import type { LayerRowCtx } from "./rowContext";
+import { SWIPE_TRIGGER } from "../../../useTouchDrag";
 import { rowSpec } from "./rowSpec";
+
+// How far the row follows the finger. No shorter than the trigger distance, so
+// a row held at the stop always reads as "release me".
+const SWIPE_MAX = 28;
 
 const stateButtonClass = (isSet: boolean) =>
   `layer-icon-btn layer-state-btn ${isSet ? "state-set" : "state-idle"}`;
@@ -60,8 +67,36 @@ export function LayerRow({
   const showLabel = `${hidden ? "Show" : "Hide"}${stateSuffix}`;
   const lockLabel = `${locked ? "Unlock" : "Lock"}${stateSuffix}`;
 
+  // How far a touch swipe has pulled the row right; 0 whenever none is live.
+  const [swipeDx, setSwipeDx] = useState(0);
+  const rowRef = useRef<HTMLDivElement | null>(null);
+
+  const menuEntries = (): MenuEntry[] => [
+    { label: "Rename", onSelect: () => ctx.setEditing(id) },
+    ...spec.menuBefore,
+    { label: showLabel, onSelect: () => ctx.toggleHidden(id) },
+    { label: lockLabel, onSelect: () => ctx.toggleLocked(id) },
+    "separator",
+    ...selectionMenu(),
+  ];
+
+  // A menu acts on the selection, so a row menued from outside it takes over.
+  const openRowMenu = (x: number, y: number) => {
+    if (!ctx.selection.includes(id)) ctx.selectIds([id], false);
+    openContextMenu(x, y, menuEntries());
+  };
+
+  const swipe = {
+    onMove: (dx: number) => setSwipeDx(Math.min(dx, SWIPE_MAX)),
+    // Drop the menu below the row rather than at the release point: on touch
+    // the finger is sitting exactly there.
+    onOpen: (x: number, y: number) =>
+      openRowMenu(x, rowRef.current?.getBoundingClientRect().bottom ?? y),
+  };
+
   return (
     <div
+      ref={rowRef}
       id={`layer-row-${id}`}
       role="treeitem"
       aria-selected={ctx.selection.includes(id)}
@@ -73,27 +108,37 @@ export function LayerRow({
         (ctx.cursor === id ? " cursor" : "") +
         (ctx.selection.includes(id) ? " selected" : "") +
         (hidden || row.dim ? " hidden" : "") +
-        (ctx.dropInside === id && isCollapsed ? " drop-inside" : "")
+        (ctx.dropInside === id && isCollapsed ? " drop-inside" : "") +
+        (swipeDx > 0 ? " swiping" : "")
       }
       title={spec.title}
-      style={{ paddingLeft: 6 + row.depth * 16 }}
+      style={{
+        paddingLeft: 6 + row.depth * 16,
+        ...(swipeDx > 0 ? { transform: `translateX(${swipeDx}px)` } : null),
+      }}
       {...ctx.hoverProps(id)}
-      {...ctx.rowDnd(id, row, flat, spec.dropTarget)}
+      {...ctx.rowDnd(id, row, flat, swipe, spec.dropTarget)}
       onClick={(e) => ctx.rowClick(id, e)}
       onDoubleClick={spec.onDoubleClick}
       onContextMenu={(e) => {
         e.preventDefault();
-        if (!ctx.selection.includes(id)) ctx.selectIds([id], false);
-        openContextMenu(e.clientX, e.clientY, [
-          { label: "Rename", onSelect: () => ctx.setEditing(id) },
-          ...spec.menuBefore,
-          { label: showLabel, onSelect: () => ctx.toggleHidden(id) },
-          { label: lockLabel, onSelect: () => ctx.toggleLocked(id) },
-          "separator",
-          ...selectionMenu(),
-        ]);
+        openRowMenu(e.clientX, e.clientY);
       }}
     >
+      {/* Follows the finger out from under the row, so a swipe that stops short
+          still shows what it was about to do, and lights up once far enough
+          that releasing would open the menu. */}
+      {swipeDx > 0 && (
+        <span
+          className={
+            "layer-swipe-hint" + (swipeDx >= SWIPE_TRIGGER ? " armed" : "")
+          }
+          style={{ opacity: Math.min(1, swipeDx / SWIPE_TRIGGER) }}
+          aria-hidden
+        >
+          <LuEllipsisVertical />
+        </span>
+      )}
       {spec.chevron && (
         <button
           className="layer-icon-btn layer-chevron"

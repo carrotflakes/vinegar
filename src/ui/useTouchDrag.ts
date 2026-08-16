@@ -20,6 +20,14 @@ export interface TouchDragOptions<T> {
   capture?: boolean;
   /** Called once when the drag actually begins. */
   onStart?: (payload: T, p: DragPoint) => void;
+  /**
+   * Touch only: how far the finger has travelled right while a swipe is live,
+   * and 0 once the gesture ends. Lets the caller follow the finger. Defining
+   * either swipe callback is what enables the gesture at all.
+   */
+  onSwipeMove?: (payload: T, dx: number) => void;
+  /** Touch only: a rightward swipe released past the trigger distance. */
+  onSwipe?: (payload: T, p: DragPoint) => void;
   /** Called on every move while dragging. */
   onMove: (payload: T, p: DragPoint) => void;
   /** Released over a valid target. */
@@ -33,6 +41,15 @@ const MOUSE_THRESHOLD = 4;
 // Fingers wobble; only cancel a pending long-press once it clearly pans away.
 const TOUCH_TOLERANCE = 10;
 const DEFAULT_LONG_PRESS = 250;
+/**
+ * How far a swipe must travel before releasing counts as one. Short enough to
+ * stay a flick, long enough that a wobble on the way to a long-press is not it.
+ * Exported so a surface following the finger can show when it is armed.
+ */
+export const SWIPE_TRIGGER = 24;
+// iOS reads a rightward drag that starts at the screen edge as "go back", so a
+// gesture starting there is left to the browser.
+const SCREEN_EDGE = 24;
 
 interface Active<T> {
   payload: T;
@@ -41,6 +58,8 @@ interface Active<T> {
   startY: number;
   touch: boolean;
   dragging: boolean;
+  /** A rightward swipe has claimed the gesture; it can no longer become a drag. */
+  swiping: boolean;
   timer: number | null;
   el: Element;
   captured: boolean;
@@ -63,10 +82,11 @@ function createHandler<T>(opts: { current: TouchDragOptions<T> }) {
     window.removeEventListener("click", swallowClick, true);
   };
 
-  // Block native scrolling only while a touch drag is live; before that the list
-  // stays free to pan, which is why draggable rows keep touch-action: auto.
+  // Block native scrolling only while a touch drag or swipe is live; before that
+  // the list stays free to pan, which is why draggable rows keep touch-action
+  // vertical (`pan-y`) rather than none.
   const blockScroll = (e: TouchEvent) => {
-    if (active?.dragging) e.preventDefault();
+    if (active?.dragging || active?.swiping) e.preventDefault();
   };
 
   const teardown = () => {
@@ -106,15 +126,39 @@ function createHandler<T>(opts: { current: TouchDragOptions<T> }) {
     opts.current.onStart?.(active.payload, p);
   };
 
+  const beginSwipe = (dx: number) => {
+    if (!active) return;
+    active.swiping = true;
+    if (active.timer != null) {
+      clearTimeout(active.timer);
+      active.timer = null;
+    }
+    window.addEventListener("touchmove", blockScroll, { passive: false });
+    opts.current.onSwipeMove?.(active.payload, dx);
+  };
+
   function onMove(e: PointerEvent) {
     if (!active || e.pointerId !== active.pointerId) return;
     if (!active.dragging) {
       const dx = Math.abs(e.clientX - active.startX);
       const dy = Math.abs(e.clientY - active.startY);
       if (active.touch) {
-        // Panning away before the long-press fires means the user meant to
-        // scroll — release the gesture back to the browser.
-        if (dx > TOUCH_TOLERANCE || dy > TOUCH_TOLERANCE) teardown();
+        if (active.swiping) {
+          opts.current.onSwipeMove?.(active.payload, e.clientX - active.startX);
+          return;
+        }
+        // The same distance that would hand a pan back to the browser is where
+        // the axis is decided: rightward and horizontal becomes a swipe, and
+        // anything else means the user meant to scroll.
+        if (dx <= TOUCH_TOLERANCE && dy <= TOUCH_TOLERANCE) return;
+        const swipeable =
+          !!(opts.current.onSwipe ?? opts.current.onSwipeMove) &&
+          active.startX > SCREEN_EDGE;
+        if (swipeable && dx > dy && e.clientX > active.startX) {
+          beginSwipe(e.clientX - active.startX);
+          return;
+        }
+        teardown();
         return;
       }
       const threshold = opts.current.threshold ?? MOUSE_THRESHOLD;
@@ -128,6 +172,19 @@ function createHandler<T>(opts: { current: TouchDragOptions<T> }) {
     if (!active || e.pointerId !== active.pointerId) return;
     const { payload, dragging } = active;
     const p = point(e);
+    if (active.swiping) {
+      const dx = e.clientX - active.startX;
+      teardown();
+      opts.current.onSwipeMove?.(payload, 0);
+      if (dx >= SWIPE_TRIGGER) {
+        // The row springs back rather than staying open, so the tap that ended
+        // the swipe must not also select whatever it landed on.
+        window.addEventListener("click", swallowClick, true);
+        setTimeout(() => window.removeEventListener("click", swallowClick, true), 350);
+        opts.current.onSwipe?.(payload, p);
+      }
+      return;
+    }
     if (dragging) {
       window.addEventListener("click", swallowClick, true);
       // If no click follows (e.g. touch), stop swallowing a later real one.
@@ -139,8 +196,9 @@ function createHandler<T>(opts: { current: TouchDragOptions<T> }) {
 
   function onPointerCancel(e: PointerEvent) {
     if (!active || e.pointerId !== active.pointerId) return;
-    const { payload, dragging } = active;
+    const { payload, dragging, swiping } = active;
     teardown();
+    if (swiping) opts.current.onSwipeMove?.(payload, 0);
     if (dragging) opts.current.onCancel?.(payload);
   }
 
@@ -155,6 +213,7 @@ function createHandler<T>(opts: { current: TouchDragOptions<T> }) {
       startY: e.clientY,
       touch,
       dragging: false,
+      swiping: false,
       timer: null,
       el: e.currentTarget as Element,
       captured: false,
@@ -177,6 +236,9 @@ function createHandler<T>(opts: { current: TouchDragOptions<T> }) {
  * Pointer-based dragging that works for mouse and touch alike, replacing HTML5
  * drag-and-drop (which never fires from touch). Mouse drags start on movement;
  * touch drags start on a long-press so a quick swipe still scrolls the list.
+ *
+ * A touch can also be claimed by a rightward swipe instead (`onSwipe`), which
+ * gives touch-only surfaces a gesture for what the mouse reaches by right-click.
  *
  * Returns a `startDrag(event, payload)` to call from a draggable element's
  * `onPointerDown`. During the drag the callbacks receive that payload plus the

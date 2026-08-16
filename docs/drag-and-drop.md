@@ -28,6 +28,18 @@ Activation differs by input so a drag never steals a scroll:
   gesture back to the browser. While a touch drag is live the hook blocks native
   scrolling with a non-passive `touchmove` listener.
 
+A touch can be claimed by a **rightward swipe** instead, if the caller passes
+`onSwipe`/`onSwipeMove`. The axis is decided at the same distance that would
+otherwise release the gesture to the browser: horizontal and rightward becomes a
+swipe (which can no longer become a drag), anything else stays a scroll. The
+row follows the finger via `onSwipeMove`, and `onSwipe` fires on release past
+~24 px — the trailing click is swallowed, as after a drag. This is how touch
+reaches what the mouse reaches by right-click: the Layers rows open their
+context menu with it, since long-press is already the reorder drag. A surface
+using it must set `touch-action: pan-y`, or iOS reads the swipe as a navigation
+gesture; swipes starting within 24 px of the screen edge are ignored for the
+same reason.
+
 Drop targets are hit-tested from the element under the pointer
 (`document.elementFromPoint` → `closest('[data-…]')`), not from per-element
 `dragover` handlers. So a new drop zone must:

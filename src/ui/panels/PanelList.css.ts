@@ -31,6 +31,10 @@ globalStyle(".title-add", {
 globalStyle(".layers-list", {
   flex: "1",
   overflowY: "auto",
+  // A row swiped right would otherwise count as horizontal overflow and give
+  // the list a scrollbar; clipping it is also what hides the swipe hint until
+  // the row has actually moved.
+  overflowX: "hidden",
   padding: "0 6px 8px",
 });
 
@@ -57,6 +61,7 @@ globalStyle(".layers-empty", {
 });
 
 globalStyle(".layer-row", {
+  position: "relative",
   display: "flex",
   alignItems: "center",
   gap: "4px",
@@ -64,6 +69,31 @@ globalStyle(".layer-row", {
   borderRadius: "7px",
   cursor: "default",
   userSelect: "none",
+  // Vertical panning stays the browser's; the horizontal axis is the row's own
+  // swipe-to-menu gesture, which iOS would otherwise read as a navigation.
+  touchAction: "pan-y",
+});
+
+// The row springs back once the finger lifts, but follows it 1:1 while the
+// swipe is live — a transition there would lag behind the finger.
+globalStyle(".layer-row:not(.swiping)", {
+  transition: "transform 140ms ease-out",
+});
+
+globalStyle(".layer-swipe-hint", {
+  position: "absolute",
+  right: "100%",
+  display: "inline-flex",
+  alignItems: "center",
+  justifyContent: "center",
+  width: "24px",
+  color: vars.muted,
+  pointerEvents: "none",
+});
+
+// Past the trigger distance: releasing now opens the menu.
+globalStyle(".layer-swipe-hint.armed", {
+  color: vars.accent,
 });
 
 globalStyle(".generator-row:not(.disabled)", {

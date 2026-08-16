@@ -3,7 +3,7 @@
 
 import type { MouseEvent, PointerEvent } from "react";
 import type { Document } from "@/model/types";
-import type { RowDndProps } from "../useLayersDnd";
+import type { RowDndProps, RowSwipe } from "../useLayersDnd";
 import type { Row } from "../tree";
 
 export interface HoverProps {
@@ -31,5 +31,11 @@ export interface LayerRowCtx {
   selectIds: (ids: string[], additive: boolean) => void;
   rowClick: (id: string, e: MouseEvent) => void;
   hoverProps: (id: string) => HoverProps;
-  rowDnd: (id: string, row: Row, flat: number, gid?: string) => RowDndProps;
+  rowDnd: (
+    id: string,
+    row: Row,
+    flat: number,
+    swipe: RowSwipe,
+    gid?: string
+  ) => RowDndProps;
 }
