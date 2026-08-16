@@ -9,6 +9,7 @@ import { importSvg } from "@/io/importSvg";
 import { isOwnCopy, payloadFromSvg, svgTextFromClipboard } from "@/io/systemClipboard";
 import type { Vec2 } from "@/model/types";
 import { useEditor } from "@/store/editorStore";
+import { notify } from "@/store/toastStore";
 import { pasteForeignPayload, placeImagesFitted, placeSvgFitted } from "./canvasPlacement";
 
 /** Shown when a paste arrives but nothing in it can become artwork. */
@@ -20,16 +21,34 @@ export interface ClipboardContent {
   images: File[];
   /** SVG markup — our own copy, another tab's, or foreign art. */
   svg: string | null;
-  /** A file was present that we could not turn into either of the above. */
+  /** An SVG file: the same vector art, still to be read off the file. */
+  svgFile: File | null;
+  /** A file was present that we could not turn into any of the above. */
   unusableFile: boolean;
+}
+
+/** Whether a file is SVG — vector art to paste, not a raster image to place. */
+function isSvgFile(file: File): boolean {
+  return file.type === "image/svg+xml" || (!file.type && /\.svgz?$/i.test(file.name));
 }
 
 /** Read a paste event's payload. Synchronous: `clipboardData` dies with the event. */
 export function clipboardContentFromEvent(e: ClipboardEvent): ClipboardContent {
   const data = e.clipboardData;
-  const images = imageFilesFromData(data);
+  const files = imageFilesFromData(data);
+  // An SVG on the clipboard is artwork we can edit, so it is imported as
+  // vectors rather than embedded as an image — the same choice the async read
+  // makes, and the same one the file picker deliberately does not (placing an
+  // SVG *file* as an image asset stays available there).
+  const images = files.filter((f) => !isSvgFile(f));
   const svg = svgTextFromClipboard(data);
-  return { images, svg, unusableFile: hasFileData(data) && !images.length && !svg };
+  const svgFile = svg ? null : (files.find(isSvgFile) ?? null);
+  return {
+    images,
+    svg,
+    svgFile,
+    unusableFile: hasFileData(data) && !images.length && !svg && !svgFile,
+  };
 }
 
 /** Whether the async clipboard can be read at all (Safari/Chrome yes, Firefox no). */
@@ -117,32 +136,53 @@ export async function readSystemClipboard(): Promise<ClipboardContent | null> {
       }
     }
   }
-  return { images, svg, unusableFile: sawFile && !images.length && !svg };
+  return { images, svg, svgFile: null, unusableFile: sawFile && !images.length && !svg };
+}
+
+/**
+ * Bring SVG markup in. Our own copy in this tab pastes from memory for full
+ * fidelity; a copy from another tab restores the payload embedded in the SVG;
+ * anything else (or a payload this document can't take) comes in as plain
+ * vector geometry.
+ */
+function pasteSvgMarkup(svg: string, name: string, at?: Vec2): void {
+  const s = useEditor.getState();
+  if (s.clipboard && isOwnCopy(svg)) {
+    s.paste(at);
+    return;
+  }
+  const payload = payloadFromSvg(svg);
+  if (!payload || !pasteForeignPayload(payload, at)) {
+    placeSvgFitted(importSvg(svg, name), at);
+  }
 }
 
 /**
  * Apply clipboard content to the document. Images win over markup (a copied
- * screenshot also carries an HTML wrapper), and our own copy restores from the
- * in-memory clipboard for full fidelity. Returns false when nothing landed.
+ * screenshot also carries an HTML wrapper). Returns false when nothing landed —
+ * note that a `true` for an image or an SVG file only means the work started,
+ * since reading those is asynchronous.
  */
 export function pasteClipboardContent(content: ClipboardContent, at?: Vec2): boolean {
   if (content.images.length) {
     void placeImagesFitted(content.images, at);
     return true;
   }
-  const s = useEditor.getState();
   if (content.svg) {
-    // Our own copy in this tab pastes from memory for full fidelity; a copy
-    // from another tab restores the payload embedded in the SVG; anything else
-    // (or a payload this document can't take) comes in as plain vector geometry.
-    if (s.clipboard && isOwnCopy(content.svg)) s.paste(at);
-    else {
-      const payload = payloadFromSvg(content.svg);
-      if (!payload || !pasteForeignPayload(payload, at)) {
-        placeSvgFitted(importSvg(content.svg, "Pasted SVG"), at);
-      }
-    }
+    pasteSvgMarkup(content.svg, "Pasted SVG", at);
     return true;
   }
-  return s.clipboard ? s.paste(at) : false;
+  const svgFile = content.svgFile;
+  if (svgFile) {
+    void svgFile.text().then((markup) => {
+      // Not markup after all (a compressed .svgz, a mislabelled file).
+      if (!/<svg[\s>]/i.test(markup)) {
+        notify.error(NOTHING_TO_PASTE);
+        return;
+      }
+      pasteSvgMarkup(markup, svgFile.name.replace(/\.svgz?$/i, "") || "Pasted SVG", at);
+    });
+    return true;
+  }
+  return useEditor.getState().paste(at);
 }

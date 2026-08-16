@@ -4,13 +4,13 @@ import { createServer } from "vite";
 
 let server;
 let canReadSystemClipboard;
+let clipboardContentFromEvent;
 let readSystemClipboard;
 
 before(async () => {
   server = await createServer({ server: { middlewareMode: true } });
-  ({ canReadSystemClipboard, readSystemClipboard } = await server.ssrLoadModule(
-    "/src/commands/pasteClipboard.ts"
-  ));
+  ({ canReadSystemClipboard, clipboardContentFromEvent, readSystemClipboard } =
+    await server.ssrLoadModule("/src/commands/pasteClipboard.ts"));
 });
 
 after(async () => {
@@ -44,6 +44,41 @@ beforeEach(() => {
     value: originalNavigator,
     configurable: true,
   });
+});
+
+/** Minimal paste-event stand-in carrying the given files. */
+const pasteEvent = (files) => ({
+  clipboardData: {
+    items: files.map((f) => ({ kind: "file", getAsFile: () => f })),
+    files,
+    types: files.length ? ["Files"] : [],
+    getData: () => "",
+  },
+});
+
+test("an SVG file on the clipboard is vector art, not an image to place", () => {
+  const svgFile = new File(["<svg></svg>"], "logo.svg", { type: "image/svg+xml" });
+  const content = clipboardContentFromEvent(pasteEvent([svgFile]));
+  assert.deepEqual(content.images, []);
+  assert.equal(content.svgFile, svgFile);
+  assert.equal(content.unusableFile, false);
+});
+
+test("a raster file on the clipboard stays an image", () => {
+  const png = new File(["\x89PNG"], "shot.png", { type: "image/png" });
+  const content = clipboardContentFromEvent(pasteEvent([png]));
+  assert.deepEqual(content.images, [png]);
+  assert.equal(content.svgFile, null);
+});
+
+test("markup on the clipboard wins over an SVG file", () => {
+  const svgFile = new File(["<svg></svg>"], "logo.svg", { type: "image/svg+xml" });
+  const event = pasteEvent([svgFile]);
+  event.clipboardData.getData = (type) =>
+    type === "text/plain" ? '<svg id="from-text"></svg>' : "";
+  const content = clipboardContentFromEvent(event);
+  assert.equal(content.svg, '<svg id="from-text"></svg>');
+  assert.equal(content.svgFile, null);
 });
 
 test("no async clipboard means no read", async () => {
