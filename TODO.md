@@ -26,6 +26,17 @@ additional effects, or other feature expansion.
 ## Mobile / touch
 - [ ] On-screen alternatives for the remaining keyboard-only actions (delete, copy/paste, group)
       — the pen's draft bar (Done / Close / Undo / Discard) is done
+- [ ] NumberPad の詰め（docs/pen-and-touch.md）。実機 iPad での確認は別途
+  - [ ] ＋/− が `scale="log"` に追随しない。zoom は倍率スクラブなのに ±1% 刻みで、
+    6400% で ＋を押すと 6401%。`ScrubScale` をパッドまで渡す
+  - [ ] フォーカス管理がない。`role="dialog"` なのに Tab で外へ抜ける。
+    `FloatingFocusManager` で囲うか、`role` を落として単なるポップオーバー扱いにするか
+  - [ ] 単位（`%` / `°`）がヘッダーに出ない。`aria-label` しか手掛かりがない
+  - [ ] min/max のクランプが無言。超過入力を赤くするか、丸めたことを伝える
+  - [ ] `defaultValue` に届かない。ダブルクリックのリセットはパッド利用時ほぼ死ぬので、
+    `defaultValue` を持つフィールドには Default キーを出す
+  - [ ] 式入力（`120*2`、`64+8`）。`numberPadValue` を式パーサに差し替えて `=` キー1つ
+  - [ ] 同じポップオーバー枠を数値以外へ転用（HEX 用の 0-9 A-F パッド、`HexInput.tsx`）
 
 ## Backlog / ideas
 
@@ -274,3 +285,4 @@ additional effects, or other feature expansion.
 - [x] パネルのタイトルバーを全パネルで sticky に（`.layers-title` → `.panel-title`)
 - [ ] Layers 以外のパネル行にもコンテキストメニュー（Assets / Symbols /
   Global colors / Generators）。タッチの右スワイプは useTouchDrag 側にあるので流用できる
+- [ ] 色弱シミュレーション
