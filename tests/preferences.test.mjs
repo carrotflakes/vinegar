@@ -83,6 +83,7 @@ test("valid v1 preferences load while unknown fields are ignored", () => {
     input: { numberPad: "auto" },
     recovery: { enabled: false, maxWaitMs: 12345 },
     history: { limit: 75 },
+    advanced: { developerMode: false },
   });
 });
 
@@ -119,6 +120,7 @@ test("invalid fields fall back independently", () => {
     input: { numberPad: "auto" },
     recovery: { enabled: true, maxWaitMs: 5000 },
     history: { limit: 100 },
+    advanced: { developerMode: false },
   });
 });
 
@@ -130,6 +132,21 @@ test("the number pad preference loads and falls back to auto", () => {
   assert.deepEqual(load({ numberPad: "never" }), { numberPad: "never" });
   assert.deepEqual(load({ numberPad: "sometimes" }), { numberPad: "auto" });
   assert.deepEqual(load(undefined), { numberPad: "auto" });
+});
+
+test("developer mode is off unless it was explicitly persisted", () => {
+  const load = (advanced) =>
+    parsePreferences(JSON.stringify({ version: 1, advanced })).advanced;
+
+  assert.deepEqual(load({ developerMode: true }), { developerMode: true });
+  assert.deepEqual(load({ developerMode: "yes" }), { developerMode: false });
+  assert.deepEqual(load(undefined), { developerMode: false });
+
+  const fake = makeStorage();
+  const store = createPreferencesStore(fake.storage);
+  store.getState().setDeveloperMode(true);
+  assert.equal(store.getState().advanced.developerMode, true);
+  assert.deepEqual(JSON.parse(fake.value).advanced, { developerMode: true });
 });
 
 test("canvas rotation preferences load and fall back per field", () => {
@@ -250,6 +267,7 @@ test("the preference store persists complete updates and resets", () => {
     input: { numberPad: "auto" },
     recovery: { enabled: false, maxWaitMs: 12345 },
     history: { limit: 75 },
+    advanced: { developerMode: false },
   });
   assert.equal(fake.writes.length, 4);
 
@@ -262,6 +280,7 @@ test("the preference store persists complete updates and resets", () => {
     input: store.getState().input,
     recovery: store.getState().recovery,
     history: store.getState().history,
+    advanced: store.getState().advanced,
   }, createDefaultPreferences());
 });
 
@@ -282,6 +301,7 @@ test("storage failures do not prevent in-memory preference changes", () => {
     input: store.getState().input,
     recovery: store.getState().recovery,
     history: store.getState().history,
+    advanced: store.getState().advanced,
   }, createDefaultPreferences());
   assert.doesNotThrow(() => store.getState().setTheme("dark"));
   assert.equal(store.getState().general.theme, "dark");

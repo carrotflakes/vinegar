@@ -145,6 +145,7 @@ export default function PreferencesDialog({ open, onClose }: Props) {
   const input = usePreferences((state) => state.input);
   const recovery = usePreferences((state) => state.recovery);
   const undoHistoryLimit = usePreferences((state) => state.history.limit);
+  const advanced = usePreferences((state) => state.advanced);
   const setTheme = usePreferences((state) => state.setTheme);
   const setLocale = usePreferences((state) => state.setLocale);
   const setCanvasRotationEnabled = usePreferences(
@@ -164,6 +165,7 @@ export default function PreferencesDialog({ open, onClose }: Props) {
   const setUndoHistoryLimit = usePreferences(
     (state) => state.setUndoHistoryLimit
   );
+  const setDeveloperMode = usePreferences((state) => state.setDeveloperMode);
   const resetPreferences = usePreferences((state) => state.resetPreferences);
   const resetLayout = useDock((state) => state.resetLayout);
 
@@ -411,33 +413,46 @@ export default function PreferencesDialog({ open, onClose }: Props) {
       </>
     ),
     advanced: (
-      <Row
-        title="Undo history limit"
-        description="Maximum number of undo and redo steps kept in memory."
-        control={
-          <select
-            className="pref-select"
-            value={undoHistoryLimit}
-            onChange={(event) => {
-              const limit = Number(event.target.value);
-              if (isPositiveSafeInteger(limit)) setUndoHistoryLimit(limit);
-            }}
-          >
-            {!UNDO_HISTORY_LIMIT_OPTIONS.some(
-              (option) => option.value === undoHistoryLimit
-            ) && (
-              <option value={undoHistoryLimit}>
-                {undoHistoryLimit} steps (custom)
-              </option>
-            )}
-            {UNDO_HISTORY_LIMIT_OPTIONS.map((option) => (
-              <option key={option.value} value={option.value}>
-                {option.label}
-              </option>
-            ))}
-          </select>
-        }
-      />
+      <>
+        <Row
+          title="Undo history limit"
+          description="Maximum number of undo and redo steps kept in memory."
+          control={
+            <select
+              className="pref-select"
+              value={undoHistoryLimit}
+              onChange={(event) => {
+                const limit = Number(event.target.value);
+                if (isPositiveSafeInteger(limit)) setUndoHistoryLimit(limit);
+              }}
+            >
+              {!UNDO_HISTORY_LIMIT_OPTIONS.some(
+                (option) => option.value === undoHistoryLimit
+              ) && (
+                <option value={undoHistoryLimit}>
+                  {undoHistoryLimit} steps (custom)
+                </option>
+              )}
+              {UNDO_HISTORY_LIMIT_OPTIONS.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+          }
+        />
+        <Row
+          title="Developer mode"
+          description="Show the store inspector in the app bar and on each history entry. It dumps the raw editor state, for debugging."
+          control={
+            <Switch
+              label="Developer mode"
+              checked={advanced.developerMode}
+              onChange={setDeveloperMode}
+            />
+          }
+        />
+      </>
     ),
     about: (
       <>

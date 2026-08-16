@@ -63,6 +63,15 @@ export interface PreferencesV1 {
   history: {
     limit: number;
   };
+  advanced: {
+    /**
+     * Reveal the developer-facing UI — currently the store inspector, reached
+     * from the app bar and from each history entry. Off by default: the
+     * inspector dumps the raw editor store, which is a debugging aid rather
+     * than something a drawing user can act on.
+     */
+    developerMode: boolean;
+  };
 }
 
 export interface PreferencesStorage {
@@ -127,6 +136,9 @@ export function createDefaultPreferences(): PreferencesV1 {
     history: {
       limit: 100,
     },
+    advanced: {
+      developerMode: false,
+    },
   };
 }
 
@@ -137,6 +149,7 @@ function validateV1(value: Record<string, unknown>): PreferencesV1 {
   const input = isObject(value.input) ? value.input : {};
   const recovery = isObject(value.recovery) ? value.recovery : {};
   const history = isObject(value.history) ? value.history : {};
+  const advanced = isObject(value.advanced) ? value.advanced : {};
 
   return {
     version: PREFERENCES_VERSION,
@@ -185,6 +198,11 @@ function validateV1(value: Record<string, unknown>): PreferencesV1 {
       limit: isPositiveSafeInteger(history.limit)
         ? history.limit
         : defaults.history.limit,
+    },
+    advanced: {
+      developerMode: typeof advanced.developerMode === "boolean"
+        ? advanced.developerMode
+        : defaults.advanced.developerMode,
     },
   };
 }

@@ -31,6 +31,7 @@ export interface PreferencesActions {
   setRecoveryEnabled: (enabled: boolean) => void;
   setRecoveryMaxWaitMs: (maxWaitMs: number) => void;
   setUndoHistoryLimit: (limit: number) => void;
+  setDeveloperMode: (enabled: boolean) => void;
   resetPreferences: () => void;
 }
 
@@ -45,6 +46,7 @@ function snapshot(state: PreferencesState): PreferencesV1 {
     input: state.input,
     recovery: state.recovery,
     history: state.history,
+    advanced: state.advanced,
   };
 }
 
@@ -100,6 +102,8 @@ export function createPreferencesStore(storage?: PreferencesStorage) {
         if (!isPositiveSafeInteger(limit)) return;
         patch("history", { limit });
       },
+      setDeveloperMode: (developerMode) =>
+        patch("advanced", { ...get().advanced, developerMode }),
       resetPreferences: () => commit(createDefaultPreferences()),
     };
   });
