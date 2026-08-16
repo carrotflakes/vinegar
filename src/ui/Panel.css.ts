@@ -34,6 +34,52 @@ globalStyle(".section-title", {
   letterSpacing: "0.04em",
 });
 
+/* A panel's own title bar (as opposed to `.section-title`, which titles one
+   block inside a body). It stays put while the body scrolls past: the title
+   says which panel you are looking at and carries its actions, both needed
+   most in a long list — exactly when they would otherwise be scrolled away.
+   The dock body is what scrolls, so this sticks to that. */
+globalStyle(".panel-title", {
+  position: "sticky",
+  top: "0",
+  zIndex: "1",
+  background: vars.panel,
+  padding: "12px 14px 6px",
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "space-between",
+  gap: "8px",
+});
+
+/* Wrapper for a title bar that has something below it which must not scroll
+   away from it either (Layers' focus breadcrumb, Generators' trust banner):
+   the block sticks as a whole, and the title's own rule is then a no-op
+   inside it. Panels whose title bar stands alone don't need this. */
+globalStyle(".panel-header", {
+  position: "sticky",
+  top: "0",
+  zIndex: "1",
+  background: vars.panel,
+});
+
+/* Trailing title action (e.g. Swatches' "add"): don't let the 22px button
+   inflate the title row past its plain-text height in other panels. */
+globalStyle(".title-add", {
+  flex: "none",
+  marginBlock: "-6px",
+});
+
+/* Several trailing actions: they keep the title's plain-text height the same
+   way `title-add` does, but stay grouped at the end rather than being spread
+   out by the title's space-between. */
+globalStyle(".title-actions", {
+  flex: "none",
+  display: "flex",
+  alignItems: "center",
+  gap: "2px",
+  marginBlock: "-6px",
+});
+
 globalStyle(".field", {
   display: "flex",
   flexDirection: "column",

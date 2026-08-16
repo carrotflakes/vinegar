@@ -19,42 +19,6 @@ globalStyle(".layers", {
   overflow: "visible",
 });
 
-// The title and the focus breadcrumb stay put while the rows scroll past: the
-// panel's actions, and which container the tree is showing, are needed most in
-// a long list — exactly when they would otherwise be scrolled away.
-globalStyle(".layers-header", {
-  position: "sticky",
-  top: "0",
-  zIndex: "1",
-  background: vars.panel,
-});
-
-globalStyle(".layers-title", {
-  padding: "12px 14px 6px",
-  display: "flex",
-  alignItems: "center",
-  justifyContent: "space-between",
-  gap: "8px",
-});
-
-/* Trailing header action (e.g. Swatches' "add"): don't let the 22px button
-   inflate the title row past its plain-text height in other panels. */
-globalStyle(".title-add", {
-  flex: "none",
-  marginBlock: "-6px",
-});
-
-/* Several trailing actions: they keep the title's plain-text height the same
-   way `title-add` does, but stay grouped at the end rather than being spread
-   out by the title's space-between. */
-globalStyle(".title-actions", {
-  flex: "none",
-  display: "flex",
-  alignItems: "center",
-  gap: "2px",
-  marginBlock: "-6px",
-});
-
 globalStyle(".layers-list", {
   flex: "1",
   overflowY: "auto",

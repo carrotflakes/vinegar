@@ -14,7 +14,9 @@ globalStyle(".num", {
 });
 
 /* Identity row at the top of the properties panel: what is selected, and its
- * name. Tighter than a normal section — it is a caption, not a control group. */
+ * name. Tighter than a normal section — it is a caption, not a control group.
+ * Deliberately not sticky like the other panels' title bars: with the name
+ * field it is tall enough that pinning it would eat the scrolled body. */
 globalStyle(".section.selection-header", {
   gap: "8px",
   paddingBlock: "10px",

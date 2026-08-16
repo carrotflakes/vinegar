@@ -37,7 +37,7 @@ export default function ParamsPanel() {
 
   return (
     <div className="symbols-panel">
-      <div className="section-title layers-title">
+      <div className="section-title panel-title">
         <span>Parameters</span>
         <button
           className="layer-icon-btn title-add"

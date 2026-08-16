@@ -50,7 +50,7 @@ export default function HistoryPanel() {
 
   return (
     <div className="layers">
-      <div className="section-title layers-title">
+      <div className="section-title panel-title">
         <span>History</span>
       </div>
       <div className="layers-list">

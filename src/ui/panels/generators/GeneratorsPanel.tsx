@@ -41,26 +41,30 @@ export default function GeneratorsPanel() {
 
   return (
     <div className="layers">
-      <div className="section-title layers-title">
-        Generators
-        <button
-          className="layer-icon-btn title-add"
-          title="New generator"
-          onClick={createNew}
-        >
-          <LuFilePlus />
-        </button>
-      </div>
+      {/* The trust banner travels with the title: it is the reason none of the
+          rows below it do anything, so it must not scroll away from them. */}
+      <div className="panel-header">
+        <div className="section-title panel-title">
+          Generators
+          <button
+            className="layer-icon-btn title-add"
+            title="New generator"
+            onClick={createNew}
+          >
+            <LuFilePlus />
+          </button>
+        </div>
 
-      {!trusted && (
-        <button
-          className="layers-scope"
-          onClick={trustScripts}
-          title="Run this document's generators"
-        >
-          Generators disabled — enable
-        </button>
-      )}
+        {!trusted && (
+          <button
+            className="layers-scope"
+            onClick={trustScripts}
+            title="Run this document's generators"
+          >
+            Generators disabled — enable
+          </button>
+        )}
+      </div>
 
       <div className="layers-list">
         {list.length === 0 ? (

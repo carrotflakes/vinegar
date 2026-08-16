@@ -322,8 +322,8 @@ export default function LayersPanel() {
     <div className={"layers" + (dnd.dragging ? " dragging" : "")}>
       {/* Title and scope travel together: it is the dock body that scrolls the
           panel, so they are one sticky block rather than two. */}
-      <div className="layers-header">
-        <div className="section-title layers-title">
+      <div className="panel-header">
+        <div className="section-title panel-title">
           Layers
           <div className="title-actions">
             <button
