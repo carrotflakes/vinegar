@@ -19,26 +19,14 @@ import { useLayersView } from "@/store/layersViewStore";
 import { readModifiers } from "@/store/inputStore";
 import type { MenuEntry } from "@/store/menuStore";
 import { DropdownMenu } from "@/ui/menu/Menu";
-import {
-  containerIds,
-  filterTree,
-  flattenRows,
-  rangeIds,
-  searchMatcher,
-  toDisplayTree,
-  visibleIds,
-  ROW_INDENT,
-  ROW_PAD,
-} from "./tree";
+import { rangeIds, visibleIds, ROW_INDENT, ROW_PAD } from "./tree";
+import { layersView, listKeyAction, searchKeyAction } from "./view";
 import { useLayersDnd } from "./useLayersDnd";
 import { useRowWindow } from "./useRowWindow";
 import { LayerRow } from "./rows/LayerRow";
 import type { LayerRowCtx } from "./rows/rowContext";
 import "../../Panel.css";
 import "../PanelList.css";
-
-/** Stand-in fold state for the filtered list, which shows every row it keeps. */
-const NO_FOLDS: Set<string> = new Set();
 
 export default function LayersPanel() {
   // Freeze the tree during a canvas drag: `_interaction.before` is the stable
@@ -88,21 +76,16 @@ export default function LayersPanel() {
   // Inside a focus scope the panel shows that container's tree; a drop at the
   // panel root then targets the focused container, not the scene.
   const scopeParent = scope;
-  const fullRoots = toDisplayTree(doc, scopeRootIds(doc, scope));
 
-  // A search replaces the tree with the matches and the containers above them.
-  // Folds are ignored while it is on: a hit inside a container the user had
-  // folded shut is exactly what the search is for, and re-opening every such
-  // container would leave the document unfolded once the search closes.
-  const query = search?.trim() ?? "";
-  const filtering = query !== "";
-  const matches = searchMatcher(doc, query);
-  const roots = filtering ? filterTree(fullRoots, matches) : fullRoots;
-  const folds = filtering ? NO_FOLDS : collapsed;
-  const rows = flattenRows(roots, folds);
-  const hitCount = filtering
-    ? rows.filter((row) => matches(row.node)).length
-    : 0;
+  // Everything the panel shows, derived in view.ts so it can be tested without
+  // rendering the component.
+  const { query, filtering, roots, rows, folds, foldable, hitCount, firstHit } =
+    layersView({
+      doc,
+      rootIds: scopeRootIds(doc, scope),
+      search,
+      collapsed,
+    });
 
   const { listRef, rowsRef, scrollerRef, rowHeight, windowed, first, last } =
     useRowWindow(rows.length);
@@ -186,46 +169,37 @@ export default function LayersPanel() {
     if (editing !== null) return; // a rename input owns the keyboard
     const order = visibleIds(roots, folds);
     const at = cursor ?? rangeStart();
-    const index = at ? order.indexOf(at) : -1;
-    // Alt+Arrow reorders the selection one slot instead of moving the cursor.
-    // Up is toward the front (raise), matching the panel's front-most-first order.
-    if (e.altKey && (e.key === "ArrowUp" || e.key === "ArrowDown")) {
-      e.preventDefault();
-      if (e.key === "ArrowUp") raiseSelected();
+    const node = at ? doc.nodes[at] : undefined;
+    const action = listKeyAction({
+      key: e.key,
+      alt: e.altKey,
+      shift: e.shiftKey,
+      order,
+      at,
+      filtering,
+      collapsed: at ? collapsed.has(at) : false,
+      foldable: node ? childIdsOfNode(node).length > 0 : false,
+    });
+    // The arrows are claimed either way: with the list focused they navigate
+    // rows rather than nudging the artwork.
+    if (e.key.startsWith("Arrow")) e.preventDefault();
+    if (!action) return;
+    if (action.type === "raise" || action.type === "lower") {
+      if (action.type === "raise") raiseSelected();
       else lowerSelected();
       if (cursor) setReveal(cursor);
       return;
     }
-    if (e.key === "ArrowDown" || e.key === "ArrowUp") {
-      e.preventDefault();
-      const next =
-        order[
-          index < 0
-            ? e.key === "ArrowDown" ? 0 : order.length - 1
-            : Math.max(0, Math.min(order.length - 1, index + (e.key === "ArrowDown" ? 1 : -1)))
-        ];
-      if (!next) return;
-      const from = e.shiftKey ? rangeStart() : null;
-      const range = from ? rangeIds(doc, order, from, next) : null;
-      if (range) setSelection(range);
-      else selectIds([next], false);
-      setCursor(next);
-      setReveal(next);
+    if (action.type === "fold") {
+      toggleCollapsed(action.id);
       return;
     }
-    if (e.key === "ArrowRight" || e.key === "ArrowLeft") {
-      // Claimed either way: with the list focused, arrows navigate rows rather
-      // than nudging the artwork.
-      e.preventDefault();
-      if (!at) return;
-      if (filtering) return; // the filtered list has no folds to walk
-      const isCollapsed = collapsed.has(at);
-      if (e.key === "ArrowRight" ? isCollapsed : !isCollapsed) {
-        // Rows without children have no fold state to toggle.
-        const node = doc.nodes[at];
-        if (node && childIdsOfNode(node).length > 0) toggleCollapsed(at);
-      }
-    }
+    const from = action.extend ? rangeStart() : null;
+    const range = from ? rangeIds(doc, order, from, action.to) : null;
+    if (range) setSelection(range);
+    else selectIds([action.to], false);
+    setCursor(action.to);
+    setReveal(action.to);
   };
 
   // Whatever was selected last should be visible: unfold the containers hiding
@@ -321,7 +295,7 @@ export default function LayersPanel() {
   const foldMenu = (): MenuEntry[] => {
     // The whole tree, not the filtered one: folds belong to the document view,
     // and a search that is about to be closed should not narrow what they reach.
-    const containers = containerIds(fullRoots);
+    const containers = foldable;
     const keep = new Set(
       selection.flatMap((id) => [id, ...ancestorIds(doc, id)])
     );
@@ -352,10 +326,9 @@ export default function LayersPanel() {
    * walking the results from there.
    */
   const jumpToFirstHit = () => {
-    const hit = rows.find((row) => matches(row.node));
-    if (!hit) return;
-    selectIds([hit.key], false);
-    setReveal(hit.key);
+    if (!firstHit) return;
+    selectIds([firstHit], false);
+    setReveal(firstHit);
     listRef.current?.focus({ preventScroll: true });
   };
 
@@ -434,13 +407,13 @@ export default function LayersPanel() {
               autoFocus
               onChange={(e) => setSearch(e.target.value)}
               onKeyDown={(e) => {
-                if (e.key === "Enter" || e.key === "ArrowDown") {
+                const action = searchKeyAction(e.key, search);
+                if (action === "jump") {
                   e.preventDefault();
                   jumpToFirstHit();
                 }
-                // Escape clears a query first and closes on a second press, so
-                // the field is never lost mid-search by one key too many.
-                if (e.key === "Escape") setSearch(search === "" ? null : "");
+                if (action === "clear") setSearch("");
+                if (action === "close") setSearch(null);
               }}
             />
             {filtering && (
