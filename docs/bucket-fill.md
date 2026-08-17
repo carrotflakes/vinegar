@@ -41,7 +41,11 @@ under a click with the current fill color, as a plain vector path inserted
    `strokeOutline`, brush envelopes, image rectangles, and text line boxes
    (coarse stand-in for glyph outlines). Clip groups contribute their content
    *intersected with the mask silhouette*; instances recurse into their
-   symbol definition. Each source is normalized by a per-source Clipper union
+   symbol definition. A **frame contributes a hairline band along its content
+   box** — the border, never the area, so the interior stays fillable — which
+   is what lets an empty artboard be filled and a line crossing one close
+   against the edge. A `clipsContent` frame additionally crops its children's
+   ink to that box. Each source is normalized by a per-source Clipper union
    under its own fill rule, so self-intersections, even-odd shapes and
    mirroring transforms all reduce to canonically oriented contours.
 2. **Classify covers.** Ink is collected as an ordered list matching paint
@@ -111,10 +115,6 @@ Both live in the Bucket panel, persisted in `bucketStore`.
 - No hover preview of the region (would need an obstacle-union cache keyed on
   the document revision; the same cache would speed up rapid repeated fills).
 - Text bounds as ink are the line box, not glyph outlines.
-- Frame edges do not bound a region: they crop ink but never supply any, so an
-  open sketch inside a frame cannot be filled *to* the frame edge. A
-  `clipsContent` frame does remove what it crops away — ink outside the box is
-  not painted, so it no longer blocks a fill inside it.
 - A locked frame cannot receive the fill, so a region enclosed by ink inside one
   lands in the scene instead (unclipped, behind the frame). Unlock the frame to
   fill into it.

@@ -393,3 +393,55 @@ test("a clipping frame crops the cover it hands back", () => {
   const b = polyBounds(result.polys);
   assert.ok(b.maxX < 201, `the fill escaped the frame: maxX ${b.maxX}`);
 });
+
+test("an empty frame can be filled to its edges", () => {
+  const d = doc([]);
+  d.nodes.f = framed([]);
+  d.rootIds = ["f"];
+  const result = computeBucketFill(d, null, { x: 100, y: 100 }, 4);
+  assert.equal(result.kind, "filled");
+  assert.equal(result.coverId, null);
+  // The frame's border is a hairline, so the fill reaches it either side of the
+  // BLEED tuck rather than stopping short of it.
+  const b = polyBounds(result.polys);
+  assert.ok(Math.abs(b.minX) < 1, `minX ${b.minX}`);
+  assert.ok(Math.abs(b.minY) < 1, `minY ${b.minY}`);
+  assert.ok(Math.abs(b.maxX - 200) < 1, `maxX ${b.maxX}`);
+  assert.ok(Math.abs(b.maxY - 200) < 1, `maxY ${b.maxY}`);
+});
+
+test("a frame edge closes a region a line only half encloses", () => {
+  // A line straight across the frame bounds nothing on its own; together with
+  // the frame border it encloses the half above it.
+  const line = shape({
+    id: "l",
+    type: "line",
+    ...SHAPE_BASE,
+    ...NODE_BASE,
+    x1: 0,
+    y1: 100,
+    x2: 200,
+    y2: 100,
+    stroke: { type: "solid", color: "#000000", alpha: 1 },
+    strokeWidth: 2,
+  });
+  const d = doc([line]);
+  d.nodes.f = framed(["l"]);
+  d.rootIds = ["f"];
+  const result = computeBucketFill(d, null, { x: 100, y: 50 }, 4);
+  assert.equal(result.kind, "filled");
+  const b = polyBounds(result.polys);
+  assert.ok(b.maxY < 101, `the fill leaked past the line: maxY ${b.maxY}`);
+  assert.ok(Math.abs(b.minY) < 1, `the fill stopped short of the top: ${b.minY}`);
+});
+
+test("a frame interior is fillable, not solid ink", () => {
+  // Only the border is ink. If the box itself were, every click inside any
+  // frame would report "inked" and nothing could ever be filled in one.
+  const d = doc([]);
+  d.nodes.f = framed([]);
+  d.rootIds = ["f"];
+  assert.notEqual(computeBucketFill(d, null, { x: 100, y: 100 }, 4).kind, "inked");
+  // On the border itself there is ink.
+  assert.equal(computeBucketFill(d, null, { x: 0, y: 100 }, 4).kind, "inked");
+});

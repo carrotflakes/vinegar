@@ -146,6 +146,26 @@ function intersectContours(
   return contours(tree);
 }
 
+/**
+ * A frame's edge as ink: a hairline band along its content box.
+ *
+ * The frame's *area* is not ink — that would make its interior unfillable. Only
+ * the border is, so an artboard closes regions against the rectangle the user
+ * can see, exactly as a stroked rect drawn in its place would. Like the
+ * centerline band this is a fixed world-space hairline; the fill's own bleed
+ * puts its edge `BLEED` past the border either way.
+ */
+function frameEdgeInk(boxPaths: IntPoint[][]): IntPoint[][] {
+  if (!boxPaths.length) return [];
+  const co = new ClipperLib.ClipperOffset(2, 0.25 * SCALE);
+  for (const path of boxPaths) {
+    co.AddPath(path, ClipperLib.JoinType.jtMiter, ClipperLib.EndType.etClosedLine);
+  }
+  const tree = new ClipperLib.PolyTree();
+  co.Execute(tree, CENTERLINE_HALF * SCALE);
+  return contours(tree);
+}
+
 /** A frame's content box as one world-space ring. */
 function frameBoxPaths(frame: FrameNode, world: Matrix): IntPoint[][] {
   const ring = [
@@ -294,7 +314,27 @@ function collectObstacles(
       if (clipped.length) entries.push({ contours: clipped });
       continue;
     }
-    if (contents.kind === "frame" && contents.frame.clipsContent) {
+    if (contents.kind === "frame") {
+      const boxPaths = frameBoxPaths(contents.frame, world);
+      // The frame's border is ink, at the frame's own place in paint order
+      // (before its children, like the background box it paints). An artboard
+      // bounds what is drawn in it, so an empty frame can be filled and a line
+      // crossing one closes against the edge the user sees.
+      const edge = frameEdgeInk(boxPaths);
+      if (edge.length) entries.push({ contours: edge });
+      if (!contents.frame.clipsContent) {
+        collectObstacles(
+          doc,
+          contents.childIds,
+          world,
+          pt,
+          entries,
+          allowCovers,
+          strokeCenterline,
+          activeSymbols
+        );
+        continue;
+      }
       // The frame crops what it paints, so ink outside its box must not block a
       // fill inside it. Unlike a clip group, each entry is cropped on its own
       // rather than merged into one silhouette: a frame is an ordinary
@@ -311,7 +351,6 @@ function collectObstacles(
         strokeCenterline,
         activeSymbols
       );
-      const boxPaths = frameBoxPaths(contents.frame, world);
       if (!boxPaths.length) continue;
       for (const entry of inner) {
         const clipped = intersectContours(

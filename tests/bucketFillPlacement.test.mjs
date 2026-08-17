@@ -156,3 +156,19 @@ test("a locked frame does not take the fill", () => {
   assert.equal(parentIdOf(doc, id), null);
   assert.deepEqual(doc.nodes.f.childIds, ["sq"]);
 });
+
+test("an empty frame fills to its own edges, inside itself", () => {
+  load([frame("f", [])], ["f"]);
+  const before = Object.keys(useEditor.getState().doc.nodes);
+  bucketFillAt(useEditor.getState(), { x: 100, y: 100 });
+
+  const id = addedId(before);
+  const doc = useEditor.getState().doc;
+  assert.equal(parentIdOf(doc, id), "f");
+  const b = nodeWorldBounds(doc, id);
+  assert.ok(Math.abs(b.x) < 1 && Math.abs(b.y) < 1, `origin ${b.x},${b.y}`);
+  assert.ok(
+    Math.abs(b.width - 200) < 1 && Math.abs(b.height - 200) < 1,
+    `size ${b.width}x${b.height}`
+  );
+});
