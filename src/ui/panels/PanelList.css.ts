@@ -283,6 +283,15 @@ globalStyle(".layers-search-input", {
   outline: "none",
 });
 
+// The field here is the wrapper, not the input: the input is transparent and
+// borderless inside it. The app-wide focus ring (global.css.ts) would then draw
+// a second, smaller blue box *inside* the field's own border, so this input
+// opts out and `.layers-search:focus-within` carries the focus instead.
+// `!important` because that rule outweighs any selector this class can write.
+globalStyle(".layers-search-input:focus-visible", {
+  boxShadow: "none !important",
+});
+
 globalStyle(".layers-search-count", {
   flex: "none",
   color: vars.muted,
