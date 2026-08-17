@@ -93,7 +93,7 @@ function MarkerRow({
 /**
  * End markers for the selected lines and paths. Markers are painted with the
  * shape's stroke paint at its stroke width, so `size` is a multiple of that
- * width rather than an absolute length. See docs/markers.md.
+ * width rather than an absolute length. See docs/design/markers.md.
  */
 export default function MarkerControls({
   start,

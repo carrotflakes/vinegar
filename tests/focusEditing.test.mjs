@@ -1,6 +1,6 @@
 // Focus (isolation) editing of ordinary containers: entering/leaving, and the
 // coordinate handling that keeps content drawn inside a moved container from
-// jumping when it is committed. See docs/focus.md.
+// jumping when it is committed. See docs/design/focus.md.
 
 import assert from "node:assert/strict";
 import { after, before, test } from "node:test";

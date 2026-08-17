@@ -86,7 +86,7 @@ space, or scale the lengths deliberately.
 ## The clipping-mask rule
 
 A clip group's mask is its **frontmost child** (`clipsToMask: true`, see
-[document-model.md](document-model.md)). Nothing in the types says so, so any op
+[document-model.md](../document-model.md)). Nothing in the types says so, so any op
 that turns one node into several must think about it:
 
 - Replacing the mask with **several shapes** leaves the frontmost piece masking

@@ -1,5 +1,7 @@
 # PWA (installable, offline-capable app)
 
+Status: **shipped.** No file-format impact.
+
 Vinegar ships as a Progressive Web App: the production build can be installed
 from the browser and started with no network. There is no server component, so
 once the shell is cached the whole editor works offline — documents live in the

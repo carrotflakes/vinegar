@@ -1,5 +1,7 @@
 # Scene traversal
 
+Status: **reference.** A contract: every reader that descends the tree obeys it.
+
 Several parts of the editor walk the scene tree recursively in paint order. What
 they *do* at each node is completely different; how they **descend** is not.
 `src/model/sceneWalk.ts` owns the descent.

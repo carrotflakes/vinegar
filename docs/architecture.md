@@ -1,5 +1,7 @@
 # Architecture
 
+Status: **reference.** Describes the codebase as it is; kept current with it.
+
 Developer-facing overview of how the codebase is organised.
 For the feature catalogue see [features.md](features.md); for the persisted format in detail see [document-model.md](document-model.md).
 
@@ -92,21 +94,7 @@ stated once by `SelectionHeader`, never repeated in section titles.
 
 ## Design notes
 
-Per-area notes live alongside this file in `docs/`:
-
-- [anchor-types.md](anchor-types.md) — cusp / smooth / symmetric anchors
-- [brush-strokes.md](brush-strokes.md) — brush centerlines and width envelopes
-- [bucket-fill.md](bucket-fill.md) — vector region detection and gap closing
-- [compound-path-nodes.md](compound-path-nodes.md) — compound paths as real child nodes
-- [document-model.md](document-model.md) — the persisted format
-- [drag-and-drop.md](drag-and-drop.md) — pointer-based drag conventions
-- [global-colors.md](global-colors.md) — document color swatches and references
-- [markers.md](markers.md) — arrowheads and other end markers on open strokes
-- [path-commands.md](path-commands.md) — join / cut / combine / split and cleanup ops
-- [pen-and-touch.md](pen-and-touch.md) — stylus vs finger roles, palm rejection, touch gestures
-- [path-modifiers.md](path-modifiers.md) — direction for a non-destructive modifier stack
-- [path-unification.md](path-unification.md) — unifying shape and path representations
-- [recent-files.md](recent-files.md) — recent-files list (*shelved design proposal, not implemented*)
-- [render-performance.md](render-performance.md) — rendering cost and caching
-- [rulers-and-guides.md](rulers-and-guides.md) — rulers, guides and ruler origin
-- [undo-history.md](undo-history.md) — history model
+Every per-area note is indexed in [README.md](README.md): cross-cutting
+contracts in [`reference/`](reference/), one note per feature in
+[`design/`](design/). Check there before designing in an area — the index is
+kept current, and a list repeated here would not be.

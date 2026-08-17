@@ -17,7 +17,7 @@
 // {@link freeformRaster} — the one place the field is defined, shared by the
 // canvas renderer and SVG export so they cannot drift. The field is smooth by
 // construction, so the raster is deliberately small and relies on bilinear
-// upscaling; see `docs/freeform-gradients.md`.
+// upscaling; see `docs/design/freeform-gradients.md`.
 //
 // Placement reuses the gradient vocabulary: points live either in `bounds`
 // space (0..1 of the shape's fill bounds, so they follow a resize) or `local`

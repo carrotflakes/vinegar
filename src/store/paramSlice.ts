@@ -3,7 +3,7 @@
 // Nothing here resolves anything — `transact` runs `syncParamBindings` on every
 // committed document, so writing the parameter is enough to retune every field
 // bound to it. All mutations route through history so they undo like any other
-// document edit. See docs/parameters.md.
+// document edit. See docs/design/parameters.md.
 
 import {
   bakeParamRefs,

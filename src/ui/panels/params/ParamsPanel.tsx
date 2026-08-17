@@ -14,7 +14,7 @@ import "./ParamsPanel.css";
  * detaches every binding first, so nothing dangles and nothing moves.
  *
  * A parameter edit rewrites every bound node, so scrubbing here runs inside one
- * interaction and lands as a single undo step. See docs/parameters.md.
+ * interaction and lands as a single undo step. See docs/design/parameters.md.
  */
 export default function ParamsPanel() {
   const doc = useEditor((s) => s.doc);

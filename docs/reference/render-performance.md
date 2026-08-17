@@ -1,9 +1,10 @@
-# Canvas render performance — plan
+# Canvas render performance
 
-Status: viewport culling, immutable-reference caches and tight temporary layers
-are implemented. Interaction snapshots remain a proposal.
+Status: **reference.** Viewport culling, immutable-reference caches and tight
+temporary layers are implemented and described below as they are. The one
+outstanding item is the static-scene snapshot during interactions (§4).
 
-## Current architecture (as of this writing)
+## Current architecture
 
 - Single canvas; every store change schedules one rAF-coalesced full redraw
   (`scheduleDraw` in `src/canvas/CanvasView.tsx`).
@@ -75,92 +76,27 @@ The benchmark records the synchronous `paintNode` section, not React, overlay,
 hit-testing, save/load/export or total interaction latency. Those need separate
 budgets and workloads.
 
-### Chromium measurement (2026-07-26, before tight layers)
+### What the measurements showed
 
-Environment: headless Chromium (Playwright shell 1228), 1280×720 viewport, one
-fresh browser process per run. The 1k runs used 20 warm-up + 60 measured
-frames; 10k used 10 + 20 because the deliberately unculled case costs roughly
-0.8 s per frame. **Production build** (`VITE_RENDER_DEBUG=1`), DPR 1:
+Two headless-Chromium A/B runs (2026-07-26 and 2026-07-28) drove the work below.
+The absolute numbers were machine- and build-specific and have been dropped; the
+durable conclusions:
 
-| Leaves | Configuration | Mean | p50 | p95 | Layers/frame | Painted decisions | Culled decisions |
-| ---: | --- | ---: | ---: | ---: | ---: | ---: | ---: |
-| 1k | optimized | 51.5 ms | 51.2 ms | 57.0 ms | 20 | 560 | 150 |
-| 1k | caches off | 51.5 ms | 51.1 ms | 55.1 ms | 20 | 560 | 150 |
-| 1k | culling off | 79.3 ms | 78.5 ms | 85.6 ms | 33 | 1,010 | 0 |
-| 10k | optimized | 73.0 ms | 71.9 ms | 84.9 ms | 25 | 572 | 1,528 |
-| 10k | caches off | 76.8 ms | 76.2 ms | 85.5 ms | 25 | 572 | 1,528 |
-| 10k | culling off | 769.3 ms | 764.6 ms | 837.0 ms | 318 | 10,100 | 0 |
-
-DPR 2, production, 10k (5 warm-up + 10 measured frames): 276.0 ms optimized,
-287.8 ms with caches off, 3,057.6 ms with culling off.
-
-**Development build, same machine and session**, for comparison: 55.1 / 56.0 /
-82.2 ms at 1k and 75.5 / 79.9 / 789.3 ms at 10k (optimized / caches off /
-culling off). The development build is 3–7% slower, and a repeat trial of the
-1k production case landed at 56.4 ms — i.e. **the dev/production difference is
-inside this workload's run-to-run noise**. That is expected: the measured
-section is the synchronous `paintNode` region, whose cost is dominated by
-Canvas2D rasterization in the browser rather than by our JavaScript. Absolute
-budgets should still be set on a production build; A/B ratios can be taken
-from either.
-
-Conclusions at that point:
-
-- viewport culling was the dominant win: about 1.5× at 1k, 10.5× at 10k, and
-  11.1× at 10k / DPR 2;
-- after culling, caches saved 0–5% at DPR 1 and about 4% at DPR 2, while
-  full-canvas layer compositing dominated the remaining time — which is what
-  motivated tight layer bounds next, rather than more JS-only caching.
-
-“Culled decisions” counts nodes where traversal stopped; one culled group can
-skip all of its descendants, so it is intentionally not `total - painted`.
-Absolute timings are machine/build specific; the A/B ratios and recorded node/
-layer counts are the portable part of this result.
-
-### Chromium measurement (2026-07-28, tight layers)
-
-Same machine, same session, same methodology; the "before" column is a rebuild
-of the pre-tight-layer commit measured back-to-back with the new one, so the
-two columns are directly comparable (the 1k baseline reproduced the 2026-07-26
-number to 0.1 ms). Production build, mean of the measured frames:
-
-| Leaves | DPR | Configuration | Before | After | Speed-up |
-| ---: | ---: | --- | ---: | ---: | ---: |
-| 1k | 1 | optimized | 51.5 ms | 6.7 ms | 7.7× |
-| 1k | 1 | caches off | 50.8 ms | 7.3 ms | 7.0× |
-| 1k | 1 | culling off | 76.8 ms | 6.5 ms | 11.8× |
-| 10k | 1 | optimized | 70.1 ms | 17.3 ms | 4.1× |
-| 10k | 1 | caches off | 75.7 ms | 23.8 ms | 3.2× |
-| 10k | 1 | culling off | 744.6 ms | 28.6 ms | 26.0× |
-| 10k | 2 | optimized | 280.2 ms | 46.6 ms | 6.0× |
-| 10k | 2 | caches off | 276.3 ms | 48.0 ms | 5.8× |
-| 10k | 2 | culling off | 2,923.9 ms | 54.0 ms | 54.1× |
-
-Layer fill area per frame, the counter this change added
-(`meanAcquiredLayerPixels`). The "before" figures are derived, not measured —
-the old code always allocated target-sized layers, so they are exactly
-`acquireLayerCalls × canvas pixels`:
-
-| Case | Layers/frame | Before (derived) | After (measured) | Reduction |
-| --- | ---: | ---: | ---: | ---: |
-| 1k, DPR 1 | 20 | 18,432,000 px | 671,232 px | 27.5× |
-| 10k, DPR 1 | 25 | 23,040,000 px | 1,489,792 px | 15.5× |
-| 10k, DPR 2 | 25 | 92,160,000 px | 5,856,768 px | 15.7× |
-
-Conclusions:
-
-- tight layers are a larger win than culling was: 4–8× on the optimized
-  configurations, and the DPR 2 case is no longer catastrophic (280 ms → 47 ms).
-  The scene was indeed fill-rate bound, and the fill was almost all compositing
-  overdraw rather than shape pixels;
-- the balance has flipped. With fill cost down, the reference caches now matter
-  measurably at DPR 1 (17.3 ms vs 23.8 ms at 10k, ~27%) where they were within
-  noise before, while at DPR 2 they stay at ~3%;
+- **Culling is worth a lot when zoomed in.** Turning it off cost 1.5× at 1k
+  leaves and **10×** at 10k.
+- **Tight layer bounds were the bigger win** — 4–26× depending on the case — and
+  the reason is compositing overdraw, not shape pixels: full-canvas layers were
+  allocating 15–27× more layer pixels than the content needed. DPR 2 at 10k went
+  from catastrophic to ordinary.
+- **The balance flipped afterwards.** With fill cost down, the reference caches
+  went from within noise to a measurable ~27% at DPR 1 / 10k.
 - **`renderCulling=off` is no longer a clean isolation of culling.** A layer
-  request whose device bounds fall entirely outside the target returns no
-  layer, and the composited subtree is then skipped — visible in the counters
-  as 10,100 → 8,500 painted decisions and 318 → 25 layers at 10k. Tight layers
-  imply a second, coarser culling path that the switch cannot turn off.
+  request whose device bounds fall outside the target returns no layer and the
+  subtree is skipped, so tight layers imply a second, coarser culling path the
+  switch cannot turn off.
+
+Re-measure rather than trusting these ratios; the stress documents and flags
+above exist so a run is cheap.
 
 ## High-impact, structure-friendly
 
@@ -248,7 +184,7 @@ blend under them keep the free clip route.
 
 A shape with an ordinary stroke effect therefore acquires **no** layer at all —
 only its own alignment layer if the stroke is inside/outside. This matters more
-than it looks: [effects.md](effects.md) is heading toward the shape's own
+than it looks: [effects.md](../design/effects.md) is heading toward the shape's own
 `fill`/`stroke` moving into the stack, at which point *every* shape would carry
 effects. Gating on "has entries" would have put the entire scene through the
 layer pool. `tests/renderPerformance.test.mjs` pins the layer counts.
@@ -304,16 +240,7 @@ Measured with 1500 shapes: ~20 rows in the DOM instead of 1500.
 - **WebGL/WebGPU migration**: maximum ceiling, massive rewrite. Only worth
   considering after the Canvas2D items above are exhausted.
 
-## Suggested order
+## Next
 
-1. Measure with a stress document. (Instrumentation implemented; capture
-   representative profiles per feature.)
-2. Culling + WeakMap caches (Path2D, culling bounds, text layout, patterns) —
-   implemented.
-3. Tight layer bounds — implemented.
-4. Static snapshot during interactions — next.
-
-Step 2 stays low-coupling thanks to the immutable document model. Step 3
-changes compositing coordinates and is covered by focused layer-size tests.
-Step 4 changes interaction/render ownership and should follow interaction
-profiling.
+Only the static-scene snapshot (§4) is left, and it changes interaction/render
+ownership — profile interactions before starting it.

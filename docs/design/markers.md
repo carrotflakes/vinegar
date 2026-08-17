@@ -3,7 +3,7 @@
 Status: **implemented** (2026-08-08). File version: **v35** (additive fields on
 `line` / `path`; absent still means no marker, but Vinegar's current-version-only
 file policy requires the bump). Related:
-[document-model.md](document-model.md), [path-modifiers.md](path-modifiers.md).
+[document-model.md](../document-model.md), [path-modifiers.md](path-modifiers.md).
 
 ## Problem / motivation
 

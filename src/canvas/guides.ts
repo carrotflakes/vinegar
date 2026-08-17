@@ -1,6 +1,6 @@
 // Persistent document guides on the canvas: where a guide lands on screen,
 // what the pointer hits, and how it is drawn. The model lives in doc.guides
-// (see docs/rulers-and-guides.md); the transient magenta alignment guides of
+// (see docs/design/rulers-and-guides.md); the transient magenta alignment guides of
 // geometry/snap.ts are a different thing entirely.
 
 import {

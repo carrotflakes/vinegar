@@ -4,9 +4,8 @@ Status: **implemented** (2026-08-02); extended to `rect`/`ellipse`/`line`
 (2026-08-06). File version: **v33** (additive shape field, but Vinegar's strict
 current-only file policy requires a version bump; absent `modifiers` still
 means no change). Related: extends the generator concept
-([document-model.md](document-model.md)); modeled on `effects`; overlaps
-[path-unification.md](path-unification.md) (v21) and
-[compound-path-nodes.md](compound-path-nodes.md) (v22).
+([document-model.md](../document-model.md)); modeled on `effects`; builds on the
+unified `path` type (v21) and compound-path container nodes (v22).
 
 ## Problem / motivation
 
@@ -73,7 +72,7 @@ type Modifier =
 - Readers do not call these directly any more: `model/path/shapeGeometry.ts`
   wraps them (together with brush envelopes and compound components) as the
   single geometry derivation the whole editor reads — see
-  [architecture.md](architecture.md#shape-geometry-one-derivation). The few
+  [architecture.md](../architecture.md#shape-geometry-one-derivation). The few
   readers that keep an analytic or output-form fast path (`ctx.rect`, `<rect>`,
   exact rounded-rect containment) guard it with `hasActiveModifiers(shape)`, so
   a bare rect stays cheap and a modified one takes the generic contour route.
@@ -125,7 +124,7 @@ Every current reader of `.subpaths` must be classified as **base** or
 Those readers no longer branch per shape type at all: they call
 `shapeSubpaths`/`shapePolylines`/`shapeRings`, which resolve the stack for
 them. Only the four fast paths listed in
-[architecture.md](architecture.md#shape-geometry-one-derivation) still branch,
+[architecture.md](../architecture.md#shape-geometry-one-derivation) still branch,
 each guarded by `hasActiveModifiers`. That guard is a convention the type
 system cannot enforce, so `tests/modifierReaders.test.mjs` holds it up from two
 sides:
@@ -187,7 +186,7 @@ top" model, and mirrors how `effects` already leaves `subpaths` untouched.
 - Resizing a modified shape scales its base geometry only: a modifier's
   distances are absolute local units and stay put, exactly as for paths.
 - Caching strategy under heavy documents (ties into
-  [render-performance.md](render-performance.md) culling/caching work).
+  [render-performance.md](../reference/render-performance.md) culling/caching work).
 
 ## Implemented scope
 
@@ -206,6 +205,5 @@ top" model, and mirrors how `effects` already leaves `subpaths` untouched.
 
 ## Sequencing vs. roadmap
 
-v21 path-unification and v22 compound-path nodes are both **done**. Path
-modifiers operate on every primitive leaf; compound containers consume each
+Modifiers operate on every primitive leaf; compound containers consume each
 child's resolved geometry through the shared readers.

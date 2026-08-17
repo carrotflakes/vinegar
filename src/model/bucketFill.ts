@@ -1,6 +1,6 @@
 // ===========================================================================
 // Bucket fill — find the enclosed empty region around a point and turn it
-// into a fillable polygon (see docs/bucket-fill.md).
+// into a fillable polygon (see docs/design/bucket-fill.md).
 //
 // Every visible node contributes its painted silhouette ("ink") as Clipper
 // polygons. Inflating the ink by half the gap tolerance and unioning it makes

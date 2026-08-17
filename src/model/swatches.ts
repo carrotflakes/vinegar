@@ -1,7 +1,7 @@
 // Global colours ("document colours"): discovery and baking of `swatch` paint
 // references across the scene. The concrete colour lives once in doc.swatches;
 // these helpers find and, when detaching/deleting, resolve every reference to a
-// concrete paint in place. See docs/global-colors.md.
+// concrete paint in place. See docs/design/global-colors.md.
 
 import { isSwatchRef, resolvePaintRef, type PaintTarget } from "./paint";
 import type { Document, SceneNode } from "./types";

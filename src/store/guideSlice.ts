@@ -1,7 +1,7 @@
 // Persistent ruler guides (doc.guides). Guides are not scene nodes: they carry
 // no transform or appearance and never enter `selection` — the one selected
 // guide lives in `selectedGuideId`. Every mutation here is an ordinary undoable
-// document edit. See docs/rulers-and-guides.md.
+// document edit. See docs/design/rulers-and-guides.md.
 
 import { makeId, type Document, type GuideLine } from "../model/types";
 import type { GuideActions, StoreCtx } from "./state";

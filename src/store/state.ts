@@ -91,7 +91,7 @@ export interface EditorData {
    * Focus (isolation) stack; entries are container node ids and the last one is
    * the container being edited. A symbol under local-view edit is represented
    * by its definition's root group. Session state — never persisted.
-   * See docs/focus.md.
+   * See docs/design/focus.md.
    */
   focusStack: string[];
   /**
@@ -218,7 +218,7 @@ export interface ShapeActions {
   /**
    * Commit a brush stroke into the active drawing container: the drilled-into
    * `activeGroupId` when set, else a fresh "Drawing" group that becomes active
-   * so consecutive strokes collect together (see docs/brush-strokes.md).
+   * so consecutive strokes collect together (see docs/design/brush-strokes.md).
    */
   addBrushStroke: (shape: Shape) => void;
   /**
@@ -241,7 +241,7 @@ export interface ShapeActions {
   /**
    * Erase along a world-space path of the given radius: brush strokes it
    * crosses are split at their centerline into new brush pieces (or removed
-   * when fully erased). One undoable step; see docs/brush-strokes.md.
+   * when fully erased). One undoable step; see docs/design/brush-strokes.md.
    */
   eraseBrushStrokes: (pathWorld: Vec2[], radiusWorld: number) => void;
   updateShape: (shape: Shape, select?: boolean) => void;
@@ -257,7 +257,7 @@ export interface ShapeActions {
   /**
    * Set or clear the end markers of every markable shape in the selection
    * (lines and paths; other shapes are left alone). An omitted end keeps its
-   * current marker, `null` removes it. See docs/markers.md.
+   * current marker, `null` removes it. See docs/design/markers.md.
    */
   setSelectedMarkers: (patch: {
     start?: Marker | null;
@@ -464,7 +464,7 @@ export interface FrameActions {
   ) => void;
 }
 
-/** Persistent ruler guides; see docs/rulers-and-guides.md. */
+/** Persistent ruler guides; see docs/design/rulers-and-guides.md. */
 export interface GuideActions {
   /** Select a guide for keyboard deletion, or null to clear. */
   setSelectedGuide: (id: string | null) => void;
@@ -511,7 +511,7 @@ export interface SwatchActions {
 
 /**
  * Document parameters ("global numbers"): named values that drive bound node
- * number fields. Binding is per node and field path; see docs/parameters.md.
+ * number fields. Binding is per node and field path; see docs/design/parameters.md.
  */
 export interface ParamActions {
   /** Create a parameter and resolve its new id. */

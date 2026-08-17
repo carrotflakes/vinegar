@@ -1,5 +1,9 @@
 # Document model
 
+Status: **reference.** The persisted format as it is, at file version **v37**.
+Any change to the shape of the file means bumping `CURRENT_FILE_VERSION` in
+`src/io/serialize.ts` and updating this page in the same commit.
+
 `Document` is the complete persisted drawing state. Editor state such as the
 active tool, selection, viewport and undo history does not belong in the file.
 
@@ -20,7 +24,7 @@ active tool, selection, viewport and undo history does not belong in the file.
 - Leaf shape types are `rect`, `ellipse`, `line`, `path`, `image`, `text`, and
   `brush`. `rect`, `ellipse`, `line` and `path` may carry a `modifiers` stack —
   a non-destructive chain of geometry stages evaluated over the shape's own
-  geometry (see [path-modifiers.md](path-modifiers.md)); the shape's own fields
+  geometry (see [path-modifiers.md](design/path-modifiers.md)); the shape's own fields
   stay the editable base. A `path` is the canonical vector-outline shape:
   it stores one or more `subpaths`, each with cubic anchors (`p`, `hIn`,
   `hOut`, and optional linkage tag `t`) and a `closed` flag. Null handles make
@@ -29,7 +33,7 @@ active tool, selection, viewport and undo history does not belong in the file.
   `markerStart` / `markerEnd`: an end marker (arrowhead, dot, tick) drawn at
   each open end of the resolved geometry, painted with the shape's stroke paint
   at its stroke width. An absent field means that end has no marker. See
-  [markers.md](markers.md).
+  [markers.md](design/markers.md).
 - A path's `fillRule` is either `nonzero` or `evenodd`. The rule applies to all subpaths consistently in
   rendering, hit-testing, clipping, boolean input, and SVG export. Filling
   implicitly closes open subpaths without closing their strokes.
@@ -41,11 +45,11 @@ active tool, selection, viewport and undo history does not belong in the file.
   linear/radial/conic; a unit-space ramp placed by `start`/`end`/`ratio`/
   `focal`, held either relative to the shape's bounds or in its local units;
   plus `spread`, `interpolation` and stops carrying `id`, `offset`, `color`,
-  `alpha` and a blend `midpoint` — see `docs/gradients.md`), a `freeform`
+  `alpha` and a blend `midpoint` — see `design/gradients.md`), a `freeform`
   gradient (scattered colour `points` — each with `id`, `position`, `color`,
   `alpha` and a `weight` — interpolated by `method` (`shepard`/`gaussian`) at
   a given `falloff`, in the same `bounds`/`local` space a gradient uses; see
-  `docs/freeform-gradients.md`), a
+  `design/freeform-gradients.md`), a
   `pattern` (an image asset mapped onto the shape by an explicit `mode` —
   tile / fill / fit / stretch — plus `scale`/`rotation`/`offset`), or a
   `swatch` reference (`swatchId` plus a per-use `alpha`, `1` = the swatch's
@@ -96,7 +100,7 @@ active tool, selection, viewport and undo history does not belong in the file.
   rather than a flag, an editing operation that replaces the mask with several
   nodes, or with a group, leaves a tree that is still structurally valid but no
   longer means what it did — see the clipping-mask rule in
-  [path-commands.md](path-commands.md).
+  [path-commands.md](reference/path-commands.md).
 - A brush shape is a pressure-profiled variable-width stroke. It stores an open
   cubic-Bézier centerline as `anchors` (same anchor convention and optional
   cusp/smooth/symmetric linkage tag as `path`) where each anchor also
@@ -128,11 +132,29 @@ active tool, selection, viewport and undo history does not belong in the file.
   a dangling reference degrades to the value it was showing. Bound fields are
   derived state: `syncParamBindings` re-resolves them on every committed
   document, and a binding whose field path no longer addresses anything is
-  pruned there. See [parameters.md](parameters.md).
+  pruned there. See [parameters.md](design/parameters.md).
 
 The current file version is v37 and it is the only version loading accepts.
 Persisted model changes require a version review and, when incompatible, a
 migration.
+
+## Two decisions worth knowing about
+
+Both were migrations, and both exist to keep the rules above from having
+exceptions:
+
+- **One vector-outline type** (v21). `path`, `bezier`, `polygon`, `compoundPath`
+  and `brush` used to be five overlapping outline types, so thirteen consumers
+  switched on shape type and the fill rule was hardcoded per type. They
+  collapsed into `path` plus an explicit `fillRule`.
+- **Hierarchy lives in exactly one place** (v22). A compound path used to store
+  its sources inline in `components: PrimitiveShape[]` — the only hierarchy
+  outside `nodes`/`childIds`, and therefore invisible to the Scene Index, the
+  layers panel, copy/paste and `validateTree`, each of which needed a parallel
+  implementation. It became a container node with ordinary `childIds`.
+
+The full plans lived in this folder as path-unification and compound-path-nodes
+notes, and were removed once carried out; git history has them.
 
 ## Carrying appearance across an operation
 
@@ -190,5 +212,5 @@ unit scale.
 The consequence for editing operations: baking a transform into anchors while
 copying those fields verbatim silently rescales every one of them. An operation
 that flattens a transform must either scale the lengths to match or keep the
-space it took the style from. See [path-commands.md](path-commands.md) for how
+space it took the style from. See [path-commands.md](reference/path-commands.md) for how
 each shape command handles this.

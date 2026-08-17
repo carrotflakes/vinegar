@@ -14,7 +14,7 @@ import "./ModifierBar.css";
  * On the painting tools it also carries the finger-drawing switch. That state
  * is otherwise invisible — "why does my finger not draw any more?" — and it is
  * worth flipping mid-drawing, which a trip to Preferences is not.
- * See docs/pen-and-touch.md.
+ * See docs/reference/pen-and-touch.md.
  */
 export default function ModifierBar() {
   const coarse = useCoarsePointer();

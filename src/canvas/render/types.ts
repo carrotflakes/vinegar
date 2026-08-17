@@ -31,7 +31,7 @@ export interface RenderOptions {
    * matrix — so a focused container still lands at its true world position and
    * agrees with culling, bounds and hit-testing, which are all world-space.
    * Omit (identity) for scene roots and symbol definition roots, which have no
-   * parent. See docs/focus.md.
+   * parent. See docs/design/focus.md.
    */
   rootBaseMatrix?: Matrix | undefined;
   /** Omit this shape while an HTML overlay edits it. */

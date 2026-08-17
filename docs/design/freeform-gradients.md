@@ -1,5 +1,8 @@
 # Freeform gradients
 
+Status: **shipped** (added at file version **v36**). Related:
+[gradients.md](gradients.md).
+
 A freeform gradient is a paint defined by **scattered colour points** instead of a ramp: drop colours
 where you want them and the space between is filled in by interpolation. It is the Illustrator
 "freeform gradient" shape of thing, built on plain scattered-data interpolation.
@@ -80,7 +83,7 @@ again afterwards. Three things keep it there, and all three are load-bearing:
 The tables are approximations, guarded by tests: the sRGB encode stays within half an output level,
 and the tabled kernel within one level of the exact colour.
 
-There is no reduced-quality mode during an interaction yet (see `render-performance.md`), so a drag
+There is no reduced-quality mode during an interaction yet (see [render-performance.md](../reference/render-performance.md)), so a drag
 re-rasterises at full size every frame.
 
 **SVG export** embeds that raster as an `<image>` inside a one-tile `<pattern>` — SVG has no

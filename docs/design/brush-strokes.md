@@ -87,7 +87,7 @@ export interface BrushShape extends BaseShape {
 
 - `CURRENT_FILE_VERSION` → 19. Additive: no migration for older files; the
   bump only marks that files containing brush nodes need a v19 reader.
-- `serialize.ts` validation accepts the new node type; `docs/document-model.md`
+- `serialize.ts` validation accepts the new node type; `../document-model.md`
   gains a bullet describing brush invariants (open centerline, `w ≥ 0`,
   `stroke` paints the envelope).
 

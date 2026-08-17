@@ -9,7 +9,7 @@
  * A normal `pnpm build` folds both flags to `false`, making every field below a
  * constant and letting the bundler drop this directory entirely.
  *
- * The switches are documented in `docs/render-performance.md`.
+ * The switches are documented in `docs/reference/render-performance.md`.
  */
 
 const enabled =

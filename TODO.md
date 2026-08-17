@@ -15,7 +15,7 @@ additional effects, or other feature expansion.
 - [ ] Save workflow follow-ups — recent files (persist handles in IndexedDB),
   reattach the handle across a reload, and a "Save a copy" that does not
   re-point the attached file
-- [ ] Rulers/guides follow-ups (docs/rulers-and-guides.md) — numeric entry
+- [ ] Rulers/guides follow-ups (docs/design/rulers-and-guides.md) — numeric entry
   (double-click a guide), per-frame guides, a user-draggable ruler origin,
   activating a frame by clicking its empty background, diagonal guides, "make
   guides from selection", guides inside symbol definitions, ticks under an
@@ -24,7 +24,7 @@ additional effects, or other feature expansion.
 ## Mobile / touch
 - [ ] On-screen alternatives for the remaining keyboard-only actions (delete, copy/paste, group)
       — the pen's draft bar (Done / Close / Undo / Discard) is done
-- [ ] NumberPad の詰め（docs/pen-and-touch.md）。実機 iPad での確認は別途
+- [ ] NumberPad の詰め（docs/reference/pen-and-touch.md）。実機 iPad での確認は別途
   - [ ] ＋/− が `scale="log"` に追随しない。zoom は倍率スクラブなのに ±1% 刻みで、
     6400% で ＋を押すと 6401%。`ScrubScale` をパッドまで渡す
   - [ ] フォーカス管理がない。`role="dialog"` なのに Tab で外へ抜ける。
@@ -39,18 +39,18 @@ additional effects, or other feature expansion.
 ## Backlog / ideas
 
 ### Feature follow-ups on shipped work
-- [ ] PWA follow-ups (docs/pwa.md) — file handlers so `.vinegar.json` can be
+- [ ] PWA follow-ups (docs/design/pwa.md) — file handlers so `.vinegar.json` can be
   opened from the OS (`launchQueue`, Chromium desktop only); shortcuts and
   screenshots in the manifest
 - [ ] Clipping masks — alpha / luminance masks (soft, gradient & image masks),
   multi-object masks, mask a raw shape without a wrapping group, anti-aliased
   clip via offscreen `destination-in`
-- [ ] Effects (docs/effects.md) — inner/outer glow, feather (needs offscreen
+- [ ] Effects (docs/design/effects.md) — inner/outer glow, feather (needs offscreen
   `destination-in`), Fill/Stroke effects on text and images (they have no
   outline today, so those entries are inert), per-fill/stroke effects, effects
   on frames/layers, rotating drop-shadow offset with the object,
   group-effect export bounds beyond the per-leaf approximation
-- [ ] End markers (docs/markers.md) — arbitrary nodes/symbols as markers
+- [ ] End markers (docs/design/markers.md) — arbitrary nodes/symbols as markers
   (`{ kind: "builtin" } | { kind: "symbol", id }`), mid-path markers, an
   independent marker colour, SVG **import** of `marker-start`/`marker-end`,
   hit-testing the marker itself, and stroke trim-back (a translucent stroke
@@ -58,11 +58,11 @@ additional effects, or other feature expansion.
   the same change would let a dashed stroke drop its caps at a marked end)
 - [ ] Text — rich text (style runs), text on path, vertical text, letter-spacing,
   outline-on-export, fixed-height clipping boxes, Google Fonts loading
-- [ ] Bucket fill (docs/bucket-fill.md) — hover preview of the region (needs an
+- [ ] Bucket fill (docs/design/bucket-fill.md) — hover preview of the region (needs an
   obstacle-union cache keyed on the document revision), curve re-fitting of the
   polygon boundary, frame edges as region bounds, recolor of strokes/brushes
   on click, glyph outlines instead of text line boxes as ink
-- [ ] Freeform gradients (docs/freeform-gradients.md) — SVG **import** has no
+- [ ] Freeform gradients (docs/design/freeform-gradients.md) — SVG **import** has no
   counterpart to read back (an exported field returns as a raster pattern);
   no interpolating RBF (thin-plate) method, which would let a point's colour
   survive the `gaussian` blend; the on-canvas pad has no marquee/multi-select
@@ -83,7 +83,7 @@ additional effects, or other feature expansion.
   `systemClipboard.ts` degrade to plain SVG
 
 ### New ideas
-- [ ] **Parameters and references** (docs/parameters.md) — phase 1 shipped:
+- [ ] **Parameters and references** (docs/design/parameters.md) — phase 1 shipped:
   document parameters (v32) drive `strokeWidth`, path-modifier params and
   built-in generator args through `node.bindings`. Remaining phases: parametric
   symbols (v33) → non-destructive boolean as a node→node operand (v34) →
@@ -122,7 +122,7 @@ additional effects, or other feature expansion.
   仮想化・reveal・ドラッグは React を描画しないと検証できず、jsdom もブラウザテストも
   無い。壊れやすいのは「全行が同じ高さ」と「スクロール親の解決」で、`.layer-row` の
   padding 変更やドックのレイアウト変更が静かに仮想化を壊せる（前提は
-  docs/render-performance.md に明記済み）。ブラウザテストの導入是非から判断
+  docs/reference/render-performance.md に明記済み）。ブラウザテストの導入是非から判断
 - [x] キーボード到達性 — `tabIndex={0}` + `:focus-visible` リング、`role="tree"` /
   `role="treeitem"` / `aria-selected` / `aria-level` / `aria-expanded`、
   `aria-activedescendant` でカーソル行を通知（Tab 到達時は選択末尾をカーソルに）
@@ -144,7 +144,7 @@ additional effects, or other feature expansion.
   least Chromium, Firefox and WebKit for blend modes, filters, fonts and nested
   group compositing.
 - [ ] **Performance budgets** — the harness today covers redraw only
-  (`createRenderStressDocument`, docs/render-performance.md).
+  (`createRenderStressDocument`, docs/reference/render-performance.md).
   - [ ] Set budgets and add workloads for interaction, picking/snapping,
     save/load, export and memory
   - [ ] Replace full-document undo/interaction clones with patches or structural
@@ -186,7 +186,7 @@ additional effects, or other feature expansion.
 - [ ] パス操作
   - [x] **Path modifier stack (Blender-like, non-destructive)** — the agreed
     direction: path ops become re-editable modifiers extending the generator
-    concept. Plan in `docs/path-modifiers.md` (model like `effects`, `subpaths`
+    concept. Plan in `docs/design/path-modifiers.md` (model like `effects`, `subpaths`
     = base, cached `resolvedSubpaths()` feeds render/hit-test/bounds/export).
     Phase 1 = vertical slice (Simplify + live tolerance); the shipped one-shot
     ops become "Apply/bake".
@@ -194,7 +194,7 @@ additional effects, or other feature expansion.
   - [ ] Join (connect open paths), Average — see the path-ops proposal
   - [ ] `path.join` に線幅バグがある（ベイクして identity + 基準の `strokeWidth` を
     そのままコピーするので、スケールを持つパスを join すると線幅が変わる）。既存の
-    出荷済みコマンドの挙動変更になるので未着手。`docs/path-commands.md` 参照
+    出荷済みコマンドの挙動変更になるので未着手。`docs/reference/path-commands.md` 参照
   - [x] group を選んで統合（split の結果を 1 手で戻せるようにする）
   - [x] rect / ellipse / line を統合の入力に許す（`convertShapeToPath` の再利用）。
     brush はエンベロープ輪郭になってしまうので対象外
@@ -216,7 +216,7 @@ additional effects, or other feature expansion.
 - [ ] 保存形式の検討 zip化?
 - [ ] ColorField のリファクタリング（特にコンポーネントわけ。グラデーション部分は
   `GradientEditor.tsx` に分離済み）
-- [ ] グラデーション（docs/gradients.md）の続き — フリーフォームグラデーション
+- [ ] グラデーション（docs/design/gradients.md）の続き — フリーフォームグラデーション
   （メッシュ）、複数オブジェクトにまたがるグラデーション、スウォッチとしての
   グラデーション保存（`Swatch.paint` は今のところ solid のみ）
 - [ ] ドックのフローティング、マルチカラム化

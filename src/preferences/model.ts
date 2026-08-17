@@ -10,7 +10,7 @@ export type UiLocale = (typeof SUPPORTED_LOCALES)[number];
 /**
  * Where the rulers count from: the active frame's top-left ("frame", matching
  * Illustrator's artboard rulers) or the document's world origin ("world").
- * See docs/rulers-and-guides.md.
+ * See docs/design/rulers-and-guides.md.
  */
 export const RULER_ORIGINS = ["frame", "world"] as const;
 export type RulerOriginPreference = (typeof RULER_ORIGINS)[number];
@@ -40,7 +40,7 @@ export interface PreferencesV1 {
      * Whether a bare finger may draw with the brush/pencil/eraser. Off means
      * the finger only pans and pinches, leaving the canvas to the pen. Turned
      * off automatically the first time a pen contact is seen (`penDetected`).
-     * See docs/pen-and-touch.md.
+     * See docs/reference/pen-and-touch.md.
      */
     fingerDrawing: boolean;
     /** A pen has touched this canvas at least once in this browser. */
@@ -48,7 +48,7 @@ export interface PreferencesV1 {
     /**
      * Draw every Bézier handle of the shape being node-edited. Off (the
      * default) shows only the handles around the selected anchors, which also
-     * keeps unseen handles from being grabbed. See docs/anchor-types.md.
+     * keeps unseen handles from being grabbed. See docs/design/anchor-types.md.
      */
     showAllHandles: boolean;
   };

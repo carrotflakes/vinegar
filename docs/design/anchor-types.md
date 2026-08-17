@@ -4,7 +4,7 @@ Status: **implemented** (design agreed and implemented 2026-07-26). File
 version: **no bump required** (additive and *optional* — absent `t` ⇒ derived
 from geometry, and `io/serialize.ts` anchor validation ignores extra keys).
 Related: [brush-strokes.md](brush-strokes.md) (brush anchors share the
-`p`/`hIn`/`hOut` shape), [path-unification.md](path-unification.md).
+`p`/`hIn`/`hOut` shape).
 
 ## Problem / motivation
 

@@ -28,7 +28,7 @@ Built with React 19 + TypeScript + Vite, Zustand and Canvas 2D rendering.
 - **Scripting** — a sandboxed drawing DSL and experimental parametric generators
 - **Workspace** — snapping and guides, rulers, command palette, context menus, touch and pen support, undo / redo, and autosave recovery after a crash
 - **Files** — save and open `.vinegar.json`, import SVG, export PNG / JPEG / WebP and SVG
-- **Installable** — a PWA: install it from the browser and keep drawing offline ([docs/pwa.md](docs/pwa.md))
+- **Installable** — a PWA: install it from the browser and keep drawing offline ([docs/design/pwa.md](docs/design/pwa.md))
 
 The full, detailed list is in [docs/features.md](docs/features.md).
 
@@ -41,7 +41,7 @@ Details: [docs/features.md](docs/features.md#svg-interoperability).
 
 ## Documentation
 
+- [docs/README.md](docs/README.md) — index of every design note
 - [docs/architecture.md](docs/architecture.md) — stack, document model and project layout
 - [docs/features.md](docs/features.md) — full feature reference
-- [docs/](docs/) — per-feature design notes
 - [TODO.md](TODO.md) — roadmap

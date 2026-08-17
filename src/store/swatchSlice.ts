@@ -2,7 +2,7 @@
 // document (doc.swatches/swatchOrder). Nodes reference them by id through a
 // `swatch` Paint variant, so editing a swatch re-tints every use live. All
 // mutations route through history so they undo like any document edit.
-// See docs/global-colors.md.
+// See docs/design/global-colors.md.
 
 import {
   resolvePaintRef,

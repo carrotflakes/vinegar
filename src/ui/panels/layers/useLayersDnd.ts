@@ -1,6 +1,6 @@
 // Row drag-and-drop for the Layers panel: what a drag carries, where the drop
 // line lands, edge auto-scrolling, and the reparent that commits it. Follows
-// docs/drag-and-drop.md — pointer events via useTouchDrag, never HTML5 DnD.
+// docs/reference/drag-and-drop.md — pointer events via useTouchDrag, never HTML5 DnD.
 
 import { useEffect, useRef, useState, type PointerEvent, type RefObject } from "react";
 import type { Document } from "@/model/types";

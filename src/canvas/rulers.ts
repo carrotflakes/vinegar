@@ -1,7 +1,7 @@
 // Canvas rulers: the tick geometry and their drawing. Rulers are editor chrome
 // painted into the main canvas (like frame labels), so they never reach an
 // export and hit-testing stays in the normal pointer pipeline.
-// See docs/rulers-and-guides.md.
+// See docs/design/rulers-and-guides.md.
 
 import { nodeWorldMatrix } from "@/model/geometry/matrix";
 import { isFrame } from "../model/scene";
@@ -125,7 +125,7 @@ export interface RulerInput {
   /**
    * Selection extent in world space, shaded on both bands. There is
    * deliberately no live cursor marker: it would force a full canvas repaint on
-   * every pointer move (see docs/render-performance.md).
+   * every pointer move (see docs/reference/render-performance.md).
    */
   selection: { x: number; y: number; width: number; height: number } | null;
 }

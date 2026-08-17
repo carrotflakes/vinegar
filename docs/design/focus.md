@@ -1,8 +1,9 @@
 # Focus mode (isolation editing)
 
-Status: **shipped**. Sections up to "Known risks" describe the implemented
-behaviour; the staged plan and its notes are kept at the end as the record of
-how it was built and what the migration cost.
+Status: **shipped.** Session state only — no file-format impact. Everything here
+describes current behaviour, though parts of the "State model" and "Model
+helpers" sections are still phrased as the migration that produced them.
+Related: [symbols.md](symbols.md) — focus is how a symbol definition is edited.
 
 ## What it is
 
@@ -246,111 +247,6 @@ with a frame/group icon. Clicking a crumb calls `exitFocusTo`.
 - Reparent-on-drag (`selectTool.ts:207`) currently only runs at scene scope
   (`scope === null`); keep that check as "scope is null", i.e. no cross-frame
   reparenting while focused — content cannot leave the focused container.
-
-## Implementation plan: two stages
-
-The migration is wide and the new behaviour is subtle; do not land them as one
-change. Stage 1 is a pure refactor with **zero behaviour change**, verified as
-such; Stage 2 is the feature, kept small because the ground was prepared.
-
-### Stage 1 — node-id scopes, behaviour identical
-
-Only symbol definition roots may appear on the stack; frames/groups are not
-yet focusable. Because definition roots have no parents, no `baseMatrix`, no
-coordinate conversion and no new UX exist yet — the whole stage is the scope
-migration in isolation.
-
-1. `scene.ts`: node-id scope semantics (`scopeLeafIds` via `ancestors`,
-   `scopeRootIds`, `enclosingSymbolId`); **delete** `scopeRootGroupId` +
-   tests (`tests/` node fixtures: spread `NODE_BASE`/`SHAPE_BASE`).
-2. `state.ts` / slices: `editingSymbols` → `focusStack` (node ids),
-   `currentSymbolScope` **deleted**, `currentFocusRoot` added;
-   direct `enterSymbolEdit` opens `def.rootNodeId`; history truncation updated.
-3. Chase every compile error from the deleted names; audit each site for
-   symbol-id assumptions (`doc.symbols[scope]` and friends).
-4. Verify: typecheck, full test run, and a manual pass over symbol editing
-   (enter/exit/nested, draw inside, paste inside, layers panel, breadcrumb,
-   undo across enter/exit). Everything must behave exactly as before.
-
-**Shipped.** What landed, and the two places it deviated from the plan above:
-
-- `scopeLeafIds` split in two. Instance hit-testing (`geometry/hitTest.ts`) and
-  the old `contentBounds(doc, margin, symbolId)` were passing a *symbol* id, not
-  an editing scope — a use the node-id rewrite would have broken silently. Those
-  callers moved to a new `symbolLeafIds(doc, symbolId)` (owner-based, unchanged
-  semantics); `scopeLeafIds` is now scope-only.
-- `validFocusPrefix(doc, stack)` in `scene.ts` replaces the old
-  `editingSymbols.filter(id => doc.symbols[id])`. It truncates at the first
-  invalid entry instead of filtering holes out, so a restored document can never
-  leave a breadcrumb path with a missing middle.
-- The migration hazard was real: `SymbolsPanel` compared `scope === def.id`
-  (node id vs symbol id) and **typechecked clean**. Caught by auditing each
-  call site by hand, not by the compiler; it now compares
-  `enclosingSymbolId(doc, scope)`. Any future scope-meaning change needs the
-  same manual sweep.
-- Renames: `exitSymbolEdit`/`exitSymbolEditTo` → `exitFocus`/`exitFocusTo`
-  (`enterSymbolEdit` kept for direct definition navigation;
-  `enterSymbolInstance` follows instance edges);
-  `SymbolBreadcrumb` → `FocusBreadcrumb` (+ `.css.ts`, `symbol-crumb*` classes →
-  `focus-crumb*`). The breadcrumb already renders non-symbol containers by name
-  with a frame/group icon, so Stage 2 needs nothing there.
-- Tests: `tests/focusScope.test.mjs` covers the scope helpers and stack
-  truncation; `tests/symbols.test.mjs` migrated to `currentFocusRoot` /
-  `symbolLeafIds`. 321 pass, typecheck and build clean.
-
-### Stage 2 — frame/group focus
-
-5. `enterFocus` validation + commands (`focus.enter` / `focus.exit`,
-   frame-creation guards) and Esc wiring.
-6. In-place rendering: pick approach (a) or (b) after reading
-   `bounds.ts`/`layers.ts`; implement, and check SVG/raster export of a
-   focused session is unaffected (export always renders the full scene).
-7. `appendToScope` coordinate conversion (world → scope-local) and coverage of
-   every add path: pen, brush, shapes, place image, paste, generators.
-8. LayersPanel subtree scoping (watch the recent fold/scroll-preservation
-   work). The breadcrumb and the SymbolsPanel highlight are already general.
-9. Docs: update this file to describe shipped behaviour; note the unification
-   in `docs/architecture.md` if the symbol-edit description there mentions
-   the old symbol-scope model.
-
-**Shipped.** Notes:
-
-- The rendering decision (step 6) went to **in place**, and reading the code
-  first paid off: it turned out to be one `rootBaseMatrix` option and a
-  `ctx.transform` — `bounds.ts` and `layers.ts` needed no changes at all,
-  because they already work in real world space. Risk 3 below was overstated.
-  The full comparison against re-rooting is in "Rendering" above.
-- Stage 1 left two bugs of the very class it warned about, both found here:
-  `LayersPanel`'s scope bar indexed `doc.symbols[scope]` with a node id (so it
-  read "Symbol" instead of the name), and the same fix as `SymbolsPanel` applied.
-- Tests: `tests/focusEditing.test.mjs` covers entering/nesting/refusals, the
-  add and paste coordinate conversions, stack truncation on undo, and the frame
-  guard. 326 pass, typecheck and build clean.
-
-## Known risks
-
-Ranked as assessed *before* implementation; kept for the record, with what
-actually happened.
-
-1. **Silent scope-meaning drift** — `string | null` doesn't change type when
-   its meaning changes. *Real, and the most expensive risk here: it produced
-   three separate bugs (SymbolsPanel, LayersPanel ×1), none of which the
-   compiler could see. Only per-call-site reading found them.*
-2. **New-shape coordinates under a non-identity focus root** — every add path
-   would misplace content. *Real; handled once in `appendToScope`, plus the two
-   paths that parent elsewhere.*
-3. **Rendering pipeline** — `baseMatrix` touching culling/layers/patterns/export
-   invariants. *The coordinate portion was cheap and agrees. Focus is defined as
-   true subtree isolation: rendering starts at the focus root, and point/marquee
-   hit-testing now ignores clipping masks above that boundary while retaining
-   masks at or below it.*
-4. **LayersPanel interference** — subtree scoping meets the fold/scroll
-   preservation logic and panel drag-and-drop boundaries. *Did not materialise;
-   the panel was already scope-driven.*
-5. **Esc contention** — *Real: `preventDefault()` did not stop the second
-   window listener. Pen/interaction cancellation now uses
-   `stopImmediatePropagation()`, so App's focus handler cannot consume the same
-   Esc.*
 
 ## Out of scope (v1)
 

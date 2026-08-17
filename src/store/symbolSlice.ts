@@ -1,7 +1,7 @@
 // Reusable symbols: definitions live in doc.symbols (content in doc.nodes,
 // outside rootIds); instances are atomic leaves. Local-view editing is one
 // case of focus (isolation) editing — the focus stack holds the definition's
-// root group while a symbol is open. See docs/focus.md.
+// root group while a symbol is open. See docs/design/focus.md.
 
 import { symbolContentBounds } from "@/model/geometry/bounds";
 import { acceptsScene } from "./sceneGuard";

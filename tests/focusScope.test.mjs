@@ -1,6 +1,6 @@
 // Scope semantics for focus (isolation) editing: a scope is a container node
 // id, and the helpers that resolve leaves, roots, the owning symbol and a
-// still-valid focus stack all key off that. See docs/focus.md.
+// still-valid focus stack all key off that. See docs/design/focus.md.
 
 import assert from "node:assert/strict";
 import { after, before, test } from "node:test";

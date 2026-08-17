@@ -31,7 +31,7 @@ export function createFrameActions({ set, get, transact }: StoreCtx): FrameActio
       if (!next) return;
       transact(settleNewFrame(next, frame.id), { label: "Add frame" });
       // A new frame is what the user is now working in, so the rulers count
-      // from it (see docs/rulers-and-guides.md).
+      // from it (see docs/design/rulers-and-guides.md).
       set({ selection: [frame.id], activeFrameId: frame.id, ...clearTransient });
     },
     updateFrame: (id, patch) => {

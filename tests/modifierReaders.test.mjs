@@ -1,7 +1,7 @@
 // Guards for the one convention the modifier stack rests on: every reader that
 // branches on a primitive's shape type has to consult the resolved geometry
 // first, or that shape silently ignores its modifiers. See
-// docs/path-modifiers.md.
+// docs/design/path-modifiers.md.
 
 import assert from "node:assert/strict";
 import { readdirSync, readFileSync, statSync } from "node:fs";

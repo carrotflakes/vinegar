@@ -1,5 +1,7 @@
 # Pen and touch
 
+Status: **reference.** Shipped input behaviour and the rules new tools inherit.
+
 On a tablet the canvas receives two very different kinds of contact through the
 same Pointer Events, and they mean different things. Vinegar splits them by
 role, the way iPad painting apps have taught people to expect:
@@ -166,7 +168,7 @@ the hover chrome without touching the promise the drag is still making.
 report a constant 0.5, which would silently thin every stroke, so both are
 mapped to full pressure (`1`) at the call site. Fast strokes drain
 `getCoalescedEvents()` so sample density survives; see
-[brush-strokes.md](brush-strokes.md).
+[brush-strokes.md](../design/brush-strokes.md).
 
 ## Number entry without the OS keyboard
 

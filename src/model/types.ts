@@ -29,7 +29,7 @@ export type MarkerShape = (typeof MARKER_SHAPES)[number];
 /**
  * An end marker (arrowhead, dot, tick) drawn at an open end of a stroke. It is
  * painted with the shape's stroke paint at the shape's stroke width, so a
- * marker is invisible without a stroke. See docs/markers.md.
+ * marker is invisible without a stroke. See docs/design/markers.md.
  */
 export interface Marker {
   shape: MarkerShape;
@@ -246,7 +246,7 @@ export interface BaseNode {
    * path (`"strokeWidth"`, `"generator.args.radius"`, `"modifiers.1.distance"`).
    * The field itself keeps the last resolved number, so every consumer reads a
    * plain value and a dangling reference degrades to the literal it was
-   * showing. Empty means the node binds nothing. See docs/parameters.md.
+   * showing. Empty means the node binds nothing. See docs/design/parameters.md.
    */
   bindings: Record<string, ParamRef>;
 }
@@ -302,7 +302,7 @@ export function nodeAppearanceFields(
 /**
  * A named global colour ("document colour") stored on the document. Nodes
  * reference it by id through a `swatch` Paint variant; editing the swatch once
- * re-tints every referencing fill/stroke live. See docs/global-colors.md.
+ * re-tints every referencing fill/stroke live. See docs/design/global-colors.md.
  */
 export interface Swatch {
   id: string;
@@ -315,7 +315,7 @@ export interface Swatch {
  * A named number stored on the document, the numeric counterpart of a
  * {@link Swatch}. Node fields reference it through {@link BaseNode.bindings},
  * so editing the parameter once retunes every bound field. See
- * docs/parameters.md.
+ * docs/design/parameters.md.
  */
 export interface DocParam {
   id: string;
@@ -408,7 +408,7 @@ export function baseShapeDefaults(): ShapePaintFields {
  * A shape whose geometry can pass through a non-destructive modifier stack.
  * The shape's own fields stay the editable base — a rect keeps its width and
  * corner radius even while modifiers reshape what is painted. The union of
- * these shapes is {@link PrimitiveShape}. See docs/path-modifiers.md.
+ * these shapes is {@link PrimitiveShape}. See docs/design/path-modifiers.md.
  */
 export interface ModifiableShapeBase extends BaseShape {
   /** Ordered non-destructive geometry stages; absent is an empty stack. */
@@ -418,7 +418,7 @@ export interface ModifiableShapeBase extends BaseShape {
 /**
  * A shape that can carry end markers. Only the shapes that can be *open* —
  * lines and paths — do; a rect or an ellipse has no ends to mark. Absent means
- * no marker on that end. See docs/markers.md.
+ * no marker on that end. See docs/design/markers.md.
  */
 export interface MarkableShapeBase extends ModifiableShapeBase {
   markerStart?: Marker;
@@ -770,7 +770,7 @@ export interface Document {
   paramOrder: string[];
   /** User-authored parametric generators referenced by node `generator` links. */
   scripts: Record<string, ScriptDef>;
-  /** Persistent ruler guides (world space); see docs/rulers-and-guides.md. */
+  /** Persistent ruler guides (world space); see docs/design/rulers-and-guides.md. */
   guides: GuideLine[];
   settings: DocumentSettings;
   metadata: DocumentMetadata;

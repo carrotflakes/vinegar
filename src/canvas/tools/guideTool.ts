@@ -1,7 +1,7 @@
 // Creating, dragging and dropping persistent guides. Guides are not scene
 // nodes, so this sits alongside the tools rather than inside selectTool: it
 // runs ahead of the tool dispatch for every tool that can touch guides.
-// See docs/rulers-and-guides.md.
+// See docs/design/rulers-and-guides.md.
 
 import type { EditorState } from "../../store/state";
 import type { Vec2 } from "../../model/types";

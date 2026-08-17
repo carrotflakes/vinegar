@@ -101,7 +101,7 @@ const TOOL_HINTS: Record<ToolId, string> = {
 
 /**
  * Gestures that no key or button advertises, so the status bar is where a
- * touch user finds out they exist. See docs/pen-and-touch.md.
+ * touch user finds out they exist. See docs/reference/pen-and-touch.md.
  */
 const TOUCH_HINT =
   "Double tap: enter group · two-finger tap: undo · three-finger: redo · pinch to zoom";

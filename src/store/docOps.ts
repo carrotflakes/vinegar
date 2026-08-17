@@ -433,7 +433,7 @@ export function instanceNode(id: string, symbolId: string, transform: Matrix): S
  * matrix baked into each appended root — otherwise content drawn inside a
  * focused container would jump by that container's transform the moment it is
  * committed. Scene roots and symbol definition roots are identity, so this is a
- * no-op for them. See docs/focus.md.
+ * no-op for them. See docs/design/focus.md.
  */
 export function appendToScope(
   doc: Document,

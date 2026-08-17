@@ -12,7 +12,7 @@ import { notify } from "../../store/toastStore";
 /**
  * Bucket Fill: click an empty region enclosed by visible ink to fill it with
  * the current fill color. The region is computed vectorially (see
- * docs/bucket-fill.md) and committed as a polygon *below* the surrounding ink,
+ * docs/design/bucket-fill.md) and committed as a polygon *below* the surrounding ink,
  * so outlines keep painting on top of the fill.
  */
 export function bucketFillAt(state: EditorState, world: Vec2): void {

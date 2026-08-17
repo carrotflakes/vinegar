@@ -42,7 +42,7 @@ export default defineConfig({
     VitePWA({
       // "prompt", not "autoUpdate": an editor must never reload itself out from
       // under a drawing in progress. A new build waits until the user accepts
-      // the update toast (or every Vinegar window is closed). See docs/pwa.md.
+      // the update toast (or every Vinegar window is closed). See docs/design/pwa.md.
       registerType: "prompt",
       // The app registers the worker itself (src/pwa.ts) so it can raise the
       // update toast; nothing may be injected into index.html on top of that.

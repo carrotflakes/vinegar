@@ -1,5 +1,7 @@
 # Undo history
 
+Status: **reference.** A contract: every document mutation goes through it.
+
 Undo history records persisted `Document` changes. Selection, viewport, tool
 state and other editor-only values are not part of an undo entry.
 

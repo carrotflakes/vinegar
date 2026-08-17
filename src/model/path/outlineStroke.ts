@@ -16,7 +16,7 @@ function withTransform(shape: Shape, points: Vec2[]): Vec2[] {
 /** The stroked centerline(s) of a shape, before rotation. */
 function centerlines(shape: Shape, doc?: Document): Polyline[] {
   // Brush width lives in the filled envelope, not a stroked centerline;
-  // outlining a brush into a polygon is deferred (see docs/brush-strokes.md).
+  // outlining a brush into a polygon is deferred (see docs/design/brush-strokes.md).
   // Images and text never stroke, and `shapePolylines` already returns nothing
   // for them.
   if (shape.type === "brush") return [];

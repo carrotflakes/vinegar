@@ -4,7 +4,7 @@
  * and tested on its own. `usePointerHandlers` does the mechanics (capture,
  * bookkeeping, dispatch) and asks these functions what a contact means.
  *
- * See docs/pen-and-touch.md for the behaviour these rules encode.
+ * See docs/reference/pen-and-touch.md for the behaviour these rules encode.
  */
 
 /**

@@ -9,7 +9,7 @@
 // re-derives every bound field from `doc.params`; the store runs it on every
 // committed document, so the two can never drift apart.
 //
-// See docs/parameters.md.
+// See docs/design/parameters.md.
 // ===========================================================================
 
 import { GENERATORS, defaultArgs } from "./generators/generators";

@@ -1,8 +1,8 @@
 # Effects
 
 Status: **implemented**. Fill / Stroke effects added at file version **v37**.
-Related: [document-model.md](document-model.md),
-[render-performance.md](render-performance.md) (layer pool, effect margins),
+Related: [document-model.md](../document-model.md),
+[render-performance.md](../reference/render-performance.md) (layer pool, effect margins),
 [path-modifiers.md](path-modifiers.md) (the geometry counterpart of this stack).
 
 `BaseNode.effects` is an ordered, non-destructive appearance stack on **any**
@@ -28,7 +28,7 @@ the document. `defaultEffect(type)` mints one; construct effects through it.
 
 Two consumers use it today — the properties panel's React keys and the paint
 field's remembered paint kind — and one is coming: appearance-stack field paths
-for `node.bindings` (`docs/parameters.md`) once the shape's own `strokeWidth`
+for `node.bindings` (`parameters.md`) once the shape's own `strokeWidth`
 moves into the stack.
 
 ## Two kinds share the stack
@@ -131,7 +131,7 @@ This is what keeps an ordinary stroke effect off the layer pool, and it is a
 precondition for ever moving the shape's own `fill`/`stroke` into the stack: at
 that point every shape would carry effects, and gating on "has entries" would
 route the whole scene through offscreen layers. See
-[render-performance.md](render-performance.md#3b-only-isolate-the-stacks-that-need-it-implemented).
+[render-performance.md](../reference/render-performance.md#3b-only-isolate-the-stacks-that-need-it-implemented).
 
 ## Shared mechanics
 

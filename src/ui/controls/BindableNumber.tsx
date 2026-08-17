@@ -30,7 +30,7 @@ type Props = {
  *
  * Scrubbing a parameter rewrites every node bound to it, so it batches through
  * the interaction pattern rather than by coalescing per-frame transactions.
- * See docs/parameters.md.
+ * See docs/design/parameters.md.
  */
 export default function BindableNumber({
   nodeId,

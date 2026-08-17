@@ -1,5 +1,7 @@
 # Gradients
 
+Status: **shipped.** Related: [freeform-gradients.md](freeform-gradients.md).
+
 > A fill can also be a **freeform gradient** — scattered colour points instead of a ramp. It shares
 > this file's `bounds`/`local` placement vocabulary and its interpolation spaces, but nothing else;
 > see [freeform-gradients.md](freeform-gradients.md).

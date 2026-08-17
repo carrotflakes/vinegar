@@ -1,5 +1,7 @@
 # Drag and drop
 
+Status: **reference.** A convention every draggable surface follows.
+
 All in-app dragging is pointer-based, not HTML5 drag-and-drop. Native DnD
 (`draggable` + `dragstart`/`dragover`/`drop`) never fires from touch input, so
 every draggable surface — reordering lists and dragging library items onto the
