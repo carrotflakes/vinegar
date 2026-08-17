@@ -63,6 +63,99 @@ export function shapeIds(nodes: DNode[]): string[] {
   return nodes.flatMap((n) => (n.children ? shapeIds(n.children) : [n.key]));
 }
 
+/**
+ * The words a row answers to besides its own name. Two kinds, matched
+ * differently: `kinds` names what the node *is* and is matched from the start of
+ * the word, so short queries stay predictable ("g" means group, not every
+ * re-ct-an-**g**-le); `texts` is content the node carries — the symbol an
+ * instance points at, the string a text shape draws — and is matched anywhere,
+ * like a name. Searching names alone would miss everything left at its default
+ * name, which is most of a document.
+ */
+function keywordsOf(
+  doc: Document,
+  node: DNode
+): { kinds: string[]; texts: string[] } {
+  if (node.group) return { kinds: ["group"], texts: [] };
+  if (node.frame) return { kinds: ["frame"], texts: [] };
+  if (node.instance) {
+    const symbol = doc.symbols[node.instance.symbolId];
+    return {
+      kinds: ["symbol", "instance"],
+      texts: symbol ? [symbol.name] : [],
+    };
+  }
+  const shape = node.shape!;
+  switch (shape.type) {
+    case "rect":
+      return { kinds: ["rect", "rectangle"], texts: [] };
+    case "ellipse":
+      return { kinds: ["ellipse", "circle"], texts: [] };
+    case "compoundPath":
+      // "path" too: a compound path is one, and a query for paths that skipped
+      // them would be quietly wrong rather than merely narrow.
+      return { kinds: ["compound path", "path"], texts: [] };
+    case "text":
+      return { kinds: ["text"], texts: [shape.text] };
+    default:
+      return { kinds: [shape.type], texts: [] };
+  }
+}
+
+/**
+ * The predicate a search query means, ready to hand to `filterTree`. Built once
+ * per query rather than per row: the tree is walked in full on every keystroke,
+ * so the normalisation belongs outside the walk. A blank query matches nothing —
+ * callers skip filtering entirely rather than asking for that.
+ */
+export function searchMatcher(
+  doc: Document,
+  query: string
+): (node: DNode) => boolean {
+  const q = query.trim().toLowerCase();
+  if (q === "") return () => false;
+  return (node) => {
+    const self = (node.group ?? node.frame ?? node.instance ?? node.shape)!;
+    if (self.name.toLowerCase().includes(q)) return true;
+    const { kinds, texts } = keywordsOf(doc, node);
+    return (
+      kinds.some((word) => word.startsWith(q)) ||
+      texts.some((word) => word.toLowerCase().includes(q))
+    );
+  };
+}
+
+/** Where a query hits a name, for the row to mark up. `null` when it does not. */
+export function matchRange(
+  name: string,
+  query: string
+): [number, number] | null {
+  const q = query.trim().toLowerCase();
+  if (q === "") return null;
+  const at = name.toLowerCase().indexOf(q);
+  return at < 0 ? null : [at, at + q.length];
+}
+
+/**
+ * The tree pruned to the rows a search should show: every match, plus the
+ * containers on the way down to it so a hit is never shown out of context. A
+ * matching container keeps only its *matching* children — showing its whole
+ * subtree would bury the other hits under it, which is the problem the search
+ * was opened to solve.
+ */
+export function filterTree(
+  nodes: DNode[],
+  keep: (node: DNode) => boolean
+): DNode[] {
+  const out: DNode[] = [];
+  for (const node of nodes) {
+    const children = node.children ? filterTree(node.children, keep) : undefined;
+    if (!keep(node) && !(children && children.length > 0)) continue;
+    out.push(node.children ? { ...node, children } : node);
+  }
+  return out;
+}
+
 /** Row indent: the padding every row starts at, plus one nesting level. */
 export const ROW_PAD = 6;
 export const ROW_INDENT = 16;

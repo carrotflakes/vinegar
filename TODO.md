@@ -11,8 +11,6 @@ additional effects, or other feature expansion.
 
 - [ ] **Document settings UI** — edit unit and DPI as well as grid size; show the
   selected unit consistently in coordinates, dimensions and export settings
-- [ ] **Layer search / filtering** — find nodes by name/type and quickly reveal the
-  selected result in deeply nested documents
 - [ ] Alignment guides during resize and rotate (currently move only)
 - [ ] Save workflow follow-ups — recent files (persist handles in IndexedDB),
   reattach the handle across a reload, and a "Save a copy" that does not

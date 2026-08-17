@@ -51,6 +51,7 @@ const NON_READERS = {
   "src/model/path/convertToPath.ts": "builds the base of a converted path",
   "src/model/path/pathModifiers.ts": "defines the base geometry itself",
   "src/script/runScript.ts": "constructs shapes from script output",
+  "src/ui/panels/layers/tree.ts": "names the shape kind for the layer search",
   "src/ui/panels/properties/SelectionHeader.tsx": "labels the selection",
 };
 

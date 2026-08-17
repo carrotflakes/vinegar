@@ -249,6 +249,56 @@ globalStyle(".layers-scope:hover", {
   background: vars.bg,
 });
 
+// Sits inside the sticky panel header, below the title and the focus scope, so
+// the query stays on screen while the results are scrolled.
+globalStyle(".layers-search", {
+  display: "flex",
+  alignItems: "center",
+  gap: "4px",
+  margin: "0 6px 4px",
+  padding: "0 4px 0 7px",
+  border: `1px solid ${vars.border}`,
+  borderRadius: "7px",
+  background: vars.field,
+});
+
+globalStyle(".layers-search:focus-within", {
+  borderColor: vars.accentBorder,
+});
+
+globalStyle(".layers-search-icon", {
+  flex: "none",
+  color: vars.muted,
+  fontSize: "13px",
+});
+
+globalStyle(".layers-search-input", {
+  flex: "1",
+  minWidth: "0",
+  padding: "5px 0",
+  border: "none",
+  background: "transparent",
+  color: vars.text,
+  fontSize: "13px",
+  outline: "none",
+});
+
+globalStyle(".layers-search-count", {
+  flex: "none",
+  color: vars.muted,
+  fontSize: "11px",
+  fontVariantNumeric: "tabular-nums",
+});
+
+// The part of a name the query hit. `mark`'s default is a yellow block that
+// belongs to a document, not to a dark panel — this is a tint of the accent the
+// rest of the panel already uses to mean "this is what you asked for".
+globalStyle(".layer-match", {
+  background: vars.accentSoft,
+  color: "inherit",
+  borderRadius: "3px",
+});
+
 globalStyle(".layer-symbol-ref", {
   color: vars.muted,
   fontSize: "11px",

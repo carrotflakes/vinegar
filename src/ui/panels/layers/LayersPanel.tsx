@@ -1,5 +1,11 @@
 import { useEffect, useRef, useState } from "react";
-import { LuChevronLeft, LuChevronsDownUp, LuListChecks } from "react-icons/lu";
+import {
+  LuChevronLeft,
+  LuChevronsDownUp,
+  LuListChecks,
+  LuSearch,
+  LuX,
+} from "react-icons/lu";
 import {
   ancestorIds,
   enclosingSymbolId,
@@ -15,8 +21,10 @@ import type { MenuEntry } from "@/store/menuStore";
 import { DropdownMenu } from "@/ui/menu/Menu";
 import {
   containerIds,
+  filterTree,
   flattenRows,
   rangeIds,
+  searchMatcher,
   toDisplayTree,
   visibleIds,
   ROW_INDENT,
@@ -28,6 +36,9 @@ import { LayerRow } from "./rows/LayerRow";
 import type { LayerRowCtx } from "./rows/rowContext";
 import "../../Panel.css";
 import "../PanelList.css";
+
+/** Stand-in fold state for the filtered list, which shows every row it keeps. */
+const NO_FOLDS: Set<string> = new Set();
 
 export default function LayersPanel() {
   // Freeze the tree during a canvas drag: `_interaction.before` is the stable
@@ -66,6 +77,8 @@ export default function LayersPanel() {
   const setMultiSelect = useLayersView((s) => s.setMultiSelect);
   const expandContainers = useLayersView((s) => s.expand);
   const setCollapsed = useLayersView((s) => s.setCollapsed);
+  const search = useLayersView((s) => s.search);
+  const setSearch = useLayersView((s) => s.setSearch);
   // Range selection keeps two marks, like any list: `anchor` is where a range
   // starts and `cursor` is the row the keyboard sits on / the last one clicked.
   const [anchor, setAnchor] = useState<string | null>(null);
@@ -75,8 +88,21 @@ export default function LayersPanel() {
   // Inside a focus scope the panel shows that container's tree; a drop at the
   // panel root then targets the focused container, not the scene.
   const scopeParent = scope;
-  const roots = toDisplayTree(doc, scopeRootIds(doc, scope));
-  const rows = flattenRows(roots, collapsed);
+  const fullRoots = toDisplayTree(doc, scopeRootIds(doc, scope));
+
+  // A search replaces the tree with the matches and the containers above them.
+  // Folds are ignored while it is on: a hit inside a container the user had
+  // folded shut is exactly what the search is for, and re-opening every such
+  // container would leave the document unfolded once the search closes.
+  const query = search?.trim() ?? "";
+  const filtering = query !== "";
+  const matches = searchMatcher(doc, query);
+  const roots = filtering ? filterTree(fullRoots, matches) : fullRoots;
+  const folds = filtering ? NO_FOLDS : collapsed;
+  const rows = flattenRows(roots, folds);
+  const hitCount = filtering
+    ? rows.filter((row) => matches(row.node)).length
+    : 0;
 
   const { listRef, rowsRef, scrollerRef, rowHeight, windowed, first, last } =
     useRowWindow(rows.length);
@@ -85,9 +111,10 @@ export default function LayersPanel() {
     doc,
     roots,
     rows,
-    collapsed,
+    collapsed: folds,
     selection,
     editing,
+    enabled: !filtering,
     scopeParent,
     scrollerRef,
     moveNodes,
@@ -135,7 +162,7 @@ export default function LayersPanel() {
     const { shift } = readModifiers(e);
     const from = rangeStart();
     if (shift && from && from !== id) {
-      const range = rangeIds(doc, visibleIds(roots, collapsed), from, id);
+      const range = rangeIds(doc, visibleIds(roots, folds), from, id);
       if (range) {
         setSelection(range);
         setCursor(id); // the anchor stays put, so Shift+click re-extends from it
@@ -157,7 +184,7 @@ export default function LayersPanel() {
    */
   const onListKeyDown = (e: React.KeyboardEvent) => {
     if (editing !== null) return; // a rename input owns the keyboard
-    const order = visibleIds(roots, collapsed);
+    const order = visibleIds(roots, folds);
     const at = cursor ?? rangeStart();
     const index = at ? order.indexOf(at) : -1;
     // Alt+Arrow reorders the selection one slot instead of moving the cursor.
@@ -191,6 +218,7 @@ export default function LayersPanel() {
       // than nudging the artwork.
       e.preventDefault();
       if (!at) return;
+      if (filtering) return; // the filtered list has no folds to walk
       const isCollapsed = collapsed.has(at);
       if (e.key === "ArrowRight" ? isCollapsed : !isCollapsed) {
         // Rows without children have no fold state to toggle.
@@ -206,7 +234,9 @@ export default function LayersPanel() {
   // after an unfold, because the row only exists once its ancestors are open.
   useEffect(() => {
     if (!reveal) return;
-    const hidden = ancestorIds(doc, reveal).filter((a) => collapsed.has(a));
+    const hidden = filtering
+      ? []
+      : ancestorIds(doc, reveal).filter((a) => collapsed.has(a));
     if (hidden.length > 0) {
       expandContainers(hidden);
       return;
@@ -226,7 +256,7 @@ export default function LayersPanel() {
       }
     }
     setReveal(null);
-  }, [reveal, collapsed, doc, rowHeight]);
+  }, [reveal, collapsed, doc, rowHeight, filtering]);
 
   // Multi-select is a way to build a selection up, so it ends when that
   // selection is gone — deselected row by row here, or dropped from anywhere
@@ -264,7 +294,8 @@ export default function LayersPanel() {
     doc,
     selection,
     cursor,
-    collapsed,
+    collapsed: folds,
+    query,
     multiSelect,
     editing,
     dropInside: dnd.drop?.inside,
@@ -288,8 +319,9 @@ export default function LayersPanel() {
    * open, so it isolates a branch instead of hiding the row the user is on.
    */
   const foldMenu = (): MenuEntry[] => {
-    // One more walk of a tree the render already walks once (flattenRows).
-    const containers = containerIds(roots);
+    // The whole tree, not the filtered one: folds belong to the document view,
+    // and a search that is about to be closed should not narrow what they reach.
+    const containers = containerIds(fullRoots);
     const keep = new Set(
       selection.flatMap((id) => [id, ...ancestorIds(doc, id)])
     );
@@ -313,6 +345,20 @@ export default function LayersPanel() {
     ];
   };
 
+  /**
+   * Enter (or Down) in the search field goes to the first hit: finding a layer
+   * is only half the job, and selecting it is what shows it on the canvas and
+   * fills the Properties panel. Focus moves to the list so the arrows keep
+   * walking the results from there.
+   */
+  const jumpToFirstHit = () => {
+    const hit = rows.find((row) => matches(row.node));
+    if (!hit) return;
+    selectIds([hit.key], false);
+    setReveal(hit.key);
+    listRef.current?.focus({ preventScroll: true });
+  };
+
   // The scope is a container node id; a symbol's definition root reads as the
   // symbol's name rather than as the anonymous group holding its content.
   const scopeSymbol = scope ? doc.symbols[enclosingSymbolId(doc, scope) ?? ""] : undefined;
@@ -328,6 +374,15 @@ export default function LayersPanel() {
         <div className="section-title panel-title">
           Layers
           <div className="title-actions">
+            <button
+              className={"layer-icon-btn" + (search !== null ? " active" : "")}
+              title="Search layers"
+              aria-label="Search layers"
+              aria-pressed={search !== null}
+              onClick={() => setSearch(search === null ? "" : null)}
+            >
+              <LuSearch aria-hidden />
+            </button>
             <button
               className={"layer-icon-btn" + (multiSelect ? " active" : "")}
               title={
@@ -366,6 +421,41 @@ export default function LayersPanel() {
             <span>{scopeName}</span>
           </button>
         )}
+        {search !== null && (
+          <div className="layers-search">
+            <LuSearch className="layers-search-icon" aria-hidden />
+            <input
+              className="layers-search-input"
+              value={search}
+              placeholder="Name, type, symbol…"
+              aria-label="Search layers"
+              // Opened by an explicit click on the search button, so the field
+              // takes the keyboard straight away.
+              autoFocus
+              onChange={(e) => setSearch(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" || e.key === "ArrowDown") {
+                  e.preventDefault();
+                  jumpToFirstHit();
+                }
+                // Escape clears a query first and closes on a second press, so
+                // the field is never lost mid-search by one key too many.
+                if (e.key === "Escape") setSearch(search === "" ? null : "");
+              }}
+            />
+            {filtering && (
+              <span className="layers-search-count">{hitCount}</span>
+            )}
+            <button
+              className="layer-icon-btn"
+              title="Close search"
+              aria-label="Close search"
+              onClick={() => setSearch(null)}
+            >
+              <LuX aria-hidden />
+            </button>
+          </div>
+        )}
       </div>
       <div
         className="layers-list"
@@ -396,7 +486,11 @@ export default function LayersPanel() {
         }}
         onPointerLeave={() => setHighlight(null)}
       >
-        {rows.length === 0 && <div className="layers-empty">No shapes yet</div>}
+        {rows.length === 0 && (
+          <div className="layers-empty">
+            {filtering ? "No layers match" : "No shapes yet"}
+          </div>
+        )}
         <div
           className="layers-rows"
           ref={rowsRef}

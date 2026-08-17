@@ -58,6 +58,14 @@ interface Options {
   selection: string[];
   /** The row being renamed, if any — its input owns the pointer. */
   editing: string | null;
+  /**
+   * Off while the list is filtered: a drop index is read off the *displayed*
+   * sibling list, and under a filter that list is missing rows, so every index
+   * past the first hidden sibling would land somewhere else in the document.
+   * Takes the row swipe with it (same gesture handler), so a filtered list has
+   * no touch context menu either.
+   */
+  enabled: boolean;
   /** Where a drop at the panel root lands (the focused container, or null). */
   scopeParent: string | null;
   scrollerRef: RefObject<HTMLElement | null>;
@@ -77,6 +85,7 @@ export function useLayersDnd({
   collapsed,
   selection,
   editing,
+  enabled,
   scopeParent,
   scrollerRef,
   moveNodes,
@@ -203,7 +212,7 @@ export function useLayersDnd({
     rowDnd: (row, flat, swipe) => ({
       "data-row-flat": flat,
       onPointerDown:
-        editing === row.key
+        !enabled || editing === row.key
           ? undefined
           : (e: PointerEvent) =>
               startRowDrag(e, { ids: draggedIds(row.key), swipe }),

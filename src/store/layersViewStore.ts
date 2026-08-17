@@ -1,8 +1,8 @@
 import { create } from "zustand";
 
 /**
- * The Layers panel's own view state: which containers are folded shut, and
- * whether tapping rows adds to the selection.
+ * The Layers panel's own view state: which containers are folded shut, what the
+ * list is filtered by, and whether tapping rows adds to the selection.
  *
  * Deliberately outside the panel component: the dock renders only the active
  * tab, so switching tabs (or moving the panel between dock groups) unmounts
@@ -20,6 +20,13 @@ export interface LayersViewState {
    * it — Ctrl/Cmd+click for touch, which has no modifier keys of its own.
    */
   multiSelect: boolean;
+  /**
+   * The search query, or `null` when the search bar is closed. One field rather
+   * than a query plus an "open" flag: an open-but-empty bar is a real state
+   * (it is where typing starts) and a closed bar can hold no query.
+   */
+  search: string | null;
+  setSearch: (query: string | null) => void;
   setMultiSelect: (on: boolean) => void;
   toggleMultiSelect: () => void;
   toggleCollapsed: (id: string) => void;
@@ -32,6 +39,8 @@ export interface LayersViewState {
 export const useLayersView = create<LayersViewState>((set, get) => ({
   collapsed: new Set(),
   multiSelect: false,
+  search: null,
+  setSearch: (query) => set({ search: query }),
   setMultiSelect: (on) => set({ multiSelect: on }),
   toggleMultiSelect: () => set({ multiSelect: !get().multiSelect }),
   toggleCollapsed: (id) => {

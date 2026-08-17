@@ -13,7 +13,7 @@ import {
 } from "react-icons/lu";
 import { openContextMenu, type MenuEntry } from "@/store/menuStore";
 import { selectionMenu } from "../../../menus";
-import { ROW_INDENT, ROW_PAD, type Row } from "../tree";
+import { matchRange, ROW_INDENT, ROW_PAD, type Row } from "../tree";
 import type { LayerRowCtx } from "./rowContext";
 import { SWIPE_TRIGGER } from "../../../useTouchDrag";
 import { rowSpec } from "./rowSpec";
@@ -24,6 +24,24 @@ const SWIPE_MAX = 28;
 
 const stateButtonClass = (isSet: boolean) =>
   `layer-icon-btn layer-state-btn ${isSet ? "state-set" : "state-idle"}`;
+
+/**
+ * The name with the search hit marked. A row can also be on screen because a
+ * *keyword* matched (its type, the symbol it points at) or because it is the
+ * container above a hit, and then there is nothing in the name to mark.
+ */
+function MatchedName({ name, query }: { name: string; query: string }) {
+  const range = matchRange(name, query);
+  if (!range) return <>{name}</>;
+  const [from, to] = range;
+  return (
+    <>
+      {name.slice(0, from)}
+      <mark className="layer-match">{name.slice(from, to)}</mark>
+      {name.slice(to)}
+    </>
+  );
+}
 
 interface NameEditorProps {
   current: string;
@@ -157,7 +175,10 @@ export function LayerRow({
           <LuEllipsisVertical />
         </span>
       )}
-      {spec.chevron && (
+      {/* An empty container has no fold state to toggle — and under a search
+          filter most containers are shown only for context, with their
+          non-matching children pruned away. */}
+      {spec.chevron && hasChildren && (
         <button
           className="layer-icon-btn layer-chevron"
           title={isCollapsed ? "Expand" : "Collapse"}
@@ -208,7 +229,7 @@ export function LayerRow({
             ctx.setEditing(id);
           }}
         >
-          {name}
+          <MatchedName name={name} query={ctx.query} />
           {spec.badge && <span className="layer-symbol-ref"> {spec.badge}</span>}
         </span>
       )}

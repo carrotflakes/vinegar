@@ -244,3 +244,111 @@ test("a level the drag may not enter falls back to a shallower one", () => {
 test("a row that is not in the list is no drop target", () => {
   assert.equal(at({ flat: 9, ratio: 0.5 }), null);
 });
+
+// --- search --------------------------------------------------------------
+
+const text = (id, body, patch = {}) => ({
+  id,
+  name: id,
+  type: "text",
+  ...NODE_BASE,
+  ...SHAPE_BASE,
+  transform: [1, 0, 0, 1, 0, 0],
+  text: body,
+  textMode: "point",
+  x: 0,
+  y: 0,
+  width: 10,
+  height: 10,
+  fontFamily: "Inter",
+  fontSize: 12,
+  fontWeight: 400,
+  italic: false,
+  ...patch,
+});
+
+/** The row order a query leaves behind, front-most first. */
+const found = (d, query) => {
+  const display = tree.toDisplayTree(d, d.rootIds);
+  const kept = tree.filterTree(display, tree.searchMatcher(d, query));
+  return tree.visibleIds(kept, new Set());
+};
+
+test("a search keeps the matches and the containers above them", () => {
+  const d = doc(
+    [rect("a"), rect("logo"), group("g", ["c", "d"]), rect("c"), rect("logo mark")],
+    ["a", "logo", "g"]
+  );
+  d.nodes.g.childIds = ["c", "logo mark"];
+  assert.deepEqual(found(d, "logo"), ["g", "logo mark", "logo"]);
+});
+
+test("a matching container keeps only its matching children", () => {
+  // "logo" itself matches, but its subtree must not bury the other hits.
+  const d = doc(
+    [group("logo", ["c", "d"]), rect("c"), rect("d"), rect("logo tail")],
+    ["logo", "logo tail"]
+  );
+  assert.deepEqual(found(d, "logo"), ["logo tail", "logo"]);
+});
+
+test("a kind keyword is matched from its start, so short queries stay tight", () => {
+  const d = doc([rect("a"), group("g", ["c"]), rect("c")], ["a", "g"]);
+  // "g" is inside "rectangle" but does not begin it: only the group answers.
+  assert.deepEqual(found(d, "g"), ["g"]);
+  assert.deepEqual(found(d, "rec"), ["g", "c", "a"]);
+});
+
+test("a search matches a node's kind, not just its name", () => {
+  const d = doc([rect("a"), group("g", ["c"]), rect("c")], ["a", "g"]);
+  assert.deepEqual(found(d, "rect"), ["g", "c", "a"]);
+  assert.deepEqual(found(d, "group"), ["g"]);
+});
+
+test("a compound path answers to \"path\" as well as to its own kind", () => {
+  const d = doc([rect("a"), rect("c")], ["a", "cp"]);
+  d.nodes.cp = {
+    id: "cp",
+    name: "cp",
+    type: "compoundPath",
+    ...NODE_BASE,
+    ...SHAPE_BASE,
+    transform: [1, 0, 0, 1, 0, 0],
+    childIds: [],
+    fillRule: "nonzero",
+  };
+  assert.deepEqual(found(d, "path"), ["cp"]);
+  assert.deepEqual(found(d, "compound"), ["cp"]);
+});
+
+test("a text shape answers to the string it draws", () => {
+  const d = doc([rect("a"), text("t", "Hello world")], ["a", "t"]);
+  assert.deepEqual(found(d, "hello"), ["t"]);
+});
+
+test("an instance answers to the name of its symbol", () => {
+  const d = doc([rect("a"), rect("c")], ["a", "i"]);
+  d.nodes.i = {
+    id: "i",
+    name: "i",
+    type: "instance",
+    ...NODE_BASE,
+    transform: [1, 0, 0, 1, 0, 0],
+    symbolId: "s1",
+  };
+  d.rootIds = ["a", "i"];
+  d.symbols = { s1: { id: "s1", name: "Bolt", rootNodeId: "c" } };
+  assert.deepEqual(found(d, "bolt"), ["i"]);
+});
+
+test("a blank query filters nothing out — the caller skips the filter", () => {
+  const d = doc([rect("a"), rect("b")], ["a", "b"]);
+  assert.deepEqual(found(d, "   "), []);
+  assert.equal(tree.searchMatcher(d, "")(tree.toDisplayTree(d, ["a"])[0]), false);
+});
+
+test("matchRange points at the hit in a name, case-insensitively", () => {
+  assert.deepEqual(tree.matchRange("Logo mark", "MARK"), [5, 9]);
+  assert.equal(tree.matchRange("Logo mark", "circle"), null);
+  assert.equal(tree.matchRange("Logo mark", " "), null);
+});

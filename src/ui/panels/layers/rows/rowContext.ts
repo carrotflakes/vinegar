@@ -21,6 +21,8 @@ export interface LayerRowCtx {
   multiSelect: boolean;
   /** The row being renamed, if any. */
   editing: string | null;
+  /** The active search query, "" when the list is not filtered. Rows mark it up. */
+  query: string;
   /** Container the pending drop would go inside, if any. */
   dropInside: string | undefined;
   setEditing: (id: string | null) => void;
