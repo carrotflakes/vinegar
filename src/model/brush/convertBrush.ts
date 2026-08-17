@@ -7,11 +7,12 @@
 
 import { cachedBrushEnvelope } from "@/model/brush/brushOutline";
 import { IDENTITY } from "@/model/geometry/matrix";
-import { strokeDetailFields } from "../stroke";
+import { shapePaintFields } from "../stroke";
 import { resolvedSubpaths } from "@/model/path/pathModifiers";
 import {
   baseNodeDefaults,
   makeId,
+  nodeAppearanceFields,
   type BrushAnchor,
   type BrushShape,
   type Group,
@@ -96,8 +97,9 @@ export function convertPathToBrush(
 ): ConvertPathToBrushResult | null {
   const subpaths = resolvedSubpaths(shape).filter(hasBrushableCenterline);
   if (!subpaths.length) return null;
-  const appearance = brushAppearance(shape);
-  const detail = strokeDetailFields(shape);
+  // The source's paint carries across, with the three fields the brush
+  // reinterprets (see brushAppearance) laid over the top.
+  const paint = { ...shapePaintFields(shape), ...brushAppearance(shape) };
 
   if (subpaths.length === 1) {
     const brush: BrushShape = {
@@ -105,13 +107,8 @@ export function convertPathToBrush(
       name: shape.name,
       type: "brush",
       anchors: subpaths[0].anchors.map(brushAnchorFromPath),
-      ...appearance,
-      ...detail,
-      opacity: shape.opacity,
-      blendMode: shape.blendMode,
-      effects: structuredClone(shape.effects),
-      hidden: shape.hidden,
-      locked: shape.locked,
+      ...paint,
+      ...nodeAppearanceFields(shape),
       // The brush geometry no longer matches the generator's path output.
       generator: null,
       bindings: { ...shape.bindings },
@@ -128,8 +125,7 @@ export function convertPathToBrush(
     name: `${shape.name} ${i + 1}`,
     type: "brush",
     anchors: sp.anchors.map(brushAnchorFromPath),
-    ...appearance,
-    ...detail,
+    ...paint,
     ...baseNodeDefaults(),
     transform: [...IDENTITY] as BrushShape["transform"],
   }));
@@ -142,11 +138,7 @@ export function convertPathToBrush(
     childIds: brushes.map((brush) => brush.id),
     transform: [...shape.transform],
     transformOrigin: shape.transformOrigin,
-    opacity: shape.opacity,
-    blendMode: shape.blendMode,
-    effects: structuredClone(shape.effects),
-    hidden: shape.hidden,
-    locked: shape.locked,
+    ...nodeAppearanceFields(shape),
     generator: null,
   };
   return { brushes, group };
@@ -184,16 +176,12 @@ export function convertBrushToOutlinePath(shape: BrushShape): PathShape | null {
       },
     ],
     fillRule: "nonzero",
+    ...shapePaintFields(shape),
     // The envelope is filled with the brush's paint; the stroke goes inert.
     fill: shape.stroke,
     stroke: null,
     strokeWidth: 0,
-    ...strokeDetailFields(shape),
-    opacity: shape.opacity,
-    blendMode: shape.blendMode,
-    effects: structuredClone(shape.effects),
-    hidden: shape.hidden,
-    locked: shape.locked,
+    ...nodeAppearanceFields(shape),
     // The envelope outline no longer matches the generator's brush output.
     generator: null,
     bindings: {},
@@ -230,15 +218,11 @@ export function convertBrushToCenterlinePath(shape: BrushShape): PathShape {
       { closed: false, anchors: shape.anchors.map(pathAnchorFromBrush) },
     ],
     fillRule: "nonzero",
+    ...shapePaintFields(shape),
+    // The brush's paint is its stroke, which carries across as the path's; the
+    // brush had no fill to bring.
     fill: null,
-    stroke: shape.stroke,
-    strokeWidth: shape.strokeWidth,
-    ...strokeDetailFields(shape),
-    opacity: shape.opacity,
-    blendMode: shape.blendMode,
-    effects: structuredClone(shape.effects),
-    hidden: shape.hidden,
-    locked: shape.locked,
+    ...nodeAppearanceFields(shape),
     generator: null,
     bindings: { ...shape.bindings },
     transform: [...shape.transform],

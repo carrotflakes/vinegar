@@ -8,6 +8,7 @@
 import { create } from "zustand";
 import { IDENTITY } from "@/model/geometry/matrix";
 import type { MarkableShape } from "@/model/marker";
+import { shapePaintFields } from "@/model/stroke";
 import { baseNodeDefaults, createEmptyDocument, type Shape } from "../model/types";
 import { createClipboardActions } from "./clipboardSlice";
 import { createHistory, trimHistoryToLimit } from "./historySlice";
@@ -124,14 +125,7 @@ export function markersFromDefaults(
 
 export function styleFromDefaults(style: StyleDefaults) {
   return {
-    fill: style.fill,
-    stroke: style.stroke,
-    strokeWidth: style.strokeWidth,
-    strokeDash: [...style.strokeDash],
-    strokeDashOffset: style.strokeDashOffset,
-    strokeCap: style.strokeCap,
-    strokeJoin: style.strokeJoin,
-    strokeAlignment: style.strokeAlignment,
+    ...shapePaintFields(style),
     ...baseNodeDefaults(),
     transform: [...IDENTITY] as Shape["transform"],
   };

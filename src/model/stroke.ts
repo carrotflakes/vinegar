@@ -1,6 +1,6 @@
 import type {
-  BaseShape,
   Shape,
+  ShapePaintFields,
   StrokeAlignment,
   StrokeCap,
   StrokeJoin,
@@ -49,12 +49,19 @@ export function strokeOutset(shape: Shape): number {
   return Math.max(outset, markerOutset(shape));
 }
 
-/** Copy a shape's stroke appearance to a newly-created result. */
-export function strokeDetailFields(shape: BaseShape): Pick<
-  BaseShape,
-  "strokeDash" | "strokeDashOffset" | "strokeCap" | "strokeJoin" | "strokeAlignment"
-> {
+/**
+ * Copy a shape's whole paint/stroke appearance onto a newly-created result.
+ *
+ * Paints are carried by reference, as the hand-written field lists this
+ * replaced did — a `Paint` is treated as immutable everywhere. A conversion
+ * that means to change one paint spreads this and then overrides that field,
+ * so the change reads as the deliberate exception it is.
+ */
+export function shapePaintFields(shape: ShapePaintFields): ShapePaintFields {
   return {
+    fill: shape.fill,
+    stroke: shape.stroke,
+    strokeWidth: shape.strokeWidth,
     strokeDash: normalizeStrokeDash(shape.strokeDash),
     strokeDashOffset: shape.strokeDashOffset,
     strokeCap: shape.strokeCap,

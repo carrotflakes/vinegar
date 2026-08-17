@@ -7,13 +7,14 @@ import {
 } from "@/model/geometry/matrix";
 import { isGroup, parentIdOf, selectionRoots } from "../scene";
 import { markerFields } from "@/model/marker";
-import { strokeDetailFields } from "../stroke";
+import { shapePaintFields } from "../stroke";
 import { transformSubpath } from "./path";
 import { convertShapeToPath } from "./convertToPath";
 import { resolvedSubpaths } from "./pathModifiers";
 import {
   baseNodeDefaults,
   makeId,
+  nodeCompositeFields,
   type Document,
   type EllipseShape,
   type LineShape,
@@ -157,14 +158,10 @@ export function combineShapes(shapes: PathShape[]): PathShape | null {
     // Irrelevant to the open contours this exists for; kept from the base so a
     // closed input keeps filling the way it did.
     fillRule: base.fillRule,
-    fill: base.fill,
-    stroke: base.stroke,
-    strokeWidth: base.strokeWidth,
-    ...strokeDetailFields(base),
+    ...shapePaintFields(base),
     ...markerFields(base),
     ...baseNodeDefaults(),
-    opacity: base.opacity,
-    blendMode: base.blendMode,
+    ...nodeCompositeFields(base),
     transform,
     transformOrigin: base.transformOrigin
       ? { ...base.transformOrigin }

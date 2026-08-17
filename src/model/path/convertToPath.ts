@@ -3,17 +3,18 @@ import { applyPathModifiers } from "./pathModifiers";
 import { shapeFillRule, shapeSubpaths } from "./shapeGeometry";
 import { remapModifierBindings } from "../params";
 import { markerFields } from "../marker";
-import { strokeDetailFields } from "../stroke";
-import type {
-  CompoundPathNode,
-  BrushShape,
-  Document,
-  EllipseShape,
-  LineShape,
-  PathShape,
-  PrimitiveShape,
-  RectShape,
-  SceneNode,
+import { shapePaintFields } from "../stroke";
+import {
+  nodeAppearanceFields,
+  type CompoundPathNode,
+  type BrushShape,
+  type Document,
+  type EllipseShape,
+  type LineShape,
+  type PathShape,
+  type PrimitiveShape,
+  type RectShape,
+  type SceneNode,
 } from "../types";
 
 export type PathConvertibleShape =
@@ -51,18 +52,11 @@ export function convertShapeToPath(
     type: "path",
     subpaths,
     fillRule: shapeFillRule(shape),
-    fill: shape.fill,
-    stroke: shape.stroke,
-    strokeWidth: shape.strokeWidth,
-    ...strokeDetailFields(shape),
+    ...shapePaintFields(shape),
     // A converted line keeps its end markers: they attach to the resolved
     // geometry, which this conversion preserves.
     ...markerFields(shape),
-    opacity: shape.opacity,
-    blendMode: shape.blendMode,
-    effects: structuredClone(shape.effects),
-    hidden: shape.hidden,
-    locked: shape.locked,
+    ...nodeAppearanceFields(shape),
     generator: shape.generator,
     // The stack is baked into `subpaths` here, so bindings onto its stages
     // have nothing left to address.

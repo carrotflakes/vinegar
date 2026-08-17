@@ -272,6 +272,33 @@ export function baseNodeDefaults(): Pick<
   };
 }
 
+/** How a node composites onto what is below it, as spreadable fields. */
+export function nodeCompositeFields(
+  node: BaseNode
+): Pick<BaseNode, "opacity" | "blendMode"> {
+  return { opacity: node.opacity, blendMode: node.blendMode };
+}
+
+/**
+ * A node's look and visibility state, for a conversion that builds a new node
+ * meant to composite exactly like its source. The effect stack is cloned.
+ *
+ * An op that bakes geometry the effect stack was tuned against (boolean, join,
+ * combine) deliberately *drops* the stack and spreads `baseNodeDefaults()` with
+ * {@link nodeCompositeFields} instead — the narrower pair is the signal that
+ * the omission is intended.
+ */
+export function nodeAppearanceFields(
+  node: BaseNode
+): Pick<BaseNode, "opacity" | "blendMode" | "effects" | "hidden" | "locked"> {
+  return {
+    ...nodeCompositeFields(node),
+    effects: structuredClone(node.effects),
+    hidden: node.hidden,
+    locked: node.locked,
+  };
+}
+
 /**
  * A named global colour ("document colour") stored on the document. Nodes
  * reference it by id through a `swatch` Paint variant; editing the swatch once
@@ -350,11 +377,21 @@ export interface BaseShape extends BaseNode {
   strokeAlignment: StrokeAlignment;
 }
 
+/**
+ * The paint/stroke fields a shape adds on top of {@link BaseNode}, as one
+ * spreadable set.
+ *
+ * Deliberately an `Omit` rather than an enumerated `Pick`: a new `BaseShape`
+ * field then fails to compile in the two functions that build this set
+ * (`baseShapeDefaults` here, `shapePaintFields` in model/stroke.ts) instead of
+ * silently dropping out of every conversion that carries a shape's appearance
+ * across — which is what happened while each of those hand-listed its own
+ * subset.
+ */
+export type ShapePaintFields = Omit<BaseShape, keyof BaseNode>;
+
 /** The neutral paint/stroke fields of a shape, to spread like baseNodeDefaults. */
-export function baseShapeDefaults(): Pick<
-  BaseShape,
-  "fill" | "stroke" | "strokeWidth" | "strokeDash" | "strokeDashOffset" | "strokeCap" | "strokeJoin" | "strokeAlignment"
-> {
+export function baseShapeDefaults(): ShapePaintFields {
   return {
     fill: null,
     stroke: null,

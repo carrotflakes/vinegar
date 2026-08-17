@@ -1,11 +1,12 @@
 import { IDENTITY } from "@/model/geometry/matrix";
 import { markerFields } from "@/model/marker";
-import { strokeDetailFields } from "../stroke";
+import { shapePaintFields } from "../stroke";
 import { transformAnchor } from "./path";
 import { resolvedSubpaths } from "./pathModifiers";
 import {
-  makeId,
   baseNodeDefaults,
+  makeId,
+  nodeCompositeFields,
   type PathAnchor,
   type PathShape,
   type PathSubpath,
@@ -136,14 +137,10 @@ export function joinShapes(
     type: "path",
     subpaths: [...subpaths, ...passthrough],
     fillRule: base.fillRule,
-    fill: base.fill,
-    stroke: base.stroke,
-    strokeWidth: base.strokeWidth,
-    ...strokeDetailFields(base),
+    ...shapePaintFields(base),
     ...markerFields(base),
     ...baseNodeDefaults(),
-    opacity: base.opacity,
-    blendMode: base.blendMode,
+    ...nodeCompositeFields(base),
     transform: [...IDENTITY],
   };
 }

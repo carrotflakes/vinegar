@@ -1,8 +1,10 @@
 import { IDENTITY, multiply } from "@/model/geometry/matrix";
 import { isAreal } from "./boolean";
-import { strokeDetailFields } from "../stroke";
+import { shapePaintFields } from "../stroke";
 import {
   makeId,
+  nodeAppearanceFields,
+  nodeCompositeFields,
   type CompoundPathNode,
   type PrimitiveShape,
   type SceneNode,
@@ -78,15 +80,8 @@ export function makeCompoundPath(shapes: Shape[]): CompoundPathNode | null {
     childIds: shapes.flatMap((shape) =>
       isCompoundPath(shape) ? shape.childIds : [shape.id]
     ),
-    fill: base.fill,
-    stroke: base.stroke,
-    strokeWidth: base.strokeWidth,
-    ...strokeDetailFields(base),
-    opacity: base.opacity,
-    blendMode: base.blendMode,
-    effects: structuredClone(base.effects),
-    hidden: base.hidden,
-    locked: base.locked,
+    ...shapePaintFields(base),
+    ...nodeAppearanceFields(base),
     generator: null,
     bindings: { ...base.bindings },
     transform: [...IDENTITY],
@@ -101,12 +96,8 @@ export function releaseCompoundPath(
 ): PrimitiveShape[] {
   return compoundChildren(doc, shape, true).map((component) => ({
     ...structuredClone(component),
-    fill: shape.fill,
-    stroke: shape.stroke,
-    strokeWidth: shape.strokeWidth,
-    ...strokeDetailFields(shape),
-    opacity: shape.opacity,
-    blendMode: shape.blendMode,
+    ...shapePaintFields(shape),
+    ...nodeCompositeFields(shape),
     transform: multiply(shape.transform, component.transform),
   }));
 }

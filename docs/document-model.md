@@ -134,6 +134,38 @@ The current file version is v37 and it is the only version loading accepts.
 Persisted model changes require a version review and, when incompatible, a
 migration.
 
+## Carrying appearance across an operation
+
+Boolean ops, join, combine, compound path, split and the brush/path conversions
+all build a *new* node meant to look like the one it came from. None of them
+lists the fields to copy by hand — every one spreads the shared helpers, so a
+new appearance field reaches all of them at once:
+
+| Helper | Where | Covers |
+| --- | --- | --- |
+| `shapePaintFields(shape)` | `model/stroke.ts` | every paint/stroke field a shape adds on top of `BaseNode` |
+| `nodeCompositeFields(node)` | `model/types.ts` | `opacity`, `blendMode` |
+| `nodeAppearanceFields(node)` | `model/types.ts` | the above plus a cloned `effects`, `hidden`, `locked` |
+| `markerFields(shape)` | `model/marker.ts` | `markerStart` / `markerEnd`, absent ends staying absent |
+
+`baseNodeDefaults()` / `baseShapeDefaults()` are the *construction* counterparts:
+neutral values for a node built from scratch rather than derived from another.
+
+An op that deliberately drops something says so by choosing the narrower helper
+— boolean, join and combine bake geometry their effect stack was tuned against,
+so they spread `baseNodeDefaults()` with `nodeCompositeFields`, never
+`nodeAppearanceFields`. An op that deliberately *changes* one field spreads the
+helper and then overrides that field, so the exception reads as intentional
+(see `convertBrushToOutlinePath`, where the brush's stroke becomes the ring's
+fill).
+
+`ShapePaintFields` in `model/types.ts` is `Omit<BaseShape, keyof BaseNode>` —
+an omit rather than an enumerated pick on purpose. Adding a field to `BaseShape`
+then fails to compile in exactly two builders (`baseShapeDefaults` and
+`shapePaintFields`) instead of silently dropping out of the sites above.
+`StyleDefaults` and `StyleStylableFields` in `store/state.ts` extend the same
+type rather than restating it.
+
 ## Coordinate policy
 
 Geometry is stored in node-local coordinates. Each shape and group has a

@@ -7,12 +7,11 @@
 import type { BoolOp } from "@/model/path/boolean";
 import type { PathOp } from "@/model/path/pathOps";
 import type { ScriptMeta } from "@/model/generators/generators";
-import type { Paint, PaintTarget, SolidPaint } from "../model/paint";
+import type { PaintTarget, SolidPaint } from "../model/paint";
 import type { ToolId } from "../toolDefinitions";
 import type {
   BaseNode,
   AnchorType,
-  BlendMode,
   DocParam,
   Document,
   Effect,
@@ -24,10 +23,8 @@ import type {
   SceneNode,
   ScriptDef,
   Shape,
+  ShapePaintFields,
   Swatch,
-  StrokeAlignment,
-  StrokeCap,
-  StrokeJoin,
   TextShape,
   Vec2,
 } from "../model/types";
@@ -39,15 +36,8 @@ import type { DocumentPatch } from "./documentPatches";
 export type { ToolId } from "../toolDefinitions";
 export interface EditNode { shapeId: string; sub: number; index: number }
 export type AlignType = "left" | "hcenter" | "right" | "top" | "vmiddle" | "bottom";
-export interface StyleDefaults {
-  fill: Paint | null;
-  stroke: Paint | null;
-  strokeWidth: number;
-  strokeDash: number[];
-  strokeDashOffset: number;
-  strokeCap: StrokeCap;
-  strokeJoin: StrokeJoin;
-  strokeAlignment: StrokeAlignment;
+/** The paint a newly drawn shape starts with. */
+export interface StyleDefaults extends ShapePaintFields {
   /** End markers for newly drawn lines and paths; `null` is no marker. Shapes
    *  that cannot carry one (rect, ellipse, text, brush) ignore these. */
   markerStart: Marker | null;
@@ -72,20 +62,13 @@ export interface HistoryTransactionOptions {
   coalesceKey?: string;
 }
 
-export interface StyleStylableFields {
-  fill: Paint | null;
-  stroke: Paint | null;
-  strokeWidth: number;
-  strokeDash: number[];
-  strokeDashOffset: number;
-  strokeCap: StrokeCap;
-  strokeJoin: StrokeJoin;
-  strokeAlignment: StrokeAlignment;
-  opacity: number;
-  blendMode: BlendMode;
-  transform: Shape["transform"];
-  transformOrigin: Vec2 | null;
-}
+/** Every field `applyStyle` may set on a node. */
+export interface StyleStylableFields
+  extends ShapePaintFields,
+    Pick<
+      BaseNode,
+      "opacity" | "blendMode" | "transform" | "transformOrigin"
+    > {}
 
 /** Plain state fields (everything that is not an action). */
 export interface EditorData {

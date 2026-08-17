@@ -4,12 +4,13 @@ import * as paperNs from "paper";
 const paper: typeof paperNs =
   (paperNs as { default?: typeof paperNs }).default ?? paperNs;
 import { IDENTITY } from "@/model/geometry/matrix";
-import { strokeDetailFields } from "../stroke";
+import { shapePaintFields } from "../stroke";
 import { hasActiveModifiers } from "./pathModifiers";
 import { shapeFillRule, shapeSubpaths } from "./shapeGeometry";
 import {
   baseNodeDefaults,
   makeId,
+  nodeCompositeFields,
   type PathShape,
   type PathSubpath,
   type Shape,
@@ -171,13 +172,9 @@ export function booleanShapes(
     type: "path",
     subpaths,
     fillRule: "nonzero",
-    fill: base.fill,
-    stroke: base.stroke,
-    strokeWidth: base.strokeWidth,
-    ...strokeDetailFields(base),
+    ...shapePaintFields(base),
     ...baseNodeDefaults(),
-    opacity: base.opacity,
-    blendMode: base.blendMode,
+    ...nodeCompositeFields(base),
     transform: [...IDENTITY],
   };
 }
@@ -206,13 +203,9 @@ function faceShape(region: paper.PathItem, style: Shape): PathShape | null {
     type: "path",
     subpaths,
     fillRule: "evenodd",
-    fill: style.fill,
-    stroke: style.stroke,
-    strokeWidth: style.strokeWidth,
-    ...strokeDetailFields(style),
+    ...shapePaintFields(style),
     ...baseNodeDefaults(),
-    opacity: style.opacity,
-    blendMode: style.blendMode,
+    ...nodeCompositeFields(style),
     transform: [...IDENTITY],
   };
 }

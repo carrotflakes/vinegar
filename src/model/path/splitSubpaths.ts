@@ -2,6 +2,7 @@ import { IDENTITY } from "@/model/geometry/matrix";
 import {
   baseNodeDefaults,
   makeId,
+  nodeAppearanceFields,
   type Group,
   type PathShape,
   type SceneNode,
@@ -61,11 +62,7 @@ export function flattenSplitPieces(result: SplitSubpathsResult): PathShape[] {
     ...piece,
     transform: [...group.transform],
     transformOrigin: group.transformOrigin,
-    opacity: group.opacity,
-    blendMode: group.blendMode,
-    effects: structuredClone(group.effects),
-    hidden: group.hidden,
-    locked: group.locked,
+    ...nodeAppearanceFields(group),
   }));
 }
 
@@ -90,11 +87,7 @@ export function splitSubpaths(shape: PathShape): SplitSubpathsResult | null {
     childIds: pieces.map((piece) => piece.id),
     transform: [...shape.transform],
     transformOrigin: shape.transformOrigin,
-    opacity: shape.opacity,
-    blendMode: shape.blendMode,
-    effects: structuredClone(shape.effects),
-    hidden: shape.hidden,
-    locked: shape.locked,
+    ...nodeAppearanceFields(shape),
     generator: null,
   };
   return { group, pieces };
