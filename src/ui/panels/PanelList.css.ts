@@ -29,17 +29,13 @@ globalStyle(".layers-list", {
   padding: "0 6px 8px",
 });
 
-// The list takes focus on pointerdown so arrow keys can walk its rows; a ring
-// around the whole panel would only be noise there. Keyboard focus (Tab) gets a
-// visible ring instead, and the cursor row is marked while the list holds focus
-// so arrow navigation is followable even when it diverges from the selection.
-globalStyle(".layers-list:focus", {
+// The list takes focus on pointerdown so arrow keys can walk its rows, which
+// makes it focused most of the time it is used at all — a ring around the whole
+// panel would be near-permanent chrome. What focus is *for* is the cursor row,
+// so that is what gets marked: arrow navigation stays followable even when it
+// diverges from the selection, without outlining the panel to say so.
+globalStyle(".layers-list:focus, .layers-list:focus-visible", {
   outline: "none",
-});
-globalStyle(".layers-list:focus-visible", {
-  outline: `2px solid ${vars.accent}`,
-  outlineOffset: "-2px",
-  borderRadius: "8px",
 });
 globalStyle(".layers-list:focus-visible .layer-row.cursor", {
   boxShadow: `inset 0 0 0 1px ${vars.accent}`,
