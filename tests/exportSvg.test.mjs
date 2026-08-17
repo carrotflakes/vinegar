@@ -539,3 +539,65 @@ test("a node blend mode survives the isolation added for geometry effects", () =
   // A normal-blend effect stays attribute-free.
   assert.doesNotMatch(svg, /fill="#00ff00"[^>]*mix-blend-mode/);
 });
+
+/** A frame holding one red rect, plus whatever frame fields the test needs. */
+function framedRect(frameFields = {}) {
+  const doc = createEmptyDocument();
+  doc.nodes.rect = {
+    id: "rect",
+    name: "Inside",
+    type: "rect",
+    ...SHAPE_BASE, cornerRadius: 0,
+    ...NODE_BASE,
+    x: 10,
+    y: 10,
+    width: 50,
+    height: 40,
+    transform: [1, 0, 0, 1, 0, 0],
+    fill: { type: "solid", color: "#ff0000", alpha: 1 },
+  };
+  doc.nodes.frame = {
+    id: "frame",
+    name: "Frame",
+    type: "frame",
+    ...NODE_BASE,
+    childIds: ["rect"],
+    width: 200,
+    height: 150,
+    background: null,
+    clipsContent: false,
+    transform: [1, 0, 0, 1, 0, 0],
+    ...frameFields,
+  };
+  doc.rootIds = ["frame"];
+  return doc;
+}
+
+test("a frame exports its children", () => {
+  const svg = exportSvg(framedRect(), { margin: 0 });
+  assert.match(svg, /fill="#ff0000"/);
+});
+
+test("a frame background paints behind its children", () => {
+  const svg = exportSvg(framedRect({ background: "#0000ff" }), { margin: 0 });
+  const bg = svg.indexOf('fill="#0000ff"');
+  const child = svg.indexOf('fill="#ff0000"');
+  assert.ok(bg >= 0, "the frame background is missing");
+  assert.ok(bg < child, "the background must precede the content it sits behind");
+  // A transparent frame stays transparent — the editor's checkerboard is chrome.
+  assert.doesNotMatch(exportSvg(framedRect(), { margin: 0 }), /<rect width="200"/);
+});
+
+test("a frame clips its content only when it is set to", () => {
+  assert.match(
+    exportSvg(framedRect({ clipsContent: true }), { margin: 0 }),
+    /<g clip-path="url\(#clip\d+\)">/
+  );
+  assert.doesNotMatch(exportSvg(framedRect(), { margin: 0 }), /clip-path/);
+});
+
+test("a blend inside a frame still isolates the drawing from the page", () => {
+  const doc = framedRect();
+  doc.nodes.rect.blendMode = "multiply";
+  assert.match(exportSvg(doc, { margin: 0 }), /<svg[^>]*style="isolation:isolate"/);
+});

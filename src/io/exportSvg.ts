@@ -33,7 +33,7 @@ import {
   type PatternPaint,
 } from "../model/paint";
 import { strokeEndContours, suppressesStrokeCaps } from "../model/marker";
-import { isGroup, isShape } from "../model/scene";
+import { isFrame, isGroup, isShape } from "../model/scene";
 import { effectiveRectCornerRadius } from "../model/roundedRect";
 import {
   effectiveStrokeAlignment,
@@ -865,6 +865,9 @@ function nodeToSvg(
   let childIds: string[];
   let symbolId: string | null = null;
   let clipId: string | null = null;
+  // A frame's own background box, painted behind its children (the editor's
+  // checkerboard for a transparent frame is chrome, so it stays out of export).
+  let background: string | null = null;
   if (isGroup(node)) {
     const mask = clippingMask(doc, node);
     if (mask) {
@@ -872,6 +875,21 @@ function nodeToSvg(
       clipId = defs.clipPath(mask);
     } else {
       childIds = node.childIds;
+    }
+  } else if (isFrame(node)) {
+    childIds = node.childIds;
+    if (node.background) {
+      background = `<rect width="${num(node.width)}" height="${num(
+        node.height
+      )}" fill="${escapeXml(node.background)}"/>`;
+    }
+    if (node.clipsContent) {
+      clipId = defs.nextId("clip");
+      defs.items.push(
+        `<clipPath id="${clipId}" clipPathUnits="userSpaceOnUse"><rect width="${num(
+          node.width
+        )}" height="${num(node.height)}"/></clipPath>`
+      );
     }
   } else if (node.type === "instance") {
     if (activeSymbols.has(node.symbolId)) return [];
@@ -902,6 +920,7 @@ function nodeToSvg(
   if (symbolId) activeSymbols.delete(symbolId);
   return [
     indent + `<g${attrs.length ? " " + attrs.join(" ") : ""}>`,
+    ...(background ? [indent + "  " + background] : []),
     ...body,
     indent + `</g>`,
   ];
@@ -924,7 +943,12 @@ function usesBlend(
     activeSymbols.delete(node.symbolId);
     return result;
   }
-  return isGroup(node) && clippingContentIds(doc, node).some((id) => {
+  const childIds = isGroup(node)
+    ? clippingContentIds(doc, node)
+    : isFrame(node)
+      ? node.childIds
+      : [];
+  return childIds.some((id) => {
     const child = doc.nodes[id];
     return !!child && usesBlend(doc, child, activeSymbols);
   });
