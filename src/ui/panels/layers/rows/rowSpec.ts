@@ -45,8 +45,6 @@ export interface RowSpec {
   chevron: boolean;
   /** Rows styled as container headers. */
   groupHeader: boolean;
-  /** The container id a drop can land inside, if this row is one. */
-  dropTarget: string | undefined;
   title: string | undefined;
   /** Parenthesised suffix after the name, e.g. "(Mask)". */
   badge: string | null;
@@ -71,7 +69,6 @@ export function rowSpec(row: Row, ctx: LayerRowCtx): RowSpec {
       icon: node.frame ? LuFrame : null,
       chevron: true,
       groupHeader: true,
-      dropTarget: group.id,
       title: undefined,
       badge: node.group && isClippingGroup(node.group) ? "(Clip)" : null,
       count: shapeIds([node]).length,
@@ -92,7 +89,6 @@ export function rowSpec(row: Row, ctx: LayerRowCtx): RowSpec {
       icon: LuComponent,
       chevron: false,
       groupHeader: false,
-      dropTarget: undefined,
       title: undefined,
       badge: `(${symbolName})`,
       count: null,
@@ -114,10 +110,10 @@ export function rowSpec(row: Row, ctx: LayerRowCtx): RowSpec {
     locked: shape.locked,
     stateSuffix: "",
     icon: TYPE_ICON[shape.type],
-    // A compound path is a container of subpaths, so it folds and accepts drops.
+    // A compound path is a container of subpaths, so it folds (and accepts
+    // drops — see dropContainerId).
     chevron: isCompound,
     groupHeader: isCompound,
-    dropTarget: isCompound ? shape.id : undefined,
     title: isMask ? "Clipping mask" : undefined,
     badge: isMask ? "(Mask)" : null,
     count: null,

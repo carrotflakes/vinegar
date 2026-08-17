@@ -160,3 +160,87 @@ test("a block of dragged rows counts every vacated slot above the drop", () => {
 test("a drop slot beyond the remaining rows is clamped", () => {
   assert.equal(tree.dropChildIndex(["b", "a"], ["b", "a"], 2), 0);
 });
+
+// --- what a pointer over a row means -------------------------------------
+//
+// nested's rows, top to bottom: g(0) / d(1) / c(1) / a(0). `x` is the pointer's
+// indent within the row, in the same units the rows are indented by.
+
+const at = (opts) =>
+  tree.dropTargetAt({
+    rows: tree.flattenRows(
+      tree.toDisplayTree(nested, nested.rootIds),
+      new Set(opts.collapsed ?? [])
+    ),
+    collapsed: new Set(opts.collapsed ?? []),
+    flat: opts.flat,
+    ratio: opts.ratio,
+    x: tree.ROW_PAD + (opts.indent ?? 0) * tree.ROW_INDENT,
+    canDropInto: (id) => !(opts.reject ?? []).includes(id),
+  });
+
+test("the middle of a container row drops inside it, at the front", () => {
+  assert.deepEqual(at({ flat: 0, ratio: 0.5, indent: 1 }), {
+    parent: "g",
+    index: 0,
+    inside: "g",
+    line: 1,
+    depth: 1,
+  });
+});
+
+test("an expanded container has no band below it — that gap is its child list", () => {
+  assert.deepEqual(at({ flat: 0, ratio: 0.95, indent: 1 })?.inside, "g");
+});
+
+test("a collapsed container takes a drop beside it below its middle", () => {
+  assert.deepEqual(at({ flat: 0, ratio: 0.95, collapsed: ["g"] }), {
+    parent: null,
+    index: 1,
+    line: 1,
+    depth: 0,
+  });
+});
+
+test("the top half of a row drops into that row's own slot", () => {
+  assert.deepEqual(at({ flat: 2, ratio: 0.2, indent: 1 }), {
+    parent: "g",
+    index: 1,
+    line: 2,
+    depth: 1,
+  });
+});
+
+// The bug the indent used to have: the line at flat 3 sits on row "a", which is
+// at depth 0, so reading the indent off that row drew it outside the group.
+test("below a container's last child the indicator stays at the child's depth", () => {
+  assert.deepEqual(at({ flat: 2, ratio: 0.8, indent: 1 }), {
+    parent: "g",
+    index: 2,
+    line: 3,
+    depth: 1,
+  });
+});
+
+test("the same gap pulled left drops after the container instead", () => {
+  assert.deepEqual(at({ flat: 2, ratio: 0.8, indent: 0 }), {
+    parent: null,
+    index: 1,
+    line: 3,
+    depth: 0,
+  });
+});
+
+test("a level the drag may not enter falls back to a shallower one", () => {
+  // Dragging "g" itself: the gap below its last child can only mean "after g".
+  assert.deepEqual(at({ flat: 2, ratio: 0.8, indent: 1, reject: ["g"] }), {
+    parent: null,
+    index: 1,
+    line: 3,
+    depth: 0,
+  });
+});
+
+test("a row that is not in the list is no drop target", () => {
+  assert.equal(at({ flat: 9, ratio: 0.5 }), null);
+});

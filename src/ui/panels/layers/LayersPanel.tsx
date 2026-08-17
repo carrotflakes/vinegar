@@ -19,6 +19,8 @@ import {
   rangeIds,
   toDisplayTree,
   visibleIds,
+  ROW_INDENT,
+  ROW_PAD,
 } from "./tree";
 import { useLayersDnd } from "./useLayersDnd";
 import { useRowWindow } from "./useRowWindow";
@@ -410,8 +412,7 @@ export default function LayersPanel() {
               className="drop-line"
               style={{
                 top: dnd.drop.line * rowHeight,
-                marginLeft:
-                  6 + (rows[Math.min(dnd.drop.line, rows.length - 1)]?.depth ?? 0) * 16,
+                marginLeft: ROW_PAD + dnd.drop.depth * ROW_INDENT,
               }}
             />
           )}

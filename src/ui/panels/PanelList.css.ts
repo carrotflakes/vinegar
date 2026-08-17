@@ -106,6 +106,9 @@ globalStyle(".layers:not(.dragging) .layer-row.selected:hover", {
   background: vars.accentSoft,
 });
 
+// The container a pending drop would land inside. Drawn for an expanded one as
+// well as a collapsed one: there the line alone sits at the head of the child
+// list, which reads the same as "just below this row, beside it".
 globalStyle(".layer-row.drop-inside", {
   background: vars.accentWeak,
   outline: `2px solid ${vars.accent}`,
@@ -218,10 +221,13 @@ globalStyle(".drop-line", {
   pointerEvents: "none",
 });
 
+// A dot at the line's head marks the indent level it is drawn at — the one
+// thing that says which container the drop lands in. Kept inside the line so it
+// is not clipped at depth 0.
 globalStyle(".drop-line::before", {
   content: "\"\"",
   position: "absolute",
-  left: "-3px",
+  left: 0,
   top: "-2px",
   width: "6px",
   height: "6px",

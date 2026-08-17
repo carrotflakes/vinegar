@@ -33,11 +33,5 @@ export interface LayerRowCtx {
   selectIds: (ids: string[], additive: boolean) => void;
   rowClick: (id: string, e: MouseEvent) => void;
   hoverProps: (id: string) => HoverProps;
-  rowDnd: (
-    id: string,
-    row: Row,
-    flat: number,
-    swipe: RowSwipe,
-    gid?: string
-  ) => RowDndProps;
+  rowDnd: (row: Row, flat: number, swipe: RowSwipe) => RowDndProps;
 }

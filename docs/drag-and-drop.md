@@ -45,7 +45,7 @@ Drop targets are hit-tested from the element under the pointer
 `dragover` handlers. So a new drop zone must:
 
 - expose its identity through `data-*` attributes the `onMove` callback reads
-  (e.g. `data-row-index`, `data-dock-tabs`), and
+  (e.g. `data-row-flat`, `data-dock-tabs`), and
 - **not** set `pointer-events: none`, or `elementFromPoint` skips it.
 
 After a drag the hook swallows the browser's trailing synthetic `click` (a short
@@ -85,9 +85,17 @@ to reset. This is the opposite of a reorderable **list**, whose rows keep
 - Do not add `preventDefault` in drag handlers — tap-to-select and
   double-tap-to-rename must keep working.
 - Drop zones need `data-*` identity and must not be `pointer-events: none`.
-- The Layers panel treats groups and compound paths as drop containers.
-  Compound paths accept only rectangles, ellipses, and closed paths, reject
-  nested compounds, and may never be emptied by a move.
+- The Layers panel treats groups, frames and compound paths as drop containers
+  (`dropContainerId`). Compound paths accept only rectangles, ellipses, and
+  closed paths, reject nested compounds, and may never be emptied by a move.
+- What a pointer over a Layers row means is `dropTargetAt` in
+  `src/ui/panels/layers/tree.ts` — a pure function of the flat rows, so the row
+  only publishes `data-row-flat` and the geometry stays testable. A container's
+  middle band drops inside it; above/below the middle drops beside the row. The
+  gap *below* a row is ambiguous (it is also the gap after every container that
+  ends there), so the pointer's horizontal indent picks the level, and an
+  illegal level falls back to a shallower one. The indicator's own indent comes
+  from `Drop.depth`, never from the row the line happens to land on.
 - Dragging a row that is part of the selection drags the whole selection
   (normalised to `selectionRoots`); dragging any other row drags just it and
   leaves the selection alone. The move goes through `moveNodes`, so it is one

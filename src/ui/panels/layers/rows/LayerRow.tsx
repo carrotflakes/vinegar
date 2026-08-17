@@ -13,7 +13,7 @@ import {
 } from "react-icons/lu";
 import { openContextMenu, type MenuEntry } from "@/store/menuStore";
 import { selectionMenu } from "../../../menus";
-import type { Row } from "../tree";
+import { ROW_INDENT, ROW_PAD, type Row } from "../tree";
 import type { LayerRowCtx } from "./rowContext";
 import { SWIPE_TRIGGER } from "../../../useTouchDrag";
 import { rowSpec } from "./rowSpec";
@@ -126,16 +126,16 @@ export function LayerRow({
         (ctx.cursor === id ? " cursor" : "") +
         (ctx.selection.includes(id) ? " selected" : "") +
         (hidden || row.dim ? " hidden" : "") +
-        (ctx.dropInside === id && isCollapsed ? " drop-inside" : "") +
+        (ctx.dropInside === id ? " drop-inside" : "") +
         (swipeDx > 0 ? " swiping" : "")
       }
       title={spec.title}
       style={{
-        paddingLeft: 6 + row.depth * 16,
+        paddingLeft: ROW_PAD + row.depth * ROW_INDENT,
         ...(swipeDx > 0 ? { transform: `translateX(${swipeDx}px)` } : null),
       }}
       {...ctx.hoverProps(id)}
-      {...ctx.rowDnd(id, row, flat, swipe, spec.dropTarget)}
+      {...ctx.rowDnd(row, flat, swipe)}
       onClick={(e) => ctx.rowClick(id, e)}
       onDoubleClick={spec.onDoubleClick}
       onContextMenu={(e) => {

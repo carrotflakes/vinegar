@@ -6,7 +6,15 @@ import { useEffect, useRef, useState, type PointerEvent, type RefObject } from "
 import type { Document } from "@/model/types";
 import { ancestorIds, selectionRoots } from "@/model/scene";
 import { useTouchDrag } from "../../useTouchDrag";
-import { childrenOf, dropChildIndex, visibleIds, type DNode, type Row } from "./tree";
+import {
+  childrenOf,
+  dropChildIndex,
+  dropTargetAt,
+  visibleIds,
+  type DNode,
+  type Drop,
+  type Row,
+} from "./tree";
 
 /** The rows a drag carries, top-most first. */
 interface Drag {
@@ -31,21 +39,14 @@ interface RowGesture {
   swipe: RowSwipe;
 }
 
-export interface Drop {
-  parent: string | null;
-  index: number;
-  inside?: string;
-  /** Flat row index the indicator line is drawn at. */
-  line: number;
-}
-
-/** Data attributes + pointerdown that make a row draggable and droppable. */
+/**
+ * The one data attribute a row carries: its flat index. Everything else the
+ * drop needs (its container, slot, depth, whether it accepts a drop inside) is
+ * `rows[flat]`, which the hook already has — mirroring it into the DOM would be
+ * a second copy of the tree to keep in step.
+ */
 export interface RowDndProps {
-  "data-row-id": string;
   "data-row-flat": number;
-  "data-row-parent": string;
-  "data-row-index": number;
-  "data-row-group"?: string;
   onPointerDown: ((e: PointerEvent) => void) | undefined;
 }
 
@@ -66,13 +67,7 @@ interface Options {
 export interface LayersDnd {
   dragging: boolean;
   drop: Drop | null;
-  rowDnd: (
-    id: string,
-    row: Row,
-    flat: number,
-    swipe: RowSwipe,
-    gid?: string
-  ) => RowDndProps;
+  rowDnd: (row: Row, flat: number, swipe: RowSwipe) => RowDndProps;
 }
 
 export function useLayersDnd({
@@ -160,9 +155,8 @@ export function useLayersDnd({
   // Pointer-based row drag (mouse + touch). Touch begins on a long-press so a
   // quick swipe still scrolls the list, and a rightward swipe opens the row's
   // context menu — touch has no right-click and long-press is spoken for. The
-  // drop target is hit-tested from the row under the pointer via its data
-  // attributes, mirroring the middle-third "into group" and before/after logic
-  // the old dragover used.
+  // row under the pointer is hit-tested from its `data-row-flat`; what a drop
+  // there means is `dropTargetAt` in tree.ts.
   const startRowDrag = useTouchDrag<RowGesture>({
     onSwipeMove: (d, dx) => d.swipe.onMove(dx),
     onSwipe: (d, p) => d.swipe.onOpen(p.x, p.y),
@@ -170,40 +164,25 @@ export function useLayersDnd({
       setDrag({ ids: d.ids });
       startEdgeScroll();
     },
-    onMove: (d, { y, target }) => {
+    onMove: (d, { x, y, target }) => {
       edgeSpeed.current = edgeScrollSpeed(y);
-      const rowEl = target?.closest<HTMLElement>("[data-row-index]");
+      const rowEl = target?.closest<HTMLElement>("[data-row-flat]");
       if (rowEl) {
-        const parentAttr = rowEl.dataset.rowParent ?? "";
-        const parent = parentAttr === "" ? null : parentAttr;
-        const index = Number(rowEl.dataset.rowIndex);
-        const flat = Number(rowEl.dataset.rowFlat);
-        const gid = rowEl.dataset.rowGroup;
         const r = rowEl.getBoundingClientRect();
-        const ratio = (y - r.top) / r.height;
-        const expandedContainer = !!gid && !collapsed.has(gid);
-        if (
-          gid && ratio > 0.28 && (expandedContainer || ratio < 0.72) &&
-          canDropInto(d.ids, gid)
-        ) {
-          setDrop({ parent: gid, index: 0, inside: gid, line: flat + 1 });
-          return;
-        }
-        // A drop line inside a dragged row's own subtree goes nowhere.
-        if (parent !== null && !canDropInto(d.ids, parent)) {
-          setDrop(null);
-          return;
-        }
-        const after = ratio >= 0.5;
-        setDrop({
-          parent,
-          index: after ? index + 1 : index,
-          line: after ? flat + 1 : flat,
-        });
+        setDrop(
+          dropTargetAt({
+            rows,
+            collapsed,
+            flat: Number(rowEl.dataset.rowFlat),
+            ratio: (y - r.top) / r.height,
+            x: x - r.left,
+            canDropInto: (containerId) => canDropInto(d.ids, containerId),
+          })
+        );
         return;
       }
       if (target?.closest(".layers-list")) {
-        setDrop({ parent: null, index: roots.length, line: rows.length });
+        setDrop({ parent: null, index: roots.length, line: rows.length, depth: 0 });
         return;
       }
       setDrop(null);
@@ -221,17 +200,13 @@ export function useLayersDnd({
   return {
     dragging: drag !== null,
     drop,
-    rowDnd: (id, row, flat, swipe, gid) => ({
-      "data-row-id": id,
+    rowDnd: (row, flat, swipe) => ({
       "data-row-flat": flat,
-      "data-row-parent": row.parent ?? "",
-      "data-row-index": row.index,
-      ...(gid ? { "data-row-group": gid } : {}),
       onPointerDown:
-        editing === id
+        editing === row.key
           ? undefined
           : (e: PointerEvent) =>
-              startRowDrag(e, { ids: draggedIds(id), swipe }),
+              startRowDrag(e, { ids: draggedIds(row.key), swipe }),
     }),
   };
 }
