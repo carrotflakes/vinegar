@@ -5,7 +5,6 @@ import {
 } from "@/model/geometry/bounds";
 import { isIdentity, transformBounds } from "@/model/geometry/matrix";
 import { cachedBrushEnvelope } from "@/model/brush/brushOutline";
-import { clippingContentIds, clippingMask } from "@/model/clippingMask";
 import { shapeFillRule } from "@/model/path/shapeGeometry";
 import {
   effectsMargin,
@@ -18,7 +17,8 @@ import {
 } from "@/model/effects";
 import { hasMarkers, strokeEndContours } from "@/model/marker";
 import { isSwatchRef, resolvePaintRef, type Paint } from "@/model/paint";
-import { ancestorIds, isFrame, isGroup, isInstance, isShape } from "@/model/scene";
+import { ancestorIds, isShape } from "@/model/scene";
+import { containerChildIds, containerContents } from "@/model/sceneWalk";
 import {
   effectiveStrokeAlignment,
   strokeOutset,
@@ -91,14 +91,10 @@ function subtreeBlends(
     if (!node || node.hidden || visiting.has(id)) continue;
     visiting.add(id);
     if (node.blendMode && node.blendMode !== "normal") return true;
-    if (isGroup(node) || isFrame(node)) {
-      if (subtreeBlends(doc, node.childIds, visiting)) return true;
-    } else if (isInstance(node)) {
-      const definition = doc.symbols[node.symbolId];
-      if (definition && subtreeBlends(doc, [definition.rootNodeId], visiting)) {
-        return true;
-      }
-    }
+    // A clipping mask is not painted, so its own blend mode cannot force the
+    // group onto a layer — `containerContents` leaves it out of `childIds`.
+    const childIds = containerChildIds(doc, node);
+    if (childIds.length && subtreeBlends(doc, childIds, visiting)) return true;
   }
   return false;
 }
@@ -233,25 +229,14 @@ function paintNodeInternal(
     );
     return;
   }
-  let childIds: string[];
-  let mask: Shape | null = null;
-  let symbolId: string | null = null;
-  let frame: FrameNode | null = null;
-  if (isGroup(node)) {
-    mask = clippingMask(doc, node);
-    childIds = clippingContentIds(doc, node);
-  } else if (isFrame(node)) {
-    childIds = node.childIds;
-    frame = node;
-  } else if (isInstance(node)) {
-    if (activeSymbols.has(node.symbolId)) return;
-    const def = doc.symbols[node.symbolId];
-    if (!def) return;
-    childIds = [def.rootNodeId];
-    symbolId = node.symbolId;
-  } else {
-    return;
-  }
+  const contents = containerContents(doc, node, activeSymbols);
+  if (!contents) return;
+  const { childIds } = contents;
+  const mask: Shape | null =
+    contents.kind === "group" ? contents.mask : null;
+  const frame: FrameNode | null =
+    contents.kind === "frame" ? contents.frame : null;
+  const symbolId = contents.kind === "instance" ? contents.symbolId : null;
   if (node.hidden) return;
   if (symbolId) activeSymbols.add(symbolId);
   // See `subtreeBlends`: with a blend under it, the mask becomes an alpha pass

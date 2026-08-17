@@ -2,11 +2,7 @@ import { subpathSegments } from "@/model/path/path";
 import { hasActiveModifiers } from "@/model/path/pathModifiers";
 import { shapeBounds } from "@/model/geometry/bounds";
 import { getAssetImage } from "../imageCache";
-import {
-  clippingContentIds,
-  clippingMask,
-  type ClippingMaskShape,
-} from "../model/clippingMask";
+import type { ClippingMaskShape } from "../model/clippingMask";
 import { shapeFillRule, shapeSubpaths } from "@/model/path/shapeGeometry";
 import {
   hasEffects,
@@ -33,7 +29,8 @@ import {
   type PatternPaint,
 } from "../model/paint";
 import { strokeEndContours, suppressesStrokeCaps } from "../model/marker";
-import { isFrame, isGroup, isShape } from "../model/scene";
+import { isShape } from "../model/scene";
+import { containerContents } from "../model/sceneWalk";
 import { effectiveRectCornerRadius } from "../model/roundedRect";
 import {
   effectiveStrokeAlignment,
@@ -862,43 +859,31 @@ function nodeToSvg(
     return node.hidden ? [] : [indent + shapeToSvg(doc, node, defs)];
   }
   if (node.hidden) return [];
-  let childIds: string[];
-  let symbolId: string | null = null;
+  const contents = containerContents(doc, node, activeSymbols);
+  if (!contents) return [];
+  const { childIds } = contents;
+  const symbolId = contents.kind === "instance" ? contents.symbolId : null;
   let clipId: string | null = null;
   // A frame's own background box, painted behind its children (the editor's
   // checkerboard for a transparent frame is chrome, so it stays out of export).
   let background: string | null = null;
-  if (isGroup(node)) {
-    const mask = clippingMask(doc, node);
-    if (mask) {
-      childIds = clippingContentIds(doc, node);
-      clipId = defs.clipPath(mask);
-    } else {
-      childIds = node.childIds;
+  if (contents.kind === "group" && contents.mask) {
+    clipId = defs.clipPath(contents.mask);
+  } else if (contents.kind === "frame") {
+    const { frame } = contents;
+    if (frame.background) {
+      background = `<rect width="${num(frame.width)}" height="${num(
+        frame.height
+      )}" fill="${escapeXml(frame.background)}"/>`;
     }
-  } else if (isFrame(node)) {
-    childIds = node.childIds;
-    if (node.background) {
-      background = `<rect width="${num(node.width)}" height="${num(
-        node.height
-      )}" fill="${escapeXml(node.background)}"/>`;
-    }
-    if (node.clipsContent) {
+    if (frame.clipsContent) {
       clipId = defs.nextId("clip");
       defs.items.push(
         `<clipPath id="${clipId}" clipPathUnits="userSpaceOnUse"><rect width="${num(
-          node.width
-        )}" height="${num(node.height)}"/></clipPath>`
+          frame.width
+        )}" height="${num(frame.height)}"/></clipPath>`
       );
     }
-  } else if (node.type === "instance") {
-    if (activeSymbols.has(node.symbolId)) return [];
-    const def = doc.symbols[node.symbolId];
-    if (!def) return [];
-    childIds = [def.rootNodeId];
-    symbolId = node.symbolId;
-  } else {
-    return [];
   }
   const attrs: string[] = [];
   if (!isIdentity(node.transform)) attrs.push(`transform="${matrixAttr(node.transform)}"`);
@@ -933,25 +918,16 @@ function usesBlend(
   activeSymbols: Set<string> = new Set()
 ): boolean {
   if (node.blendMode && node.blendMode !== "normal") return true;
-  if (node.type === "instance") {
-    if (activeSymbols.has(node.symbolId)) return false;
-    const def = doc.symbols[node.symbolId];
-    const root = def ? doc.nodes[def.rootNodeId] : null;
-    if (!def || !root) return false;
-    activeSymbols.add(node.symbolId);
-    const result = usesBlend(doc, root, activeSymbols);
-    activeSymbols.delete(node.symbolId);
-    return result;
-  }
-  const childIds = isGroup(node)
-    ? clippingContentIds(doc, node)
-    : isFrame(node)
-      ? node.childIds
-      : [];
-  return childIds.some((id) => {
+  const contents = containerContents(doc, node, activeSymbols);
+  if (!contents) return false;
+  const symbolId = contents.kind === "instance" ? contents.symbolId : null;
+  if (symbolId) activeSymbols.add(symbolId);
+  const result = contents.childIds.some((id) => {
     const child = doc.nodes[id];
     return !!child && usesBlend(doc, child, activeSymbols);
   });
+  if (symbolId) activeSymbols.delete(symbolId);
+  return result;
 }
 
 /** Serialize a document's shapes to a standalone SVG string. */

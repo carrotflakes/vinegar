@@ -8,10 +8,10 @@ import {
 import { matrixScale, nodeWorldMatrix, transformBounds } from "@/model/geometry/matrix";
 import { screenToWorld, type Viewport } from "@/model/geometry/viewport";
 import { compoundChildren } from "@/model/path/compoundPath";
-import { clippingContentIds, clippingMask } from "@/model/clippingMask";
 import { effectsMargin } from "@/model/effects";
 import { markerOutset } from "@/model/marker";
-import { isFrame, isGroup, isInstance, isShape } from "@/model/scene";
+import { isShape } from "@/model/scene";
+import { containerContents } from "@/model/sceneWalk";
 import { effectiveStrokeAlignment, STROKE_MITER_LIMIT } from "@/model/stroke";
 import type { Bounds, Document, Matrix, Shape } from "@/model/types";
 import { renderCachesDisabled } from "@/debug/renderFlags";
@@ -125,45 +125,41 @@ export function nodeLocalContentBounds(
   if (isShape(stored)) {
     const shape = preview?.id === stored.id ? preview : stored;
     bounds = shapePaintBounds(shape, doc, shape === stored);
-  } else if (isFrame(stored)) {
-    const frameBounds = frameLocalBounds(stored);
-    bounds = stored.clipsContent
-      ? frameBounds
-      : unionBounds([
-          frameBounds,
-          ...stored.childIds.map((id) =>
-            childLocalVisualBounds(doc, id, preview, cache, visiting)
-          ),
-        ]);
-  } else if (isGroup(stored)) {
-    bounds = unionBounds(
-      clippingContentIds(doc, stored).map((id) =>
-        childLocalVisualBounds(doc, id, preview, cache, visiting)
-      )
-    );
-    const mask = clippingMask(doc, stored);
-    if (bounds && mask) {
-      const geometry = preview?.id === mask.id ? preview : mask;
-      bounds = intersectBounds(
-        bounds,
-        transformBounds(
-          geometry === mask
-            ? cachedCullingShapeBounds(geometry, doc)
-            : shapeBounds(geometry, doc),
-          geometry.transform
+  } else {
+    const contents = containerContents(doc, stored);
+    // Lazy: a clipping frame never looks at what it would have cropped away.
+    const children = () =>
+      unionBounds(
+        (contents?.childIds ?? []).map((id) =>
+          childLocalVisualBounds(doc, id, preview, cache, visiting)
         )
       );
-    }
-  } else if (isInstance(stored)) {
-    const definition = doc.symbols[stored.symbolId];
-    if (definition) {
-      bounds = childLocalVisualBounds(
-        doc,
-        definition.rootNodeId,
-        preview,
-        cache,
-        visiting
-      );
+    if (!contents) {
+      bounds = null;
+    } else if (contents.kind === "frame") {
+      // A clipping frame is its own box; an open one also spans what overflows.
+      const frameBounds = frameLocalBounds(contents.frame);
+      bounds = contents.frame.clipsContent
+        ? frameBounds
+        : unionBounds([frameBounds, children()]);
+    } else if (contents.kind === "group") {
+      bounds = children();
+      const { mask } = contents;
+      if (bounds && mask) {
+        const geometry = preview?.id === mask.id ? preview : mask;
+        bounds = intersectBounds(
+          bounds,
+          transformBounds(
+            geometry === mask
+              ? cachedCullingShapeBounds(geometry, doc)
+              : shapeBounds(geometry, doc),
+            geometry.transform
+          )
+        );
+      }
+    } else {
+      // An instance is its definition's content in the instance's own space.
+      bounds = children();
     }
   }
 
@@ -227,56 +223,48 @@ export function visualNodeWorldBounds(
     );
     local = expandBounds(local, effectsMargin(node.effects));
     bounds = transformBounds(local, nodeWorldMatrix(doc, node.id));
-  } else if (isInstance(node)) {
-    const definition = doc.symbols[node.symbolId];
-    const content = definition
-      ? visualNodeWorldBounds(doc, definition.rootNodeId, cache, visiting)
-      : null;
-    bounds = content
-      ? transformBounds(content, nodeWorldMatrix(doc, node.id))
-      : null;
-    if (bounds) {
-      bounds = expandBounds(
-        bounds,
-        effectsMargin(node.effects) * matrixScale(nodeWorldMatrix(doc, node.id))
-      );
-    }
-  } else if (isFrame(node)) {
-    const frameBounds = transformBounds(
-      frameLocalBounds(node),
-      nodeWorldMatrix(doc, node.id)
-    );
-    bounds = node.clipsContent
-      ? frameBounds
-      : unionBounds([
-          frameBounds,
-          ...node.childIds.map((id) =>
-            visualNodeWorldBounds(doc, id, cache, visiting)
-          ),
-        ]) ?? frameBounds;
-    bounds = expandBounds(
-      bounds,
-      effectsMargin(node.effects) * matrixScale(nodeWorldMatrix(doc, node.id))
-    );
-  } else if (isGroup(node)) {
-    const children = unionBounds(
-      clippingContentIds(doc, node).map((id) =>
-        visualNodeWorldBounds(doc, id, cache, visiting)
-      )
-    );
-    const mask = clippingMask(doc, node);
-    bounds =
-      children && mask
-        ? intersectBounds(children, worldShapeBounds(doc, mask))
-        : children;
-    if (bounds) {
-      bounds = expandBounds(
-        bounds,
-        effectsMargin(node.effects) * matrixScale(nodeWorldMatrix(doc, node.id))
-      );
-    }
   } else {
-    bounds = null;
+    const contents = containerContents(doc, node);
+    // Lazy: a clipping frame never looks at what it would have cropped away,
+    // and this is the culling hot path.
+    const children = () =>
+      unionBounds(
+        (contents?.childIds ?? []).map((id) =>
+          visualNodeWorldBounds(doc, id, cache, visiting)
+        )
+      );
+    if (!contents) {
+      bounds = null;
+    } else if (contents.kind === "frame") {
+      // A clipping frame is its own box; an open one also spans what overflows.
+      const frameBounds = transformBounds(
+        frameLocalBounds(contents.frame),
+        nodeWorldMatrix(doc, node.id)
+      );
+      bounds = contents.frame.clipsContent
+        ? frameBounds
+        : unionBounds([frameBounds, children()]) ?? frameBounds;
+    } else if (contents.kind === "instance") {
+      // A definition root is not parented to the instance, so its own matrix
+      // chain only reaches symbol space; the instance matrix maps it to world.
+      const content = children();
+      bounds = content
+        ? transformBounds(content, nodeWorldMatrix(doc, node.id))
+        : null;
+    } else if (contents.mask) {
+      const content = children();
+      bounds = content
+        ? intersectBounds(content, worldShapeBounds(doc, contents.mask))
+        : content;
+    } else {
+      bounds = children();
+    }
+    if (bounds) {
+      bounds = expandBounds(
+        bounds,
+        effectsMargin(node.effects) * matrixScale(nodeWorldMatrix(doc, node.id))
+      );
+    }
   }
 
   visiting.delete(nodeId);

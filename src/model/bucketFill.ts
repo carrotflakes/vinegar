@@ -18,11 +18,11 @@ import ClipperLib, { type IntPoint, type PolyNode, type PolyTree } from "clipper
 import { brushCenterlineSamples } from "@/model/brush/brushOutline";
 import { shapeBounds } from "@/model/geometry/bounds";
 import { shapeFillRule, shapeRings } from "@/model/path/shapeGeometry";
-import { clippingContentIds, clippingMask } from "./clippingMask";
 import { contours, intPath, SCALE, treeToPolys } from "@/model/path/clipperPaths";
 import { applyMatrix, IDENTITY, multiply } from "@/model/geometry/matrix";
 import { strokeOutline } from "@/model/path/outlineStroke";
-import { isGroup, isInstance, isShape, scopeRootIds } from "./scene";
+import { isShape, scopeRootIds } from "./scene";
+import { containerContents } from "./sceneWalk";
 import type { Document, Matrix, Shape, Vec2 } from "./types";
 
 export type BucketFillResult =
@@ -223,73 +223,70 @@ function collectObstacles(
   pt: IntPoint,
   entries: InkEntry[],
   allowCovers: boolean,
-  strokeCenterline: boolean
+  strokeCenterline: boolean,
+  activeSymbols: Set<string> = new Set()
 ): void {
   for (const id of ids) {
     const node = doc.nodes[id];
     if (!node || node.hidden) continue;
     const world = multiply(parentWorld, node.transform);
-    if (isGroup(node)) {
-      const mask = clippingMask(doc, node);
-      if (mask) {
-        // A clip group's ink is its content restricted to the mask silhouette.
-        const inner: InkEntry[] = [];
-        collectObstacles(
-          doc,
-          clippingContentIds(doc, node),
-          world,
-          pt,
-          inner,
-          false,
-          strokeCenterline
-        );
-        const content = inner.flatMap((e) => e.contours);
-        const geom = fillGeometry(mask, doc);
-        if (!content.length || !geom) continue;
-        const maskWorld = multiply(world, mask.transform);
-        const maskPaths = worldRings(geom.rings, maskWorld)
-          .map(intPath)
-          .filter((ring) => ring.length >= 3);
-        const clipper = new ClipperLib.Clipper();
-        clipper.AddPaths(content, ClipperLib.PolyType.ptSubject, true);
-        clipper.AddPaths(maskPaths, ClipperLib.PolyType.ptClip, true);
-        const tree = new ClipperLib.PolyTree();
-        clipper.Execute(
-          ClipperLib.ClipType.ctIntersection,
-          tree,
-          ClipperLib.PolyFillType.pftNonZero,
-          geom.fillType
-        );
-        const clipped = contours(tree);
-        if (clipped.length) entries.push({ contours: clipped });
-      } else {
-        collectObstacles(
-          doc,
-          node.childIds,
-          world,
-          pt,
-          entries,
-          allowCovers,
-          strokeCenterline
-        );
-      }
-    } else if (isInstance(node)) {
-      const def = doc.symbols[node.symbolId];
-      const root = def ? doc.nodes[def.rootNodeId] : undefined;
-      if (isGroup(root)) {
-        collectObstacles(
-          doc,
-          root.childIds,
-          multiply(world, root.transform),
-          pt,
-          entries,
-          false,
-          strokeCenterline
-        );
-      }
-    } else if (isShape(node)) {
+    if (isShape(node)) {
       addShapeObstacles(doc, node, parentWorld, pt, entries, allowCovers, strokeCenterline);
+      continue;
     }
+    const contents = containerContents(doc, node, activeSymbols);
+    if (!contents) continue;
+    if (contents.kind === "group" && contents.mask) {
+      const { mask } = contents;
+      // A clip group's ink is its content restricted to the mask silhouette.
+      const inner: InkEntry[] = [];
+      collectObstacles(
+        doc,
+        contents.childIds,
+        world,
+        pt,
+        inner,
+        false,
+        strokeCenterline,
+        activeSymbols
+      );
+      const content = inner.flatMap((e) => e.contours);
+      const geom = fillGeometry(mask, doc);
+      if (!content.length || !geom) continue;
+      const maskWorld = multiply(world, mask.transform);
+      const maskPaths = worldRings(geom.rings, maskWorld)
+        .map(intPath)
+        .filter((ring) => ring.length >= 3);
+      const clipper = new ClipperLib.Clipper();
+      clipper.AddPaths(content, ClipperLib.PolyType.ptSubject, true);
+      clipper.AddPaths(maskPaths, ClipperLib.PolyType.ptClip, true);
+      const tree = new ClipperLib.PolyTree();
+      clipper.Execute(
+        ClipperLib.ClipType.ctIntersection,
+        tree,
+        ClipperLib.PolyFillType.pftNonZero,
+        geom.fillType
+      );
+      const clipped = contours(tree);
+      if (clipped.length) entries.push({ contours: clipped });
+      continue;
+    }
+    // A plain group, a frame or an instance: its children are obstacles in the
+    // container's own space. An instance stops covers from escaping the symbol,
+    // and pushes its id so a cyclic reference cannot recurse forever.
+    const instanceOf = contents.kind === "instance" ? contents.symbolId : null;
+    if (instanceOf) activeSymbols.add(instanceOf);
+    collectObstacles(
+      doc,
+      contents.childIds,
+      world,
+      pt,
+      entries,
+      instanceOf ? false : allowCovers,
+      strokeCenterline,
+      activeSymbols
+    );
+    if (instanceOf) activeSymbols.delete(instanceOf);
   }
 }
 

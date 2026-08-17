@@ -296,3 +296,49 @@ test("hidden nodes do not bound the fill", () => {
   const result = computeBucketFill(d, null, { x: 50, y: 50 }, 4);
   assert.equal(result.kind, "open");
 });
+
+test("a rectangle inside a frame still encloses a fill", () => {
+  // The frame's contents are obstacles like any other: without them the click
+  // lands in open space and the fill has no boundary at all.
+  const rect = strokedRect("r", 0, 0, 100, 100);
+  const frame = {
+    ...NODE_BASE,
+    id: "f",
+    name: "Frame",
+    type: "frame",
+    childIds: ["r"],
+    width: 200,
+    height: 200,
+    background: null,
+    clipsContent: false,
+    transform: [...IDENTITY],
+  };
+  const d = doc([rect]);
+  d.nodes.f = frame;
+  d.rootIds = ["f"];
+  const result = computeBucketFill(d, null, { x: 50, y: 50 }, 4);
+  assert.equal(result.kind, "filled");
+  assert.ok(insidePolys(result.polys, { x: 50, y: 50 }));
+});
+
+test("a frame transform places the obstacles it holds", () => {
+  const rect = strokedRect("r", 0, 0, 100, 100);
+  const frame = {
+    ...NODE_BASE,
+    id: "f",
+    name: "Frame",
+    type: "frame",
+    childIds: ["r"],
+    width: 200,
+    height: 200,
+    background: null,
+    clipsContent: false,
+    transform: [1, 0, 0, 1, 500, 0],
+  };
+  const d = doc([rect]);
+  d.nodes.f = frame;
+  d.rootIds = ["f"];
+  // The rect now encloses (550, 50), not (50, 50).
+  assert.equal(computeBucketFill(d, null, { x: 550, y: 50 }, 4).kind, "filled");
+  assert.equal(computeBucketFill(d, null, { x: 50, y: 50 }, 4).kind, "open");
+});
