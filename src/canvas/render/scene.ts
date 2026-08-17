@@ -70,6 +70,40 @@ import type { RenderOptions, RenderPerformanceSample } from "./types";
 export type { RenderOptions, RenderPerformanceSample } from "./types";
 
 /**
+ * Does anything under `ids` composite with a non-normal blend mode?
+ *
+ * A masked group that contains one cannot apply its mask as a path clip: an
+ * advanced blend made under a large path clip is dropped whole by Chrome on
+ * Android once the clip's device bounds pass the driver's limit (zooming in on
+ * the demo document's clipped "MASKED" text made it vanish). Such a group
+ * isolates instead and applies its mask as alpha, so the blend runs unclipped.
+ *
+ * Blend modes on *effects* are excluded: those composite inside the node's own
+ * isolation layer, below any clip.
+ */
+function subtreeBlends(
+  doc: Document,
+  ids: string[],
+  visiting: Set<string> = new Set()
+): boolean {
+  for (const id of ids) {
+    const node = doc.nodes[id];
+    if (!node || node.hidden || visiting.has(id)) continue;
+    visiting.add(id);
+    if (node.blendMode && node.blendMode !== "normal") return true;
+    if (isGroup(node) || isFrame(node)) {
+      if (subtreeBlends(doc, node.childIds, visiting)) return true;
+    } else if (isInstance(node)) {
+      const definition = doc.symbols[node.symbolId];
+      if (definition && subtreeBlends(doc, [definition.rootNodeId], visiting)) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
+/**
  * Paint one scene node. Groups, frames and instances that need isolation
  * (opacity, blend, mask or effects) are drawn into a temporary layer sized to
  * their device-space bounds, then composited in one draw.
@@ -220,6 +254,9 @@ function paintNodeInternal(
   }
   if (node.hidden) return;
   if (symbolId) activeSymbols.add(symbolId);
+  // See `subtreeBlends`: with a blend under it, the mask becomes an alpha pass
+  // on the group's own layer instead of a clip on the target.
+  const maskAsAlpha = !!mask && subtreeBlends(doc, childIds);
   ctx.save();
   ctx.transform(...node.transform);
   const applyMask = (target: CanvasRenderingContext2D) => {
@@ -243,7 +280,7 @@ function paintNodeInternal(
         target.clip();
       }
     }
-    if (!mask) return;
+    if (!mask || maskAsAlpha) return;
     const geometry = preview?.id === mask.id ? preview : mask;
     const path = cachedShapePath(geometry, doc, preview);
     if (
@@ -263,13 +300,32 @@ function paintNodeInternal(
     target.restore();
     target.clip(shapeFillRule(geometry));
   };
+  /** The mask as a `destination-in` alpha pass over a layer holding the group's
+   *  finished content — the clip-free counterpart of `applyMask`. */
+  const paintMaskAlpha = (target: CanvasRenderingContext2D) => {
+    if (!mask) return;
+    const geometry = preview?.id === mask.id ? preview : mask;
+    const path = cachedShapePath(geometry, doc, preview);
+    target.save();
+    target.globalCompositeOperation = "destination-in";
+    target.globalAlpha = 1;
+    target.fillStyle = "#000";
+    target.transform(...geometry.transform);
+    if (path) {
+      target.fill(path, shapeFillRule(geometry));
+    } else {
+      tracePath(target, geometry, true, doc, preview);
+      target.fill(shapeFillRule(geometry));
+    }
+    target.restore();
+  };
   const alpha = node.opacity ?? 1;
   const blend = node.blendMode && node.blendMode !== "normal" ? node.blendMode : null;
   // A container has no outline, so fill/stroke entries in its stack do nothing —
   // and an empty run of them must not cost it an isolation layer.
   const containerEffects = pixelEffects(node.effects);
   const effects = hasEffects(containerEffects) ? containerEffects : null;
-  if (alpha >= 1 && !blend && !effects) {
+  if (alpha >= 1 && !blend && !effects && !maskAsAlpha) {
     applyMask(ctx);
     const childTraversal =
       symbolId && traversal
@@ -333,6 +389,7 @@ function paintNodeInternal(
       childTraversal
     );
   }
+  if (maskAsAlpha) paintMaskAlpha(lctx);
   lctx.restore();
   ctx.restore();
   compositeEffects(ctx, layer, scale, effects, alpha, node.blendMode);

@@ -86,7 +86,7 @@ function mockContext() {
     bezierCurveTo(...args) { calls.push(["bezierCurveTo", ...args]); },
     ellipse(...args) { calls.push(["ellipse", ...args]); },
     clip(rule) { calls.push(["clip", rule]); },
-    fill(rule) { calls.push(["fill", rule]); },
+    fill(rule) { calls.push(["fill", rule, ctx.globalCompositeOperation]); },
     stroke() { calls.push(["stroke"]); },
     globalAlpha: 1,
     globalCompositeOperation: "source-over",
@@ -240,6 +240,69 @@ test("Canvas, SVG, bounds, and serialization share the clipping model", () => {
   const missingClip = JSON.parse(json);
   delete missingClip.document.nodes.clip.clipsToMask;
   assert.throws(() => parseDocument(JSON.stringify(missingClip)), /malformed/i);
+});
+
+test("a blend under a clip group masks by alpha instead of by clip", () => {
+  const doc = editableDocument();
+  doc.nodes.content.blendMode = "overlay";
+  doc.nodes.content.width = 280;
+  doc.nodes.content.height = 190;
+  // Sized so the group's layer lands in a bucket no other test has released
+  // into the shared pool — a pooled canvas would carry its own mock context.
+  doc.nodes.mask.subpaths[0].anchors = [
+    { x: 20, y: 10 },
+    { x: 260, y: 10 },
+    { x: 260, y: 190 },
+    { x: 20, y: 190 },
+  ].map((p) => ({ p, hIn: null, hOut: null }));
+  doc.nodes.clip = group("clip", ["content", "mask"], { clipsToMask: true });
+  doc.rootIds = ["clip"];
+
+  const previousDocument = globalThis.document;
+  const outerContext = mockContext();
+  const layerContexts = [];
+  globalThis.document = {
+    createElement: () => {
+      const context = mockContext();
+      layerContexts.push(context);
+      return { width: 0, height: 0, getContext: () => context };
+    },
+  };
+  try {
+    paintNode(outerContext, doc, "clip");
+  } finally {
+    if (previousDocument === undefined) delete globalThis.document;
+    else globalThis.document = previousDocument;
+  }
+  assert.equal(layerContexts.length, 1);
+  const layerContext = layerContexts[0];
+
+  // Chrome on Android drops an advanced blend made under a large path clip, so
+  // the group isolates and the mask becomes a destination-in pass on its layer.
+  assert.deepEqual(
+    [...outerContext.calls, ...layerContext.calls].filter(
+      ([name]) => name === "clip"
+    ),
+    []
+  );
+  assert.deepEqual(
+    layerContext.calls.filter(([name]) => name === "fill"),
+    [
+      ["fill", "nonzero", "overlay"],
+      ["fill", "evenodd", "destination-in"],
+    ]
+  );
+  assert.equal(outerContext.calls.some(([name]) => name === "drawImage"), true);
+
+  // Without the blend the same group keeps the free clip route.
+  const plain = structuredClone(doc);
+  plain.nodes.content.blendMode = "normal";
+  const plainContext = mockContext();
+  paintNode(plainContext, plain, "clip");
+  assert.deepEqual(
+    plainContext.calls.filter(([name]) => name === "clip"),
+    [["clip", "evenodd"]]
+  );
 });
 
 test("drilling into a clip group makes content pickable ahead of its mask", () => {

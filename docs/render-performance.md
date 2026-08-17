@@ -235,6 +235,17 @@ artwork and stop there. The node's own opacity and blend mode force isolation
 too, because they composite the finished stack as one group (as SVG export does
 with them, so the direct route would make the two disagree).
 
+One case goes the other way, for a correctness reason rather than a stacking
+one. Chrome on Android drops an advanced blend made under a **path clip** whole
+once the clip's device bounds pass the driver's limit — zooming in on the demo
+document's clipped "MASKED" text (blend `overlay` inside a star-masked group)
+made it vanish abruptly, while the same blends outside a mask kept rendering. So
+a masked group whose subtree contains a non-normal `blendMode` (`subtreeBlends`
+in `render/scene.ts`) isolates even at full opacity with no effects, and applies
+its mask as a `destination-in` alpha pass over its finished layer instead of as
+a clip on the target. The blend then runs unclipped. Masked groups without a
+blend under them keep the free clip route.
+
 A shape with an ordinary stroke effect therefore acquires **no** layer at all —
 only its own alignment layer if the stroke is inside/outside. This matters more
 than it looks: [effects.md](effects.md) is heading toward the shape's own
