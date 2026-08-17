@@ -52,6 +52,10 @@ under a click with the current fill color, as a plain vector path inserted
    everything painted before it, so earlier ink — lower covers included — is
    invisible there and is dropped. Cover detection is disabled inside clip
    groups and instances, whose composite ink cannot be partially excluded.
+   A `clipsContent` frame is *not* in that list: it crops each ink entry
+   separately instead of merging them, so a shape inside an artboard still acts
+   as a cover (the flag is re-checked against the cropped area, since cropping
+   can pull it off the click point).
 3. **Inflate + union.** All obstacle contours are offset outward by half the
    gap tolerance (`ClipperOffset`, round joins) — gaps narrower than the
    tolerance seal shut — and unioned into one poly tree.
@@ -102,9 +106,10 @@ Both live in the Bucket panel, persisted in `bucketStore`.
 - No hover preview of the region (would need an obstacle-union cache keyed on
   the document revision; the same cache would speed up rapid repeated fills).
 - Text bounds as ink are the line box, not glyph outlines.
-- Frame edges do not bound a region; an open sketch inside a frame cannot be
-  filled to the frame edge (even when the frame clips — clipping affects
-  painting, not region detection).
+- Frame edges do not bound a region: they crop ink but never supply any, so an
+  open sketch inside a frame cannot be filled *to* the frame edge. A
+  `clipsContent` frame does remove what it crops away — ink outside the box is
+  not painted, so it no longer blocks a fill inside it.
 - Covers are assumed opaque: a semi-transparent cover lets ink beneath show
   through visually, but that ink still doesn't bound the fill (it is below
   the cover in paint order). Likewise, ink above the cover bounds the region

@@ -601,3 +601,17 @@ test("a blend inside a frame still isolates the drawing from the page", () => {
   doc.nodes.rect.blendMode = "multiply";
   assert.match(exportSvg(doc, { margin: 0 }), /<svg[^>]*style="isolation:isolate"/);
 });
+
+test("a clipping frame crops the export range to its content box", () => {
+  // The rect runs past the frame's right edge. What the frame crops away is
+  // never painted, so it must not stretch the exported viewBox either.
+  const overflowing = (frameFields) => {
+    const doc = framedRect(frameFields);
+    Object.assign(doc.nodes.rect, { x: 150, y: 10, width: 200, height: 40 });
+    return doc;
+  };
+  const open = exportSvg(overflowing({ clipsContent: false }), { margin: 0 });
+  assert.match(open, /viewBox="150 10 200 40"/);
+  const clipped = exportSvg(overflowing({ clipsContent: true }), { margin: 0 });
+  assert.match(clipped, /viewBox="150 10 50 40"/);
+});

@@ -1,15 +1,22 @@
 import {
+  frameLocalBounds,
   intersectBounds,
   nodeWorldBounds,
   worldShapeBounds,
 } from "@/model/geometry/bounds";
 import { clippingMask } from "../model/clippingMask";
 import { effectsMargin } from "../model/effects";
-import { matrixScale, nodeWorldMatrix, shapeWorldMatrix } from "@/model/geometry/matrix";
+import {
+  matrixScale,
+  nodeWorldMatrix,
+  shapeWorldMatrix,
+  transformBounds,
+} from "@/model/geometry/matrix";
 import { strokeOutset } from "../model/stroke";
 import {
   ancestorIds,
   descendantNodeIds,
+  isFrame,
   isGroup,
   isNodeHidden,
   isShape,
@@ -115,15 +122,27 @@ function leavesBounds(
       width: b.width + pad * 2,
       height: b.height + pad * 2,
     };
-    // A clipped descendant cannot expand the export range beyond any of its
-    // ancestor masks. The mask itself remains a bounds-bearing leaf, matching
-    // the clipping group's selection/world AABB.
+    // A clipped descendant cannot expand the export range beyond what any of
+    // its ancestors crop it to — a clipping group's mask, or a frame's content
+    // box when it clips. The mask itself remains a bounds-bearing leaf,
+    // matching the clipping group's selection/world AABB.
     for (const ancestorId of ancestorIds(doc, id)) {
       const ancestor = doc.nodes[ancestorId];
-      if (!isGroup(ancestor)) continue;
-      const mask = clippingMask(doc, ancestor);
-      if (!mask) continue;
-      b = intersectBounds(b, worldShapeBounds(doc, mask));
+      if (isFrame(ancestor)) {
+        if (!ancestor.clipsContent) continue;
+        b = intersectBounds(
+          b,
+          transformBounds(
+            frameLocalBounds(ancestor),
+            nodeWorldMatrix(doc, ancestorId)
+          )
+        );
+      } else {
+        if (!isGroup(ancestor)) continue;
+        const mask = clippingMask(doc, ancestor);
+        if (!mask) continue;
+        b = intersectBounds(b, worldShapeBounds(doc, mask));
+      }
       if (!b) break;
     }
     if (!b) continue;

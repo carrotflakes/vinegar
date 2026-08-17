@@ -23,7 +23,7 @@ import { applyMatrix, IDENTITY, multiply } from "@/model/geometry/matrix";
 import { strokeOutline } from "@/model/path/outlineStroke";
 import { isShape, scopeRootIds } from "./scene";
 import { containerContents } from "./sceneWalk";
-import type { Document, Matrix, Shape, Vec2 } from "./types";
+import type { Document, FrameNode, Matrix, Shape, Vec2 } from "./types";
 
 export type BucketFillResult =
   /**
@@ -124,6 +124,39 @@ function pointInContours(pt: IntPoint, paths: IntPoint[][]): boolean {
 interface InkEntry {
   contours: IntPoint[][];
   coverId?: string;
+}
+
+/** Canonically oriented contours of `subject` restricted to `clip`. */
+function intersectContours(
+  subject: IntPoint[][],
+  clip: IntPoint[][],
+  clipFillType: number
+): IntPoint[][] {
+  if (!subject.length || !clip.length) return [];
+  const clipper = new ClipperLib.Clipper();
+  clipper.AddPaths(subject, ClipperLib.PolyType.ptSubject, true);
+  clipper.AddPaths(clip, ClipperLib.PolyType.ptClip, true);
+  const tree = new ClipperLib.PolyTree();
+  clipper.Execute(
+    ClipperLib.ClipType.ctIntersection,
+    tree,
+    ClipperLib.PolyFillType.pftNonZero,
+    clipFillType
+  );
+  return contours(tree);
+}
+
+/** A frame's content box as one world-space ring. */
+function frameBoxPaths(frame: FrameNode, world: Matrix): IntPoint[][] {
+  const ring = [
+    { x: 0, y: 0 },
+    { x: frame.width, y: 0 },
+    { x: frame.width, y: frame.height },
+    { x: 0, y: frame.height },
+  ];
+  return worldRings([ring], world)
+    .map(intPath)
+    .filter((path) => path.length >= 3);
 }
 
 /** Append one shape's painted silhouette (fill and stroke) to `entries`. */
@@ -257,18 +290,45 @@ function collectObstacles(
       const maskPaths = worldRings(geom.rings, maskWorld)
         .map(intPath)
         .filter((ring) => ring.length >= 3);
-      const clipper = new ClipperLib.Clipper();
-      clipper.AddPaths(content, ClipperLib.PolyType.ptSubject, true);
-      clipper.AddPaths(maskPaths, ClipperLib.PolyType.ptClip, true);
-      const tree = new ClipperLib.PolyTree();
-      clipper.Execute(
-        ClipperLib.ClipType.ctIntersection,
-        tree,
-        ClipperLib.PolyFillType.pftNonZero,
-        geom.fillType
-      );
-      const clipped = contours(tree);
+      const clipped = intersectContours(content, maskPaths, geom.fillType);
       if (clipped.length) entries.push({ contours: clipped });
+      continue;
+    }
+    if (contents.kind === "frame" && contents.frame.clipsContent) {
+      // The frame crops what it paints, so ink outside its box must not block a
+      // fill inside it. Unlike a clip group, each entry is cropped on its own
+      // rather than merged into one silhouette: a frame is an ordinary
+      // container, and flattening it would stop a shape inside an artboard from
+      // acting as a cover.
+      const inner: InkEntry[] = [];
+      collectObstacles(
+        doc,
+        contents.childIds,
+        world,
+        pt,
+        inner,
+        allowCovers,
+        strokeCenterline,
+        activeSymbols
+      );
+      const boxPaths = frameBoxPaths(contents.frame, world);
+      if (!boxPaths.length) continue;
+      for (const entry of inner) {
+        const clipped = intersectContours(
+          entry.contours,
+          boxPaths,
+          ClipperLib.PolyFillType.pftNonZero
+        );
+        if (!clipped.length) continue;
+        // Cropping can move the cover's area off the click point (a cover that
+        // only reached it from outside the frame), so re-check rather than
+        // carrying the flag across.
+        entries.push(
+          entry.coverId && pointInContours(pt, clipped)
+            ? { contours: clipped, coverId: entry.coverId }
+            : { contours: clipped }
+        );
+      }
       continue;
     }
     // A plain group, a frame or an instance: its children are obstacles in the

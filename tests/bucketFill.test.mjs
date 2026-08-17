@@ -297,6 +297,20 @@ test("hidden nodes do not bound the fill", () => {
   assert.equal(result.kind, "open");
 });
 
+const framed = (childIds, over = {}) => ({
+  ...NODE_BASE,
+  id: "f",
+  name: "Frame",
+  type: "frame",
+  childIds,
+  width: 200,
+  height: 200,
+  background: null,
+  clipsContent: false,
+  transform: [...IDENTITY],
+  ...over,
+});
+
 test("a rectangle inside a frame still encloses a fill", () => {
   // The frame's contents are obstacles like any other: without them the click
   // lands in open space and the fill has no boundary at all.
@@ -341,4 +355,41 @@ test("a frame transform places the obstacles it holds", () => {
   // The rect now encloses (550, 50), not (50, 50).
   assert.equal(computeBucketFill(d, null, { x: 550, y: 50 }, 4).kind, "filled");
   assert.equal(computeBucketFill(d, null, { x: 50, y: 50 }, 4).kind, "open");
+});
+
+test("a clipping frame stops ink outside its box from blocking a fill", () => {
+  // The square straddles the frame edge. Only the cropped part is painted, so
+  // only that part may bound a fill; the rest is invisible and must not block.
+  const d = doc([strokedRect("square", 150, 50, 100, 100)]);
+  d.nodes.f = framed(["square"], { clipsContent: true, width: 200, height: 200 });
+  d.rootIds = ["f"];
+  // (240, 100) is outside the frame — the cropped-away right edge is not there
+  // to enclose it, so the click lands in open space.
+  assert.equal(computeBucketFill(d, null, { x: 240, y: 100 }, 4).kind, "open");
+  // With clipping off, the whole square is painted and does enclose it.
+  d.nodes.f = framed(["square"], { clipsContent: false, width: 200, height: 200 });
+  assert.equal(computeBucketFill(d, null, { x: 240, y: 100 }, 4).kind, "filled");
+});
+
+test("a clipping frame keeps a filled shape inside it usable as a cover", () => {
+  // A clip *group* flattens its content and disables covers; a frame is an
+  // ordinary container, so bucket-filling a shape inside an artboard still works.
+  const d = doc([filledRect("bg", 0, 0, 100, 100)]);
+  d.nodes.f = framed(["bg"], { clipsContent: true });
+  d.rootIds = ["f"];
+  const result = computeBucketFill(d, null, { x: 50, y: 50 }, 4);
+  assert.equal(result.kind, "filled");
+  assert.equal(result.coverId, "bg");
+});
+
+test("a clipping frame crops the cover it hands back", () => {
+  // The background runs past the frame's right edge; the fill must stop there.
+  const d = doc([filledRect("bg", 0, 0, 400, 100)]);
+  d.nodes.f = framed(["bg"], { clipsContent: true, width: 200, height: 200 });
+  d.rootIds = ["f"];
+  const result = computeBucketFill(d, null, { x: 50, y: 50 }, 4);
+  assert.equal(result.kind, "filled");
+  assert.equal(result.coverId, "bg");
+  const b = polyBounds(result.polys);
+  assert.ok(b.maxX < 201, `the fill escaped the frame: maxX ${b.maxX}`);
 });

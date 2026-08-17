@@ -72,10 +72,24 @@ a painted extent. A frame is its own content box whether or not it clips; a
 clipping group is its mask's box rather than `children ∩ mask`. Those are
 deliberate model answers that differ from what gets painted.
 
-## Known gap
+## Confinement applies everywhere, not just when painting
 
-A frame with `clipsContent` crops its children visually, but bucket fill still
-treats ink outside the frame box as blocking, and `io/exportBounds.ts` lets a
-child overflowing a clipping frame expand the export crop (it applies ancestor
-clipping for groups only). Both should intersect against the frame box the way
-they already do against a clipping mask.
+A `clipsContent` frame confines its subtree the same way a clipping group's mask
+does, so every reader that asks "what area does this cover" has to intersect
+against it:
+
+| Reader | Against a clipping mask | Against a `clipsContent` frame |
+| --- | --- | --- |
+| Renderer | `ctx.clip()` on the mask path | `ctx.clip()` on the content box |
+| SVG export | `clip-path` from the mask shape | `clip-path` from the content box |
+| Render bounds | `children ∩ mask` | the frame box alone |
+| Bucket fill ink | content ∩ mask silhouette | each entry ∩ the box |
+| Export crop | leaf box ∩ ancestor masks | leaf box ∩ ancestor frame boxes |
+
+The two clip forms are **not** interchangeable in bucket fill. A clipping group
+merges its content into one silhouette and turns covers off inside it, because a
+composite ink shape cannot be partially excluded. A frame is an ordinary
+container — an artboard — so it crops each ink entry on its own and covers keep
+working, which is what lets you bucket-fill a shape that sits inside an artboard.
+Cropping can pull a cover's area off the click point, so the cover flag is
+re-checked against the cropped contours rather than carried across.
