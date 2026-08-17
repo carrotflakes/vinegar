@@ -75,7 +75,9 @@ export function onGuideMove(
   world: Vec2
 ): void {
   if (inter.kind !== "guide-drag") return;
-  const snapped = pointSnap(ctx, world, new Set());
+  const snapped = pointSnap(ctx, world, new Set(), {
+    excludeGuideId: inter.id,
+  });
   state.moveGuide(inter.id, inter.axis === "x" ? snapped.x : snapped.y);
   ctx.scheduleDraw();
 }

@@ -89,12 +89,19 @@ export function guideValueAt(axis: "x" | "y", world: Vec2): number {
   return axis === "x" ? world.x : world.y;
 }
 
-/** Guide positions offered to the snapper: only visible guides, only when on. */
+/** Guide positions offered to the snapper: only visible guides, only when on.
+ *  `excludeId` drops one guide — a guide being dragged must not snap to the
+ *  line it is itself drawing, or it could never leave its starting position. */
 export function activeGuideLines(
-  state: Pick<EditorData, "doc" | "guideSnap" | "guidesVisible">
+  state: Pick<EditorData, "doc" | "guideSnap" | "guidesVisible">,
+  excludeId?: string
 ): GuidePositions {
   if (!state.guideSnap || !state.guidesVisible) return NO_GUIDE_LINES;
-  return guidePositions(state.doc.guides);
+  return guidePositions(
+    excludeId === undefined
+      ? state.doc.guides
+      : state.doc.guides.filter((guide) => guide.id !== excludeId)
+  );
 }
 
 /** Draw the document's guides (screen space), highlighting the selected one. */

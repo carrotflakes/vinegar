@@ -105,7 +105,10 @@ All of it lives in the existing pointer pipeline
   unlocked) selects and drags it. Guides take priority over shapes under the
   cursor — they are thin targets, and Lock Guides is the escape hatch.
 - **Dragging** snaps the guide through the same `snapPoint` used by shape
-  creation, so a guide lands on object edges/centres and the grid.
+  creation, so a guide lands on object edges/centres and the grid. The dragged
+  guide itself is excluded from the targets (`activeGuideLines(state, id)`) —
+  it is in the document from the moment the drag starts, and would otherwise
+  snap to its own line and never move.
 - **Delete/Backspace** removes the selected guide (`edit.delete` checks the
   guide selection first). Dragging a guide onto a ruler or past the canvas edge
   behind it also deletes it.

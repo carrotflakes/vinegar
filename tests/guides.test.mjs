@@ -157,6 +157,17 @@ test("hidden guides and a disabled toggle offer no snap targets", () => {
   );
 });
 
+test("the dragged guide is excluded, so it cannot snap to itself", () => {
+  const doc = createEmptyDocument();
+  doc.guides = [
+    { id: "g", axis: "x", position: 10 },
+    { id: "h", axis: "x", position: 80 },
+  ];
+  const state = { doc, guideSnap: true, guidesVisible: true };
+  assert.deepEqual(activeGuideLines(state, "g"), { x: [80], y: [] });
+  assert.deepEqual(activeGuideLines(state), { x: [10, 80], y: [] });
+});
+
 // ---- canvas geometry --------------------------------------------------------
 
 test("a guide's screen segment spans the canvas and answers hit-tests", () => {
