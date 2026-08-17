@@ -16,6 +16,7 @@ import {
   type SnapTargets,
 } from "@/model/geometry/snap";
 import { activeGuideLines } from "../guides";
+import { SNAP_PX } from "../picking";
 import {
   CLICK_SLOP,
   type FrameSnap,
@@ -59,6 +60,32 @@ function frameSnapData(state: EditorState, excludeId: string): FrameSnap {
   };
 }
 
+/** Snap a world point against the frame drag's targets, the grid and guides.
+ *  Both ends of a create drag go through this, so the start snaps like the end. */
+function snapFrameWorld(
+  state: EditorState,
+  snap: FrameSnap,
+  world: Vec2
+): { point: Vec2; guides: Guide[] } {
+  const gridSize = state.gridSnap ? state.gridSize : null;
+  const guideLines = activeGuideLines(state);
+  const snapOn =
+    state.snapEnabled ||
+    gridSize !== null ||
+    guideLines.x.length > 0 ||
+    guideLines.y.length > 0;
+  if (!snapOn) return { point: world, guides: [] };
+  return snapPoint(
+    world,
+    {
+      targets: state.snapEnabled ? snap.targets : EMPTY_TARGETS,
+      gridSize,
+      guideLines,
+    },
+    SNAP_PX / state.viewport.scale
+  );
+}
+
 /** Normalized rect between two world points. */
 function rectFrom(a: Vec2, b: Vec2): Bounds {
   return {
@@ -78,9 +105,11 @@ export function onFrameDown(
   // Frames are only legal at the top level, so one drawn inside a focus scope
   // would land outside the view it was drawn in. Refuse instead.
   if (currentFocusRoot(state) !== null) return;
+  const snap = frameSnapData(state, "");
+  const start = snapFrameWorld(state, snap, world).point;
   const frame = makeFrame(
-    world.x,
-    world.y,
+    start.x,
+    start.y,
     0,
     0,
     `Frame ${framesInPaintOrder(state.doc).length + 1}`
@@ -95,8 +124,8 @@ export function onFrameDown(
   ctx.interaction.current = {
     kind: "frame-create",
     id: frame.id,
-    start: world,
-    snap: frameSnapData(state, frame.id),
+    start,
+    snap,
   };
   ctx.scheduleDraw();
 }
@@ -110,30 +139,7 @@ export function onFrameMove(
   alt: boolean
 ) {
   if (inter.kind !== "frame-create") return;
-  const gridSize = state.gridSnap ? state.gridSize : null;
-  const guideLines = activeGuideLines(state);
-  const snapOn =
-    state.snapEnabled ||
-    gridSize !== null ||
-    guideLines.x.length > 0 ||
-    guideLines.y.length > 0;
-  const threshold = 6 / state.viewport.scale;
-  let guides: Guide[] = [];
-
-  let p = world;
-  if (snapOn) {
-    const r = snapPoint(
-      world,
-      {
-        targets: state.snapEnabled ? inter.snap.targets : EMPTY_TARGETS,
-        gridSize,
-        guideLines,
-      },
-      threshold
-    );
-    p = r.point;
-    guides = r.guides;
-  }
+  const { point: p, guides } = snapFrameWorld(state, inter.snap, world);
   let dx = p.x - inter.start.x;
   let dy = p.y - inter.start.y;
   if (shift) {
