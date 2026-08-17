@@ -254,12 +254,8 @@ export function lockedTopId(doc: Document, pick: LeafPick): string | null {
   return pick.topId && isNodeLocked(doc, pick.topId) ? pick.topId : null;
 }
 
-/**
- * Snap a single world point to alignment lines / grid (for creation, resize
- * and vertex editing). Updates the on-screen guides and returns the point.
- */
-/** Screen-pixel radius within which a point snaps. */
-const SNAP_PX = 6;
+/** Screen-pixel radius within which a point (or a dragged box edge) snaps. */
+export const SNAP_PX = 6;
 
 /**
  * Snap a point to *deliberate* references only — the user's guides and the
@@ -289,18 +285,30 @@ export function guideGridSnap(ctx: ToolContext, world: Vec2): Vec2 {
   return res.point;
 }
 
+export interface PointSnapOptions {
+  /** Extra snap lines that are not shapes in the document — the pen's own
+   *  in-progress anchors, for instance. Honoured only when object snapping is
+   *  on, like the document's own targets. */
+  extra?: SnapTargets;
+  /** A guide to leave out of the targets — the one being dragged. */
+  excludeGuideId?: string;
+}
+
+/**
+ * Snap a single world point to alignment lines / guides / grid (for creation,
+ * resize and vertex editing). Updates the on-screen guides and returns the
+ * point.
+ */
 export function pointSnap(
   ctx: ToolContext,
   world: Vec2,
   exclude: Set<string>,
-  /** Extra snap lines that are not shapes in the document — the pen's own
-   *  in-progress anchors, for instance. Honoured only when object snapping is
-   *  on, like the document's own targets. */
-  extra?: SnapTargets
+  opts: PointSnapOptions = {}
 ): Vec2 {
+  const { extra, excludeGuideId } = opts;
   const state = useEditor.getState();
   ctx.spacings.current = [];
-  const guideLines = activeGuideLines(state);
+  const guideLines = activeGuideLines(state, excludeGuideId);
   const hasGuides = guideLines.x.length > 0 || guideLines.y.length > 0;
   if (!state.snapEnabled && !state.gridSnap && !hasGuides) {
     ctx.guides.current = [];

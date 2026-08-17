@@ -30,7 +30,7 @@ import { useEditor, type EditorState } from "../../store/editorStore";
 import { setReadout } from "../../store/pointerStore";
 import { constrainAspectRatio, resizeBounds } from "../handles";
 import { CLICK_SLOP, type Interaction, type ToolContext } from "../interaction";
-import { pointSnap } from "../picking";
+import { pointSnap, SNAP_PX } from "../picking";
 import { promotePendingMove } from "./selectTool";
 import { formatAngle, formatSize } from "../util";
 
@@ -135,7 +135,7 @@ function dragMove(
         gridSize,
         guideLines,
       },
-      6 / state.viewport.scale
+      SNAP_PX / state.viewport.scale
     );
     if (locked !== "x") dx += snap.dx;
     if (locked !== "y") dy += snap.dy;

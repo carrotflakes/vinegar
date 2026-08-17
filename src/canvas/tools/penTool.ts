@@ -84,7 +84,7 @@ function penSnap(
     ctx,
     world,
     EMPTY_EXCLUDE,
-    draft ? draftSnapTargets(state, draft) : undefined
+    draft ? { extra: draftSnapTargets(state, draft) } : {}
   );
 }
 
