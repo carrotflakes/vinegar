@@ -94,7 +94,7 @@ Related design notes: [path-unification.md](path-unification.md), [path-modifier
 - **Dockable panels**: panel tabs can be reordered, moved between vertically resizable groups, split into new groups, closed and restored from the add-panel menu; the layout is saved locally and can be reset from Preferences
 - **Preferences**: a sidebar of categories (Interface, Canvas & Editing, Files & Recovery, Advanced, About) over one continuous scrolling panel — light / dark / system theme, canvas rotation and 90° snapping, ruler origin, finger drawing, handle visibility, recovery autosave interval and undo-history limit, with "Reset to defaults" and "Reset layout" in the footer
 - **About**: the Preferences "About" category shows the app version, the git commit the bundle was built from (`-dirty` when the tree was not clean) and the build time, plus a link to the GitHub repository (the commit itself links to its GitHub page when the tree was clean) and a button that copies all of it with the user agent for bug reports. The values are injected at build time by `define` in `vite.config.ts` and read through `src/buildInfo.ts`
-- Browser fullscreen toggle
+- Browser fullscreen toggle (hidden, and the command disabled, when the app runs as an installed PWA — there is no browser chrome to hide)
 - Debug **project inspector** (app bar ▸ Inspect): searchable JSON tree of the whole store
 
 Rendering cost notes: [render-performance.md](render-performance.md).

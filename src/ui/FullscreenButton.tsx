@@ -1,10 +1,13 @@
 import { useEffect, useState } from "react";
 import { LuMaximize, LuMinimize } from "react-icons/lu";
 import { runCommand } from "../commands/registry";
-import { isFullscreen } from "../fullscreen";
+import { isFullscreen, isStandaloneDisplay } from "../fullscreen";
 import { barButton } from "./AppBar.css";
 
-/** Header toggle that mirrors the browser's fullscreen state. */
+/**
+ * Header toggle that mirrors the browser's fullscreen state. Hidden when the
+ * app is installed as a PWA — there is no browser chrome left to hide.
+ */
 export default function FullscreenButton() {
   const [full, setFull] = useState(isFullscreen);
 
@@ -17,6 +20,8 @@ export default function FullscreenButton() {
       document.removeEventListener("webkitfullscreenchange", onChange);
     };
   }, []);
+
+  if (isStandaloneDisplay()) return null;
 
   return (
     <button

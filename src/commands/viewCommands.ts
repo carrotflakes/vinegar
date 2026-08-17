@@ -13,7 +13,7 @@ import type { Bounds, FrameNode } from "@/model/types";
 import { currentFocusRoot } from "@/store/editorStore";
 import { usePreferences } from "@/store/preferencesStore";
 import type { EditorState } from "@/store/state";
-import { toggleFullscreen } from "@/fullscreen";
+import { isStandaloneDisplay, toggleFullscreen } from "@/fullscreen";
 import { canvasCenter, canvasViewportSize } from "./canvasPlacement";
 import type { Command } from "./types";
 
@@ -212,6 +212,8 @@ export const VIEW_COMMANDS: Command[] = [
     id: "view.fullscreen",
     label: "Toggle fullscreen",
     group: "View",
+    // An installed PWA has no browser chrome to hide.
+    enabled: () => !isStandaloneDisplay(),
     run: () => toggleFullscreen(),
   },
 ];

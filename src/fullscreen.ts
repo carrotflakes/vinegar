@@ -10,6 +10,20 @@ interface WebkitElement {
   webkitRequestFullscreen?: () => void;
 }
 
+/**
+ * True when the app runs as an installed PWA (standalone / fullscreen display
+ * mode). There is no browser chrome to escape then, so the fullscreen toggle
+ * has nothing to do and is hidden.
+ */
+export function isStandaloneDisplay(): boolean {
+  // iOS Safari never matched the display-mode query for home-screen apps.
+  if ((navigator as Navigator & { standalone?: boolean }).standalone) return true;
+  if (typeof matchMedia !== "function") return false;
+  return ["standalone", "fullscreen"].some(
+    (mode) => matchMedia(`(display-mode: ${mode})`).matches,
+  );
+}
+
 export function isFullscreen(): boolean {
   const doc = document as Document & WebkitDocument;
   return (doc.fullscreenElement ?? doc.webkitFullscreenElement) != null;
