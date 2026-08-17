@@ -137,6 +137,36 @@ export function pickFrameBorder(
   return null;
 }
 
+/**
+ * The frontmost frame whose content box *contains* `world` — the artboard new
+ * art created at that point belongs to. Unlike {@link pickFrameBorder} this is
+ * about containment, not grabbing a border, so interior points are exactly the
+ * ones that count.
+ *
+ * A locked frame is skipped: it cannot take new children any more than it can
+ * be selected. Hidden frames and frames outside `scope` are skipped for the
+ * same reasons as border picking.
+ */
+export function frameIdAtPoint(
+  doc: Document,
+  world: Vec2,
+  scope: string | null
+): string | null {
+  const frames = framesInPaintOrder(doc);
+  for (let i = frames.length - 1; i >= 0; i--) {
+    const frame = frames[i];
+    if (frame.hidden || frame.locked) continue;
+    if (!isNodeInScope(doc, frame.id, scope)) continue;
+    const inverse = invertMatrix(nodeWorldMatrix(doc, frame.id));
+    if (!inverse) continue;
+    const p = applyMatrix(inverse, world);
+    if (p.x >= 0 && p.x <= frame.width && p.y >= 0 && p.y <= frame.height) {
+      return frame.id;
+    }
+  }
+  return null;
+}
+
 /** Hit-test the resize handles and rotation handle of the selection frame. */
 export function hitFrameHandle(ctx: ToolContext, screen: Vec2): FrameHit {
   const { doc, selection, viewport } = useEditor.getState();

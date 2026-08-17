@@ -5,6 +5,7 @@ import { baseNodeDefaults, baseShapeDefaults, makeId, type PathShape } from "../
 import type { Vec2 } from "../../model/types";
 import { useBucket } from "../../store/bucketStore";
 import type { EditorState } from "../../store/editorStore";
+import { frameIdAtPoint } from "../picking";
 import { currentFocusRoot } from "../../store/state";
 import { notify } from "../../store/toastStore";
 
@@ -21,9 +22,10 @@ export function bucketFillAt(state: EditorState, world: Vec2): void {
     return;
   }
   const { gapTolerance, strokeCenterline } = useBucket.getState();
+  const scope = currentFocusRoot(state);
   const result = computeBucketFill(
     state.doc,
-    currentFocusRoot(state),
+    scope,
     world,
     gapTolerance,
     strokeCenterline
@@ -50,5 +52,7 @@ export function bucketFillAt(state: EditorState, world: Vec2): void {
     ...baseNodeDefaults(),
     transform: [...IDENTITY],
   };
-  state.addFillShape(shape, result.coverId);
+  // The region was found among the ink of whatever frame the click landed in;
+  // the fill belongs in that frame, not at the back of the scene behind it.
+  state.addFillShape(shape, result.coverId, frameIdAtPoint(state.doc, world, scope));
 }

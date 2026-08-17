@@ -227,7 +227,17 @@ export interface ShapeActions {
    * fill was clicked on), else at the *back* of the active drawing container —
    * the drilled-into `activeGroupId` when set, else the scope root.
    */
-  addFillShape: (shape: Shape, aboveId?: string | null) => void;
+  /**
+   * Commit a bucket-fill region. `aboveId` is the cover it was clicked on, if
+   * any — the fill slots directly above it. `container` is the frame the region
+   * was found in, used only when there is no cover and nothing more specific
+   * (an active group, a focus root) already says where new art goes.
+   */
+  addFillShape: (
+    shape: Shape,
+    aboveId?: string | null,
+    container?: string | null
+  ) => void;
   /**
    * Erase along a world-space path of the given radius: brush strokes it
    * crosses are split at their centerline into new brush pieces (or removed

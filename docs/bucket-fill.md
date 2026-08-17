@@ -81,7 +81,12 @@ under a click with the current fill color, as a plain vector path inserted
 The result lands via `addFillShape`, which bakes the inverse of the container's
 world matrix into the node's transform so scope-view coordinates parent
 correctly anywhere. With a cover it is inserted as the cover's next sibling
-(directly above it); otherwise at the back of the active drawing container.
+(directly above it); otherwise at the back of the container the region belongs
+to — the active drawing group, the focus root, or failing those the frame the
+click landed in (`frameIdAtPoint`). That last fallback matters: without it a
+region enclosed by ink *inside* a frame put its fill at the back of the scene,
+which is outside that frame and behind it — unclipped, and invisible under a
+frame with a background.
 
 ## Options
 
@@ -110,6 +115,9 @@ Both live in the Bucket panel, persisted in `bucketStore`.
   open sketch inside a frame cannot be filled *to* the frame edge. A
   `clipsContent` frame does remove what it crops away — ink outside the box is
   not painted, so it no longer blocks a fill inside it.
+- A locked frame cannot receive the fill, so a region enclosed by ink inside one
+  lands in the scene instead (unclipped, behind the frame). Unlock the frame to
+  fill into it.
 - Covers are assumed opaque: a semi-transparent cover lets ink beneath show
   through visually, but that ink still doesn't bound the fill (it is below
   the cover in paint order). Likewise, ink above the cover bounds the region

@@ -8,7 +8,7 @@ import { eraseBrush } from "@/model/brush/eraser";
 import { applyMatrix, applyWorldTransformToNode, boundsTransform, IDENTITY, invertMatrix, isIdentity, multiply, nodeWorldMatrix, shapeWorldMatrix, translation as translationMatrix } from "@/model/geometry/matrix";
 import { isMarkable } from "@/model/marker";
 import { moveAnchors } from "@/model/nodeEdit";
-import { childIdsOf, descendantShapeIds, isGroup, isInstance, isNodeHidden, isNodeLocked, isShape, parentIdOf, scopeLeafIds, selectionRoots, withChildIds } from "../model/scene";
+import { childIdsOf, descendantShapeIds, isContainer, isGroup, isInstance, isNodeHidden, isNodeLocked, isShape, parentIdOf, scopeLeafIds, selectionRoots, withChildIds } from "../model/scene";
 import { clampRectCornerRadius } from "../model/roundedRect";
 import { resizeShapeToBounds, translateShape } from "@/model/geometry/transforms";
 import { makeId, type Bounds, type SceneNode, type Shape, type Vec2 } from "../model/types";
@@ -92,7 +92,7 @@ export function createShapeActions({ set, get, transact, replaceDocumentWithoutH
       transact(next, { label: "Draw brush stroke" });
       set({ selection: [shape.id], activeGroupId: groupId, ...clearTransient });
     },
-    addFillShape: (shape, aboveId) => {
+    addFillShape: (shape, aboveId, container) => {
       const s = get();
       const above = aboveId ? s.doc.nodes[aboveId] : undefined;
       let parentId: string | null;
@@ -105,7 +105,15 @@ export function createShapeActions({ set, get, transact, replaceDocumentWithoutH
       } else {
         const active =
           s.activeGroupId && isGroup(s.doc.nodes[s.activeGroupId]) ? s.activeGroupId : null;
-        parentId = active ?? currentFocusRoot(s);
+        // Behind everything in its container, so the ink that bounded the
+        // region keeps painting over it. `container` is the frame the region
+        // was found in: without it the fill would land at the back of the
+        // *scene*, outside that frame and behind it — unclipped, and hidden
+        // outright by a frame with a background.
+        parentId =
+          active ??
+          currentFocusRoot(s) ??
+          (container && isContainer(s.doc.nodes[container]) ? container : null);
         index = 0;
       }
       // The fill's geometry is in scope-view space; parenting it under the
