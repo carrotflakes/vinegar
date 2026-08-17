@@ -1,6 +1,8 @@
 // Frame tool: drag on empty space to create a frame (an export/layout container
 // node). Existing frames are selected, moved and resized with the Select tool,
-// like any other node — this tool only handles creation. Create snaps to the
+// like any other node — this tool only handles creation. A new frame takes in
+// the top-level nodes it encloses and settles behind the ones it only partly
+// covers (see `settleNewFrame`). Create snaps to the
 // grid, other frames and scene shapes, and honours Shift (square) and Alt (from
 // centre).
 
@@ -15,6 +17,7 @@ import {
   type Guide,
   type SnapTargets,
 } from "@/model/geometry/snap";
+import { settleNewFrame } from "@/store/docOps";
 import { activeGuideLines } from "../guides";
 import { SNAP_PX } from "../picking";
 import {
@@ -175,6 +178,9 @@ export function finishFrame(
     state.cancelInteraction();
     state.clearSelection();
   } else {
+    // The frame was drawn on top of the scene; let it take in what it encloses
+    // and sink behind what it only partly covers before the step is committed.
+    state.setDoc(settleNewFrame(state.doc, inter.id));
     state.endInteraction();
   }
   ctx.scheduleDraw();

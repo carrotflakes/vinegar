@@ -5,7 +5,7 @@
 
 import { makeFrame } from "../model/types";
 import { framesInPaintOrder } from "../model/scene";
-import { appendToScope } from "./docOps";
+import { appendToScope, settleNewFrame } from "./docOps";
 import { clearTransient, currentFocusRoot, type FrameActions, type StoreCtx } from "./state";
 
 /** Default size for a frame created without a drag (e.g. the Add command). */
@@ -29,7 +29,7 @@ export function createFrameActions({ set, get, transact }: StoreCtx): FrameActio
         [frame.id]
       );
       if (!next) return;
-      transact(next, { label: "Add frame" });
+      transact(settleNewFrame(next, frame.id), { label: "Add frame" });
       // A new frame is what the user is now working in, so the rulers count
       // from it (see docs/rulers-and-guides.md).
       set({ selection: [frame.id], activeFrameId: frame.id, ...clearTransient });

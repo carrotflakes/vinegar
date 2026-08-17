@@ -76,6 +76,17 @@ active tool, selection, viewport and undo history does not belong in the file.
   nest and are never grouped, clipped or made into symbol content. Frame order
   within `rootIds` is also the export order. Every reparent/group operation and
   the file validator enforce this.
+- **Creating a frame settles it into the scene it lands on** (`settleNewFrame`
+  in `src/store/docOps.ts`, used by both the frame tool and the Add frame
+  command). A frame's background paints over whatever is behind it, so at
+  creation time — and only then — top-level nodes that fall *completely* inside
+  the new frame become its children (rebased into frame-local space), and the
+  frame is inserted behind the backmost visible top-level node it overlaps, so
+  art that only partly overlaps stays visible. With no overlap the frame keeps
+  the frontmost slot and the natural export order. Hidden nodes are ignored;
+  locked ones are not absorbed but still hold the frame back. Other frames are
+  untouched — frames never nest. Moving an existing frame never absorbs
+  anything.
 - A group with `clipsToMask: true` uses its final (frontmost) child as a vector
   clipping mask and paints only the preceding children. The flag is named apart
   from the frame's `clipsContent` on purpose: the two used to share the name

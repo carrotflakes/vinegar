@@ -177,6 +177,16 @@ export function intersectBounds(a: Bounds, b: Bounds): Bounds | null {
     : { x, y, width: right - x, height: bottom - y };
 }
 
+/** Whether `inner` lies completely within `outer` (touching edges count). */
+export function containsBounds(outer: Bounds, inner: Bounds): boolean {
+  return (
+    inner.x >= outer.x &&
+    inner.y >= outer.y &&
+    inner.x + inner.width <= outer.x + outer.width &&
+    inner.y + inner.height <= outer.y + outer.height
+  );
+}
+
 export function pointInBounds(p: Vec2, b: Bounds): boolean {
   return (
     p.x >= b.x && p.x <= b.x + b.width && p.y >= b.y && p.y <= b.y + b.height

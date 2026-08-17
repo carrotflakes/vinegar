@@ -11,6 +11,11 @@ import {
   nodeWorldMatrix,
   translation as translationMatrix,
 } from "@/model/geometry/matrix";
+import {
+  containsBounds,
+  intersectBounds,
+  nodeWorldBounds,
+} from "@/model/geometry/bounds";
 import { GENERATORS } from "@/model/generators/generators";
 import { referencedParamIds } from "@/model/params";
 import {
@@ -18,6 +23,8 @@ import {
   descendantNodeIds,
   isCompoundPath,
   isContainer,
+  isNodeHidden,
+  isNodeLocked,
   parentIdOf,
   referencedAssetIdsOf,
   referencedScriptIds,
@@ -28,6 +35,7 @@ import {
 import {
   baseNodeDefaults,
   makeId,
+  type Bounds,
   type BrushShape,
   type DocParam,
   type Document,
@@ -86,6 +94,72 @@ export function nodeEditTargets(
     const child = doc.nodes[id];
     return child?.type === "path" && !child.hidden ? [child] : [];
   });
+}
+
+/**
+ * Settle a freshly drawn frame into the scene it was drawn over.
+ *
+ * A frame paints its background over whatever sits behind it, so a frame drawn
+ * on top of existing art would hide it. Two moves at creation time keep the
+ * scene looking like what the user drew:
+ *
+ * - top-level nodes that fall *completely* inside the frame become its children
+ *   (rebased into frame-local space), so "inside the frame" means the same
+ *   thing structurally and visually;
+ * - the frame drops behind the backmost visible top-level node it overlaps, so
+ *   art that only partly overlaps (and is therefore not absorbed) stays
+ *   visible. With no overlap at all the frame keeps its frontmost slot, and
+ *   with it the natural export order.
+ *
+ * Hidden nodes are ignored entirely and locked ones are left where they are —
+ * both are outside what a creation drag may claim — though a locked node still
+ * counts for the ordering, since it is visible and could be covered.
+ * See docs/document-model.md.
+ */
+export function settleNewFrame(doc: Document, frameId: string): Document {
+  const frame = doc.nodes[frameId];
+  if (frame?.type !== "frame") return doc;
+  const frameBox = nodeWorldBounds(doc, frameId);
+  if (!frameBox) return doc;
+  const inverse = invertMatrix(nodeWorldMatrix(doc, frameId));
+  if (!inverse) return doc;
+
+  // Frames never nest, so other frames neither move nor push this one back.
+  const boxes = new Map<string, Bounds>();
+  const overlapping = doc.rootIds.filter((id) => {
+    const node = doc.nodes[id];
+    if (id === frameId || node?.type === "frame" || isNodeHidden(doc, id)) return false;
+    const box = nodeWorldBounds(doc, id);
+    if (!box || !intersectBounds(box, frameBox)) return false;
+    boxes.set(id, box);
+    return true;
+  });
+  const absorbed = overlapping.filter(
+    (id) => !isNodeLocked(doc, id) && containsBounds(frameBox, boxes.get(id)!)
+  );
+
+  const rest = doc.rootIds.filter((id) => id !== frameId && !absorbed.includes(id));
+  const backmost = overlapping[0];
+  let index = rest.length;
+  if (backmost !== undefined) {
+    const kept = rest.indexOf(backmost);
+    index =
+      kept >= 0
+        ? kept
+        : // The backmost overlap was absorbed: take the slot it left behind.
+          doc.rootIds
+            .slice(0, doc.rootIds.indexOf(backmost))
+            .filter((id) => rest.includes(id)).length;
+  }
+
+  const nodes = { ...doc.nodes };
+  for (const id of absorbed) {
+    nodes[id] = { ...nodes[id]!, transform: multiply(inverse, nodeWorldMatrix(doc, id)) };
+  }
+  nodes[frameId] = { ...frame, childIds: [...frame.childIds, ...absorbed] };
+  const rootIds = [...rest];
+  rootIds.splice(index, 0, frameId);
+  return { ...doc, nodes, rootIds };
 }
 
 /** Remove the given roots (and their subtrees) from the scene. */
