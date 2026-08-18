@@ -24,11 +24,11 @@ import { normalizeRect } from "@/model/geometry/bounds";
 import { isFrame, isGroup, isShape } from "../../model/scene";
 import { computeSnap } from "@/model/geometry/snap";
 import { activeGuideLines } from "../guides";
-import type { SceneNode, Shape, Vec2 } from "../../model/types";
+import type { Bounds, SceneNode, Shape, Vec2 } from "../../model/types";
 import { worldToScreen } from "@/model/geometry/viewport";
 import { useEditor, type EditorState } from "../../store/editorStore";
 import { setReadout } from "../../store/pointerStore";
-import { constrainAspectRatio, resizeBounds } from "../handles";
+import { constrainAspectRatio, handlePoint, resizeBounds } from "../handles";
 import { CLICK_SLOP, type Interaction, type ToolContext } from "../interaction";
 import { pointSnap, SNAP_PX } from "../picking";
 import { promotePendingMove } from "./selectTool";
@@ -162,6 +162,36 @@ function dragMove(
   setReadout(`Δ ${Math.round(dx)}, ${Math.round(dy)}`);
 }
 
+const NO_EXCLUDE: Set<string> = new Set();
+
+/** A guide is drawn no further than this from where the handle really landed. */
+const GUIDE_EPSILON = 1e-3;
+
+/**
+ * Drop the alignment guides the resize did not actually keep. `pointSnap` puts
+ * the *pointer* on a line, but the aspect-ratio constraint can pull the box
+ * back off it, and on a rotated selection an edge handle moves its corner along
+ * the frame's axes rather than the world's. Comparing the line against the
+ * handle's committed position leaves only the guides the box really sits on, so
+ * the overlay never promises an alignment the document does not have.
+ */
+function keepHonestGuides(
+  ctx: ToolContext,
+  inter: Drag<"resize">,
+  to: Bounds
+) {
+  if (ctx.guides.current.length === 0) return;
+  const landed = applyMatrix(
+    inter.frameTransform,
+    handlePoint(to, inter.handle)
+  );
+  ctx.guides.current = ctx.guides.current.filter(
+    (guide) =>
+      Math.abs((guide.axis === "x" ? landed.x : landed.y) - guide.value) <
+      GUIDE_EPSILON
+  );
+}
+
 function dragResize(
   ctx: ToolContext,
   state: EditorState,
@@ -169,7 +199,16 @@ function dragResize(
   world: Vec2,
   shiftKey: boolean
 ) {
-  const handlePt = pointSnap(ctx, world, new Set(Object.keys(inter.originals)));
+  // A handle only drives the axes it names: an east handle discards the
+  // pointer's y, so snapping y would move nothing and only draw a line the
+  // resize cannot honour.
+  const handlePt = pointSnap(ctx, world, NO_EXCLUDE, {
+    targets: inter.targets,
+    axes: {
+      x: inter.handle.includes("e") || inter.handle.includes("w"),
+      y: inter.handle.includes("n") || inter.handle.includes("s"),
+    },
+  });
   const inverseFrame = invertMatrix(inter.frameTransform);
   if (!inverseFrame) return;
   const localPointer = applyMatrix(inverseFrame, handlePt);
@@ -191,6 +230,7 @@ function dragResize(
       inter.from.width / inter.from.height
     );
   }
+  keepHonestGuides(ctx, inter, to);
   // Frames are layout containers rather than artwork. Normalize only after aspect
   // constraint so a crossed handle still follows the pointer without leaving
   // a reflected frame transform behind.

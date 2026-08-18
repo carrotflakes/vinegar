@@ -108,7 +108,9 @@ All of it lives in the existing pointer pipeline
   creation, so a guide lands on object edges/centres and the grid. The dragged
   guide itself is excluded from the targets (`activeGuideLines(state, id)`) —
   it is in the document from the moment the drag starts, and would otherwise
-  snap to its own line and never move.
+  snap to its own line and never move. Only the axis the guide crosses is
+  snapped (`axes` below); a vertical guide cannot move in y, so a horizontal
+  feedback line there would be feedback for nothing.
 - **Delete/Backspace** removes the selected guide (`edit.delete` checks the
   guide selection first). Dragging a guide onto a ruler or past the canvas edge
   behind it also deletes it.
@@ -122,6 +124,29 @@ perpendicular extent, so a snapped guide draws the usual magenta feedback line
 over the guide instead of an infinite one. Guides are only offered as targets
 when they are visible and "Snap to guides" is on (a hidden guide that still
 grabbed the cursor would be baffling).
+
+### A drawn guide is one the result actually sits on
+
+Two rules keep the magenta lines truthful, and they apply to every `snapPoint`
+caller, not just guide drags:
+
+- **`PointSnapContext.axes`** names the axes the caller can move the point
+  along. An axis left out is neither snapped nor given a line. A resize handle
+  passes the axes it names (`e` → x only), because `resizeBounds` discards the
+  pointer coordinate the handle does not drive.
+- **The caller re-checks the line against the committed geometry.** Snapping
+  puts the *pointer* on a line, but later steps can pull the result back off
+  it: the aspect-ratio constraint rebuilds one axis from the other, and on a
+  rotated selection an edge handle moves its corner along the frame's axes
+  rather than the world's. `keepHonestGuides` in `selectDrag.ts` compares each
+  line against `handlePoint` of the final box and drops the ones that no longer
+  hold, so the overlay never promises an alignment the document does not have.
+
+Resize collects its alignment targets once at drag start
+(`snapCandidates` in `selectTool.ts`), with the selection's own descendants
+left out exactly as a move does — otherwise a group being resized snaps to the
+children it is resizing. Distribution (equal-spacing) snapping stays a
+move-only affordance; `snapPoint` offers alignment, guides and the grid.
 
 ## Deferred
 

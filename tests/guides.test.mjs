@@ -140,6 +140,22 @@ test("point snapping (creation, resize, guide drag) also sees guides", () => {
   near(far.point.x, 30);
 });
 
+test("an axis the caller cannot move is neither snapped nor drawn", () => {
+  const guideLines = guidePositions([
+    { id: "gx", axis: "x", position: 50 },
+    { id: "gy", axis: "y", position: 50 },
+  ]);
+  // What an east resize handle or a vertical guide drag asks for: x only.
+  const res = snapPoint(
+    { x: 47, y: 47 },
+    { targets: noTargets, gridSize: null, guideLines, axes: { x: true, y: false } },
+    6
+  );
+  near(res.point.x, 50);
+  near(res.point.y, 47);
+  assert.deepEqual(res.guides.map((g) => g.axis), ["x"]);
+});
+
 test("hidden guides and a disabled toggle offer no snap targets", () => {
   const doc = createEmptyDocument();
   doc.guides = [{ id: "g", axis: "x", position: 10 }];

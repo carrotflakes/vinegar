@@ -85,6 +85,9 @@ function beginResize({
     handle,
     from,
     frameTransform,
+    // selectTool collects these at drag start with the selection's own content
+    // left out; these tests care about flip geometry, not alignment.
+    targets: { x: [], y: [] },
     originals: Object.fromEntries(
       ids.map((id) => [id, useEditor.getState().doc.nodes[id]])
     ),

@@ -124,6 +124,9 @@ export type Interaction =
       handle: HandleId;
       from: Bounds;
       frameTransform: Matrix;
+      /** Alignment lines gathered at drag start, excluding the selection's own
+       *  content so a group never snaps to the children it is resizing. */
+      targets: SnapTargets;
       originals: Record<string, SceneNode>;
       single: boolean;
       /** Preserve the starting width:height ratio (locked image or Shift). */

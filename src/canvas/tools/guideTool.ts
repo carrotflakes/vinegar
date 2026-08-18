@@ -75,8 +75,11 @@ export function onGuideMove(
   world: Vec2
 ): void {
   if (inter.kind !== "guide-drag") return;
+  // A guide only moves across its own axis, so let nothing snap — or draw a
+  // line — along the axis it runs down.
   const snapped = pointSnap(ctx, world, new Set(), {
     excludeGuideId: inter.id,
+    axes: { x: inter.axis === "x", y: inter.axis === "y" },
   });
   state.moveGuide(inter.id, inter.axis === "x" ? snapped.x : snapped.y);
   ctx.scheduleDraw();

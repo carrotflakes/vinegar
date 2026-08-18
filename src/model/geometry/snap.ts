@@ -317,10 +317,19 @@ export function computeSnap(
   return { dx: xPick?.offset ?? 0, dy: yPick?.offset ?? 0, guides, spacings };
 }
 
+const BOTH_AXES = { x: true, y: true };
+
 export interface PointSnapContext {
   targets: SnapTargets;
   gridSize: number | null;
   guideLines: GuidePositions;
+  /**
+   * The axes the caller is free to move the point along. An axis left out is
+   * neither snapped nor given a guide line: a dragged east handle and a
+   * vertical guide both move in x only, and a horizontal line drawn for them
+   * would promise an alignment that nothing can act on.
+   */
+  axes?: { x: boolean; y: boolean };
 }
 
 /**
@@ -332,16 +341,21 @@ export function snapPoint(
   ctx: PointSnapContext,
   threshold: number
 ): { point: Vec2; guides: Guide[] } {
-  const xPick = pick([
-    alignSnap("x", [p.x], [p.y, p.y], ctx.targets.x, threshold),
-    guideSnap("x", [p.x], [p.y, p.y], ctx.guideLines.x, threshold),
-    ctx.gridSize ? gridSnap([p.x], ctx.gridSize, threshold) : null,
-  ]);
-  const yPick = pick([
-    alignSnap("y", [p.y], [p.x, p.x], ctx.targets.y, threshold),
-    guideSnap("y", [p.y], [p.x, p.x], ctx.guideLines.y, threshold),
-    ctx.gridSize ? gridSnap([p.y], ctx.gridSize, threshold) : null,
-  ]);
+  const axes = ctx.axes ?? BOTH_AXES;
+  const xPick = axes.x
+    ? pick([
+        alignSnap("x", [p.x], [p.y, p.y], ctx.targets.x, threshold),
+        guideSnap("x", [p.x], [p.y, p.y], ctx.guideLines.x, threshold),
+        ctx.gridSize ? gridSnap([p.x], ctx.gridSize, threshold) : null,
+      ])
+    : null;
+  const yPick = axes.y
+    ? pick([
+        alignSnap("y", [p.y], [p.x, p.x], ctx.targets.y, threshold),
+        guideSnap("y", [p.y], [p.x, p.x], ctx.guideLines.y, threshold),
+        ctx.gridSize ? gridSnap([p.y], ctx.gridSize, threshold) : null,
+      ])
+    : null;
 
   const guides: Guide[] = [];
   if (xPick?.kind === "align") guides.push(xPick.guide);

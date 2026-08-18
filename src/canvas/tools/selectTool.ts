@@ -82,6 +82,26 @@ function pendSelectionMove(
 }
 
 /**
+ * The shapes a drag of `selection` may align against: everything visible in
+ * scope that is not part of the selection itself — a group must not snap to
+ * the children it is dragging along with it. Alignment targets are only read
+ * while object snapping is on, and collecting them walks every shape in scope,
+ * so skip the work when it cannot be used.
+ */
+function snapCandidates(state: EditorState, selection: string[]): Shape[] {
+  if (!state.snapEnabled) return [];
+  const selectedLeafIds = new Set(
+    selectionRoots(state.doc, selection).flatMap((id) =>
+      descendantShapeIds(state.doc, id)
+    )
+  );
+  return shapesInPaintOrder(state.doc, currentFocusRoot(state)).filter(
+    (s): s is Shape =>
+      !!s && !selectedLeafIds.has(s.id) && !isShapeHidden(state.doc, s)
+  );
+}
+
+/**
  * Start moving `selection` without changing it. Shared by normal picking and
  * the drag-an-already-selected-locked-shape path (lock blocks *selecting*, not
  * moving what is already selected).
@@ -97,19 +117,7 @@ function beginSelectionMove(
   const originals = snapshot(selection);
   const selectedGroup = exactlySelectedGroup(state.doc, selection);
   const transient = !selectedGroup && selection.length > 1;
-  const selectedLeafIds = new Set(
-    selectionRoots(state.doc, selection).flatMap((id) =>
-      descendantShapeIds(state.doc, id)
-    )
-  );
-  // Alignment targets are only read while object snapping is on, and collecting
-  // them walks every shape in scope — skip that work when it can't be used.
-  const others = state.snapEnabled
-    ? shapesInPaintOrder(state.doc, currentFocusRoot(state)).filter(
-        (s): s is Shape =>
-          !selectedLeafIds.has(s.id) && !isShapeHidden(state.doc, s)
-      )
-    : [];
+  const others = snapCandidates(state, selection);
   if (!alreadyBegun) state.beginInteraction("Move selection");
   ctx.interaction.current = {
     kind: "move",
@@ -377,6 +385,7 @@ export function onSelectDown(
       handle: hit.id,
       from: frame.bounds,
       frameTransform: frame.transform,
+      targets: collectSnapTargets(state.doc, snapCandidates(state, state.selection)),
       originals: snapshot(state.selection),
       single: state.selection.length === 1,
       lockAspect,

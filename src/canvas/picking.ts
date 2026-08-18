@@ -322,7 +322,16 @@ export interface PointSnapOptions {
   extra?: SnapTargets;
   /** A guide to leave out of the targets — the one being dragged. */
   excludeGuideId?: string;
+  /** The axes the caller can move the point along; the rest are left alone and
+   *  draw no guide. See {@link snapPoint}. */
+  axes?: { x: boolean; y: boolean };
+  /** Alignment lines collected once at drag start, in place of walking the
+   *  document on every pointer move. Already excludes what is being dragged, so
+   *  `exclude` is ignored when this is given. */
+  targets?: SnapTargets;
 }
+
+const NO_TARGETS: SnapTargets = { x: [], y: [] };
 
 /**
  * Snap a single world point to alignment lines / guides / grid (for creation,
@@ -335,7 +344,7 @@ export function pointSnap(
   exclude: Set<string>,
   opts: PointSnapOptions = {}
 ): Vec2 {
-  const { extra, excludeGuideId } = opts;
+  const { extra, excludeGuideId, axes } = opts;
   const state = useEditor.getState();
   ctx.spacings.current = [];
   const guideLines = activeGuideLines(state, excludeGuideId);
@@ -344,14 +353,16 @@ export function pointSnap(
     ctx.guides.current = [];
     return world;
   }
-  const others = shapesInPaintOrder(state.doc, currentFocusRoot(state))
-    .filter(
-      (s): s is Shape =>
-        !!s && !isNodeHidden(state.doc, s.id) && !exclude.has(s.id)
-    );
-  const docTargets = state.snapEnabled
-    ? collectSnapTargets(state.doc, others)
-    : { x: [], y: [] };
+  const docTargets = !state.snapEnabled
+    ? NO_TARGETS
+    : (opts.targets ??
+      collectSnapTargets(
+        state.doc,
+        shapesInPaintOrder(state.doc, currentFocusRoot(state)).filter(
+          (s): s is Shape =>
+            !!s && !isNodeHidden(state.doc, s.id) && !exclude.has(s.id)
+        )
+      ));
   const res = snapPoint(
     world,
     {
@@ -364,6 +375,7 @@ export function pointSnap(
           : docTargets,
       gridSize: state.gridSnap ? state.gridSize : null,
       guideLines,
+      ...(axes ? { axes } : {}),
     },
     SNAP_PX / state.viewport.scale
   );
