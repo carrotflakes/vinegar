@@ -119,7 +119,9 @@ const isPaint = (value: unknown): boolean => {
 const isSolidPaint = (value: unknown): boolean =>
   isObject(value) && value.type === "solid" && typeof value.color === "string" &&
   isNumber(value.alpha) && value.alpha >= 0 && value.alpha <= 1;
-const isPaintOrNull = (value: unknown): boolean => value === null || isPaint(value);
+/** Exported for the new-shape defaults, which validate the same paint union
+ *  coming out of localStorage rather than growing a second validator. */
+export const isPaintOrNull = (value: unknown): boolean => value === null || isPaint(value);
 const isEffect = (value: unknown): boolean => {
   if (!isObject(value) || !EFFECT_TYPES.includes(value.type as never)) return false;
   if (typeof value.id !== "string" || !value.id) return false;
@@ -179,15 +181,17 @@ const isPathModifier = (value: unknown): boolean => {
 };
 const isPathModifiersOrAbsent = (value: unknown): boolean =>
   value === undefined || (Array.isArray(value) && value.every(isPathModifier));
-/** An end marker. Absent is the v34 form: that end carries no marker. */
-const isMarkerOrAbsent = (value: unknown): boolean =>
+/** An end marker. Absent is the v34 form: that end carries no marker.
+ *  Exported alongside {@link isPaintOrNull} for the new-shape defaults. */
+export const isMarkerOrAbsent = (value: unknown): boolean =>
   value === undefined ||
   (isObject(value) && MARKER_SHAPES.includes(value.shape as never) &&
     isNumber(value.scale) && value.scale > 0 &&
     typeof value.filled === "boolean" && typeof value.flip === "boolean");
 const hasValidMarkers = (node: Record<string, unknown>): boolean =>
   isMarkerOrAbsent(node.markerStart) && isMarkerOrAbsent(node.markerEnd);
-const isStrokeDash = (value: unknown): boolean =>
+/** Exported alongside {@link isPaintOrNull} for the new-shape defaults. */
+export const isStrokeDash = (value: unknown): boolean =>
   Array.isArray(value) && value.every((entry) => isNumber(entry) && entry >= 0);
 const isGeneratorOrNull = (value: unknown): boolean => {
   if (value === null) return true;

@@ -6,9 +6,20 @@ import { NODE_BASE, SHAPE_BASE } from "./nodeBase.mjs";
 let server;
 let createEmptyDocument;
 let getCommand;
+let initialPrefs;
 let useEditor;
 
-const solid = (hex) => ({ type: "solid", color: hex });
+// The defaults persist through localStorage, which node has none of.
+const storage = new Map();
+globalThis.localStorage = {
+  getItem: (key) => (storage.has(key) ? storage.get(key) : null),
+  setItem: (key, value) => storage.set(key, String(value)),
+  removeItem: (key) => storage.delete(key),
+};
+const STYLE_KEY = "vinegar.style";
+const storedStyle = () => JSON.parse(storage.get(STYLE_KEY));
+
+const solid = (hex) => ({ type: "solid", color: hex, alpha: 1 });
 
 const rect = (id, patch = {}) => ({
   id,
@@ -74,6 +85,7 @@ before(async () => {
   ({ createEmptyDocument } = await server.ssrLoadModule("/src/model/types.ts"));
   ({ useEditor } = await server.ssrLoadModule("/src/store/editorStore.ts"));
   ({ getCommand } = await server.ssrLoadModule("/src/commands/registry.ts"));
+  ({ initialPrefs } = await server.ssrLoadModule("/src/store/prefsSlice.ts"));
 });
 
 after(async () => server.close());
@@ -141,4 +153,55 @@ test("the command needs a paintable shape first in the selection", () => {
 
   useEditor.getState().setSelection(["a"]);
   assert.equal(command.enabled(useEditor.getState()), true);
+});
+
+test("the defaults survive a reload", () => {
+  load([rect("a", { fill: solid("#abcdef"), strokeWidth: 5 })], ["a"]);
+  useEditor.getState().setSelection(["a"]);
+  useEditor.getState().setStyleFromSelection();
+
+  assert.deepEqual(storedStyle().fill, solid("#abcdef"));
+  // A fresh session reads the same values back.
+  assert.deepEqual(initialPrefs().style, useEditor.getState().style);
+
+  useEditor.getState().setStyle({ strokeWidth: 9 });
+  assert.equal(initialPrefs().style.strokeWidth, 9);
+});
+
+test("a stored style is validated field by field", () => {
+  const good = initialPrefs().style;
+  storage.set(
+    STYLE_KEY,
+    JSON.stringify({
+      ...good,
+      strokeCap: "wobbly",
+      strokeWidth: -3,
+      strokeDash: ["4"],
+      markerEnd: { shape: "nope" },
+    })
+  );
+  const style = initialPrefs().style;
+  assert.equal(style.strokeCap, "round");
+  assert.equal(style.strokeWidth, 2);
+  assert.deepEqual(style.strokeDash, []);
+  assert.equal(style.markerEnd, null);
+  // The fields that were fine are still the stored ones.
+  assert.deepEqual(style.fill, good.fill);
+
+  storage.set(STYLE_KEY, "{ broken");
+  assert.deepEqual(initialPrefs().style.fill, solid("#4f8cff"));
+});
+
+test("document-scoped paints never come back from storage", () => {
+  storage.set(
+    STYLE_KEY,
+    JSON.stringify({
+      ...initialPrefs().style,
+      fill: { type: "swatch", swatchId: "sw-1", alpha: 1 },
+      stroke: { type: "pattern", assetId: "a-1", mode: "tile", scale: 1, rotation: 0, offset: { x: 0, y: 0 }, alpha: 1 },
+    })
+  );
+  const style = initialPrefs().style;
+  assert.deepEqual(style.fill, solid("#4f8cff"));
+  assert.deepEqual(style.stroke, solid("#1b1b1b"));
 });

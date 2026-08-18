@@ -1,11 +1,22 @@
 // Tool, viewport and persisted user preferences (colors, swatches, snapping).
 
+import {
+  isMarkerOrAbsent,
+  isPaintOrNull,
+  isStrokeDash,
+} from "../io/serialize";
 import { isMarkable } from "../model/marker";
+import type { Paint } from "../model/paint";
 import { solid } from "../model/paint";
 import { isShape, selectionRoots } from "../model/scene";
 import { shapePaintFields } from "../model/stroke";
-import { UNTITLED_DOCUMENT_NAME } from "../model/types";
-import type { Document, Shape } from "../model/types";
+import {
+  STROKE_ALIGNMENTS,
+  STROKE_CAPS,
+  STROKE_JOINS,
+  UNTITLED_DOCUMENT_NAME,
+} from "../model/types";
+import type { Document, Marker, Shape } from "../model/types";
 import { initialViewport } from "@/model/geometry/viewport";
 import { notify } from "./toastStore";
 import {
@@ -13,6 +24,7 @@ import {
   type EditorData,
   type PrefsActions,
   type StoreCtx,
+  type StyleDefaults,
 } from "./state";
 
 const RECENT_COLORS_KEY = "vinegar.recentColors";
@@ -25,6 +37,7 @@ const GUIDE_SNAP_KEY = "vinegar.guideSnap";
 const GUIDES_VISIBLE_KEY = "vinegar.guidesVisible";
 const GUIDES_LOCKED_KEY = "vinegar.guidesLocked";
 const RULERS_VISIBLE_KEY = "vinegar.rulersVisible";
+const STYLE_KEY = "vinegar.style";
 
 function loadColorList(key: string, max = Infinity): string[] {
   try {
@@ -54,6 +67,83 @@ type PrefsData = Pick<
   | "recentColors" | "savedSwatches"
 >;
 
+/** The paint a fresh install draws with, before any of it is edited. */
+function defaultStyle(): StyleDefaults {
+  return {
+    fill: solid("#4f8cff"),
+    stroke: solid("#1b1b1b"),
+    strokeWidth: 2,
+    strokeDash: [],
+    strokeDashOffset: 0,
+    strokeCap: "round",
+    strokeJoin: "round",
+    strokeAlignment: "center",
+    markerStart: null,
+    markerEnd: null,
+  };
+}
+
+function saveStyle(style: StyleDefaults): void {
+  try { localStorage.setItem(STYLE_KEY, JSON.stringify(style)); } catch { /* storage is optional */ }
+}
+
+/**
+ * The persisted new-shape defaults. localStorage is untrusted input, so every
+ * field is validated with the predicates the file format already uses and falls
+ * back to its built-in default on its own — a stored style that has gone stale
+ * costs one field, not the whole set.
+ *
+ * Pattern and swatch paints name something that lives inside a *document* (an
+ * image asset, a global colour); the document open in the next session need not
+ * have it, so they never survive a reload.
+ */
+function loadStyle(): StyleDefaults {
+  const base = defaultStyle();
+  let raw: unknown;
+  try { raw = JSON.parse(localStorage.getItem(STYLE_KEY) || "null"); }
+  catch { return base; }
+  if (typeof raw !== "object" || raw === null) return base;
+  const stored = raw as Record<string, unknown>;
+  const num = (value: unknown, fallback: number, min = -Infinity) =>
+    typeof value === "number" && Number.isFinite(value) && value >= min
+      ? value
+      : fallback;
+  const paint = (value: unknown, fallback: Paint | null) => {
+    if (!isPaintOrNull(value)) return fallback;
+    const type = (value as Paint | null)?.type;
+    return type === "pattern" || type === "swatch"
+      ? fallback
+      : (value as Paint | null);
+  };
+  const marker = (value: unknown, fallback: Marker | null) =>
+    value === null ? null
+      : value !== undefined && isMarkerOrAbsent(value) ? (value as Marker)
+      : fallback;
+  const oneOf = <T extends string>(
+    values: readonly T[],
+    value: unknown,
+    fallback: T
+  ) => (values.includes(value as T) ? (value as T) : fallback);
+  return {
+    fill: paint(stored.fill, base.fill),
+    stroke: paint(stored.stroke, base.stroke),
+    strokeWidth: num(stored.strokeWidth, base.strokeWidth, 0),
+    strokeDash: isStrokeDash(stored.strokeDash)
+      ? [...(stored.strokeDash as number[])]
+      : base.strokeDash,
+    strokeDashOffset: num(stored.strokeDashOffset, base.strokeDashOffset),
+    strokeCap: oneOf(STROKE_CAPS, stored.strokeCap, base.strokeCap),
+    strokeJoin: oneOf(STROKE_JOINS, stored.strokeJoin, base.strokeJoin),
+    strokeAlignment: oneOf(
+      STROKE_ALIGNMENTS,
+      stored.strokeAlignment,
+      base.strokeAlignment
+    ),
+    markerStart: marker(stored.markerStart, base.markerStart),
+    markerEnd: marker(stored.markerEnd, base.markerEnd),
+  };
+}
+
 /**
  * The shape "New shape defaults" copies from — the first selected one, the
  * same shape whose values the Appearance panel already shows. Images carry no
@@ -72,18 +162,7 @@ export function initialPrefs(): PrefsData {
   return {
     tool: "select",
     viewport: initialViewport,
-    style: {
-      fill: solid("#4f8cff"),
-      stroke: solid("#1b1b1b"),
-      strokeWidth: 2,
-      strokeDash: [],
-      strokeDashOffset: 0,
-      strokeCap: "round",
-      strokeJoin: "round",
-      strokeAlignment: "center",
-      markerStart: null,
-      markerEnd: null,
-    },
+    style: loadStyle(),
     snapEnabled: loadBool(SNAP_ENABLED_KEY, true),
     gridSnap: loadBool(GRID_SNAP_KEY, false),
     gridVisible: loadBool(GRID_VISIBLE_KEY, true),
@@ -120,24 +199,24 @@ export function createPrefsActions({ set, get, replaceDocumentWithoutHistory }: 
     addRecentColor: (hex) => { const c = hex.toLowerCase(); const recentColors = [c, ...get().recentColors.filter((x) => x !== c)].slice(0, RECENT_COLORS_MAX); saveColorList(RECENT_COLORS_KEY, recentColors); set({ recentColors }); },
     addSwatch: (hex) => { const c = hex.toLowerCase(); if (get().savedSwatches.includes(c)) return; const savedSwatches = [...get().savedSwatches, c]; saveColorList(SAVED_SWATCHES_KEY, savedSwatches); set({ savedSwatches }); },
     removeSwatch: (hex) => { const savedSwatches = get().savedSwatches.filter((x) => x !== hex.toLowerCase()); saveColorList(SAVED_SWATCHES_KEY, savedSwatches); set({ savedSwatches }); },
-    setStyle: (patch) => set({ style: { ...get().style, ...patch } }),
+    setStyle: (patch) => { const style = { ...get().style, ...patch }; saveStyle(style); set({ style }); },
     setStyleFromSelection: () => {
       const shape = styleSourceShape(get().doc, get().selection);
       if (!shape) return;
-      set({
-        style: {
-          ...get().style,
-          ...shapePaintFields(shape),
-          // A rect or a text node has no ends to mark, so it says nothing about
-          // markers — clearing the arrowheads the user set up would be a loss.
-          ...(isMarkable(shape)
-            ? {
-                markerStart: shape.markerStart ? { ...shape.markerStart } : null,
-                markerEnd: shape.markerEnd ? { ...shape.markerEnd } : null,
-              }
-            : {}),
-        },
-      });
+      const style: StyleDefaults = {
+        ...get().style,
+        ...shapePaintFields(shape),
+        // A rect or a text node has no ends to mark, so it says nothing about
+        // markers — clearing the arrowheads the user set up would be a loss.
+        ...(isMarkable(shape)
+          ? {
+              markerStart: shape.markerStart ? { ...shape.markerStart } : null,
+              markerEnd: shape.markerEnd ? { ...shape.markerEnd } : null,
+            }
+          : {}),
+      };
+      saveStyle(style);
+      set({ style });
       // The defaults are only on screen with nothing selected, so the change is
       // invisible at the moment it happens.
       notify.info("New shape defaults updated");
