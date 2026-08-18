@@ -73,6 +73,9 @@ export function selectionMenu(): MenuEntry[] {
     item("edit.cut"),
     item("edit.copy"),
     item("edit.duplicate"),
+    ...(enabled("style.defaultsFromSelection")
+      ? [item("style.defaultsFromSelection")]
+      : []),
     "separator",
     // Only meaningful for containers, so it stays out of the way otherwise.
     ...(enabled("select.children") ? [item("select.children")] : []),

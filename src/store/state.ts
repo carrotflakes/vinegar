@@ -174,6 +174,8 @@ export interface PrefsActions {
   addSwatch: (hex: string) => void;
   removeSwatch: (hex: string) => void;
   setStyle: (patch: Partial<StyleDefaults>) => void;
+  /** Copy the selected shape's paint into the new-shape defaults. */
+  setStyleFromSelection: () => void;
 }
 
 export interface SelectionActions {

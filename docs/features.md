@@ -79,6 +79,10 @@ Fill, Text, Frame.
   outline over it. See [effects.md](design/effects.md)
 - **Global colors** — named document swatches referenced by id, so editing one
   re-tints every use live. See [global-colors.md](design/global-colors.md)
+- **New shape defaults** — the paint every newly drawn shape starts with, edited
+  in the Appearance panel while nothing is selected. "Use as new shape defaults"
+  (Appearance header, selection context menu, command palette) copies a selected
+  shape's paint into them; markers come along only from a line or a path.
 
 ## Content
 

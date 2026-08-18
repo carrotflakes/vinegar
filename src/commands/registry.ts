@@ -43,6 +43,7 @@ import { screenToWorld } from "@/model/geometry/viewport";
 import { useBrush } from "../store/brushStore";
 import { deleteActiveFreeformPoint } from "../store/gradientToolStore";
 import { currentFocusRoot, useEditor } from "../store/editorStore";
+import { styleSourceShape } from "../store/prefsSlice";
 import { groupEditNodesByShape } from "../store/state";
 import { notify } from "../store/toastStore";
 import type { EditorState } from "../store/state";
@@ -666,6 +667,16 @@ export const COMMANDS: Command[] = [
     keys: [{ key: "]" }],
     enabled: sizableTool,
     run: (s) => stepToolSize(s, WIDTH_STEP),
+  },
+  // The Appearance panel edits the new-shape defaults only while nothing is
+  // selected, so without this the sole way to reuse a shape's paint is to
+  // deselect and retype every field.
+  {
+    id: "style.defaultsFromSelection",
+    label: "Use as new shape defaults",
+    group: "Tools",
+    enabled: (s) => !!styleSourceShape(s.doc, s.selection),
+    run: (s) => s.setStyleFromSelection(),
   },
   {
     id: "path.union",

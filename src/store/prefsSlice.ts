@@ -1,8 +1,13 @@
 // Tool, viewport and persisted user preferences (colors, swatches, snapping).
 
+import { isMarkable } from "../model/marker";
 import { solid } from "../model/paint";
+import { isShape, selectionRoots } from "../model/scene";
+import { shapePaintFields } from "../model/stroke";
 import { UNTITLED_DOCUMENT_NAME } from "../model/types";
+import type { Document, Shape } from "../model/types";
 import { initialViewport } from "@/model/geometry/viewport";
+import { notify } from "./toastStore";
 import {
   clearTransient,
   type EditorData,
@@ -48,6 +53,20 @@ type PrefsData = Pick<
   | "guideSnap" | "guidesVisible" | "guidesLocked" | "rulersVisible"
   | "recentColors" | "savedSwatches"
 >;
+
+/**
+ * The shape "New shape defaults" copies from — the first selected one, the
+ * same shape whose values the Appearance panel already shows. Images carry no
+ * paint of their own, so they never qualify.
+ */
+export function styleSourceShape(
+  doc: Document,
+  selection: string[]
+): Shape | null {
+  const first = selectionRoots(doc, selection)[0];
+  const node = first ? doc.nodes[first] : undefined;
+  return isShape(node) && node.type !== "image" ? node : null;
+}
 
 export function initialPrefs(): PrefsData {
   return {
@@ -102,5 +121,26 @@ export function createPrefsActions({ set, get, replaceDocumentWithoutHistory }: 
     addSwatch: (hex) => { const c = hex.toLowerCase(); if (get().savedSwatches.includes(c)) return; const savedSwatches = [...get().savedSwatches, c]; saveColorList(SAVED_SWATCHES_KEY, savedSwatches); set({ savedSwatches }); },
     removeSwatch: (hex) => { const savedSwatches = get().savedSwatches.filter((x) => x !== hex.toLowerCase()); saveColorList(SAVED_SWATCHES_KEY, savedSwatches); set({ savedSwatches }); },
     setStyle: (patch) => set({ style: { ...get().style, ...patch } }),
+    setStyleFromSelection: () => {
+      const shape = styleSourceShape(get().doc, get().selection);
+      if (!shape) return;
+      set({
+        style: {
+          ...get().style,
+          ...shapePaintFields(shape),
+          // A rect or a text node has no ends to mark, so it says nothing about
+          // markers — clearing the arrowheads the user set up would be a loss.
+          ...(isMarkable(shape)
+            ? {
+                markerStart: shape.markerStart ? { ...shape.markerStart } : null,
+                markerEnd: shape.markerEnd ? { ...shape.markerEnd } : null,
+              }
+            : {}),
+        },
+      });
+      // The defaults are only on screen with nothing selected, so the change is
+      // invisible at the moment it happens.
+      notify.info("New shape defaults updated");
+    },
   };
 }

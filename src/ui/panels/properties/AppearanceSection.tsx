@@ -1,3 +1,4 @@
+import { LuPipette } from "react-icons/lu";
 import type { Paint } from "../../../model/paint";
 import {
   effectiveStrokeAlignment,
@@ -45,6 +46,9 @@ export default function AppearanceSection({
     (state) => state.setSelectedFillRule
   );
   const setSelectedMarkers = useEditor((state) => state.setSelectedMarkers);
+  const setStyleFromSelection = useEditor(
+    (state) => state.setStyleFromSelection
+  );
   const hasSelection = selected.length > 0;
   const first = selected[0];
   const paintless =
@@ -155,6 +159,19 @@ export default function AppearanceSection({
   return (
     <Section
       title={hasSelection ? "Appearance" : "New shape defaults"}
+      // The defaults are reachable only with an empty selection, so the button
+      // that copies this shape's paint into them lives on this same header.
+      actions={
+        first && first.type !== "image" ? (
+          <button
+            className="layer-icon-btn title-add"
+            title="Use as new shape defaults"
+            onClick={setStyleFromSelection}
+          >
+            <LuPipette />
+          </button>
+        ) : null
+      }
     >
       {!paintless && (
         <>
