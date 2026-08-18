@@ -17,6 +17,7 @@ export default function BrushSection() {
             className="num"
             min={0.5}
             step={0.5}
+            unit="px"
             value={size}
             defaultValue={BRUSH_DEFAULTS.size}
             onChange={(v) => setBrush({ size: v })}
@@ -25,12 +26,13 @@ export default function BrushSection() {
         </label>
 
         <label>
-          <span>Min width (%)</span>
+          <span>Min width</span>
           <ScrubbableNumber
             className="num"
             min={0}
             max={100}
             step={1}
+            unit="%"
             value={Math.round(minWidth * 100)}
             defaultValue={Math.round(BRUSH_DEFAULTS.minWidth * 100)}
             onChange={(v) => setBrush({ minWidth: v / 100 })}
@@ -53,12 +55,13 @@ export default function BrushSection() {
         </label>
 
         <label>
-          <span>Smoothing (%)</span>
+          <span>Smoothing</span>
           <ScrubbableNumber
             className="num"
             min={0}
             max={95}
             step={1}
+            unit="%"
             value={Math.round(stabilizer * 100)}
             defaultValue={Math.round(BRUSH_DEFAULTS.stabilizer * 100)}
             onChange={(v) => setBrush({ stabilizer: v / 100 })}
@@ -80,12 +83,13 @@ export default function BrushSection() {
         </label>
 
         <label>
-          <span>Simplify (px)</span>
+          <span>Simplify</span>
           <ScrubbableNumber
             className="num"
             min={0}
             max={20}
             step={0.5}
+            unit="px"
             value={simplify}
             defaultValue={BRUSH_DEFAULTS.simplify}
             onChange={(v) => setBrush({ simplify: v })}
@@ -109,6 +113,7 @@ export function EraserSection() {
             className="num"
             min={1}
             step={1}
+            unit="px"
             value={eraserSize}
             defaultValue={BRUSH_DEFAULTS.eraserSize}
             onChange={(v) => setBrush({ eraserSize: v })}

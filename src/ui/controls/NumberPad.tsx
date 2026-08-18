@@ -30,6 +30,8 @@ interface Props {
   /** Amount the −/+ keys move by. */
   step: number;
   label?: string | undefined;
+  /** Unit of the value, echoed after the entry so the pad reads like the field. */
+  unit?: string | undefined;
   onCommit: (value: number) => void;
   onCancel: () => void;
 }
@@ -63,6 +65,7 @@ export default function NumberPad({
   max,
   step,
   label,
+  unit,
   onCommit,
   onCancel,
 }: Props) {
@@ -140,6 +143,7 @@ export default function NumberPad({
       </div>
       <div className="number-pad-display" aria-live="polite">
         {state.text === "" ? <span className="number-pad-empty">0</span> : state.text}
+        {unit && <span className="number-pad-unit">{unit}</span>}
       </div>
       <div className="number-pad-grid">
         {DIGIT_KEYS.map(({ key, row, column }) => (

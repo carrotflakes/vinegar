@@ -186,6 +186,9 @@ dismissed like any other popover (`usePopoverDismiss`).
   raises the software keyboard. It stays `type="number"` — as text it would
   claim the browser's 20-character default width and widen every panel it sits
   in (the zoom menu grew by 113 px).
+- A field's `unit` (`%`, `px`, `°`) is display only — it is painted inside the
+  field's right padding and echoed after the pad's entry, and never reaches the
+  value the caller reads.
 - The pad portals to `<body>`, above every surface a number field can live in
   (`z-index: 300`). Popovers that *contain* number fields — the colour popover,
   the bind menu, the AppBar `Popover` — must not read a press on its keys as an

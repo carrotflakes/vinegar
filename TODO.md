@@ -284,3 +284,4 @@ additional effects, or other feature expansion.
 - [ ] Layers 以外のパネル行にもコンテキストメニュー（Assets / Symbols /
   Global colors / Generators）。タッチの右スワイプは useTouchDrag 側にあるので流用できる
 - [ ] 色弱シミュレーション
+- [x] ScrubbableNumberの単位対応

@@ -49,19 +49,17 @@ export function OpacityField({
   return (
     <div className="field-inline">
       <label>{label}</label>
-      <div className="num-suffix">
-        <ScrubbableNumber
-          className="num"
-          min={0}
-          max={100}
-          step={1}
-          value={Math.round(value * 100)}
-          defaultValue={100}
-          onChange={(next) => onChange(next / 100)}
-          aria-label={label}
-        />
-        <span className="unit">%</span>
-      </div>
+      <ScrubbableNumber
+        className="num"
+        min={0}
+        max={100}
+        step={1}
+        unit="%"
+        value={Math.round(value * 100)}
+        defaultValue={100}
+        onChange={(next) => onChange(next / 100)}
+        aria-label={label}
+      />
     </div>
   );
 }
@@ -86,6 +84,7 @@ export function RotationField({
         <ScrubbableNumber
           className="num"
           step={1}
+          unit="°"
           value={degrees}
           defaultValue={0}
           onChange={onChange}

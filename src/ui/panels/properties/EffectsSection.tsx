@@ -182,13 +182,13 @@ export default function EffectsSection({ node }: { node: SceneNode }) {
                   min={0}
                   max={100}
                   step={1}
+                  unit="%"
                   value={Math.round(effect.alpha * 100)}
                   onChange={(value) =>
                     replace(index, { ...effect, alpha: value / 100 })
                   }
                   aria-label="Tint amount"
                 />
-                <span className="unit">%</span>
               </div>
             </div>
           ) : effect.type === "fill" ? (
@@ -317,13 +317,13 @@ export default function EffectsSection({ node }: { node: SceneNode }) {
                     min={0}
                     max={100}
                     step={1}
+                    unit="%"
                     value={Math.round(effect.alpha * 100)}
                     onChange={(value) =>
                       replace(index, { ...effect, alpha: value / 100 })
                     }
                     aria-label="Shadow opacity"
                   />
-                  <span className="unit">%</span>
                 </div>
               </div>
             </>

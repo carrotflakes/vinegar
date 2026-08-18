@@ -153,13 +153,11 @@ function ZoomMenuPanel({ close }: { close: () => void }) {
               min={5}
               max={6400}
               scale="log"
+              unit="%"
               defaultValue={100}
               aria-label="Zoom percentage"
               onChange={zoomTo}
             />
-            <span className="zoom-menu-unit" aria-hidden>
-              %
-            </span>
           </span>
           <button
             className="zoom-menu-step"
@@ -195,13 +193,11 @@ function ZoomMenuPanel({ close }: { close: () => void }) {
                 value={fieldAngle}
                 min={-180}
                 max={180}
+                unit="°"
                 defaultValue={0}
                 aria-label="Canvas rotation"
                 onChange={rotateTo}
               />
-              <span className="zoom-menu-unit" aria-hidden>
-                °
-              </span>
             </span>
             <button
               className="zoom-menu-step"

@@ -126,14 +126,13 @@ globalStyle(".zoom-menu-row-label", {
   fontSize: "12px",
 });
 
-/** Scrubbable value field; the unit sign sits inside the field's border. */
+/** Frame around a scrubbable value field; the field prints its own unit
+ * inside this border (`unit` on `ScrubbableNumber`). */
 globalStyle(".zoom-menu-field", {
   flex: "1 1 auto",
   minWidth: "0",
   display: "flex",
   alignItems: "center",
-  gap: "1px",
-  paddingRight: "6px",
   border: `1px solid ${vars.border}`,
   borderRadius: "6px",
   background: vars.field,
@@ -141,6 +140,11 @@ globalStyle(".zoom-menu-field", {
 
 globalStyle(".zoom-menu-field:focus-within", {
   borderColor: vars.accent,
+});
+
+globalStyle(".zoom-menu-field .scrub-field", {
+  flex: "1 1 auto",
+  minWidth: "0",
 });
 
 globalStyle(".zoom-menu-field input", {
@@ -158,12 +162,6 @@ globalStyle(".zoom-menu-field input", {
 // The wrapper already shows focus; a second ring inside it would double up.
 globalStyle(".zoom-menu-field input:focus-visible", {
   boxShadow: "none",
-});
-
-globalStyle(".zoom-menu-unit", {
-  flex: "0 0 auto",
-  color: vars.muted,
-  fontSize: "12px",
 });
 
 /** The flip pair occupies the field column, so it starts on the same edge. */

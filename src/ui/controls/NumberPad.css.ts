@@ -55,6 +55,12 @@ globalStyle(".number-pad-display", {
   borderRadius: "6px",
 });
 
+globalStyle(".number-pad-unit", {
+  marginLeft: "3px",
+  fontSize: "13px",
+  color: vars.muted,
+});
+
 globalStyle(".number-pad-empty", {
   color: vars.muted,
 });

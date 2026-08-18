@@ -15,12 +15,13 @@ export default function PencilSection() {
     <Section title="Pencil">
       <div className="brush-options-grid">
         <label>
-          <span>Smoothing (%)</span>
+          <span>Smoothing</span>
           <ScrubbableNumber
             className="num"
             min={0}
             max={95}
             step={1}
+            unit="%"
             value={Math.round(smoothing * 100)}
             defaultValue={Math.round(PENCIL_DEFAULTS.smoothing * 100)}
             onChange={(v) => setPencil({ smoothing: v / 100 })}
@@ -29,12 +30,13 @@ export default function PencilSection() {
         </label>
 
         <label>
-          <span>Simplify (px)</span>
+          <span>Simplify</span>
           <ScrubbableNumber
             className="num"
             min={0}
             max={20}
             step={0.5}
+            unit="px"
             value={simplify}
             defaultValue={PENCIL_DEFAULTS.simplify}
             onChange={(v) => setPencil({ simplify: v })}

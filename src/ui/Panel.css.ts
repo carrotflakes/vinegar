@@ -122,11 +122,6 @@ globalStyle(".num-suffix", {
   gap: "4px",
 });
 
-globalStyle(".num-suffix .unit", {
-  fontSize: "12px",
-  color: vars.muted,
-});
-
 globalStyle(".field-row input[type=\"color\"],\n.field-inline input[type=\"color\"]", {
   width: "30px",
   height: "26px",
