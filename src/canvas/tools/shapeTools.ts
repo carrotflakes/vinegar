@@ -35,6 +35,27 @@ export function startShape(ctx: ToolContext, state: EditorState, world: Vec2) {
   ctx.scheduleDraw();
 }
 
+/**
+ * The world axes a creation drag is still free to move its corner along, which
+ * is the only place snapping may act (see the snapping rule in
+ * `docs/design/rulers-and-guides.md`). Without Shift both are free. With it a
+ * rect/ellipse keeps the pointer on whichever axis grew more and derives the
+ * other from it, and a line is pinned to a 45° ray, where no world axis is free
+ * at all.
+ */
+function createSnapAxes(
+  tool: string,
+  start: Vec2,
+  world: Vec2,
+  shiftKey: boolean
+): { x: boolean; y: boolean } | undefined {
+  if (!shiftKey) return undefined;
+  if (tool === "line") return { x: false, y: false };
+  return Math.abs(world.x - start.x) >= Math.abs(world.y - start.y)
+    ? { x: true, y: false }
+    : { x: false, y: true };
+}
+
 export function onCreateMove(
   ctx: ToolContext,
   state: EditorState,
@@ -43,10 +64,11 @@ export function onCreateMove(
   shiftKey: boolean,
   altKey: boolean
 ) {
+  const axes = createSnapAxes(state.tool, start, world, shiftKey);
   const shape = makeCreatedShape(
     state.tool,
     start,
-    pointSnap(ctx, world, EMPTY_EXCLUDE),
+    pointSnap(ctx, world, EMPTY_EXCLUDE, axes ? { axes } : {}),
     state.style,
     shiftKey,
     altKey

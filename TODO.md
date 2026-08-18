@@ -11,10 +11,10 @@ additional effects, or other feature expansion.
 
 - [ ] **Document settings UI** — edit unit and DPI as well as grid size; show the
   selected unit consistently in coordinates, dimensions and export settings
-- [ ] Snapping follow-ups — resize honours alignment lines but drops the guide
-  when the aspect constraint overrides it (a ratio-preserving snap would keep
-  it); rotate has angle magnetism only, by decision, and no alignment guides;
-  distribution (equal-spacing) snapping is still move-only
+- [ ] Snapping follow-ups — the transform origin (pivot) drag snaps to nothing,
+  so a pivot cannot be placed on a guide, the grid or an object centre; rotate
+  has angle magnetism only, by decision, and no alignment guides; distribution
+  (equal-spacing) snapping is still move-only
 - [ ] Save workflow follow-ups — recent files (persist handles in IndexedDB),
   reattach the handle across a reload, and a "Save a copy" that does not
   re-point the attached file

@@ -64,11 +64,13 @@ function frameSnapData(state: EditorState, excludeId: string): FrameSnap {
 }
 
 /** Snap a world point against the frame drag's targets, the grid and guides.
- *  Both ends of a create drag go through this, so the start snaps like the end. */
+ *  Both ends of a create drag go through this, so the start snaps like the end.
+ *  `axes` narrows the snap to the freedom a held modifier leaves. */
 function snapFrameWorld(
   state: EditorState,
   snap: FrameSnap,
-  world: Vec2
+  world: Vec2,
+  axes?: { x: boolean; y: boolean }
 ): { point: Vec2; guides: Guide[] } {
   const gridSize = state.gridSnap ? state.gridSize : null;
   const guideLines = activeGuideLines(state);
@@ -84,6 +86,7 @@ function snapFrameWorld(
       targets: state.snapEnabled ? snap.targets : EMPTY_TARGETS,
       gridSize,
       guideLines,
+      ...(axes ? { axes } : {}),
     },
     SNAP_PX / state.viewport.scale
   );
@@ -142,7 +145,19 @@ export function onFrameMove(
   alt: boolean
 ) {
   if (inter.kind !== "frame-create") return;
-  const { point: p, guides } = snapFrameWorld(state, inter.snap, world);
+  // Shift squares the frame off whichever axis grew more and derives the other,
+  // so only that axis is free to snap; a line on the derived axis would promise
+  // an alignment the square immediately overwrites.
+  const { point: p, guides } = snapFrameWorld(
+    state,
+    inter.snap,
+    world,
+    shift
+      ? Math.abs(world.x - inter.start.x) >= Math.abs(world.y - inter.start.y)
+        ? { x: true, y: false }
+        : { x: false, y: true }
+      : undefined
+  );
   let dx = p.x - inter.start.x;
   let dy = p.y - inter.start.y;
   if (shift) {

@@ -167,13 +167,57 @@ const NO_EXCLUDE: Set<string> = new Set();
 /** A guide is drawn no further than this from where the handle really landed. */
 const GUIDE_EPSILON = 1e-3;
 
+/** How far off a world axis a direction may sit and still count as on it. */
+const AXIS_EPSILON = 1e-6;
+
+const BOTH_AXES = { x: true, y: true };
+const X_ONLY = { x: true, y: false };
+const Y_ONLY = { x: false, y: true };
+const NO_AXES = { x: false, y: false };
+
 /**
- * Drop the alignment guides the resize did not actually keep. `pointSnap` puts
- * the *pointer* on a line, but the aspect-ratio constraint can pull the box
- * back off it, and on a rotated selection an edge handle moves its corner along
- * the frame's axes rather than the world's. Comparing the line against the
- * handle's committed position leaves only the guides the box really sits on, so
- * the overlay never promises an alignment the document does not have.
+ * The world axes a resize handle is still free to move its corner along, which
+ * is the only place snapping may act (see the snapping rule in
+ * `docs/design/rulers-and-guides.md`).
+ *
+ * - A corner handle puts its corner wherever the pointer is, whatever the
+ *   frame's rotation — both axes are free. Under an aspect lock only the axis
+ *   that drives the uniform scale is: `constrainAspectRatio` rebuilds the other
+ *   one from the ratio, so a snap there would be discarded unseen.
+ * - An edge handle moves its corner along one axis *of the frame*. Snapping to
+ *   a world line is only meaningful when that direction is itself a world axis;
+ *   on a freely rotated selection nothing can be aligned this way.
+ */
+function resizeSnapAxes(
+  inter: Drag<"resize">,
+  localPointer: Vec2,
+  lockAspect: boolean
+): { x: boolean; y: boolean } {
+  const horiz = inter.handle.includes("e") || inter.handle.includes("w");
+  const vert = inter.handle.includes("n") || inter.handle.includes("s");
+  if (horiz && vert) {
+    if (!lockAspect) return BOTH_AXES;
+    const free = resizeBounds(inter.from, inter.handle, localPointer);
+    const sx = Math.abs(free.width / inter.from.width);
+    const sy = Math.abs(free.height / inter.from.height);
+    return sx >= sy ? X_ONLY : Y_ONLY;
+  }
+  const m = inter.frameTransform;
+  const dir = horiz ? { x: m[0], y: m[1] } : { x: m[2], y: m[3] };
+  const len = Math.hypot(dir.x, dir.y);
+  if (len === 0) return NO_AXES;
+  if (Math.abs(dir.y) / len < AXIS_EPSILON) return X_ONLY;
+  if (Math.abs(dir.x) / len < AXIS_EPSILON) return Y_ONLY;
+  return NO_AXES;
+}
+
+/**
+ * Drop any alignment guide the resize did not actually keep. `resizeSnapAxes`
+ * already keeps snapping inside the constraint's remaining freedom, so this is
+ * a backstop for the edges of that reasoning — a crossover that flips which
+ * axis drives an aspect-locked corner, a frame's own normalisation — rather
+ * than the main mechanism. Comparing each line against the handle's committed
+ * position leaves only the guides the box really sits on.
  */
 function keepHonestGuides(
   ctx: ToolContext,
@@ -199,18 +243,16 @@ function dragResize(
   world: Vec2,
   shiftKey: boolean
 ) {
-  // A handle only drives the axes it names: an east handle discards the
-  // pointer's y, so snapping y would move nothing and only draw a line the
-  // resize cannot honour.
-  const handlePt = pointSnap(ctx, world, NO_EXCLUDE, {
-    targets: inter.targets,
-    axes: {
-      x: inter.handle.includes("e") || inter.handle.includes("w"),
-      y: inter.handle.includes("n") || inter.handle.includes("s"),
-    },
-  });
   const inverseFrame = invertMatrix(inter.frameTransform);
   if (!inverseFrame) return;
+  const lockAspect =
+    (inter.lockAspect || shiftKey) &&
+    inter.from.width > 0 &&
+    inter.from.height > 0;
+  const handlePt = pointSnap(ctx, world, NO_EXCLUDE, {
+    targets: inter.targets,
+    axes: resizeSnapAxes(inter, applyMatrix(inverseFrame, world), lockAspect),
+  });
   const localPointer = applyMatrix(inverseFrame, handlePt);
   const entries = Object.entries(inter.originals);
   const soloFrame =
@@ -218,11 +260,7 @@ function dragResize(
       ? entries[0][1]
       : null;
   let to = resizeBounds(inter.from, inter.handle, localPointer);
-  if (
-    (inter.lockAspect || shiftKey) &&
-    inter.from.width > 0 &&
-    inter.from.height > 0
-  ) {
+  if (lockAspect) {
     to = constrainAspectRatio(
       inter.from,
       inter.handle,

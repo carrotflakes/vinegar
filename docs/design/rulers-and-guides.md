@@ -125,22 +125,31 @@ over the guide instead of an infinite one. Guides are only offered as targets
 when they are visible and "Snap to guides" is on (a hidden guide that still
 grabbed the cursor would be baffling).
 
-### A drawn guide is one the result actually sits on
+### Snapping acts only where a constraint leaves freedom
 
-Two rules keep the magenta lines truthful, and they apply to every `snapPoint`
-caller, not just guide drags:
+A held modifier outranks snapping. Whatever a drag is still free to do, snapping
+may act on; whatever the constraint is about to overwrite, it must leave alone —
+snapping there either nudges the geometry with no feedback, or draws a line the
+constraint immediately takes back.
 
-- **`PointSnapContext.axes`** names the axes the caller can move the point
-  along. An axis left out is neither snapped nor given a line. A resize handle
-  passes the axes it names (`e` → x only), because `resizeBounds` discards the
-  pointer coordinate the handle does not drive.
-- **The caller re-checks the line against the committed geometry.** Snapping
-  puts the *pointer* on a line, but later steps can pull the result back off
-  it: the aspect-ratio constraint rebuilds one axis from the other, and on a
-  rotated selection an edge handle moves its corner along the frame's axes
-  rather than the world's. `keepHonestGuides` in `selectDrag.ts` compares each
-  line against `handlePoint` of the final box and drops the ones that no longer
-  hold, so the overlay never promises an alignment the document does not have.
+`PointSnapContext.axes` is how a caller says it: an axis left out is neither
+snapped nor given a guide. What each drag passes:
+
+| Drag | Free axes |
+|---|---|
+| Move | both; an axis lock (Shift) drops the locked one (`computeSnap`, separate path) |
+| Resize, corner handle | both — the corner follows the pointer whatever the frame's rotation |
+| Resize, corner + aspect lock | only the axis driving the uniform scale; `constrainAspectRatio` rebuilds the other from the ratio |
+| Resize, side handle | the world axis its frame axis points along, if any — on a freely rotated selection, none |
+| Rect/ellipse/frame creation + Shift | the axis that grew more; the square is derived from it |
+| Line creation + Shift, node/handle drag + Shift | none — `constrain45` pins the point to a ray |
+| Guide drag | the axis the guide crosses; it cannot move along its own line |
+
+`keepHonestGuides` in `selectDrag.ts` is the backstop, not the mechanism: it
+compares each surviving line against `handlePoint` of the committed box and
+drops the ones that no longer hold, covering the edges of the reasoning above
+(a crossover that flips which axis drives an aspect-locked corner, a frame's
+own normalisation).
 
 Resize collects its alignment targets once at drag start
 (`snapCandidates` in `selectTool.ts`), with the selection's own descendants
