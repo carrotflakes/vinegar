@@ -17,6 +17,10 @@ let useDocumentFile;
 let useEditor;
 let hasUnsavedChanges;
 let loadDocumentText;
+let loadDocumentFile;
+let encodeDocument;
+let decodeDocument;
+let isContainer;
 let commands;
 
 before(async () => {
@@ -38,7 +42,12 @@ before(async () => {
   ({ fileSlug, uniqueFileSlugs } = await server.ssrLoadModule(
     "/src/io/exportFilenames.ts"
   ));
-  ({ loadDocumentText } = await server.ssrLoadModule("/src/io/openDocument.ts"));
+  ({ loadDocumentText, loadDocumentFile } = await server.ssrLoadModule(
+    "/src/io/openDocument.ts"
+  ));
+  ({ encodeDocument, decodeDocument, isContainer } = await server.ssrLoadModule(
+    "/src/io/container.ts"
+  ));
   ({ COMMANDS: commands } = await server.ssrLoadModule(
     "/src/commands/registry.ts"
   ));
@@ -48,22 +57,29 @@ after(async () => {
   await server?.close();
 });
 
-/** A stand-in FileSystemFileHandle that records what was written to it. */
+/**
+ * A stand-in FileSystemFileHandle that records what was written to it. Writes
+ * are kept as bytes: a `.vinegar` save is binary, and only `.vinegar.json`
+ * writes are meaningfully text.
+ */
 function fakeHandle(name) {
   const handle = {
     name,
     written: [],
     queryPermission: async () => "granted",
     requestPermission: async () => "granted",
-    getFile: async () => new File([handle.written.at(-1) ?? ""], name),
+    getFile: async () => new File([handle.written.at(-1) ?? new Uint8Array()], name),
     createWritable: async () => {
-      let text = "";
+      let bytes = new Uint8Array();
       return {
         write: async (blob) => {
-          text = typeof blob === "string" ? blob : await blob.text();
+          bytes =
+            typeof blob === "string"
+              ? new TextEncoder().encode(blob)
+              : new Uint8Array(await blob.arrayBuffer());
         },
         close: async () => {
-          handle.written.push(text);
+          handle.written.push(bytes);
         },
       };
     },
@@ -106,11 +122,16 @@ test("a document without a name is rejected as malformed", () => {
 
 test("filenames derive from the document name and back again", () => {
   const doc = createEmptyDocument();
-  assert.equal(documentFileName(doc), "untitled.vinegar.json");
+  assert.equal(documentFileName(doc), "untitled.vinegar");
   assert.equal(
     documentFileName({ ...doc, metadata: { ...doc.metadata, name: "My Sketch!" } }),
+    "my-sketch.vinegar"
+  );
+  assert.equal(
+    documentFileName({ ...doc, metadata: { ...doc.metadata, name: "My Sketch!" } }, "json"),
     "my-sketch.vinegar.json"
   );
+  assert.equal(documentNameFromFileName("my-sketch.vinegar"), "my-sketch");
   assert.equal(documentNameFromFileName("my-sketch.vinegar.json"), "my-sketch");
   assert.equal(documentNameFromFileName("plain.json"), "plain");
   assert.equal(documentNameFromFileName("no-extension"), "no-extension");
@@ -133,7 +154,7 @@ test("non-Latin names survive slugging instead of collapsing to a fallback", () 
   const doc = createEmptyDocument();
   assert.equal(
     documentFileName({ ...doc, metadata: { ...doc.metadata, name: "スケッチ" } }),
-    "スケッチ.vinegar.json"
+    "スケッチ.vinegar"
   );
 });
 
@@ -168,7 +189,7 @@ test("Save As picks a file, adopts its name, and Save then overwrites it", async
     assert.equal(useEditor.getState().doc.metadata.name, "holiday-card");
     assert.equal(handle.written.length, 1);
     assert.equal(
-      JSON.parse(handle.written[0]).document.metadata.name,
+      JSON.parse(new TextDecoder().decode(handle.written[0])).document.metadata.name,
       "holiday-card"
     );
     assert.equal(useDocumentFile.getState().handle, handle);
@@ -177,6 +198,50 @@ test("Save As picks a file, adopts its name, and Save then overwrites it", async
     assert.equal(await saveDocument(), true);
     assert.equal(handle.written.length, 2);
   });
+});
+
+test("saving to .vinegar writes a container that opens again", async () => {
+  useEditor.getState().newDocument();
+  useEditor.getState().setDocumentName("Binary");
+  useDocumentFile.getState().clear();
+
+  const handle = fakeHandle("binary.vinegar");
+  await withFileSystemAccess({ save: async () => handle }, async () => {
+    assert.equal(await saveDocumentAs(), true);
+  });
+
+  const bytes = handle.written.at(-1);
+  assert.equal(isContainer(bytes), true);
+  // The picker returned the suggested name, so the document keeps its own.
+  const reopened = await decodeDocument(bytes);
+  assert.equal(reopened.metadata.name, "Binary");
+
+  // The JSON form of the same document is the fallback, not the default.
+  const json = fakeHandle("binary.vinegar.json");
+  await withFileSystemAccess({ save: async () => json }, async () => {
+    assert.equal(await saveDocumentAs(), true);
+  });
+  assert.equal(isContainer(json.written.at(-1)), false);
+  assert.equal(
+    JSON.parse(new TextDecoder().decode(json.written.at(-1))).app,
+    "vinegar"
+  );
+});
+
+test("opening a file accepts either form", async () => {
+  const doc = createEmptyDocument();
+  const named = { ...doc, metadata: { ...doc.metadata, name: "Reopened" } };
+
+  await loadDocumentFile(
+    new File([await encodeDocument(named)], "reopened.vinegar")
+  );
+  assert.equal(useEditor.getState().doc.metadata.name, "Reopened");
+
+  useEditor.getState().newDocument();
+  await loadDocumentFile(
+    new File([serializeDocument(named)], "reopened.vinegar.json")
+  );
+  assert.equal(useEditor.getState().doc.metadata.name, "Reopened");
 });
 
 test("accepting the suggested filename keeps the document name as typed", async () => {
@@ -194,7 +259,7 @@ test("accepting the suggested filename keeps the document name as typed", async 
   await withFileSystemAccess({ save }, async () => {
     assert.equal(await saveDocumentAs(), true);
   });
-  assert.equal(suggested, "my-sketch.vinegar.json");
+  assert.equal(suggested, "my-sketch.vinegar");
   assert.equal(useEditor.getState().doc.metadata.name, "My Sketch");
 });
 
@@ -203,7 +268,7 @@ test("Save falls back to Save As while no file is attached", async () => {
   useDocumentFile.getState().clear();
 
   let picked = 0;
-  const handle = fakeHandle("first-save.vinegar.json");
+  const handle = fakeHandle("first-save.vinegar");
   await withFileSystemAccess(
     {
       save: async () => {
@@ -214,7 +279,7 @@ test("Save falls back to Save As while no file is attached", async () => {
     async () => {
       assert.equal(await saveDocument(), true);
       assert.equal(picked, 1);
-      assert.equal(useDocumentFile.getState().fileName, "first-save.vinegar.json");
+      assert.equal(useDocumentFile.getState().fileName, "first-save.vinegar");
     }
   );
 });
@@ -235,7 +300,7 @@ test("a cancelled save leaves the document untouched and unsaved", async () => {
 });
 
 test("New and Open detach the document from its file", async () => {
-  const handle = fakeHandle("attached.vinegar.json");
+  const handle = fakeHandle("attached.vinegar");
   useDocumentFile.getState().attach(handle);
 
   // file.new prompts when the current document is dirty; accept it.

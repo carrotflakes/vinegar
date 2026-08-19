@@ -2,7 +2,7 @@ import { loadDemoDocument } from "@/demo/demoDocument";
 import {
   downloadBlob,
   downloadText,
-  pickTextFile,
+  pickFile,
   pickTextFileWithName,
 } from "@/io/download";
 import { contentBounds } from "@/io/exportBounds";
@@ -16,7 +16,7 @@ import {
 } from "@/io/fileSystem";
 import { pickImageFiles } from "@/io/importImage";
 import { importSvg } from "@/io/importSvg";
-import { loadDocumentText } from "@/io/openDocument";
+import { loadDocumentFile } from "@/io/openDocument";
 import { saveDocument, saveDocumentAs } from "@/io/saveDocument";
 import { nodeWorldBounds } from "@/model/geometry/bounds";
 import {
@@ -79,11 +79,11 @@ export const FILE_COMMANDS: Command[] = [
       // overwritten by a later Save; fall back to a plain <input type=file>.
       if (supportsFileSystem()) {
         let handle: FileHandle | null;
-        let text: string;
+        let file: File;
         try {
           handle = await pickDocumentToOpen();
           if (!handle) return;
-          text = await (await handle.getFile()).text();
+          file = await handle.getFile();
         } catch (error) {
           notify.error(
             "Could not open file:\n" +
@@ -91,12 +91,12 @@ export const FILE_COMMANDS: Command[] = [
           );
           return;
         }
-        loadDocumentText(text, handle);
+        await loadDocumentFile(file, handle);
         return;
       }
-      const text = await pickTextFile(".json,application/json");
-      if (text == null) return;
-      loadDocumentText(text);
+      const file = await pickFile(".vinegar,.json,application/json");
+      if (!file) return;
+      await loadDocumentFile(file);
     },
   },
   {

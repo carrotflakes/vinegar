@@ -1,6 +1,7 @@
 # Document model
 
-Status: **reference.** The persisted format as it is, at file version **v37**.
+Status: **reference.** The persisted format as it is, at file version **v37**,
+written either as the `.vinegar` container or as `.vinegar.json` text.
 Any change to the shape of the file means bumping `CURRENT_FILE_VERSION` in
 `src/io/serialize.ts` and updating this page in the same commit.
 
@@ -137,6 +138,30 @@ active tool, selection, viewport and undo history does not belong in the file.
 The current file version is v37 and it is the only version loading accepts.
 Persisted model changes require a version review and, when incompatible, a
 migration.
+
+## On-disk forms
+
+The same file object — `{ app: "vinegar", version, document }`, built once by
+`buildVinegarFile` — is written in either of two forms. They are told apart by
+content, not by name, and both are validated by `parseVinegarFile`:
+
+| Form | Extension | What it is |
+| --- | --- | --- |
+| Container (default) | `.vinegar` | Small binary wrapper: the JSON body deflated, image assets stored as raw bytes |
+| JSON | `.vinegar.json` | The same file as pretty-printed text — readable, diffable, and what the demo document ships as |
+
+The container is a size optimisation, not a model change: it holds no
+information the JSON form lacks, so switching forms never bumps
+`CURRENT_FILE_VERSION`. Its wrapper is versioned separately by
+`CONTAINER_VERSION` in `src/io/container.ts`, whose header comment carries the
+byte layout. On a real drawing the body deflates to roughly a fifteenth of the
+JSON text, and base64 image assets shed the 33% they cost as data URLs.
+
+Saving follows the filename, so a document opened from either form saves back
+into it (`documentFormatOf` in `src/io/saveDocument.ts`), and the save picker
+offers both. Assets are rehydrated into ordinary `{ type: "data", data }` data
+URLs while decoding, so nothing downstream of the loader knows which form the
+file was in.
 
 ## Two decisions worth knowing about
 

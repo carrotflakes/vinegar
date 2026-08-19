@@ -40,10 +40,18 @@ export function supportsFileSystem(): boolean {
   return typeof fsWindow().showSaveFilePicker === "function";
 }
 
-/** Picker filter for our own document format. */
+/**
+ * Picker filters for our own document format. The compact binary container
+ * comes first, so it is what the save picker offers by default; the JSON form
+ * stays selectable for anyone who wants to read or diff the file.
+ */
 const vinegarFileTypes = () => [
   {
     description: "Vinegar drawing",
+    accept: { "application/octet-stream": [".vinegar"] },
+  },
+  {
+    description: "Vinegar drawing (JSON)",
     accept: { "application/json": [".vinegar.json", ".json"] },
   },
 ];
@@ -97,14 +105,14 @@ export async function pickDocumentToSave(
   }
 }
 
-/** Overwrite `handle` with `text`. Throws if the write fails. */
-export async function writeTextToHandle(
+/** Overwrite `handle` with `blob`. Throws if the write fails. */
+export async function writeBlobToHandle(
   handle: FileHandle,
-  text: string
+  blob: Blob
 ): Promise<void> {
   const writable = await handle.createWritable();
   try {
-    await writable.write(new Blob([text], { type: "application/json" }));
+    await writable.write(blob);
   } finally {
     await writable.close();
   }

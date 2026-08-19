@@ -594,7 +594,8 @@ export function usePointerHandlers(deps: PointerHandlerDeps): PointerHandlers {
 
     const files = [...(dt?.files ?? [])];
     if (!files.length) return;
-    // A dropped .vinegar.json opens as the document; image files get placed.
+    // A dropped .vinegar / .vinegar.json opens as the document; image files
+    // get placed.
     const docFile = files.find(isDocumentFile);
     if (docFile) {
       // Chromium exposes a file handle through the matching item, which lets a

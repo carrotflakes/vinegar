@@ -1,15 +1,26 @@
-// Opening a .vinegar.json document from a dropped or picked file, replacing
-// the current drawing. Shared by the File ▸ Open command and canvas file drops.
+// Opening a saved document from a dropped or picked file, replacing the
+// current drawing. Shared by the File ▸ Open command and canvas file drops.
+//
+// Two on-disk forms are accepted, told apart by content rather than by name:
+// the compact `.vinegar` container (`io/container.ts`) and plain
+// `.vinegar.json` text. Both end up in the same validator.
 
 import { hasUnsavedChanges, useEditor } from "../store/editorStore";
 import { useDocumentFile } from "../store/documentFileStore";
 import { notify } from "../store/toastStore";
+import { decodeDocument, isContainer } from "./container";
 import { type FileHandle } from "./fileSystem";
 import { parseDocument } from "./serialize";
+import type { Document } from "../model/types";
 
-/** A saved-document file (our own JSON format), as opposed to an image drop. */
+/** A saved-document file (either of our own forms), as opposed to an image drop. */
 export function isDocumentFile(file: File): boolean {
-  return file.name.toLowerCase().endsWith(".json") || file.type === "application/json";
+  const name = file.name.toLowerCase();
+  return (
+    name.endsWith(".vinegar") ||
+    name.endsWith(".json") ||
+    file.type === "application/json"
+  );
 }
 
 /** Prompt before throwing away unsaved work; returns whether to proceed. */
@@ -18,27 +29,73 @@ function confirmDiscardCurrent(): boolean {
   return window.confirm("Discard unsaved changes to the current drawing?");
 }
 
+/** Parse either form: container bytes, or the same file as JSON text. */
+async function parseDocumentBytes(bytes: Uint8Array): Promise<Document> {
+  if (isContainer(bytes)) return decodeDocument(bytes);
+  return parseDocument(new TextDecoder().decode(bytes));
+}
+
+/** Adopt `doc` as the current document, attaching `handle` when there is one. */
+function adopt(doc: Document, handle?: FileHandle | null): void {
+  useEditor.getState().loadDocument(doc);
+  const file = useDocumentFile.getState();
+  if (handle) file.attach(handle);
+  else file.clear();
+}
+
 /**
- * Replace the current document with one parsed from `text`. Reports parse
+ * Replace the current document with one parsed from `bytes`. Reports parse
  * errors the same way as the File ▸ Open command. Assumes the caller has
  * already confirmed discarding unsaved changes.
  *
- * `handle` is the file the text came from, where the browser gave us one:
- * attaching it lets File ▸ Save overwrite that file. Without one the document
- * starts detached, so the next Save asks for a destination.
+ * `handle` is the file the bytes came from, where the browser gave us one:
+ * attaching it lets File ▸ Save overwrite that file, in the form it already
+ * has. Without one the document starts detached, so the next Save asks for a
+ * destination.
  */
-export function loadDocumentText(text: string, handle?: FileHandle | null): void {
+export async function loadDocumentBytes(
+  bytes: Uint8Array,
+  handle?: FileHandle | null
+): Promise<void> {
+  let doc: Document;
   try {
-    useEditor.getState().loadDocument(parseDocument(text));
+    doc = await parseDocumentBytes(bytes);
   } catch (err) {
     notify.error(
       "Could not open file:\n" + (err instanceof Error ? err.message : String(err))
     );
     return;
   }
-  const file = useDocumentFile.getState();
-  if (handle) file.attach(handle);
-  else file.clear();
+  adopt(doc, handle);
+}
+
+/** The JSON-text path, for callers that already hold the text. */
+export function loadDocumentText(text: string, handle?: FileHandle | null): void {
+  let doc: Document;
+  try {
+    doc = parseDocument(text);
+  } catch (err) {
+    notify.error(
+      "Could not open file:\n" + (err instanceof Error ? err.message : String(err))
+    );
+    return;
+  }
+  adopt(doc, handle);
+}
+
+/** Read `file` and load it, whichever form it is in. */
+export async function loadDocumentFile(
+  file: File,
+  handle?: FileHandle | null
+): Promise<void> {
+  let bytes: Uint8Array;
+  try {
+    bytes = new Uint8Array(await file.arrayBuffer());
+  } catch {
+    notify.error("Could not read file: " + file.name);
+    return;
+  }
+  await loadDocumentBytes(bytes, handle);
 }
 
 /**
@@ -53,12 +110,5 @@ export async function openDocumentFile(
   pendingHandle: Promise<FileHandle | null> | null = null
 ): Promise<void> {
   if (!confirmDiscardCurrent()) return;
-  let text: string;
-  try {
-    text = await file.text();
-  } catch {
-    notify.error("Could not read file: " + file.name);
-    return;
-  }
-  loadDocumentText(text, await pendingHandle);
+  await loadDocumentFile(file, await pendingHandle);
 }

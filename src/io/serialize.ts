@@ -26,8 +26,13 @@ export interface VinegarFile {
   document: Document;
 }
 
-export function serializeDocument(doc: Document): string {
-  const file: VinegarFile = {
+/**
+ * The file object a save writes, before it is given a form: JSON text for
+ * `.vinegar.json`, or a deflated body for the `.vinegar` container
+ * (`io/container.ts`). Both carry exactly this structure.
+ */
+export function buildVinegarFile(doc: Document): VinegarFile {
+  return {
     app: "vinegar",
     version: CURRENT_FILE_VERSION,
     document: {
@@ -36,7 +41,17 @@ export function serializeDocument(doc: Document): string {
       metadata: { ...doc.metadata, modifiedAt: new Date().toISOString() },
     },
   };
-  return JSON.stringify(file, null, 2);
+}
+
+/**
+ * The JSON form of a document, unindented. Its readers are the `.vinegar.json`
+ * save form, the recovery snapshot and the clipboard payload — none of which
+ * is read by eye often enough to pay for whitespace that roughly doubles the
+ * text. Pass `null, 2` here again if the JSON form is ever wanted as a
+ * diffable artifact.
+ */
+export function serializeDocument(doc: Document): string {
+  return JSON.stringify(buildVinegarFile(doc));
 }
 
 /** Assets still referenced by an image node or pattern paint (drops orphans). */
@@ -314,6 +329,14 @@ export function parseDocument(text: string): Document {
   } catch {
     throw new Error("File is not valid JSON.");
   }
+  return parseVinegarFile(data);
+}
+
+/**
+ * Validate an already-decoded file object. The container decodes its own body
+ * and rehydrates assets first, so both forms end up in this one validator.
+ */
+export function parseVinegarFile(data: unknown): Document {
   if (!isObject(data) || data.app !== "vinegar") {
     throw new Error("Not a Vinegar file.");
   }

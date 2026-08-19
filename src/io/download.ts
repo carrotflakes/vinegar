@@ -24,31 +24,30 @@ export interface PickedTextFile {
   text: string;
 }
 
-/** Open a native file picker and resolve with the selected file and its text. */
-export function pickTextFileWithName(
-  accept: string
-): Promise<PickedTextFile | null> {
+/**
+ * Open a native file picker and resolve with the selected file. The fallback
+ * for browsers without the File System Access API, which is why callers get
+ * the `File` itself: a document may be binary, and only its bytes will do.
+ */
+export function pickFile(accept: string): Promise<File | null> {
   return new Promise((resolve) => {
     const input = document.createElement("input");
     input.type = "file";
     input.accept = accept;
-    input.onchange = () => {
-      const file = input.files?.[0];
-      if (!file) {
-        resolve(null);
-        return;
-      }
-      const reader = new FileReader();
-      reader.onload = () =>
-        resolve({ name: file.name, text: String(reader.result) });
-      reader.onerror = () => resolve(null);
-      reader.readAsText(file);
-    };
+    input.onchange = () => resolve(input.files?.[0] ?? null);
     input.click();
   });
 }
 
-/** Open a native file picker and resolve with the selected file's text. */
-export async function pickTextFile(accept: string): Promise<string | null> {
-  return (await pickTextFileWithName(accept))?.text ?? null;
+/** Open a native file picker and resolve with the selected file and its text. */
+export async function pickTextFileWithName(
+  accept: string
+): Promise<PickedTextFile | null> {
+  const file = await pickFile(accept);
+  if (!file) return null;
+  try {
+    return { name: file.name, text: await file.text() };
+  } catch {
+    return null;
+  }
 }

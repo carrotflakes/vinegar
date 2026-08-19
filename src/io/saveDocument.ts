@@ -1,5 +1,9 @@
 // Saving the current document to a file, and the identity that goes with it.
 //
+// A document is written either as the compact binary `.vinegar` container
+// (the default, see `io/container.ts`) or as readable `.vinegar.json` text.
+// The filename decides which, so a file keeps the form it was saved in.
+//
 // Two paths, picked by browser capability:
 //   * File System Access (Chromium) — Save overwrites the handle the document
 //     was opened from / last saved to, Save As picks a new one.
@@ -10,13 +14,14 @@
 // source of truth for suggested filenames; Save As adopts the name the user
 // types into the picker so the two never drift apart.
 
-import { downloadText } from "./download";
+import { encodeDocument } from "./container";
+import { downloadBlob } from "./download";
 import { fileSlug } from "./exportFilenames";
 import {
   ensureWritePermission,
   pickDocumentToSave,
   supportsFileSystem,
-  writeTextToHandle,
+  writeBlobToHandle,
   type FileHandle,
 } from "./fileSystem";
 import { serializeDocument } from "./serialize";
@@ -25,11 +30,42 @@ import { useEditor } from "../store/editorStore";
 import { notify } from "../store/toastStore";
 import type { Document } from "../model/types";
 
-const DOCUMENT_EXTENSION = ".vinegar.json";
+/**
+ * The two forms a document is written in. `binary` is the compact `.vinegar`
+ * container (deflated body, raw asset bytes) and the default; `json` is the
+ * same file as readable `.vinegar.json` text. Which one a save uses follows
+ * the filename, so a document opened from either form saves back into it.
+ */
+export type DocumentFormat = "binary" | "json";
 
-/** Suggested filename for a document, e.g. `my-sketch.vinegar.json`. */
-export function documentFileName(doc: Document): string {
-  return fileSlug(doc.metadata.name, "untitled") + DOCUMENT_EXTENSION;
+const EXTENSIONS: Record<DocumentFormat, string> = {
+  binary: ".vinegar",
+  json: ".vinegar.json",
+};
+
+/** The form a file of this name holds: `.json` is text, anything else binary. */
+export function documentFormatOf(fileName: string): DocumentFormat {
+  return /\.json$/i.test(fileName) ? "json" : "binary";
+}
+
+/** Suggested filename for a document, e.g. `my-sketch.vinegar`. */
+export function documentFileName(
+  doc: Document,
+  format: DocumentFormat = "binary"
+): string {
+  return fileSlug(doc.metadata.name, "untitled") + EXTENSIONS[format];
+}
+
+/** The bytes to write for `doc` in the form `fileName` asks for. */
+async function documentBlob(doc: Document, fileName: string): Promise<Blob> {
+  if (documentFormatOf(fileName) === "json") {
+    return new Blob([serializeDocument(doc)], {
+      type: "application/json;charset=utf-8",
+    });
+  }
+  return new Blob([(await encodeDocument(doc)) as BlobPart], {
+    type: "application/octet-stream",
+  });
 }
 
 /**
@@ -54,7 +90,10 @@ export async function saveDocument(): Promise<boolean> {
       // rather than silently doing nothing.
       return saveDocumentAs();
     }
-    await writeTextToHandle(handle, serializeDocument(useEditor.getState().doc));
+    await writeBlobToHandle(
+      handle,
+      await documentBlob(useEditor.getState().doc, handle.name)
+    );
   } catch (err) {
     notify.error(
       "Could not save file:\n" + (err instanceof Error ? err.message : String(err))
@@ -72,7 +111,7 @@ export async function saveDocumentAs(): Promise<boolean> {
   const suggested = documentFileName(state.doc);
 
   if (!supportsFileSystem()) {
-    downloadText(serializeDocument(state.doc), suggested, "application/json");
+    downloadBlob(await documentBlob(state.doc, suggested), suggested);
     state.markSaved();
     return true;
   }
@@ -95,7 +134,10 @@ export async function saveDocumentAs(): Promise<boolean> {
     if (handle.name !== suggested) {
       useEditor.getState().setDocumentName(documentNameFromFileName(handle.name));
     }
-    await writeTextToHandle(handle, serializeDocument(useEditor.getState().doc));
+    await writeBlobToHandle(
+      handle,
+      await documentBlob(useEditor.getState().doc, handle.name)
+    );
   } catch (err) {
     notify.error(
       "Could not save file:\n" + (err instanceof Error ? err.message : String(err))
