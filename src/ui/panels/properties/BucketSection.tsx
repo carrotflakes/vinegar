@@ -7,7 +7,7 @@ import Section from "../Section";
 export default function BucketSection() {
   const { gapTolerance, strokeCenterline, setBucket } = useBucket();
   return (
-    <Section title="Bucket Fill">
+    <Section id="properties.bucket" title="Bucket Fill">
       <div className="field">
         <label>Gap closing</label>
         <div className="field-row">

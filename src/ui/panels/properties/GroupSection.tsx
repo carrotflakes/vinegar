@@ -68,7 +68,7 @@ export function GroupTransformSection({
   };
 
   return (
-    <Section title="Transform">
+    <Section id="properties.transform" title="Transform">
       <RotationField
         label="Rotation"
         degrees={rotationDeg}
@@ -87,7 +87,7 @@ export function GroupTransformSection({
 export default function GroupSection({ group }: { group: Group }) {
   const updateNodeStyle = useEditor((state) => state.updateNodeStyle);
   return (
-    <Section title="Appearance">
+    <Section id="properties.appearance" title="Appearance">
       <OpacityField
         label="Opacity"
         value={group.opacity}

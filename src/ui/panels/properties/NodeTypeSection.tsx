@@ -41,7 +41,7 @@ export default function NodeTypeSection() {
   const active = types.every((type) => type === types[0]) ? types[0] : null;
 
   return (
-    <Section title="Node type">
+    <Section id="properties.nodeType" title="Node type">
       <SegmentedControl
         value={active}
         options={TYPES}

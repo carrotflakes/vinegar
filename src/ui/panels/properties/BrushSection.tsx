@@ -9,7 +9,7 @@ export default function BrushSection() {
     useBrush();
 
   return (
-    <Section title="Brush">
+    <Section id="properties.brush" title="Brush">
       <div className="brush-options-grid">
         <label>
           <span>Size</span>
@@ -105,7 +105,7 @@ export default function BrushSection() {
 export function EraserSection() {
   const { eraserSize, setBrush } = useBrush();
   return (
-    <Section title="Eraser">
+    <Section id="properties.eraser" title="Eraser">
       <div className="brush-options-grid">
         <label>
           <span>Size</span>

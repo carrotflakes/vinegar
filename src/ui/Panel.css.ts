@@ -34,6 +34,34 @@ globalStyle(".section-title", {
   letterSpacing: "0.04em",
 });
 
+/* Foldable section title: a button that must still read exactly like the plain
+   `.section-title` next to it, so it drops the button chrome and only adds the
+   chevron. */
+globalStyle(".section-toggle", {
+  display: "flex",
+  alignItems: "center",
+  gap: "4px",
+  margin: "0",
+  padding: "0",
+  border: "none",
+  background: "none",
+  // Only the font family: the size, weight, case and colour must keep coming
+  // from `.section-title` on the same element, which a `font` shorthand here
+  // would override.
+  fontFamily: "inherit",
+  cursor: "pointer",
+});
+
+globalStyle(".section-toggle:hover", {
+  color: vars.text,
+});
+
+/* A folded section is a title row and nothing else: its 12px content gap would
+   otherwise pad the bottom of a row that has no content under it. */
+globalStyle(".section.is-collapsed", {
+  gap: "0",
+});
+
 /* A panel's own title bar (as opposed to `.section-title`, which titles one
    block inside a body). It stays put while the body scrolls past: the title
    says which panel you are looking at and carries its actions, both needed
@@ -191,7 +219,12 @@ globalStyle(".icon-btn", {
   color: vars.muted,
 });
 
-globalStyle(".icon-btn:hover", {
+globalStyle(".icon-btn:hover:not(:disabled)", {
   background: vars.bg,
   color: vars.text,
+});
+
+globalStyle(".icon-btn:disabled", {
+  opacity: "0.45",
+  cursor: "default",
 });

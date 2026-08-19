@@ -122,7 +122,7 @@ export default function SelectionActionsSection({
   return (
     <>
       {hasSelection && (
-        <Section title="Arrange">
+        <Section id="properties.arrange" title="Arrange">
           <div className="btn-row">
             <button className="ghost-btn" onClick={bringToFront}>
               Bring to front
@@ -204,11 +204,12 @@ export default function SelectionActionsSection({
       )}
 
       {alignableCount >= 2 && (
-        <Section title="Align">
+        <Section id="properties.align" title="Align">
           <div className="btn-row">
             <button
               className="ghost-btn align-btn"
               title="Align left"
+              aria-label="Align left"
               onClick={() => alignSelected("left")}
             >
               <LuAlignStartVertical aria-hidden />
@@ -216,6 +217,7 @@ export default function SelectionActionsSection({
             <button
               className="ghost-btn align-btn"
               title="Align horizontal centers"
+              aria-label="Align horizontal centers"
               onClick={() => alignSelected("hcenter")}
             >
               <LuAlignCenterVertical aria-hidden />
@@ -223,6 +225,7 @@ export default function SelectionActionsSection({
             <button
               className="ghost-btn align-btn"
               title="Align right"
+              aria-label="Align right"
               onClick={() => alignSelected("right")}
             >
               <LuAlignEndVertical aria-hidden />
@@ -232,6 +235,7 @@ export default function SelectionActionsSection({
             <button
               className="ghost-btn align-btn"
               title="Align top"
+              aria-label="Align top"
               onClick={() => alignSelected("top")}
             >
               <LuAlignStartHorizontal aria-hidden />
@@ -239,6 +243,7 @@ export default function SelectionActionsSection({
             <button
               className="ghost-btn align-btn"
               title="Align vertical centers"
+              aria-label="Align vertical centers"
               onClick={() => alignSelected("vmiddle")}
             >
               <LuAlignCenterHorizontal aria-hidden />
@@ -246,6 +251,7 @@ export default function SelectionActionsSection({
             <button
               className="ghost-btn align-btn"
               title="Align bottom"
+              aria-label="Align bottom"
               onClick={() => alignSelected("bottom")}
             >
               <LuAlignEndHorizontal aria-hidden />
@@ -256,6 +262,7 @@ export default function SelectionActionsSection({
               className="ghost-btn"
               disabled={alignableCount < 3}
               title="Distribute horizontally"
+              aria-label="Distribute horizontally"
               onClick={() => distributeSelected("h")}
             >
               <LuAlignHorizontalDistributeCenter aria-hidden />
@@ -265,6 +272,7 @@ export default function SelectionActionsSection({
               className="ghost-btn"
               disabled={alignableCount < 3}
               title="Distribute vertically"
+              aria-label="Distribute vertically"
               onClick={() => distributeSelected("v")}
             >
               <LuAlignVerticalDistributeCenter aria-hidden />
@@ -275,7 +283,7 @@ export default function SelectionActionsSection({
       )}
 
       {hasPathOps && (
-        <Section title="Path">
+        <Section id="properties.path" title="Path">
           {canBoolean && (
             <>
               <div className="btn-row">

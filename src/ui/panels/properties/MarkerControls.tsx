@@ -1,6 +1,7 @@
 import { defaultMarker, isMarkerStroked } from "@/model/marker";
 import { MARKER_SHAPES, type Marker, type MarkerShape } from "@/model/types";
 import ScrubbableNumber from "@/ui/controls/ScrubbableNumber";
+import { MIXED_OPTION, MixedOption } from "./StyleFields";
 
 const SHAPE_LABELS: Record<MarkerShape, string> = {
   arrow: "Arrow",
@@ -22,10 +23,13 @@ const END_LABELS: Record<MarkerEnd, string> = {
 function MarkerRow({
   end,
   value,
+  mixed = false,
   onChange,
 }: {
   end: MarkerEnd;
   value: Marker | null;
+  /** The selected shapes carry different markers on this end. */
+  mixed?: boolean;
   onChange: (marker: Marker | null) => void;
 }) {
   const label = END_LABELS[end];
@@ -40,7 +44,7 @@ function MarkerRow({
       <select
         id={`marker-${end}`}
         className="blend-select marker-shape-select"
-        value={value?.shape ?? "none"}
+        value={mixed ? MIXED_OPTION : value?.shape ?? "none"}
         onChange={(event) =>
           onChange(
             event.target.value === "none"
@@ -49,6 +53,7 @@ function MarkerRow({
           )
         }
       >
+        {mixed && <MixedOption />}
         <option value="none">None</option>
         {MARKER_SHAPES.map((shape) => (
           <option key={shape} value={shape}>
@@ -60,16 +65,23 @@ function MarkerRow({
         className="num marker-scale"
         min={0.1}
         step={0.1}
+        mixed={mixed}
         value={value?.scale ?? 1}
         defaultValue={1}
         disabled={!value}
         onChange={(scale) => value && onChange({ ...value, scale })}
         aria-label={`${label} marker size`}
       />
+      {/* While the ends disagree the toggles show unset — there is no shared
+          state to reflect — but stay live: pressing one commits the first
+          marker's setting to every selected end, as every mixed field does. */}
       <button
         type="button"
-        className={"ghost-btn marker-toggle" + (value && !isMarkerStroked(value) ? " active" : "")}
-        aria-pressed={!!value && !isMarkerStroked(value)}
+        className={
+          "ghost-btn marker-toggle" +
+          (!mixed && value && !isMarkerStroked(value) ? " active" : "")
+        }
+        aria-pressed={!mixed && !!value && !isMarkerStroked(value)}
         disabled={!fillable}
         title="Solid or hollow"
         onClick={() => value && onChange({ ...value, filled: !value.filled })}
@@ -78,8 +90,10 @@ function MarkerRow({
       </button>
       <button
         type="button"
-        className={"ghost-btn marker-toggle" + (value?.flip ? " active" : "")}
-        aria-pressed={!!value?.flip}
+        className={
+          "ghost-btn marker-toggle" + (!mixed && value?.flip ? " active" : "")
+        }
+        aria-pressed={!mixed && !!value?.flip}
         disabled={!value}
         title="Point the marker back along the path"
         onClick={() => value && onChange({ ...value, flip: !value.flip })}
@@ -98,10 +112,14 @@ function MarkerRow({
 export default function MarkerControls({
   start,
   end,
+  mixedStart = false,
+  mixedEnd = false,
   onChange,
 }: {
   start: Marker | null;
   end: Marker | null;
+  mixedStart?: boolean;
+  mixedEnd?: boolean;
   onChange: (patch: { start?: Marker | null; end?: Marker | null }) => void;
 }) {
   return (
@@ -111,11 +129,13 @@ export default function MarkerControls({
         <MarkerRow
           end="start"
           value={start}
+          mixed={mixedStart}
           onChange={(marker) => onChange({ start: marker })}
         />
         <MarkerRow
           end="end"
           value={end}
+          mixed={mixedEnd}
           onChange={(marker) => onChange({ end: marker })}
         />
       </div>

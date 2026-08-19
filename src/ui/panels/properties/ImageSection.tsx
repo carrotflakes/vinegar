@@ -34,7 +34,7 @@ export default function ImageSection({
       : null;
 
   return (
-    <Section title="Image size">
+    <Section id="properties.imageSize" title="Image size">
       <div className="field">
         <label className="checkbox-row">
           <input

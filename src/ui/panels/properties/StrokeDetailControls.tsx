@@ -8,6 +8,7 @@ import type {
   StrokeJoin,
 } from "../../../model/types";
 import ScrubbableNumber from "@/ui/controls/ScrubbableNumber";
+import { MIXED_OPTION, MixedOption } from "./StyleFields";
 
 export interface StrokeDetailsValue {
   dash: number[];
@@ -16,6 +17,11 @@ export interface StrokeDetailsValue {
   join: StrokeJoin;
   alignment: StrokeAlignment;
 }
+
+/** Which of the fields the selected shapes disagree on. */
+export type StrokeDetailsMixed = Partial<
+  Record<keyof StrokeDetailsValue, boolean>
+>;
 
 function parseDashPattern(input: string): number[] | null {
   const trimmed = input.trim();
@@ -29,14 +35,18 @@ export default function StrokeDetailControls({
   value,
   strokeWidth,
   alignmentEnabled,
+  mixed = {},
   onChange,
 }: {
   value: StrokeDetailsValue;
   strokeWidth: number;
   alignmentEnabled: boolean;
+  mixed?: StrokeDetailsMixed;
   onChange: (patch: Partial<StrokeDetailsValue>) => void;
 }) {
-  const formatted = value.dash.join(", ");
+  // A mixed dash pattern has no text to show; the field starts empty and any
+  // pattern typed into it goes to every selected shape.
+  const formatted = mixed.dash ? "" : value.dash.join(", ");
   const [dashDraft, setDashDraft] = useState(formatted);
   const [dashInvalid, setDashInvalid] = useState(false);
 
@@ -46,6 +56,8 @@ export default function StrokeDetailControls({
   }, [formatted]);
 
   const commitDash = () => {
+    // Leaving a mixed field untouched must not flatten every shape to solid.
+    if (mixed.dash && dashDraft.trim() === "") return;
     const dash = parseDashPattern(dashDraft);
     if (!dash) {
       setDashInvalid(true);
@@ -64,13 +76,20 @@ export default function StrokeDetailControls({
           <span>Alignment</span>
           <select
             className="blend-select"
-            value={alignmentEnabled ? value.alignment : "center"}
+            value={
+              mixed.alignment
+                ? MIXED_OPTION
+                : alignmentEnabled
+                  ? value.alignment
+                  : "center"
+            }
             onChange={(event) =>
               onChange({
                 alignment: event.target.value as StrokeAlignment,
               })
             }
           >
+            {mixed.alignment && <MixedOption />}
             <option value="inside" disabled={!alignmentEnabled}>Inside</option>
             <option value="center">Center</option>
             <option value="outside" disabled={!alignmentEnabled}>Outside</option>
@@ -80,11 +99,12 @@ export default function StrokeDetailControls({
           <span>Cap</span>
           <select
             className="blend-select"
-            value={value.cap}
+            value={mixed.cap ? MIXED_OPTION : value.cap}
             onChange={(event) =>
               onChange({ cap: event.target.value as StrokeCap })
             }
           >
+            {mixed.cap && <MixedOption />}
             <option value="butt">Butt</option>
             <option value="round">Round</option>
             <option value="square">Square</option>
@@ -94,11 +114,12 @@ export default function StrokeDetailControls({
           <span>Join</span>
           <select
             className="blend-select"
-            value={value.join}
+            value={mixed.join ? MIXED_OPTION : value.join}
             onChange={(event) =>
               onChange({ join: event.target.value as StrokeJoin })
             }
           >
+            {mixed.join && <MixedOption />}
             <option value="miter">Miter</option>
             <option value="round">Round</option>
             <option value="bevel">Bevel</option>
@@ -109,6 +130,7 @@ export default function StrokeDetailControls({
           <ScrubbableNumber
             className="num stroke-offset"
             step={0.5}
+            mixed={mixed.dashOffset ?? false}
             value={value.dashOffset}
             defaultValue={0}
             onChange={(next) => onChange({ dashOffset: next })}
@@ -145,7 +167,7 @@ export default function StrokeDetailControls({
           type="text"
           className={`dash-input${dashInvalid ? " invalid" : ""}`}
           value={dashDraft}
-          placeholder="e.g. 8, 4, 2, 4"
+          placeholder={mixed.dash ? "Mixed" : "e.g. 8, 4, 2, 4"}
           aria-invalid={dashInvalid}
           onChange={(event) => {
             const next = event.target.value;

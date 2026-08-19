@@ -26,6 +26,23 @@ globalStyle(".swatch-fill", {
   inset: "0",
 });
 
+/* Disagreeing selection: neither a colour nor "none" would be true, so the
+   swatch shows a neutral dash instead of any paint. */
+globalStyle(".color-swatch.is-mixed", {
+  background: vars.panel,
+  color: vars.muted,
+});
+
+globalStyle(".color-swatch.is-mixed::after", {
+  content: '"–"',
+  position: "absolute",
+  inset: "0",
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  fontSize: "12px",
+});
+
 globalStyle(".color-swatch.is-none", {
   background: `linear-gradient(45deg, transparent 45%, ${vars.danger} 45%, ${vars.danger} 55%, transparent 55%),
     #ffffff`,

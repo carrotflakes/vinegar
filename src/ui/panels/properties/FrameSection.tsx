@@ -37,7 +37,7 @@ export default function FrameSection({ frame }: { frame: FrameNode }) {
 
   return (
     <>
-      <Section title="Size">
+      <Section id="properties.frameSize" title="Size">
         <div className="geometry-grid">
           {field("x", "X")}
           {field("y", "Y")}
@@ -59,7 +59,7 @@ export default function FrameSection({ frame }: { frame: FrameNode }) {
         </div>
       </Section>
 
-      <Section title="Background">
+      <Section id="properties.frameBackground" title="Background">
         <div className="field">
           <div className="field-row">
             <ColorInput

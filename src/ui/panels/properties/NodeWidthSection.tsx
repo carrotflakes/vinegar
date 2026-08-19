@@ -33,7 +33,7 @@ export default function NodeWidthSection() {
   const shown = Number((average * base).toFixed(2));
 
   return (
-    <Section title="Node width">
+    <Section id="properties.nodeWidth" title="Node width">
       <div className="field">
         <label>Width</label>
         <div className="field-row">

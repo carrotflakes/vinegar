@@ -91,7 +91,16 @@ Imports into `src/` use the `@/` path alias (e.g. `@/model/path/boolean`); same-
 titled block inside a panel body, rendered with `ui/panels/Section.tsx` (`.section` / `.section-title`) rather
 than hand-written divs. Components under `ui/panels/<panel>/` are named `*Section` unless they are the panel
 itself. In the properties panel every section titles only its own topic — the selection's kind and name are
-stated once by `SelectionHeader`, never repeated in section titles.
+stated once by `SelectionHeader`, never repeated in section titles. A section that passes an `id` becomes
+foldable; the fold is remembered per id in `store/sectionFoldStore.ts`, outside the panel (the dock unmounts
+inactive tabs) and outside history (it is view state).
+
+**A field reports only what the whole selection agrees on.** Panel fields address every selected node at once,
+so `ui/panels/properties/sharedValue.ts` reads a value across the selection and flags it `mixed` when the
+nodes disagree; the field then renders blank ("Mixed") rather than one node's value, which would read as
+"they are all like this" and invite an edit that silently overwrites the others. `ScrubbableNumber` and
+`ColorField` take a `mixed` prop, and `<select>`s use `MIXED_OPTION` / `MixedOption` from `StyleFields.tsx`.
+Editing a mixed field still commits to every selected node.
 
 ## Design notes
 

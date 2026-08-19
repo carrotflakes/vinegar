@@ -16,7 +16,7 @@ import {
   runCommand,
 } from "../../../commands/registry";
 import Geometry from "./Geometry";
-import { RotationField } from "./StyleFields";
+import { ResetPivotButton, RotationField } from "./StyleFields";
 import Section from "../Section";
 
 /**
@@ -67,7 +67,7 @@ export default function TransformSection({
   };
 
   return (
-    <Section title="Transform">
+    <Section id="properties.transform" title="Transform">
       <Geometry node={node} />
       <RotationField
         label="Rotation"
@@ -111,7 +111,9 @@ export function TransformFlipControls() {
 
 /**
  * Transform section for a multi-node selection: there is no single position or
- * size to show, only the shared rotation centre the canvas is using.
+ * size to show, only the shared rotation centre the canvas is using. The pivot
+ * control stays put and merely disables itself, so it sits where the
+ * single-node section puts it rather than appearing and shifting the rows.
  */
 export function SelectionTransformSection({
   canResetPivot,
@@ -122,16 +124,15 @@ export function SelectionTransformSection({
     (state) => state.setSelectionPivot
   );
   return (
-    <Section title="Transform">
+    <Section id="properties.transform" title="Transform">
+      <div className="field-inline">
+        <label>Rotation center</label>
+        <ResetPivotButton
+          disabled={!canResetPivot}
+          onReset={() => setSelectionPivot(null)}
+        />
+      </div>
       <TransformFlipControls />
-      {canResetPivot && (
-        <button
-          className="ghost-btn"
-          onClick={() => setSelectionPivot(null)}
-        >
-          Reset rotation center
-        </button>
-      )}
     </Section>
   );
 }

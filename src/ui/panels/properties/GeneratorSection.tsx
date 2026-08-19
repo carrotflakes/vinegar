@@ -45,7 +45,7 @@ export default function GeneratorSection({ shape }: { shape: PathShape }) {
   const isBuiltin = gen.scriptId in GENERATORS;
 
   return (
-    <Section title={def.name}>
+    <Section id="properties.generator" title={def.name}>
       {def.status === "untrusted" ? (
         <>
           <div className="script-status err">{UNTRUSTED_ERROR}</div>

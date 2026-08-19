@@ -10,7 +10,7 @@ export default function TextSection({ shape }: { shape: TextShape }) {
   const update = useEditor((state) => state.updateTextShape);
 
   return (
-    <Section title="Typography">
+    <Section id="properties.typography" title="Typography">
       <div className="field">
         <label>Font</label>
         <select

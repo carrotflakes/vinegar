@@ -12,7 +12,7 @@ export default function PencilSection() {
   const { smoothing, simplify, close, setPencil } = usePencil();
 
   return (
-    <Section title="Pencil">
+    <Section id="properties.pencil" title="Pencil">
       <div className="brush-options-grid">
         <label>
           <span>Smoothing</span>

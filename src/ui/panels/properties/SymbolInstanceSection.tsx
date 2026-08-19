@@ -17,7 +17,7 @@ export default function SymbolInstanceSection({
   const updateNodeStyle = useEditor((state) => state.updateNodeStyle);
 
   return (
-    <Section title="Symbol">
+    <Section id="properties.symbol" title="Symbol">
       <div className="field">
         <label>Symbol</label>
         <div className="field-row">

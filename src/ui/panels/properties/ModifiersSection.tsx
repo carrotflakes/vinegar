@@ -77,7 +77,7 @@ export default function ModifiersSection({ shape }: { shape: PrimitiveShape }) {
   );
 
   return (
-    <Section title="Modifiers">
+    <Section id="properties.modifiers" title="Modifiers">
       {modifiers.map((modifier, index) => (
         <div className="effect-card" key={index}>
           <div className="field-row effect-head">

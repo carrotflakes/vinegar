@@ -71,6 +71,9 @@ interface Props {
   bounds?: Bounds | null;
   /** Selection identity; remembered paint kinds never cross this boundary. */
   memoryKey?: string;
+  /** The selected shapes carry different paints: show "Mixed" rather than one
+   * of them. `value` is still the paint an edit starts from. */
+  mixed?: boolean;
 }
 
 export default function ColorField({
@@ -79,6 +82,7 @@ export default function ColorField({
   onChange,
   bounds = null,
   memoryKey = "defaults",
+  mixed = false,
 }: Props) {
   const addRecentColor = useEditor((s) => s.addRecentColor);
   const assets = useEditor((s) => s.doc.assets);
@@ -238,11 +242,14 @@ export default function ColorField({
       <div className="field-row">
         <button
           ref={refs.setReference}
-          className={"color-swatch" + (enabled ? "" : " is-none")}
+          className={
+            "color-swatch" +
+            (mixed ? " is-mixed" : enabled ? "" : " is-none")
+          }
           onClick={() => (open ? close() : setOpen(true))}
           title="Edit color"
         >
-          {concrete && (
+          {!mixed && concrete && (
             <span
               className="swatch-fill"
               style={
@@ -254,19 +261,21 @@ export default function ColorField({
           )}
         </button>
         <span className="swatch-text">
-          {ref
-            ? linkedSwatch?.name ?? "Missing color"
-            : kind === "none"
-              ? "none"
-              : kind === "solid"
-                ? alpha < 1
-                  ? `${color} · ${Math.round(alpha * 100)}%`
-                  : color
-                : gradientPaint
-                  ? GRADIENT_LABELS[gradientPaint.kind]
-                  : freeformPaint
-                    ? "Freeform"
-                    : "Image"}
+          {mixed
+            ? "Mixed"
+            : ref
+              ? linkedSwatch?.name ?? "Missing color"
+              : kind === "none"
+                ? "none"
+                : kind === "solid"
+                  ? alpha < 1
+                    ? `${color} · ${Math.round(alpha * 100)}%`
+                    : color
+                  : gradientPaint
+                    ? GRADIENT_LABELS[gradientPaint.kind]
+                    : freeformPaint
+                      ? "Freeform"
+                      : "Image"}
         </span>
       </div>
 

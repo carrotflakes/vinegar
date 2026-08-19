@@ -94,7 +94,7 @@ export default function EffectsSection({ node }: { node: SceneNode }) {
   );
 
   return (
-    <Section title="Effects">
+    <Section id="properties.effects" title="Effects">
       {effects.map((effect, index) => (
         <div className="effect-card" key={effect.id}>
           <div className="field-row effect-head">

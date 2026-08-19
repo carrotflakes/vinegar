@@ -20,6 +20,9 @@ type Props = {
   unit?: string;
   className?: string;
   disabled?: boolean;
+  /** The addressed nodes disagree: show nothing rather than one node's value.
+   * Editing still commits to all of them, starting from `value`. */
+  mixed?: boolean;
   "aria-label"?: string;
   /** Optional lifecycle hooks for callers that batch a scrub into one undo step. */
   onScrubStart?: () => void;
@@ -44,6 +47,7 @@ export default function ScrubbableNumber({
   unit,
   className,
   disabled,
+  mixed = false,
   onScrubStart,
   onScrubEnd,
   onScrubCancel,
@@ -152,13 +156,18 @@ export default function ScrubbableNumber({
         cursor: disabled ? "default" : "ew-resize",
         touchAction: "none",
         // Keep the digits clear of the unit sitting in the field's padding.
-        ...(unit ? { paddingRight: `calc(${unit.length}ch + 10px)` } : {}),
+        // A mixed field prints no unit (there is no value to qualify), so it
+        // takes the full width for its "Mixed" placeholder.
+        ...(unit && !mixed
+          ? { paddingRight: `calc(${unit.length}ch + 10px)` }
+          : {}),
       }}
       disabled={disabled}
       min={min}
       max={max}
       step={step}
-      value={value}
+      value={mixed ? "" : value}
+      {...(mixed ? { placeholder: "Mixed" } : {})}
       aria-label={ariaLabel}
       onPointerDown={onPointerDown}
       onPointerMove={onPointerMove}
@@ -174,7 +183,7 @@ export default function ScrubbableNumber({
 
   return (
     <>
-      {unit ? (
+      {unit && !mixed ? (
         <span className="scrub-field">
           {field}
           <span className="scrub-unit" aria-hidden>
