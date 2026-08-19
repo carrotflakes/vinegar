@@ -151,10 +151,15 @@ function pasteSvgMarkup(svg: string, name: string, at?: Vec2): void {
     s.paste(at);
     return;
   }
-  const payload = payloadFromSvg(svg);
-  if (!payload || !pasteForeignPayload(payload, at)) {
-    placeSvgFitted(importSvg(svg, name), at);
-  }
+  // Reading the embedded payload decompresses it, so the foreign path lands a
+  // tick later — the same "the work started" contract paste already has for
+  // images and SVG files.
+  void (async () => {
+    const payload = await payloadFromSvg(svg);
+    if (!payload || !pasteForeignPayload(payload, at)) {
+      placeSvgFitted(importSvg(svg, name), at);
+    }
+  })();
 }
 
 /**

@@ -8,7 +8,7 @@
 import { hasUnsavedChanges, useEditor } from "../store/editorStore";
 import { useDocumentFile } from "../store/documentFileStore";
 import { notify } from "../store/toastStore";
-import { decodeDocument, isContainer } from "./container";
+import { parseDocumentBytes } from "./container";
 import { type FileHandle } from "./fileSystem";
 import { parseDocument } from "./serialize";
 import type { Document } from "../model/types";
@@ -27,12 +27,6 @@ export function isDocumentFile(file: File): boolean {
 function confirmDiscardCurrent(): boolean {
   if (!hasUnsavedChanges(useEditor.getState())) return true;
   return window.confirm("Discard unsaved changes to the current drawing?");
-}
-
-/** Parse either form: container bytes, or the same file as JSON text. */
-async function parseDocumentBytes(bytes: Uint8Array): Promise<Document> {
-  if (isContainer(bytes)) return decodeDocument(bytes);
-  return parseDocument(new TextDecoder().decode(bytes));
 }
 
 /** Adopt `doc` as the current document, attaching `handle` when there is one. */

@@ -72,8 +72,9 @@ src/
   canvas/    CanvasView (interaction), per-tool logic, rendering, overlay,
              handles, node chrome, image decode cache, text layout/editor
   script/    sandboxed one-shot drawing DSL (runScript + Web Worker)
-  io/        JSON save/load (single current version), raster/SVG export,
-             SVG/raster import, recovery autosave, export/snap bounds
+  io/        save/load — the `.vinegar` container and the same file as JSON
+             (single current version) — raster/SVG export, SVG/raster import,
+             recovery autosave, export/snap bounds
   ui/        Toolbar, PropertiesPanel, LayersPanel, FileMenu, ColorField,
              ContextMenu, CommandPalette, export/preferences/script/generator
              dialogs, Inspector, dockable panels

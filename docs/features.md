@@ -125,18 +125,22 @@ the command palette (Ctrl/⌘+K), so every action is reachable from all of them.
 
 ## Files and export
 
-- New, Open, Save / Save As (`.vinegar.json`), SVG import, image placement,
-  PNG / JPEG / WebP and SVG export including per-frame and all-frames, plus a
-  built-in demo document that is itself an ordinary `.vinegar.json`.
+- New, Open, Save / Save As — the compact binary `.vinegar` container by
+  default, or `.vinegar.json` text for the same file — plus SVG import, image
+  placement, PNG / JPEG / WebP and SVG export including per-frame and
+  all-frames, and a built-in demo document that is itself an ordinary
+  `.vinegar.json` save file.
 - **System clipboard**: copied vectors mirror as SVG carrying the full node
-  payload in `<metadata>`, so a paste into another Vinegar tab keeps effects,
+  payload in `<metadata>` (a base64'd container), so a paste into another
+  Vinegar tab keeps effects,
   scripts, assets and global colours. Both the native `paste` event and the Paste
   command go through one path — which is what lets an iPad paste at all, since
   iOS Safari fires no paste event outside a text field.
 - **Document identity** drives the tab title and every suggested filename; the
   File System Access API keeps the chosen file where available, a download
   elsewhere. There is no recent-files list.
-- **Recovery autosave** to IndexedDB, offered for restore after a reload or crash.
+- **Recovery autosave** to IndexedDB (as container bytes), offered for restore
+  after a reload or crash.
 
 ## SVG interoperability
 

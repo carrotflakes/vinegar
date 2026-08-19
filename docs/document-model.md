@@ -157,9 +157,14 @@ information the JSON form lacks, so switching forms never bumps
 byte layout. On a real drawing the body deflates to roughly a fifteenth of the
 JSON text, and base64 image assets shed the 33% they cost as data URLs.
 
-Saving follows the filename, so a document opened from either form saves back
-into it (`documentFormatOf` in `src/io/saveDocument.ts`), and the save picker
-offers both. Assets are rehydrated into ordinary `{ type: "data", data }` data
+`parseDocumentBytes` is the single reader for "bytes to document" — files,
+drops, the recovery snapshot and the clipboard payload all come through it, so
+none of them has to guess which form it holds. Saving follows the filename, so
+a document opened from either form saves back into it (`documentFormatOf` in
+`src/io/saveDocument.ts`), and the save picker offers both. The recovery
+snapshot stores container bytes (`RECOVERY_FORMAT_VERSION` 2) and the clipboard
+payload is a base64'd container, both of which also accept the JSON form on the
+way in. Assets are rehydrated into ordinary `{ type: "data", data }` data
 URLs while decoding, so nothing downstream of the loader knows which form the
 file was in.
 

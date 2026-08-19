@@ -8,8 +8,10 @@
 // assets and swatches they reference — inside a <metadata> element, so a paste
 // in ANOTHER tab (or after a reload) restores generator links, effects and
 // global colours rather than re-importing flattened geometry. The payload is a
-// regular Vinegar document, so parsing it reuses the file format's validation
-// and version gate; foreign SVG simply has no such element.
+// regular Vinegar file — the `.vinegar` container, base64'd — so parsing it
+// reuses the file format's validation and version gate; foreign SVG simply has
+// no such element. Reading accepts the uncompressed JSON form too, so a copy
+// made before this build still pastes natively.
 
 import {
   descendantNodeIds,
@@ -18,8 +20,13 @@ import {
 } from "@/model/scene";
 import type { ClipboardPayload } from "@/store/docOps";
 import { createEmptyDocument, type Document } from "../model/types";
+import {
+  decodeBase64,
+  encodeBase64,
+  encodeDocument,
+  parseDocumentBytes,
+} from "./container";
 import { exportSvg } from "./exportSvg";
-import { parseDocument, serializeDocument } from "./serialize";
 
 const NONCE_ATTR = "data-vinegar-copy";
 const PAYLOAD_ATTR = "data-vinegar-payload";
@@ -29,7 +36,8 @@ const PAYLOAD_RE = new RegExp(`<metadata ${PAYLOAD_ATTR}="([A-Za-z0-9+/=]*)"`);
  * Cap on the embedded payload (base64 characters). Big pasted images would
  * otherwise be carried twice — once as the SVG's data URI, once as the
  * payload's asset — and blow up every clipboard write; past the cap the copy
- * degrades to plain SVG interop.
+ * degrades to plain SVG interop. The payload is compressed, so reaching the cap
+ * now takes genuinely enormous art rather than an ordinary big selection.
  */
 const MAX_PAYLOAD_CHARS = 8 * 1024 * 1024;
 
@@ -37,23 +45,6 @@ const MAX_PAYLOAD_CHARS = 8 * 1024 * 1024;
 // a cross-tab paste naturally falls through to the embedded payload (or, for
 // foreign SVG, to geometry import).
 let lastCopyNonce: string | null = null;
-
-const toBase64 = (text: string): string => {
-  const bytes = new TextEncoder().encode(text);
-  let binary = "";
-  // Chunked: String.fromCharCode(...bytes) blows the argument limit on big art.
-  for (let i = 0; i < bytes.length; i += 0x8000) {
-    binary += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
-  }
-  return btoa(binary);
-};
-
-const fromBase64 = (base64: string): string => {
-  const binary = atob(base64);
-  const bytes = new Uint8Array(binary.length);
-  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
-  return new TextDecoder().decode(bytes);
-};
 
 /**
  * The payload as a standalone Vinegar document: the copied nodes as roots plus
@@ -90,12 +81,16 @@ function payloadDocument(doc: Document, payload: ClipboardPayload): Document {
 }
 
 /** Serialize just the given roots to SVG, tagged with the copy nonce. */
-function buildSelectionSvg(doc: Document, payload: ClipboardPayload, nonce: string): string {
+async function buildSelectionSvg(
+  doc: Document,
+  payload: ClipboardPayload,
+  nonce: string
+): Promise<string> {
   const svg = exportSvg({ ...doc, rootIds: payload.rootIds });
   const tagged = svg.replace("<svg ", `<svg ${NONCE_ATTR}="${nonce}" `);
   let encoded: string;
   try {
-    encoded = toBase64(serializeDocument(payloadDocument(doc, payload)));
+    encoded = encodeBase64(await encodeDocument(payloadDocument(doc, payload)));
   } catch {
     return tagged; // Not serializable — plain SVG still copies.
   }
@@ -119,7 +114,7 @@ export async function copySelectionToSystemClipboard(
   const nonce = Math.random().toString(36).slice(2);
   let svg: string;
   try {
-    svg = buildSelectionSvg(doc, payload, nonce);
+    svg = await buildSelectionSvg(doc, payload, nonce);
   } catch {
     return; // Nothing exportable (e.g. empty bounds).
   }
@@ -154,12 +149,14 @@ export function isOwnCopy(svgText: string): boolean {
  * bytes come from outside the app, so scripts always arrive untrusted no matter
  * what the copying tab believed.
  */
-export function payloadFromSvg(svgText: string): ClipboardPayload | null {
+export async function payloadFromSvg(
+  svgText: string
+): Promise<ClipboardPayload | null> {
   const match = PAYLOAD_RE.exec(svgText);
   if (!match) return null;
   let doc: Document;
   try {
-    doc = parseDocument(fromBase64(match[1]));
+    doc = await parseDocumentBytes(decodeBase64(match[1]!));
   } catch {
     return null;
   }

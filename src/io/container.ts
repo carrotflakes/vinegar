@@ -28,7 +28,12 @@
 // table; `rehydrateAssets` puts the data URLs back before the ordinary
 // validator ever sees the document.
 
-import { buildVinegarFile, parseVinegarFile, type VinegarFile } from "./serialize";
+import {
+  buildVinegarFile,
+  parseDocument,
+  parseVinegarFile,
+  type VinegarFile,
+} from "./serialize";
 import type { Document, DocumentAsset } from "../model/types";
 
 const MAGIC = "VNGR";
@@ -126,6 +131,16 @@ export async function decodeDocument(bytes: Uint8Array): Promise<Document> {
   return parseVinegarFile(rehydrateAssets(data, blobs));
 }
 
+/**
+ * Parse whichever form `bytes` hold: the container, or the same file as JSON
+ * text. The one reader for "bytes to document" — files, drops and the
+ * clipboard payload all come through here, so none of them has to guess.
+ */
+export async function parseDocumentBytes(bytes: Uint8Array): Promise<Document> {
+  if (isContainer(bytes)) return decodeDocument(bytes);
+  return parseDocument(new TextDecoder().decode(bytes));
+}
+
 /** Move every asset's data URL into `blobs`, leaving a reference behind. */
 function externalizeAssets(
   assets: Document["assets"],
@@ -194,7 +209,7 @@ async function through(
 }
 
 /** Chunked so a multi-megabyte asset cannot blow the argument limit. */
-function encodeBase64(bytes: Uint8Array): string {
+export function encodeBase64(bytes: Uint8Array): string {
   let binary = "";
   const CHUNK = 0x8000;
   for (let i = 0; i < bytes.length; i += CHUNK) {
@@ -203,7 +218,7 @@ function encodeBase64(bytes: Uint8Array): string {
   return btoa(binary);
 }
 
-function decodeBase64(text: string): Uint8Array {
+export function decodeBase64(text: string): Uint8Array {
   const binary = atob(text);
   const bytes = new Uint8Array(binary.length);
   for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);

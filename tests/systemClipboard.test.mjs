@@ -9,6 +9,7 @@ let copySelectionToSystemClipboard;
 let svgTextFromClipboard;
 let isOwnCopy;
 let payloadFromSvg;
+let serializeDocument;
 let copyPayload;
 let useEditor;
 let unionNodeWorldBounds;
@@ -61,6 +62,7 @@ before(async () => {
   ({ createEmptyDocument } = await server.ssrLoadModule("/src/model/types.ts"));
   ({ copySelectionToSystemClipboard, svgTextFromClipboard, isOwnCopy, payloadFromSvg } =
     await server.ssrLoadModule("/src/io/systemClipboard.ts"));
+  ({ serializeDocument } = await server.ssrLoadModule("/src/io/serialize.ts"));
   ({ copyPayload } = await server.ssrLoadModule("/src/store/docOps.ts"));
   ({ useEditor } = await server.ssrLoadModule("/src/store/editorStore.ts"));
   ({ unionNodeWorldBounds } = await server.ssrLoadModule("/src/model/geometry/bounds.ts"));
@@ -166,7 +168,7 @@ test("the copied SVG embeds a payload another tab can restore", async () => {
   // The payload rides inside <metadata>, leaving the SVG itself importable.
   assert.match(svg, /<metadata data-vinegar-payload="[A-Za-z0-9+/=]+"><\/metadata>/);
 
-  const payload = payloadFromSvg(svg);
+  const payload = await payloadFromSvg(svg);
   assert.deepEqual(payload.rootIds, ["gen"]);
   assert.equal(payload.nodes.gen.generator.scriptId, "poly");
   assert.deepEqual(payload.nodes.gen.generator.args, { sides: 3 });
@@ -202,19 +204,46 @@ test("an image copy carries its asset through the system clipboard", async () =>
   doc.rootIds = ["img"];
 
   await copySelection(doc, ["img"]);
-  const payload = payloadFromSvg(await writtenSvg());
+  const payload = await payloadFromSvg(await writtenSvg());
   assert.equal(payload.assets.pic.source.data, PNG_DATA);
 });
 
-test("foreign SVG carries no payload", () => {
-  assert.equal(payloadFromSvg('<svg xmlns="http://www.w3.org/2000/svg"><rect/></svg>'), null);
+test("a payload written before compression still pastes", async () => {
+  // Clipboard payloads used to be base64'd JSON text rather than a `.vinegar`
+  // container. A copy made in an old tab (or an old build) must still restore
+  // natively rather than degrading to imported geometry.
+  const doc = generatorDoc();
+  // The payload document holds only the copied roots, so drop the rect that
+  // `rectDoc` seeds — an unreachable node would fail validation on its own.
+  const { rect: _rect, ...nodes } = doc.nodes;
+  const json = serializeDocument({ ...doc, nodes, rootIds: ["gen"] });
+  const legacy = Buffer.from(json, "utf8").toString("base64");
+  const svg = `<svg><metadata data-vinegar-payload="${legacy}"></metadata></svg>`;
+
+  const payload = await payloadFromSvg(svg);
+  assert.deepEqual(payload.rootIds, ["gen"]);
+  assert.equal(payload.scripts.poly.source, SCRIPT_SOURCE);
+
+  // ...and the compressed form of the same payload is smaller. The margin is
+  // modest on a one-node document, where deflate's own overhead shows; it grows
+  // with the art, which is where the 8 MB cap used to bite.
+  await copySelection(doc, ["gen"]);
+  const encoded = /data-vinegar-payload="([^"]*)"/.exec(await writtenSvg())[1];
+  assert.ok(
+    encoded.length < legacy.length,
+    `expected the container payload (${encoded.length}) to be smaller than the JSON one (${legacy.length})`
+  );
+});
+
+test("foreign SVG carries no payload", async () => {
+  assert.equal(await payloadFromSvg('<svg xmlns="http://www.w3.org/2000/svg"><rect/></svg>'), null);
   // A tampered/garbage payload is rejected rather than half-applied.
-  assert.equal(payloadFromSvg('<svg><metadata data-vinegar-payload="Zm9v"></metadata></svg>'), null);
+  assert.equal(await payloadFromSvg('<svg><metadata data-vinegar-payload="Zm9v"></metadata></svg>'), null);
 });
 
 test("another tab's payload pastes with its generator link, script and swatch", async () => {
   await copySelection(generatorDoc(), ["gen"]);
-  const payload = payloadFromSvg(await writtenSvg());
+  const payload = await payloadFromSvg(await writtenSvg());
 
   // A different document — as if this were a second tab.
   useEditor.getState().loadDocument(createEmptyDocument());
@@ -255,7 +284,7 @@ test("a payload this document cannot take is refused, not half-applied", async (
   doc.rootIds = ["inst"];
 
   await copySelection(doc, ["inst"]);
-  const payload = payloadFromSvg(await writtenSvg());
+  const payload = await payloadFromSvg(await writtenSvg());
   useEditor.getState().loadDocument(createEmptyDocument());
   assert.equal(useEditor.getState().pastePayload(payload), false);
   assert.deepEqual(useEditor.getState().doc.rootIds, []);
@@ -291,7 +320,7 @@ test("a payload pasted at a point is centered there, wherever it came from", asy
   const doc = generatorDoc();
   doc.nodes.gen.transform = [1, 0, 0, 1, 5000, 3000];
   await copySelection(doc, ["gen"]);
-  const payload = payloadFromSvg(await writtenSvg());
+  const payload = await payloadFromSvg(await writtenSvg());
 
   useEditor.getState().loadDocument(createEmptyDocument());
   assert.equal(useEditor.getState().pastePayload(payload, { x: 40, y: 60 }), true);
