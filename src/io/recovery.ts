@@ -6,24 +6,28 @@ import {
 } from "../store/recoveryStore";
 import type { DocumentRevision } from "../store/state";
 import { notify } from "../store/toastStore";
-import {
-  CURRENT_FILE_VERSION,
-  parseDocument,
-  serializeDocument,
-} from "./serialize";
+import { decodeDocument, encodeDocument } from "./container";
+import { CURRENT_FILE_VERSION } from "./serialize";
 
 const DB_NAME = "vinegar-recovery";
 const DB_VERSION = 1;
 const STORE_NAME = "snapshots";
 const SNAPSHOT_ID = "current";
-export const RECOVERY_FORMAT_VERSION = 1 as const;
+/** v2 stores the `.vinegar` container's bytes; v1 stored JSON text. */
+export const RECOVERY_FORMAT_VERSION = 2 as const;
 
 export interface RecoverySnapshot {
   id: typeof SNAPSHOT_ID;
   formatVersion: typeof RECOVERY_FORMAT_VERSION;
   fileVersion: number;
   savedAt: string;
-  file: string;
+  /**
+   * The document as a `.vinegar` container (`io/container.ts`), which is an
+   * order of magnitude smaller than the JSON text this used to hold — worth it
+   * for a slot rewritten every second of drawing. IndexedDB stores the bytes
+   * directly; nothing is base64'd on the way in.
+   */
+  bytes: Uint8Array;
 }
 
 export interface RecoveryStorage {
@@ -32,7 +36,8 @@ export interface RecoveryStorage {
   clear: () => Promise<void>;
 }
 
-class InvalidRecoverySnapshotError extends Error {
+/** Thrown by storage when the stored record is not a snapshot this build reads. */
+export class InvalidRecoverySnapshotError extends Error {
   constructor() {
     super("The recovery snapshot is missing or malformed.");
     this.name = "InvalidRecoverySnapshotError";
@@ -91,7 +96,7 @@ function isRecoverySnapshot(value: unknown): value is RecoverySnapshot {
     typeof snapshot.fileVersion === "number" &&
     typeof snapshot.savedAt === "string" &&
     Number.isFinite(Date.parse(snapshot.savedAt)) &&
-    typeof snapshot.file === "string";
+    snapshot.bytes instanceof Uint8Array;
 }
 
 /** IndexedDB-backed single-slot recovery storage. */
@@ -120,7 +125,7 @@ export function createIndexedDbRecoveryStorage(factory?: IDBFactory): RecoverySt
         formatVersion: RECOVERY_FORMAT_VERSION,
         fileVersion: CURRENT_FILE_VERSION,
         savedAt: new Date().toISOString(),
-        file: serializeDocument(doc),
+        bytes: await encodeDocument(doc),
       };
       const db = await openDatabase(factory);
       try {
@@ -208,7 +213,14 @@ export async function restoreRecoveryAtStartup(options: {
     snapshot = await storage.read();
   } catch (error) {
     if (error instanceof InvalidRecoverySnapshotError) {
-      try { await storage.clear(); } catch { /* The original error is more useful. */ }
+      // A snapshot this build cannot read — a shape from an older
+      // `RECOVERY_FORMAT_VERSION`, or a damaged record. There is nothing to
+      // restore either way, so drop it and start clean with the same notice an
+      // undecodable snapshot gets, rather than opening on an error.
+      try { await storage.clear(); } catch { /* A later autosave can overwrite it. */ }
+      onStatus({ phase: "ready" });
+      notice("Unsaved work from a previous session could not be restored, and was discarded.");
+      return { restored: false };
     }
     const message = errorMessage(error);
     onStatus({ phase: "error", error: message });
@@ -227,7 +239,7 @@ export async function restoreRecoveryAtStartup(options: {
   // exist, and vanishing without a word is its own kind of surprise.
   let doc: Document;
   try {
-    doc = parseDocument(snapshot.file);
+    doc = await decodeDocument(snapshot.bytes);
   } catch {
     try { await storage.clear(); } catch { /* A later autosave can overwrite it. */ }
     onStatus({ phase: "ready" });
@@ -279,6 +291,9 @@ export interface AutosaveOptions {
  * Persist dirty documents on a trailing debounce, capped by maxWaitMs. All
  * storage mutations share one queue so an older write cannot finish after a
  * newer write or clear operation.
+ *
+ * Every write is asynchronous, encoding included, so the `pagehide` flush is a
+ * best effort — as it was when the write was only an IndexedDB request.
  */
 export function startDocumentAutosave(options: AutosaveOptions = {}): AutosaveController {
   const storage = options.storage ?? createIndexedDbRecoveryStorage();

@@ -7,17 +7,22 @@ let server;
 let clearDocumentRecovery;
 let startDocumentAutosave;
 let restoreRecoveryAtStartup;
+let InvalidRecoverySnapshotError;
 let createEmptyDocument;
 let hasUnsavedChanges;
-let serializeDocument;
+let encodeDocument;
 let useEditor;
 
 before(async () => {
   server = await createServer({ server: { middlewareMode: true } });
-  ({ clearDocumentRecovery, startDocumentAutosave, restoreRecoveryAtStartup } =
-    await server.ssrLoadModule("/src/io/recovery.ts"));
+  ({
+    clearDocumentRecovery,
+    startDocumentAutosave,
+    restoreRecoveryAtStartup,
+    InvalidRecoverySnapshotError,
+  } = await server.ssrLoadModule("/src/io/recovery.ts"));
   ({ createEmptyDocument } = await server.ssrLoadModule("/src/model/types.ts"));
-  ({ serializeDocument } = await server.ssrLoadModule("/src/io/serialize.ts"));
+  ({ encodeDocument } = await server.ssrLoadModule("/src/io/container.ts"));
   ({ hasUnsavedChanges, useEditor } = await server.ssrLoadModule("/src/store/editorStore.ts"));
 });
 
@@ -241,7 +246,7 @@ test("startup restore loads the snapshot and keeps it dirty", async () => {
   doc.rootIds = [id];
 
   const savedAt = new Date().toISOString();
-  const snapshot = { file: serializeDocument(doc), savedAt };
+  const snapshot = { bytes: await encodeDocument(doc), savedAt };
   const fakeStorage = { read: async () => snapshot };
   const statuses = [];
 
@@ -260,7 +265,8 @@ test("startup restore loads the snapshot and keeps it dirty", async () => {
 test("declining the restore prompt discards the snapshot without touching the store", async () => {
   const storage = makeStorage();
   const savedAt = new Date().toISOString();
-  const fakeStorage = { ...storage, read: async () => ({ file: serializeDocument(createEmptyDocument()), savedAt }) };
+  const bytes = await encodeDocument(createEmptyDocument());
+  const fakeStorage = { ...storage, read: async () => ({ bytes, savedAt }) };
   const before = useEditor.getState().doc;
   const statuses = [];
 
@@ -278,7 +284,13 @@ test("declining the restore prompt discards the snapshot without touching the st
 
 test("startup restore silently discards a snapshot it cannot parse", async () => {
   const storage = makeStorage();
-  const fakeStorage = { ...storage, read: async () => ({ file: "{ not json", savedAt: new Date().toISOString() }) };
+  const fakeStorage = {
+    ...storage,
+    read: async () => ({
+      bytes: new TextEncoder().encode("{ not a container"),
+      savedAt: new Date().toISOString(),
+    }),
+  };
   const statuses = [];
   const notices = [];
   let prompted = false;
@@ -315,13 +327,46 @@ test("a restorable snapshot raises no notice", async () => {
   const notices = [];
 
   const result = await restoreRecoveryAtStartup({
-    storage: { read: async () => ({ file: serializeDocument(doc), savedAt: new Date().toISOString() }) },
+    storage: {
+      read: async () => ({
+        bytes: await encodeDocument(doc),
+        savedAt: new Date().toISOString(),
+      }),
+    },
     confirm: () => true,
     notice: (m) => notices.push(m),
   });
 
   assert.equal(result.restored, true);
   assert.deepEqual(notices, [], "a successful restore is not announced as a loss");
+});
+
+test("a snapshot from an older recovery format is discarded, not an error", async () => {
+  // Upgrading past a RECOVERY_FORMAT_VERSION bump leaves a record this build
+  // cannot read. Opening on an error toast would be the wrong first impression;
+  // it is the same loss an undecodable snapshot is, and reads the same way.
+  const storage = makeStorage();
+  const fakeStorage = {
+    ...storage,
+    read: async () => {
+      throw new InvalidRecoverySnapshotError();
+    },
+  };
+  const statuses = [];
+  const notices = [];
+
+  const result = await restoreRecoveryAtStartup({
+    storage: fakeStorage,
+    onStatus: (s) => statuses.push(s),
+    confirm: () => true,
+    notice: (m) => notices.push(m),
+  });
+
+  assert.equal(result.restored, false);
+  assert.equal(result.error, undefined);
+  assert.equal(statuses.at(-1).phase, "ready");
+  assert.deepEqual(storage.calls, ["clear"]);
+  assert.match(notices[0], /could not be restored/i);
 });
 
 test("startup with no snapshot reports ready", async () => {
