@@ -1,5 +1,6 @@
 import { applyMatrix } from "@/model/geometry/matrix";
 import { lerp } from "@/model/geometry/vec";
+import { splitCubic } from "./measure";
 import type { Matrix, PathAnchor, PathShape, PathSubpath, Vec2 } from "../types";
 import { setAnchorType } from "./anchorType";
 import { resolvedSubpaths } from "./pathModifiers";
@@ -100,19 +101,6 @@ function distanceToLine(point: Vec2, start: Vec2, end: Vec2): number {
     length;
 }
 
-function splitCubicHalf(segment: CubicSegment): [CubicSegment, CubicSegment] {
-  const p01 = lerp(segment.p0, segment.c1, 0.5);
-  const p12 = lerp(segment.c1, segment.c2, 0.5);
-  const p23 = lerp(segment.c2, segment.p1, 0.5);
-  const p012 = lerp(p01, p12, 0.5);
-  const p123 = lerp(p12, p23, 0.5);
-  const midpoint = lerp(p012, p123, 0.5);
-  return [
-    { p0: segment.p0, c1: p01, c2: p012, p1: midpoint },
-    { p0: midpoint, c1: p123, c2: p23, p1: segment.p1 },
-  ];
-}
-
 /**
  * Flatten a path with a geometric error target instead of a fixed number of
  * samples. Long or sharply curved cubics receive more points while straight
@@ -136,7 +124,7 @@ export function flattenSubpathAdaptive(
       points.push(segment.p1);
       return;
     }
-    const [left, right] = splitCubicHalf(segment);
+    const [left, right] = splitCubic(segment, 0.5);
     append(left, depth + 1);
     append(right, depth + 1);
   };
@@ -244,26 +232,24 @@ export function insertAnchorOnSegment(
     return withSubpath(shape, sub, { ...sp, anchors });
   }
 
-  const c1 = cur.hOut ?? cur.p;
-  const c2 = next.hIn ?? next.p;
-  const q0 = lerp(cur.p, c1, t);
-  const q1 = lerp(c1, c2, t);
-  const q2 = lerp(c2, next.p, t);
-  const r0 = lerp(q0, q1, t);
-  const r1 = lerp(q1, q2, t);
-  const s = lerp(r0, r1, t);
+  const [left, right] = splitCubic({
+    p0: cur.p,
+    c1: cur.hOut ?? cur.p,
+    c2: next.hIn ?? next.p,
+    p1: next.p,
+  }, t);
 
   anchors[segIndex] = {
     ...cur,
-    hOut: q0,
+    hOut: left.c1,
     ...(cur.t === "symmetric" ? { t: "smooth" as const } : {}),
   };
   anchors[(segIndex + 1) % n] = {
     ...next,
-    hIn: q2,
+    hIn: right.c2,
     ...(next.t === "symmetric" ? { t: "smooth" as const } : {}),
   };
-  anchors.splice(segIndex + 1, 0, { p: s, hIn: r0, hOut: r1 });
+  anchors.splice(segIndex + 1, 0, { p: left.p1, hIn: left.c2, hOut: right.c1 });
   return withSubpath(shape, sub, { ...sp, anchors });
 }
 

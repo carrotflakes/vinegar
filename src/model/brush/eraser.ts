@@ -1,6 +1,6 @@
 import { brushSegments, type BrushSegment } from "./brushSegments";
 import { cubicPoint } from "@/model/path/path";
-import { lerp } from "@/model/geometry/vec";
+import { splitCubic } from "@/model/path/measure";
 import { distToSegment } from "@/model/geometry/hitTest";
 import { applyMatrix } from "@/model/geometry/matrix";
 import {
@@ -36,30 +36,11 @@ function splitSegment(
   segment: BrushSegment,
   t: number
 ): [BrushSegment, BrushSegment] {
-  const p01 = lerp(segment.p0, segment.c1, t);
-  const p12 = lerp(segment.c1, segment.c2, t);
-  const p23 = lerp(segment.c2, segment.p1, t);
-  const p012 = lerp(p01, p12, t);
-  const p123 = lerp(p12, p23, t);
-  const point = lerp(p012, p123, t);
+  const [left, right] = splitCubic(segment, t);
   const width = segment.w0 + (segment.w1 - segment.w0) * t;
   return [
-    {
-      p0: segment.p0,
-      c1: p01,
-      c2: p012,
-      p1: point,
-      w0: segment.w0,
-      w1: width,
-    },
-    {
-      p0: point,
-      c1: p123,
-      c2: p23,
-      p1: segment.p1,
-      w0: width,
-      w1: segment.w1,
-    },
+    { ...left, w0: segment.w0, w1: width },
+    { ...right, w0: width, w1: segment.w1 },
   ];
 }
 

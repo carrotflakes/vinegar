@@ -2,6 +2,7 @@ import { brushSegments } from "./brushSegments";
 import { cubicPoint } from "@/model/path/path";
 import { setAnchorType } from "@/model/path/anchorType";
 import { lerp } from "@/model/geometry/vec";
+import { splitCubic } from "@/model/path/measure";
 import type { BrushShape, Vec2 } from "../types";
 
 // Node-tool structural edits on a brush centerline (one open run of anchors).
@@ -86,26 +87,24 @@ export function insertBrushAnchor(
     return { ...shape, anchors };
   }
 
-  const c1 = cur.hOut ?? cur.p;
-  const c2 = next.hIn ?? next.p;
-  const q0 = lerp(cur.p, c1, t);
-  const q1 = lerp(c1, c2, t);
-  const q2 = lerp(c2, next.p, t);
-  const r0 = lerp(q0, q1, t);
-  const r1 = lerp(q1, q2, t);
-  const s = lerp(r0, r1, t);
+  const [left, right] = splitCubic({
+    p0: cur.p,
+    c1: cur.hOut ?? cur.p,
+    c2: next.hIn ?? next.p,
+    p1: next.p,
+  }, t);
 
   anchors[segIndex] = {
     ...cur,
-    hOut: q0,
+    hOut: left.c1,
     ...(cur.t === "symmetric" ? { t: "smooth" as const } : {}),
   };
   anchors[segIndex + 1] = {
     ...next,
-    hIn: q2,
+    hIn: right.c2,
     ...(next.t === "symmetric" ? { t: "smooth" as const } : {}),
   };
-  anchors.splice(segIndex + 1, 0, { p: s, hIn: r0, hOut: r1, w });
+  anchors.splice(segIndex + 1, 0, { p: left.p1, hIn: left.c2, hOut: right.c1, w });
   return { ...shape, anchors };
 }
 

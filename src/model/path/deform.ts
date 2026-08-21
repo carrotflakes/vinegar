@@ -1,3 +1,4 @@
+import { distance } from "@/model/geometry/vec";
 import type { PathSubpath, Vec2 } from "../types";
 import { pointsToAnchors } from "./freehand";
 import { flattenSubpathAdaptive } from "./path";
@@ -28,8 +29,7 @@ function resample(
   if (points.length < 2) return null;
   const cumulative = [0];
   for (let i = 1; i < points.length; i++) {
-    cumulative.push(cumulative[i - 1] +
-      Math.hypot(points[i].x - points[i - 1].x, points[i].y - points[i - 1].y));
+    cumulative.push(cumulative[i - 1] + distance(points[i - 1], points[i]));
   }
   const total = cumulative[cumulative.length - 1];
   if (!(total > 0) || !(spacing > 0)) return null;
