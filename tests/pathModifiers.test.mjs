@@ -494,6 +494,25 @@ test("roughen is seeded, so the same document always wobbles the same way", () =
   }
 });
 
+test("a smooth deform clamps its handles so they cannot overshoot", () => {
+  // Roughen leaves the samples unevenly spaced, which is exactly the case the
+  // shared Catmull-Rom fit clamps for (see pointsToAnchors).
+  const resolved = resolvedSubpaths(
+    path([{ type: "roughen", size: 4, detail: 4, seed: 3, style: "smooth" }])
+  )[0];
+  const anchors = resolved.anchors;
+  anchors.forEach((anchor, i) => {
+    const next = anchors[(i + 1) % anchors.length];
+    const previous = anchors[(i - 1 + anchors.length) % anchors.length];
+    const span = Math.hypot(next.p.x - anchor.p.x, next.p.y - anchor.p.y);
+    const back = Math.hypot(anchor.p.x - previous.p.x, anchor.p.y - previous.p.y);
+    assert.ok(Math.hypot(anchor.hOut.x - anchor.p.x, anchor.hOut.y - anchor.p.y)
+      <= span / 3 + 1e-9);
+    assert.ok(Math.hypot(anchor.p.x - anchor.hIn.x, anchor.p.y - anchor.hIn.y)
+      <= back / 3 + 1e-9);
+  });
+});
+
 test("roughen changes size without reshuffling which points moved", () => {
   const at = (size) => resolvedSubpaths(
     path([{ type: "roughen", size, detail: 5, seed: 7, style: "corner" }])

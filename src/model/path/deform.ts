@@ -1,13 +1,11 @@
-import type { PathAnchor, PathSubpath, Vec2 } from "../types";
+import type { PathSubpath, Vec2 } from "../types";
+import { pointsToAnchors } from "./freehand";
 import { flattenSubpathAdaptive } from "./path";
 
 /** Flatness used when measuring a contour before resampling it. */
 const FLATNESS = 0.2;
 /** Upper bound on generated points per contour, so a tiny spacing can't hang. */
 const MAX_POINTS = 4000;
-/** Catmull-Rom to Bézier: a handle is a sixth of the neighbours' span. */
-const SMOOTH_TENSION = 1 / 6;
-
 interface Sample {
   p: Vec2;
   /** Unit normal (left of the direction of travel). */
@@ -60,26 +58,19 @@ function resample(
   return samples;
 }
 
-/** Turn a point list back into a contour, either straight or Catmull-Rom. */
+/**
+ * Turn a point list back into a contour, either straight or Catmull-Rom.
+ * The smooth form goes through `pointsToAnchors`, the same fit the pencil and
+ * brush use: it clamps each handle so it cannot overshoot its neighbour, which
+ * matters here because displaced samples are no longer evenly spaced.
+ */
 function fromPoints(points: Vec2[], closed: boolean, smooth: boolean): PathSubpath {
-  if (!smooth) {
-    return { closed, anchors: points.map((p) => ({ p, hIn: null, hOut: null })) };
-  }
-  const last = points.length - 1;
-  const anchors: PathAnchor[] = points.map((p, i) => {
-    const previous = i > 0 ? points[i - 1] : closed ? points[last] : p;
-    const next = i < last ? points[i + 1] : closed ? points[0] : p;
-    const tangent = {
-      x: (next.x - previous.x) * SMOOTH_TENSION,
-      y: (next.y - previous.y) * SMOOTH_TENSION,
-    };
-    return {
-      p,
-      hIn: { x: p.x - tangent.x, y: p.y - tangent.y },
-      hOut: { x: p.x + tangent.x, y: p.y + tangent.y },
-    };
-  });
-  return { closed, anchors };
+  return {
+    closed,
+    anchors: smooth
+      ? pointsToAnchors(points, closed)
+      : points.map((p) => ({ p, hIn: null, hOut: null })),
+  };
 }
 
 /**
