@@ -19,7 +19,7 @@ Three kinds of page, one per folder:
 | Page | |
 | --- | --- |
 | [architecture.md](architecture.md) | stack, store slicing, canvas pipeline, project layout |
-| [document-model.md](document-model.md) | the persisted `Document`, its invariants and the coordinate policy (file **v37**) |
+| [document-model.md](document-model.md) | the persisted `Document`, its invariants and the coordinate policy (file **v38**) |
 | [features.md](features.md) | a one-line-per-feature map of what exists |
 
 ## Reference — contracts

@@ -515,6 +515,13 @@ export const COMMANDS: Command[] = [
     run: (s) => s.addPathModifierSelected("outline"),
   },
   {
+    id: "path.addRoundModifier",
+    label: "Add Round corners modifier",
+    group: "Path",
+    enabled: (s) => sel(s).canModify,
+    run: (s) => s.addPathModifierSelected("round"),
+  },
+  {
     id: "path.addSmoothModifier",
     label: "Add Smooth modifier",
     group: "Path",

@@ -31,12 +31,13 @@ const MODIFIER_NUM_KEYS: Record<PathModifier["type"], readonly string[]> = {
   flatten: ["tolerance"],
   offset: ["distance"],
   outline: ["width"],
+  round: ["radius"],
   smooth: [],
   reverse: [],
 };
 
 /** Field paths whose value may never go negative (the model rejects it). */
-const NON_NEGATIVE = new Set(["strokeWidth", "tolerance", "width"]);
+const NON_NEGATIVE = new Set(["strokeWidth", "tolerance", "width", "radius"]);
 
 export const STROKE_WIDTH_PATH = "strokeWidth";
 export const generatorArgPath = (key: string): string => `generator.args.${key}`;

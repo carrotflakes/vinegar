@@ -11,6 +11,7 @@ function modifierLabel(type: PathModifier["type"]): string {
     case "flatten": return "Flatten";
     case "offset": return "Offset";
     case "outline": return "Outline";
+    case "round": return "Round corners";
     case "smooth": return "Smooth";
     case "reverse": return "Reverse";
   }
@@ -131,6 +132,12 @@ export default function ModifiersSection({ shape }: { shape: PrimitiveShape }) {
                 replace(index, { ...modifier, tolerance: Math.max(0, value) }), 0
               )}
             </div>
+          ) : modifier.type === "round" ? (
+            <div className="geometry-grid">
+              {numberField(index, "radius", "Radius", modifier.radius, (value) =>
+                replace(index, { ...modifier, radius: Math.max(0, value) }), 0
+              )}
+            </div>
           ) : modifier.type === "offset" ? (
             <>
               <div className="geometry-grid">
@@ -210,6 +217,7 @@ export default function ModifiersSection({ shape }: { shape: PrimitiveShape }) {
           <option value="flatten">Flatten</option>
           <option value="offset">Offset</option>
           <option value="outline">Outline</option>
+          <option value="round">Round corners</option>
           <option value="smooth">Smooth</option>
           <option value="reverse">Reverse</option>
         </select>

@@ -4,6 +4,7 @@ import { flattenSubpathAdaptive, ringsToSubpaths } from "./path";
 import { contours, intPath, SCALE, treeToPolys } from "./clipperPaths";
 import { applyPathOpSubpaths } from "./pathOps";
 import { roundedRectSubpath } from "../roundedRect";
+import { roundSubpaths } from "./roundCorners";
 import type {
   LineShape,
   PathModifier,
@@ -25,6 +26,7 @@ export const DEFAULT_PATH_MODIFIER: Record<
   flatten: () => ({ type: "flatten", tolerance: 0.5 }),
   offset: () => ({ type: "offset", distance: 10, join: "round" }),
   outline: () => ({ type: "outline", width: 10, cap: "round", join: "round" }),
+  round: () => ({ type: "round", radius: 8 }),
   smooth: () => ({ type: "smooth" }),
   reverse: () => ({ type: "reverse" }),
 };
@@ -134,6 +136,8 @@ function applyModifier(
       return offsetSubpaths(subpaths, modifier.distance, modifier.join, fillRule);
     case "outline":
       return outlineSubpaths(subpaths, modifier.width, modifier.cap, modifier.join);
+    case "round":
+      return roundSubpaths(subpaths, modifier.radius);
   }
 }
 

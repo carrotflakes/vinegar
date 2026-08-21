@@ -14,7 +14,7 @@ import {
   type ShapeType,
 } from "../model/types";
 
-export const CURRENT_FILE_VERSION = 37 as const;
+export const CURRENT_FILE_VERSION = 38 as const;
 /** Older schemas accepted directly by the current document validator.
  *  v33 and below stored gradients as `linear`/`radial` paints with no geometry
  *  beyond an angle, which the placed-gradient model cannot express. */
@@ -192,6 +192,7 @@ const isPathModifier = (value: unknown): boolean => {
       STROKE_CAPS.includes(value.cap as never) &&
       STROKE_JOINS.includes(value.join as never);
   }
+  if (value.type === "round") return isNumber(value.radius) && value.radius >= 0;
   return value.type === "smooth" || value.type === "reverse";
 };
 const isPathModifiersOrAbsent = (value: unknown): boolean =>

@@ -117,6 +117,7 @@ export function selectionMenu(): MenuEntry[] {
     "path.addFlattenModifier",
     "path.addOffsetModifier",
     "path.addOutlineModifier",
+    "path.addRoundModifier",
     "path.addSmoothModifier",
     "path.addReverseModifier",
   ]

@@ -222,7 +222,7 @@ test("Canvas, SVG, bounds, and serialization share the clipping model", () => {
   assert.doesNotMatch(svg, /isolation:isolate/);
 
   const json = serializeDocument(doc);
-  assert.equal(JSON.parse(json).version, 37);
+  assert.equal(JSON.parse(json).version, 38);
   const loaded = parseDocument(json);
   assert.equal(loaded.nodes.clip.clipsToMask, true);
   assert.deepEqual(loaded.nodes.clip.childIds, ["content", "mask"]);

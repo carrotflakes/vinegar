@@ -1,6 +1,6 @@
 # Document model
 
-Status: **reference.** The persisted format as it is, at file version **v37**,
+Status: **reference.** The persisted format as it is, at file version **v38**,
 written either as the `.vinegar` container or as `.vinegar.json` text.
 Any change to the shape of the file means bumping `CURRENT_FILE_VERSION` in
 `src/io/serialize.ts` and updating this page in the same commit.
@@ -135,7 +135,7 @@ active tool, selection, viewport and undo history does not belong in the file.
   document, and a binding whose field path no longer addresses anything is
   pruned there. See [parameters.md](design/parameters.md).
 
-The current file version is v37 and it is the only version loading accepts.
+The current file version is v38 and it is the only version loading accepts.
 Persisted model changes require a version review and, when incompatible, a
 migration.
 

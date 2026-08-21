@@ -485,6 +485,7 @@ export type PathModifier = PathModifierBase & (
   | { type: "flatten"; tolerance: number }
   | { type: "offset"; distance: number; join: StrokeJoin }
   | { type: "outline"; width: number; cap: StrokeCap; join: StrokeJoin }
+  | { type: "round"; radius: number }
   | { type: "smooth" }
   | { type: "reverse" }
 );
@@ -494,6 +495,7 @@ export const PATH_MODIFIER_TYPES = [
   "flatten",
   "offset",
   "outline",
+  "round",
   "smooth",
   "reverse",
 ] as const;

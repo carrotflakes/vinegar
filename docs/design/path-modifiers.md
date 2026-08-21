@@ -1,7 +1,8 @@
 # Path modifiers
 
 Status: **implemented** (2026-08-02); extended to `rect`/`ellipse`/`line`
-(2026-08-06). File version: **v33** (additive shape field, but Vinegar's strict
+(2026-08-06); partial bake and the Round corners stage (2026-08-22, v38).
+File version: **v33** (additive shape field, but Vinegar's strict
 current-only file policy requires a version bump; absent `modifiers` still
 means no change). Related: extends the generator concept
 ([document-model.md](../document-model.md)); modeled on `effects`; builds on the
@@ -56,6 +57,7 @@ type Modifier =
   | { type: "offset"; distance: number; join: "miter" | "round" | "bevel" }
   | { type: "outline"; width: number; cap: "butt" | "round" | "square";
       join: "miter" | "round" | "bevel" }
+  | { type: "round"; radius: number }
   | { type: "smooth" }
   | { type: "reverse" };
 // each modifier optionally: { enabled?: boolean } to toggle without removing
@@ -203,9 +205,20 @@ top" model, and mirrors how `effects` already leaves `subpaths` untouched.
   four; the primitive keeps its own editable fields.
 - `resolvedSubpaths()` with identity-based memoization routes rendering,
   hit-testing, bounds, snapping, geometry operations, clipping, and export.
-- Simplify, Flatten, Smooth, Reverse, Offset, and Outline are stackable and
-  toggleable. Outline turns closed contours into centered bands and open
-  contours into filled strokes with configurable width, cap, and join.
+- Simplify, Flatten, Smooth, Reverse, Offset, Outline and Round corners are
+  stackable and toggleable. Outline turns closed contours into centered bands
+  and open contours into filled strokes with configurable width, cap, and join.
+- **Round corners** (`model/path/roundCorners.ts`, v38) is the path-wide
+  generalization of a rect's `cornerRadius`: every cusp gets a circular fillet
+  of the given radius, tangent to both legs (a cubic with the standard
+  `4/3·tan(φ/4)·r` handles, so the join is G1). Smooth anchors and a contour's
+  loose endpoints are not corners and stay put. The tangent distance a corner
+  needs is `r·tan(φ/2)`, so a sharp corner reaches further along its legs; when
+  the two corners sharing a leg want more than it has, both shrink to fit
+  rather than the geometry folding over itself. Curved legs are trimmed by arc
+  length (sampled inversion + de Casteljau); straight legs are trimmed
+  analytically, because a straight segment stored as a cubic is not linear in
+  `t`.
 - The Properties panel supports live parameter preview, reorder, remove,
   enable/disable, Apply and per-stage partial Apply; scrubbing commits as one
   undo step.

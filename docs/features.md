@@ -61,7 +61,8 @@ Fill, Text, Frame.
   Smooth / Flatten / Reverse**. See [path-commands.md](reference/path-commands.md)
 - **Convert to path** and **Outline stroke**.
 - **Path modifiers** — the same operations as a non-destructive, re-editable
-  stack on paths, rectangles, ellipses and lines. See
+  stack on paths, rectangles, ellipses and lines, plus **Offset**, **Outline**
+  and **Round corners**; any prefix of the stack can be baked in place. See
   [path-modifiers.md](design/path-modifiers.md)
 
 ## Appearance

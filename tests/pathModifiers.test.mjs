@@ -254,7 +254,7 @@ test("apply bakes resolved geometry, clears the stack, and detaches generator", 
   assert.equal(shape.modifiers.length, 1);
 });
 
-test("modifier stacks round-trip in v37 documents", () => {
+test("modifier stacks round-trip in v38 documents", () => {
   const shape = path([
     { type: "simplify", tolerance: 1.25, enabled: false },
     { type: "offset", distance: -3, join: "bevel" },
@@ -267,7 +267,7 @@ test("modifier stacks round-trip in v37 documents", () => {
     nodes: { [shape.id]: shape },
   };
   const text = serializeDocument(doc);
-  assert.equal(JSON.parse(text).version, 37);
+  assert.equal(JSON.parse(text).version, 38);
   assert.deepEqual(parseDocument(text).nodes[shape.id].modifiers, shape.modifiers);
 });
 
@@ -342,6 +342,87 @@ test("applying a stack converts a modified primitive into a path", () => {
   assert.deepEqual(baked.modifiers ?? [], []);
   assert.deepEqual(baked.bindings, {});
   assert.deepEqual(shapeBounds(baked), { x: -5, y: -5, width: 30, height: 20 });
+});
+
+test("round replaces each corner with a tangent fillet", () => {
+  const filled = { fill: { type: "solid", color: "#000000", alpha: 1 } };
+  const shape = path([{ type: "round", radius: 3 }], filled);
+  const resolved = resolvedSubpaths(shape);
+  assert.equal(resolved.length, 1);
+  assert.equal(resolved[0].closed, true);
+  // Each of the four corners becomes a pair of tangent points.
+  assert.equal(resolved[0].anchors.length, 8);
+  // The fillet stays inside the original box and keeps the straight edges.
+  assert.deepEqual(shapeBounds(shape), { x: 0, y: 0, width: 20, height: 10 });
+  const tangents = resolved[0].anchors.map((anchor) => anchor.p);
+  for (const point of [{ x: 3, y: 0 }, { x: 0, y: 3 }, { x: 17, y: 0 }]) {
+    assert.ok(
+      tangents.some((p) => Math.hypot(p.x - point.x, p.y - point.y) < 1e-6),
+      `${JSON.stringify(point)} missing from ${JSON.stringify(tangents)}`
+    );
+  }
+  // The old corner is cut away; a point just inside it is no longer covered.
+  const empty = createEmptyDocument();
+  const doc = { ...empty, rootIds: [shape.id], nodes: { [shape.id]: shape } };
+  assert.equal(hitTestShape(doc, shape, { x: 0.3, y: 0.3 }, 0), false);
+  assert.equal(hitTestShape(doc, path([], filled), { x: 0.3, y: 0.3 }, 0), true);
+  assert.equal(hitTestShape(doc, shape, { x: 10, y: 5 }, 0), true);
+  // The fillet is round: its midpoint sits at radius from the corner's center.
+  const center = { x: 3, y: 3 };
+  for (const point of flattenSubpath(resolved[0], 24)) {
+    if (point.x > 3 || point.y > 3) continue;
+    assert.ok(Math.abs(Math.hypot(point.x - center.x, point.y - center.y) - 3) < 0.02);
+  }
+});
+
+test("round clamps a radius the corner's legs cannot afford", () => {
+  const shape = path([{ type: "round", radius: 50 }]);
+  const resolved = resolvedSubpaths(shape);
+  assert.equal(resolved[0].anchors.length, 8);
+  // Nothing escapes the base box and no coordinate degenerates.
+  for (const anchor of resolved[0].anchors) {
+    assert.ok(Number.isFinite(anchor.p.x) && Number.isFinite(anchor.p.y));
+    assert.ok(anchor.p.x >= -1e-9 && anchor.p.x <= 20 + 1e-9);
+    assert.ok(anchor.p.y >= -1e-9 && anchor.p.y <= 10 + 1e-9);
+  }
+  assert.deepEqual(shapeBounds(shape), { x: 0, y: 0, width: 20, height: 10 });
+});
+
+test("round leaves loose ends and straight anchors alone", () => {
+  const open = {
+    closed: false,
+    anchors: [
+      { p: { x: 0, y: 0 }, hIn: null, hOut: null },
+      { p: { x: 10, y: 0 }, hIn: null, hOut: null },
+      { p: { x: 20, y: 0 }, hIn: null, hOut: null },
+    ],
+  };
+  const shape = path([{ type: "round", radius: 3 }], { subpaths: [open] });
+  const resolved = resolvedSubpaths(shape);
+  // A collinear anchor is not a corner, so the contour is untouched.
+  assert.deepEqual(resolved, [open]);
+
+  const bent = {
+    closed: false,
+    anchors: [
+      { p: { x: 0, y: 0 }, hIn: null, hOut: null },
+      { p: { x: 10, y: 0 }, hIn: null, hOut: null },
+      { p: { x: 10, y: 10 }, hIn: null, hOut: null },
+    ],
+  };
+  const corner = resolvedSubpaths(path([{ type: "round", radius: 3 }], {
+    subpaths: [bent],
+  }))[0];
+  assert.equal(corner.closed, false);
+  assert.equal(corner.anchors.length, 4);
+  // The two loose endpoints stay exactly where they were.
+  assert.deepEqual(corner.anchors[0].p, { x: 0, y: 0 });
+  assert.deepEqual(corner.anchors[3].p, { x: 10, y: 10 });
+});
+
+test("a zero radius is a no-op", () => {
+  const shape = path([{ type: "round", radius: 0 }]);
+  assert.deepEqual(resolvedSubpaths(shape), shape.subpaths);
 });
 
 test("a partial bake freezes the prefix and leaves the later stages live", () => {
@@ -429,6 +510,7 @@ test("selection context menu groups modifier commands in a submenu", () => {
       "Add Flatten modifier",
       "Add Offset modifier",
       "Add Outline modifier",
+      "Add Round corners modifier",
       "Add Smooth modifier",
       "Add Reverse modifier",
     ]
