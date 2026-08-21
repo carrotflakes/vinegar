@@ -13,10 +13,8 @@ import {
   canMakeCompoundPathSelection,
 } from "@/model/path/compoundPath";
 import { canConvertShapeToPath } from "@/model/path/convertToPath";
-import {
-  isModifiable,
-  PATH_MODIFIER_LABELS,
-} from "@/model/path/pathModifiers";
+import { isModifiable } from "@/model/path/pathModifiers";
+import { PATH_MODIFIER_LABELS } from "@/model/path/modifierSpec";
 import { PATH_MODIFIER_TYPES, type PathModifier } from "@/model/types";
 import {
   canConvertBrushToOutline,

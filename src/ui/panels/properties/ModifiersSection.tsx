@@ -1,11 +1,15 @@
 import { LuArrowDownToLine } from "react-icons/lu";
 import {
   PATH_MODIFIER_TYPES,
-  type DeformStyle,
   type PathModifier,
   type PrimitiveShape,
 } from "@/model/types";
-import { PATH_MODIFIER_LABELS } from "@/model/path/pathModifiers";
+import {
+  clampFieldValue,
+  PATH_MODIFIER_LABELS,
+  PATH_MODIFIER_SPECS,
+  type ModifierField,
+} from "@/model/path/modifierSpec";
 import { useEditor } from "@/store/editorStore";
 import { modifierParamPath, remapModifierBindings } from "@/model/params";
 import BindableNumber from "@/ui/controls/BindableNumber";
@@ -51,46 +55,59 @@ export default function ModifiersSection({ shape }: { shape: PrimitiveShape }) {
     moved.set(destination, index);
     setPathModifiers(shape.id, next, remapModifierBindings(shape.bindings, moved));
   };
-  const numberField = (
-    index: number,
-    key: string,
-    label: string,
-    value: number,
-    onChange: (value: number) => void,
-    min?: number,
-    step = 0.1
-  ) => (
-    <label className="geo-field">
-      <span>{label}</span>
-      <BindableNumber
-        nodeId={shape.id}
-        path={modifierParamPath(index, key)}
-        label={label}
-        value={Math.round(value * 100) / 100}
-        min={min}
-        step={step}
-        onChange={onChange}
-      />
-    </label>
-  );
+  /** One field, rendered from its declaration in the modifier spec. */
+  const field = (index: number, modifier: PathModifier, spec: ModifierField) => {
+    const value = (modifier as unknown as Record<string, unknown>)[spec.key];
+    const write = (next: unknown) =>
+      replace(index, { ...modifier, [spec.key]: next } as PathModifier);
+    if (spec.kind === "choice") {
+      return (
+        <label className="field-inline" key={spec.key}>
+          <span>{spec.label}</span>
+          <select
+            className="blend-select"
+            value={String(value)}
+            onChange={(event) => write(event.target.value)}
+          >
+            {spec.options.map((option) => (
+              <option key={option.value} value={option.value}>{option.label}</option>
+            ))}
+          </select>
+        </label>
+      );
+    }
+    return (
+      <label className="geo-field" key={spec.key}>
+        <span>{spec.label}</span>
+        <BindableNumber
+          nodeId={shape.id}
+          path={modifierParamPath(index, spec.key)}
+          label={spec.label}
+          value={Math.round(Number(value) * 100) / 100}
+          min={spec.min}
+          step={spec.step ?? 1}
+          onChange={(next) => write(clampFieldValue(spec, next))}
+        />
+      </label>
+    );
+  };
 
-  const styleField = (
-    index: number,
-    value: DeformStyle,
-    apply: (style: DeformStyle) => PathModifier
-  ) => (
-    <label className="field-inline">
-      <span>Points</span>
-      <select
-        className="blend-select"
-        value={value}
-        onChange={(event) => replace(index, apply(event.target.value as DeformStyle))}
-      >
-        <option value="corner">Corner</option>
-        <option value="smooth">Smooth</option>
-      </select>
-    </label>
-  );
+  /** A stage's whole parameter block: numbers in a grid, then the choices. */
+  const fields = (index: number, modifier: PathModifier) => {
+    const specs = PATH_MODIFIER_SPECS[modifier.type].fields;
+    const numbers = specs.filter((spec) => spec.kind === "number");
+    const choices = specs.filter((spec) => spec.kind === "choice");
+    return (
+      <>
+        {numbers.length > 0 && (
+          <div className="geometry-grid">
+            {numbers.map((spec) => field(index, modifier, spec))}
+          </div>
+        )}
+        {choices.map((spec) => field(index, modifier, spec))}
+      </>
+    );
+  };
 
   return (
     <Section id="properties.modifiers" title="Modifiers">
@@ -120,111 +137,7 @@ export default function ModifiersSection({ shape }: { shape: PrimitiveShape }) {
             </button>
           }
         >
-          {modifier.type === "simplify" || modifier.type === "flatten" ? (
-            <div className="geometry-grid">
-              {numberField(index, "tolerance", "Tolerance", modifier.tolerance, (value) =>
-                replace(index, { ...modifier, tolerance: Math.max(0, value) }), 0
-              )}
-            </div>
-          ) : modifier.type === "round" ? (
-            <div className="geometry-grid">
-              {numberField(index, "radius", "Radius", modifier.radius, (value) =>
-                replace(index, { ...modifier, radius: Math.max(0, value) }), 0
-              )}
-            </div>
-          ) : modifier.type === "offset" ? (
-            <>
-              <div className="geometry-grid">
-                {numberField(index, "distance", "Distance", modifier.distance, (value) =>
-                  replace(index, { ...modifier, distance: value })
-                )}
-              </div>
-              <label className="field-inline">
-                <span>Join</span>
-                <select
-                  className="blend-select"
-                  value={modifier.join}
-                  onChange={(event) => replace(index, {
-                    ...modifier,
-                    join: event.target.value as typeof modifier.join,
-                  })}
-                >
-                  <option value="miter">Miter</option>
-                  <option value="round">Round</option>
-                  <option value="bevel">Bevel</option>
-                </select>
-              </label>
-            </>
-          ) : modifier.type === "zigzag" ? (
-            <>
-              <div className="geometry-grid">
-                {numberField(index, "amplitude", "Size", modifier.amplitude, (value) =>
-                  replace(index, { ...modifier, amplitude: value })
-                )}
-                {numberField(index, "wavelength", "Spacing", modifier.wavelength,
-                  (value) => replace(index, {
-                    ...modifier,
-                    wavelength: Math.max(0.1, value),
-                  }), 0.1
-                )}
-              </div>
-              {styleField(index, modifier.style, (style) => ({ ...modifier, style }))}
-            </>
-          ) : modifier.type === "roughen" ? (
-            <>
-              <div className="geometry-grid">
-                {numberField(index, "size", "Size", modifier.size, (value) =>
-                  replace(index, { ...modifier, size: Math.max(0, value) }), 0
-                )}
-                {numberField(index, "detail", "Spacing", modifier.detail, (value) =>
-                  replace(index, { ...modifier, detail: Math.max(0.1, value) }), 0.1
-                )}
-                {numberField(index, "seed", "Seed", modifier.seed, (value) =>
-                  replace(index, { ...modifier, seed: Math.max(0, Math.round(value)) }),
-                  0, 1
-                )}
-              </div>
-              {styleField(index, modifier.style, (style) => ({ ...modifier, style }))}
-            </>
-          ) : modifier.type === "outline" ? (
-            <>
-              <div className="geometry-grid">
-                {numberField(index, "width", "Width", modifier.width, (value) =>
-                  replace(index, { ...modifier, width: Math.max(0, value) }), 0
-                )}
-              </div>
-              <label className="field-inline">
-                <span>Cap</span>
-                <select
-                  className="blend-select"
-                  value={modifier.cap}
-                  onChange={(event) => replace(index, {
-                    ...modifier,
-                    cap: event.target.value as typeof modifier.cap,
-                  })}
-                >
-                  <option value="butt">Butt</option>
-                  <option value="round">Round</option>
-                  <option value="square">Square</option>
-                </select>
-              </label>
-              <label className="field-inline">
-                <span>Join</span>
-                <select
-                  className="blend-select"
-                  value={modifier.join}
-                  onChange={(event) => replace(index, {
-                    ...modifier,
-                    join: event.target.value as typeof modifier.join,
-                  })}
-                >
-                  <option value="miter">Miter</option>
-                  <option value="round">Round</option>
-                  <option value="bevel">Bevel</option>
-                </select>
-              </label>
-            </>
-          ) : null}
+          {fields(index, modifier)}
         </StackCard>
       ))}
       <div className="field">

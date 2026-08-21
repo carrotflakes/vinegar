@@ -478,8 +478,6 @@ export interface PathSubpath {
 /** Whether a resampled contour keeps its ridges sharp or rounds them off. */
 export type DeformStyle = "corner" | "smooth";
 
-export const DEFORM_STYLES = ["corner", "smooth"] as const;
-
 interface PathModifierBase {
   /** `false` bypasses this stage without removing it from the stack. */
   enabled?: boolean;

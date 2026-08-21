@@ -13,6 +13,7 @@
 // ===========================================================================
 
 import { GENERATORS, defaultArgs } from "./generators/generators";
+import { clampFieldValue, modifierNumberField } from "./path/modifierSpec";
 import { isModifiable } from "./path/pathModifiers";
 import { isShape } from "./scene";
 import type {
@@ -24,28 +25,6 @@ import type {
   PrimitiveShape,
   SceneNode,
 } from "./types";
-
-/** The bindable numeric field of every path modifier type (empty = none). */
-const MODIFIER_NUM_KEYS: Record<PathModifier["type"], readonly string[]> = {
-  simplify: ["tolerance"],
-  flatten: ["tolerance"],
-  offset: ["distance"],
-  outline: ["width"],
-  round: ["radius"],
-  zigzag: ["amplitude", "wavelength"],
-  roughen: ["size", "detail", "seed"],
-  smooth: [],
-  reverse: [],
-};
-
-/** Field paths whose value may never go negative (the model rejects it). */
-const NON_NEGATIVE = new Set([
-  "strokeWidth", "tolerance", "width", "radius", "wavelength", "size", "detail",
-  "seed",
-]);
-
-/** Positive spacing fields use the same floor as their direct-edit controls. */
-const POSITIVE_SPACING = new Set(["wavelength", "detail"]);
 
 export const STROKE_WIDTH_PATH = "strokeWidth";
 export const generatorArgPath = (key: string): string => `generator.args.${key}`;
@@ -91,9 +70,7 @@ export function readNumField(node: SceneNode, path: string): number | null {
     return typeof value === "number" ? value : null;
   }
   const modifier = asModifiable(node)?.modifiers?.[parsed.index];
-  if (!modifier || !MODIFIER_NUM_KEYS[modifier.type].includes(parsed.key)) {
-    return null;
-  }
+  if (!modifier || !modifierNumberField(modifier.type, parsed.key)) return null;
   const value = (modifier as unknown as Record<string, unknown>)[parsed.key];
   return typeof value === "number" ? value : null;
 }
@@ -125,12 +102,11 @@ export function writeNumField(
   }
   const shape = asModifiable(node);
   const modifier = shape?.modifiers?.[parsed.index];
-  if (!shape || !modifier || !MODIFIER_NUM_KEYS[modifier.type].includes(parsed.key)) {
-    return null;
-  }
-  const clamped = POSITIVE_SPACING.has(parsed.key)
-    ? Math.max(0.1, value)
-    : NON_NEGATIVE.has(parsed.key) ? Math.max(0, value) : value;
+  // The stage's own field table says which fields a parameter may drive, and
+  // the floor each one keeps — see model/path/modifierSpec.ts.
+  const field = modifier ? modifierNumberField(modifier.type, parsed.key) : null;
+  if (!shape || !modifier || !field) return null;
+  const clamped = clampFieldValue(field, value);
   const modifiers = shape.modifiers!.map((entry, i) =>
     i === parsed.index ? ({ ...entry, [parsed.key]: clamped } as PathModifier) : entry
   );

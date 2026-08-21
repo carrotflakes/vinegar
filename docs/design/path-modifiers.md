@@ -160,6 +160,16 @@ top" model, and mirrors how `effects` already leaves `subpaths` untouched.
   toggle, per-modifier param fields. Editing a param is a transient preview
   (drag) → one transact on release, reusing the `clearTransient` pattern the
   drag-based edits already use, so tolerance is confirmed live.
+- **One declaration per stage.** `model/path/modifierSpec.ts` holds each
+  stage's label and its parameter table (key, UI label, default, floor, step,
+  choice options). The properties panel renders its fields from it, parameter
+  bindings ask it which fields they may drive and how far down, `parseDocument`
+  validates against it, and "Add modifier" builds the defaults from it. The one
+  other place that switches on the stage type is `applyModifier` in
+  `pathModifiers.ts` — the geometry — and the compiler checks that switch is
+  exhaustive. `tests/modifierSpec.test.mjs` holds the three sides together:
+  every declared type must have a spec whose defaults load, resolve and persist
+  exactly the fields the table names.
 - **Add a modifier** from the panel's picker or the selection context menu's
   Path ▸ Modifiers submenu. Both read `PATH_MODIFIER_TYPES` and
   `PATH_MODIFIER_LABELS`, and the commands behind the menu

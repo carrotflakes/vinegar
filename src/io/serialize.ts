@@ -2,12 +2,11 @@ import { clippingMask } from "../model/clippingMask";
 import { hasValidParams } from "../model/params";
 import { isCompoundChild } from "@/model/path/compoundPath";
 import { nodePaints, referencedAssetIds } from "../model/scene";
+import { isValidPathModifier } from "@/model/path/modifierSpec";
 import {
   BLEND_MODES,
   EFFECT_TYPES,
   MARKER_SHAPES,
-  DEFORM_STYLES,
-  PATH_MODIFIER_TYPES,
   STROKE_ALIGNMENTS,
   STROKE_CAPS,
   STROKE_JOINS,
@@ -179,34 +178,10 @@ const isEffects = (value: unknown): boolean => {
   const ids = new Set(value.map((effect) => effect.id));
   return ids.size === value.length;
 };
-const isPathModifier = (value: unknown): boolean => {
-  if (!isObject(value) || !PATH_MODIFIER_TYPES.includes(value.type as never)) return false;
-  if (value.enabled !== undefined && typeof value.enabled !== "boolean") return false;
-  if (value.type === "simplify" || value.type === "flatten") {
-    return isNumber(value.tolerance) && value.tolerance >= 0;
-  }
-  if (value.type === "offset") {
-    return isNumber(value.distance) && STROKE_JOINS.includes(value.join as never);
-  }
-  if (value.type === "outline") {
-    return isNumber(value.width) && value.width >= 0 &&
-      STROKE_CAPS.includes(value.cap as never) &&
-      STROKE_JOINS.includes(value.join as never);
-  }
-  if (value.type === "round") return isNumber(value.radius) && value.radius >= 0;
-  if (value.type === "zigzag") {
-    return isNumber(value.amplitude) && isNumber(value.wavelength) &&
-      value.wavelength > 0 && DEFORM_STYLES.includes(value.style as never);
-  }
-  if (value.type === "roughen") {
-    return isNumber(value.size) && value.size >= 0 &&
-      isNumber(value.detail) && value.detail > 0 && isNumber(value.seed) &&
-      DEFORM_STYLES.includes(value.style as never);
-  }
-  return value.type === "smooth" || value.type === "reverse";
-};
+/** The stage's own schema is its field table — see model/path/modifierSpec.ts. */
 const isPathModifiersOrAbsent = (value: unknown): boolean =>
-  value === undefined || (Array.isArray(value) && value.every(isPathModifier));
+  value === undefined ||
+  (Array.isArray(value) && value.every(isValidPathModifier));
 /** An end marker. Absent is the v34 form: that end carries no marker.
  *  Exported alongside {@link isPaintOrNull} for the new-shape defaults. */
 export const isMarkerOrAbsent = (value: unknown): boolean =>

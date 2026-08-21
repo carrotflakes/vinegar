@@ -19,36 +19,6 @@ import type {
 
 const OFFSET_FLATNESS = 0.1;
 
-/** Display name of each stage, shared by the panel and the menu commands. */
-export const PATH_MODIFIER_LABELS: Record<PathModifier["type"], string> = {
-  simplify: "Simplify",
-  flatten: "Flatten",
-  offset: "Offset",
-  outline: "Outline",
-  round: "Round corners",
-  zigzag: "Zig zag / Wave",
-  roughen: "Roughen",
-  smooth: "Smooth",
-  reverse: "Reverse",
-};
-
-export const DEFAULT_PATH_MODIFIER: Record<
-  PathModifier["type"],
-  () => PathModifier
-> = {
-  simplify: () => ({ type: "simplify", tolerance: 2.5 }),
-  flatten: () => ({ type: "flatten", tolerance: 0.5 }),
-  offset: () => ({ type: "offset", distance: 10, join: "round" }),
-  outline: () => ({ type: "outline", width: 10, cap: "round", join: "round" }),
-  round: () => ({ type: "round", radius: 8 }),
-  zigzag: () => ({ type: "zigzag", amplitude: 6, wavelength: 24, style: "corner" }),
-  roughen: () => ({
-    type: "roughen", size: 4, detail: 12, seed: 1, style: "corner",
-  }),
-  smooth: () => ({ type: "smooth" }),
-  reverse: () => ({ type: "reverse" }),
-};
-
 function clipperJoin(join: StrokeJoin): number {
   switch (join) {
     case "miter": return ClipperLib.JoinType.jtMiter;

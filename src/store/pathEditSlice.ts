@@ -5,11 +5,8 @@ import { toggleAnchorSmooth } from "@/model/path/path";
 import { setAnchorType } from "@/model/path/anchorType";
 import { cutPathAtNodes } from "@/model/path/cutPath";
 import { PATH_OP_LABEL, pathOpShape } from "@/model/path/pathOps";
-import {
-  applyPathModifiers,
-  DEFAULT_PATH_MODIFIER,
-  isModifiable,
-} from "@/model/path/pathModifiers";
+import { applyPathModifiers, isModifiable } from "@/model/path/pathModifiers";
+import { defaultPathModifier } from "@/model/path/modifierSpec";
 import { applyShapeModifiers } from "@/model/path/convertToPath";
 import { toggleBrushAnchorSmooth } from "@/model/brush/brushEdit";
 import {
@@ -319,7 +316,7 @@ export function createPathEditActions({ set, get, transact }: StoreCtx): PathEdi
         if (!isModifiable(shape)) continue;
         nodes[id] = {
           ...shape,
-          modifiers: [...(shape.modifiers ?? []), DEFAULT_PATH_MODIFIER[type]()],
+          modifiers: [...(shape.modifiers ?? []), defaultPathModifier(type)],
         };
         changed = true;
       }
