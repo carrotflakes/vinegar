@@ -38,6 +38,29 @@ function neighbourAfterDelete(dropped: Set<number>, remaining: number): number {
 }
 
 export function createPathEditActions({ set, get, transact }: StoreCtx): PathEditActions {
+  /**
+   * Freeze the first `count` stages of each node's stack into its base
+   * geometry. A modified primitive cannot hold the baked result, so it becomes
+   * a path (see applyShapeModifiers).
+   */
+  const bakeModifiers = (ids: string[], count = Number.POSITIVE_INFINITY) => {
+    const doc = get().doc;
+    const nodes = { ...doc.nodes };
+    let changed = false;
+    for (const id of ids) {
+      const shape = nodes[id];
+      if (!isModifiable(shape) || !shape.modifiers?.length) continue;
+      const baked = applyShapeModifiers(shape, doc, count);
+      if (baked === shape) continue;
+      nodes[id] = baked;
+      changed = true;
+    }
+    const next = { ...doc, nodes };
+    if (changed && acceptsScene(next)) {
+      transact(next, { label: "Apply path modifiers" });
+    }
+  };
+
   return {
     toggleNodeSmooth: (id, sub, index) => {
       const doc = get().doc; const shape = doc.nodes[id]; if (!isShape(shape)) return;
@@ -305,33 +328,8 @@ export function createPathEditActions({ set, get, transact }: StoreCtx): PathEdi
         { label: "Add path modifier" }
       );
     },
-    applyPathModifiersUpTo: (id: string, index: number) => {
-      const doc = get().doc;
-      const shape = doc.nodes[id];
-      if (!isModifiable(shape)) return;
-      const count = Math.min(index + 1, shape.modifiers?.length ?? 0);
-      if (count <= 0) return;
-      const next = {
-        ...doc,
-        nodes: { ...doc.nodes, [id]: applyShapeModifiers(shape, doc, count) },
-      };
-      if (acceptsScene(next)) transact(next, { label: "Apply path modifiers" });
-    },
-    applyPathModifiersSelected: () => {
-      const doc = get().doc;
-      const nodes = { ...doc.nodes };
-      let changed = false;
-      for (const id of selectionRoots(doc, get().selection)) {
-        const shape = nodes[id];
-        if (!isModifiable(shape) || !shape.modifiers?.length) continue;
-        // A modified primitive cannot hold the baked result; it becomes a path.
-        nodes[id] = applyShapeModifiers(shape, doc);
-        changed = true;
-      }
-      const next = { ...doc, nodes };
-      if (changed && acceptsScene(next)) {
-        transact(next, { label: "Apply path modifiers" });
-      }
-    },
+    applyPathModifiersUpTo: (id, index) => bakeModifiers([id], index + 1),
+    applyPathModifiersSelected: () =>
+      bakeModifiers(selectionRoots(get().doc, get().selection)),
   };
 }
