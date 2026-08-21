@@ -475,6 +475,11 @@ export interface PathSubpath {
   closed: boolean;
 }
 
+/** Whether a resampled contour keeps its ridges sharp or rounds them off. */
+export type DeformStyle = "corner" | "smooth";
+
+export const DEFORM_STYLES = ["corner", "smooth"] as const;
+
 interface PathModifierBase {
   /** `false` bypasses this stage without removing it from the stack. */
   enabled?: boolean;
@@ -486,6 +491,14 @@ export type PathModifier = PathModifierBase & (
   | { type: "offset"; distance: number; join: StrokeJoin }
   | { type: "outline"; width: number; cap: StrokeCap; join: StrokeJoin }
   | { type: "round"; radius: number }
+  | { type: "zigzag"; amplitude: number; wavelength: number; style: DeformStyle }
+  | {
+      type: "roughen";
+      size: number;
+      detail: number;
+      seed: number;
+      style: DeformStyle;
+    }
   | { type: "smooth" }
   | { type: "reverse" }
 );
@@ -496,6 +509,8 @@ export const PATH_MODIFIER_TYPES = [
   "offset",
   "outline",
   "round",
+  "zigzag",
+  "roughen",
   "smooth",
   "reverse",
 ] as const;

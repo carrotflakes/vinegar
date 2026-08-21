@@ -5,7 +5,9 @@
 // in sync with the keyboard bindings and command palette automatically.
 // ===========================================================================
 
+import { PATH_MODIFIER_TYPES } from "../model/types";
 import {
+  addModifierCommandId,
   commandEnabled,
   commandShortcut,
   getCommand,
@@ -112,15 +114,8 @@ export function selectionMenu(): MenuEntry[] {
   ]
     .filter(enabled)
     .map((id) => item(id));
-  const modifierItems: MenuEntry[] = [
-    "path.addSimplifyModifier",
-    "path.addFlattenModifier",
-    "path.addOffsetModifier",
-    "path.addOutlineModifier",
-    "path.addRoundModifier",
-    "path.addSmoothModifier",
-    "path.addReverseModifier",
-  ]
+  const modifierItems: MenuEntry[] = PATH_MODIFIER_TYPES
+    .map(addModifierCommandId)
     .filter(enabled)
     .map((id) => item(id));
   if (enabled("path.applyModifiers")) {

@@ -6,6 +6,7 @@ import {
   BLEND_MODES,
   EFFECT_TYPES,
   MARKER_SHAPES,
+  DEFORM_STYLES,
   PATH_MODIFIER_TYPES,
   STROKE_ALIGNMENTS,
   STROKE_CAPS,
@@ -193,6 +194,15 @@ const isPathModifier = (value: unknown): boolean => {
       STROKE_JOINS.includes(value.join as never);
   }
   if (value.type === "round") return isNumber(value.radius) && value.radius >= 0;
+  if (value.type === "zigzag") {
+    return isNumber(value.amplitude) && isNumber(value.wavelength) &&
+      value.wavelength > 0 && DEFORM_STYLES.includes(value.style as never);
+  }
+  if (value.type === "roughen") {
+    return isNumber(value.size) && value.size >= 0 &&
+      isNumber(value.detail) && value.detail > 0 && isNumber(value.seed) &&
+      DEFORM_STYLES.includes(value.style as never);
+  }
   return value.type === "smooth" || value.type === "reverse";
 };
 const isPathModifiersOrAbsent = (value: unknown): boolean =>

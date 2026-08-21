@@ -1,21 +1,15 @@
 import { LuArrowDownToLine, LuChevronDown, LuChevronUp, LuX } from "react-icons/lu";
-import type { PathModifier, PrimitiveShape } from "@/model/types";
+import {
+  PATH_MODIFIER_TYPES,
+  type DeformStyle,
+  type PathModifier,
+  type PrimitiveShape,
+} from "@/model/types";
+import { PATH_MODIFIER_LABELS } from "@/model/path/pathModifiers";
 import { useEditor } from "@/store/editorStore";
 import { modifierParamPath, remapModifierBindings } from "@/model/params";
 import BindableNumber from "@/ui/controls/BindableNumber";
 import Section from "../Section";
-
-function modifierLabel(type: PathModifier["type"]): string {
-  switch (type) {
-    case "simplify": return "Simplify";
-    case "flatten": return "Flatten";
-    case "offset": return "Offset";
-    case "outline": return "Outline";
-    case "round": return "Round corners";
-    case "smooth": return "Smooth";
-    case "reverse": return "Reverse";
-  }
-}
 
 export default function ModifiersSection({ shape }: { shape: PrimitiveShape }) {
   const setPathModifiers = useEditor((state) => state.setPathModifiers);
@@ -62,7 +56,8 @@ export default function ModifiersSection({ shape }: { shape: PrimitiveShape }) {
     label: string,
     value: number,
     onChange: (value: number) => void,
-    min?: number
+    min?: number,
+    step = 0.1
   ) => (
     <label className="geo-field">
       <span>{label}</span>
@@ -72,9 +67,27 @@ export default function ModifiersSection({ shape }: { shape: PrimitiveShape }) {
         label={label}
         value={Math.round(value * 100) / 100}
         min={min}
-        step={0.1}
+        step={step}
         onChange={onChange}
       />
+    </label>
+  );
+
+  const styleField = (
+    index: number,
+    value: DeformStyle,
+    apply: (style: DeformStyle) => PathModifier
+  ) => (
+    <label className="field-inline">
+      <span>Points</span>
+      <select
+        className="blend-select"
+        value={value}
+        onChange={(event) => replace(index, apply(event.target.value as DeformStyle))}
+      >
+        <option value="corner">Corner</option>
+        <option value="smooth">Smooth</option>
+      </select>
     </label>
   );
 
@@ -87,13 +100,13 @@ export default function ModifiersSection({ shape }: { shape: PrimitiveShape }) {
               type="checkbox"
               checked={modifier.enabled !== false}
               title={modifier.enabled === false ? "Enable" : "Disable"}
-              aria-label={`${modifierLabel(modifier.type)} enabled`}
+              aria-label={`${PATH_MODIFIER_LABELS[modifier.type]} enabled`}
               onChange={() => replace(index, {
                 ...modifier,
                 enabled: modifier.enabled === false,
               })}
             />
-            <span className="effect-name">{modifierLabel(modifier.type)}</span>
+            <span className="effect-name">{PATH_MODIFIER_LABELS[modifier.type]}</span>
             <button
               className="ghost-btn icon-btn"
               title="Move up"
@@ -113,7 +126,7 @@ export default function ModifiersSection({ shape }: { shape: PrimitiveShape }) {
             <button
               className="ghost-btn icon-btn"
               title="Apply up to here — bakes this stage and every stage above it"
-              aria-label={`Apply ${modifierLabel(modifier.type)} up to here`}
+              aria-label={`Apply ${PATH_MODIFIER_LABELS[modifier.type]} up to here`}
               onClick={() => applyPathModifiersUpTo(shape.id, index)}
             >
               <LuArrowDownToLine aria-hidden />
@@ -160,6 +173,37 @@ export default function ModifiersSection({ shape }: { shape: PrimitiveShape }) {
                   <option value="bevel">Bevel</option>
                 </select>
               </label>
+            </>
+          ) : modifier.type === "zigzag" ? (
+            <>
+              <div className="geometry-grid">
+                {numberField(index, "amplitude", "Size", modifier.amplitude, (value) =>
+                  replace(index, { ...modifier, amplitude: value })
+                )}
+                {numberField(index, "wavelength", "Spacing", modifier.wavelength,
+                  (value) => replace(index, {
+                    ...modifier,
+                    wavelength: Math.max(0.1, value),
+                  }), 0.1
+                )}
+              </div>
+              {styleField(index, modifier.style, (style) => ({ ...modifier, style }))}
+            </>
+          ) : modifier.type === "roughen" ? (
+            <>
+              <div className="geometry-grid">
+                {numberField(index, "size", "Size", modifier.size, (value) =>
+                  replace(index, { ...modifier, size: Math.max(0, value) }), 0
+                )}
+                {numberField(index, "detail", "Spacing", modifier.detail, (value) =>
+                  replace(index, { ...modifier, detail: Math.max(0.1, value) }), 0.1
+                )}
+                {numberField(index, "seed", "Seed", modifier.seed, (value) =>
+                  replace(index, { ...modifier, seed: Math.max(0, Math.round(value)) }),
+                  0, 1
+                )}
+              </div>
+              {styleField(index, modifier.style, (style) => ({ ...modifier, style }))}
             </>
           ) : modifier.type === "outline" ? (
             <>
@@ -213,13 +257,9 @@ export default function ModifiersSection({ shape }: { shape: PrimitiveShape }) {
           }}
         >
           <option value="">Add modifier…</option>
-          <option value="simplify">Simplify</option>
-          <option value="flatten">Flatten</option>
-          <option value="offset">Offset</option>
-          <option value="outline">Outline</option>
-          <option value="round">Round corners</option>
-          <option value="smooth">Smooth</option>
-          <option value="reverse">Reverse</option>
+          {PATH_MODIFIER_TYPES.map((type) => (
+            <option key={type} value={type}>{PATH_MODIFIER_LABELS[type]}</option>
+          ))}
         </select>
       </div>
       {modifiers.length > 0 && (

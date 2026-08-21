@@ -13,7 +13,11 @@ import {
   canMakeCompoundPathSelection,
 } from "@/model/path/compoundPath";
 import { canConvertShapeToPath } from "@/model/path/convertToPath";
-import { isModifiable } from "@/model/path/pathModifiers";
+import {
+  isModifiable,
+  PATH_MODIFIER_LABELS,
+} from "@/model/path/pathModifiers";
+import { PATH_MODIFIER_TYPES, type PathModifier } from "@/model/types";
 import {
   canConvertBrushToOutline,
   canConvertPathToBrush,
@@ -264,6 +268,27 @@ const TOOL_COMMANDS: Command[] = TOOL_DEFINITIONS.map(
   })
 );
 
+/** Command id that appends one modifier type to the selection's stack. */
+export const addModifierCommandId = (type: PathModifier["type"]): string =>
+  `path.addModifier.${type}`;
+
+/**
+ * One command per modifier type, generated from the model's list so a new
+ * stage never needs a registry entry of its own. They are hidden from the
+ * command palette — a row per stage would drown it — and surfaced by the
+ * Modifiers submenu and the properties panel instead.
+ */
+const ADD_MODIFIER_COMMANDS: Command[] = PATH_MODIFIER_TYPES.map(
+  (type): Command => ({
+    id: addModifierCommandId(type),
+    label: `Add ${PATH_MODIFIER_LABELS[type]} modifier`,
+    group: "Path",
+    hidden: true,
+    enabled: (s) => sel(s).canModify,
+    run: (s) => s.addPathModifierSelected(type),
+  })
+);
+
 /** The selected guide's id, if one is selected and actually actionable. */
 function selectedGuide(s: EditorState): string | null {
   const id = s.selectedGuideId;
@@ -486,55 +511,7 @@ export const COMMANDS: Command[] = [
     enabled: (s) => sel(s).canPathOp,
     run: (s) => s.pathOpSelected("simplify"),
   },
-  {
-    id: "path.addSimplifyModifier",
-    label: "Add Simplify modifier",
-    group: "Path",
-    enabled: (s) => sel(s).canModify,
-    run: (s) => s.addPathModifierSelected("simplify"),
-  },
-  {
-    id: "path.addFlattenModifier",
-    label: "Add Flatten modifier",
-    group: "Path",
-    enabled: (s) => sel(s).canModify,
-    run: (s) => s.addPathModifierSelected("flatten"),
-  },
-  {
-    id: "path.addOffsetModifier",
-    label: "Add Offset modifier",
-    group: "Path",
-    enabled: (s) => sel(s).canModify,
-    run: (s) => s.addPathModifierSelected("offset"),
-  },
-  {
-    id: "path.addOutlineModifier",
-    label: "Add Outline modifier",
-    group: "Path",
-    enabled: (s) => sel(s).canModify,
-    run: (s) => s.addPathModifierSelected("outline"),
-  },
-  {
-    id: "path.addRoundModifier",
-    label: "Add Round corners modifier",
-    group: "Path",
-    enabled: (s) => sel(s).canModify,
-    run: (s) => s.addPathModifierSelected("round"),
-  },
-  {
-    id: "path.addSmoothModifier",
-    label: "Add Smooth modifier",
-    group: "Path",
-    enabled: (s) => sel(s).canModify,
-    run: (s) => s.addPathModifierSelected("smooth"),
-  },
-  {
-    id: "path.addReverseModifier",
-    label: "Add Reverse modifier",
-    group: "Path",
-    enabled: (s) => sel(s).canModify,
-    run: (s) => s.addPathModifierSelected("reverse"),
-  },
+  ...ADD_MODIFIER_COMMANDS,
   {
     id: "path.applyModifiers",
     label: "Apply path modifiers",

@@ -8,6 +8,7 @@ let syncParamBindings;
 let paramUsageCounts;
 let remapModifierBindings;
 let readNumField;
+let writeNumField;
 let createEmptyDocument;
 let parseDocument;
 let serializeDocument;
@@ -15,7 +16,8 @@ let useEditor;
 
 before(async () => {
   server = await createServer({ server: { middlewareMode: true } });
-  ({ syncParamBindings, paramUsageCounts, remapModifierBindings, readNumField } =
+  ({ syncParamBindings, paramUsageCounts, remapModifierBindings, readNumField,
+    writeNumField } =
     await server.ssrLoadModule("/src/model/params.ts"));
   ({ createEmptyDocument } = await server.ssrLoadModule("/src/model/types.ts"));
   ({ parseDocument, serializeDocument } =
@@ -209,6 +211,26 @@ test("parameters and bindings round-trip through the file format", () => {
   assert.deepEqual(parsed.nodes["rect-1"].bindings, {
     strokeWidth: { paramId: "w", scale: 2 },
   });
+});
+
+test("bound modifier spacing stays inside the persisted model domain", () => {
+  const shape = rect({
+    modifiers: [
+      { type: "zigzag", amplitude: 2, wavelength: 8, style: "corner" },
+      { type: "roughen", size: 2, detail: 6, seed: 1, style: "corner" },
+    ],
+    bindings: {
+      "modifiers.0.wavelength": { paramId: "zero", scale: 1 },
+      "modifiers.1.detail": { paramId: "zero", scale: 1 },
+    },
+  });
+  const synced = syncParamBindings(docWith(shape, [param("zero", 0)]));
+  assert.equal(readNumField(synced.nodes[shape.id], "modifiers.0.wavelength"), 0.1);
+  assert.equal(readNumField(synced.nodes[shape.id], "modifiers.1.detail"), 0.1);
+  assert.doesNotThrow(() => parseDocument(serializeDocument(synced)));
+
+  const negative = writeNumField(shape, "modifiers.0.wavelength", -10);
+  assert.equal(readNumField(negative, "modifiers.0.wavelength"), 0.1);
 });
 
 test("a file without parameters still opens", () => {

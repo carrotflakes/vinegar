@@ -5,6 +5,7 @@ import { contours, intPath, SCALE, treeToPolys } from "./clipperPaths";
 import { applyPathOpSubpaths } from "./pathOps";
 import { roundedRectSubpath } from "../roundedRect";
 import { roundSubpaths } from "./roundCorners";
+import { roughenSubpaths, zigzagSubpaths } from "./deform";
 import type {
   LineShape,
   PathModifier,
@@ -18,6 +19,19 @@ import type {
 
 const OFFSET_FLATNESS = 0.1;
 
+/** Display name of each stage, shared by the panel and the menu commands. */
+export const PATH_MODIFIER_LABELS: Record<PathModifier["type"], string> = {
+  simplify: "Simplify",
+  flatten: "Flatten",
+  offset: "Offset",
+  outline: "Outline",
+  round: "Round corners",
+  zigzag: "Zig zag / Wave",
+  roughen: "Roughen",
+  smooth: "Smooth",
+  reverse: "Reverse",
+};
+
 export const DEFAULT_PATH_MODIFIER: Record<
   PathModifier["type"],
   () => PathModifier
@@ -27,6 +41,10 @@ export const DEFAULT_PATH_MODIFIER: Record<
   offset: () => ({ type: "offset", distance: 10, join: "round" }),
   outline: () => ({ type: "outline", width: 10, cap: "round", join: "round" }),
   round: () => ({ type: "round", radius: 8 }),
+  zigzag: () => ({ type: "zigzag", amplitude: 6, wavelength: 24, style: "corner" }),
+  roughen: () => ({
+    type: "roughen", size: 4, detail: 12, seed: 1, style: "corner",
+  }),
   smooth: () => ({ type: "smooth" }),
   reverse: () => ({ type: "reverse" }),
 };
@@ -138,6 +156,14 @@ function applyModifier(
       return outlineSubpaths(subpaths, modifier.width, modifier.cap, modifier.join);
     case "round":
       return roundSubpaths(subpaths, modifier.radius);
+    case "zigzag":
+      return zigzagSubpaths(
+        subpaths, modifier.amplitude, modifier.wavelength, modifier.style
+      );
+    case "roughen":
+      return roughenSubpaths(
+        subpaths, modifier.size, modifier.detail, modifier.seed, modifier.style
+      );
   }
 }
 

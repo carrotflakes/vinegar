@@ -1,7 +1,8 @@
 # Path modifiers
 
 Status: **implemented** (2026-08-02); extended to `rect`/`ellipse`/`line`
-(2026-08-06); partial bake and the Round corners stage (2026-08-22, v38).
+(2026-08-06); partial bake, Round corners, Zig zag / Wave and Roughen
+(2026-08-22, v38 — one bump for the whole batch).
 File version: **v33** (additive shape field, but Vinegar's strict
 current-only file policy requires a version bump; absent `modifiers` still
 means no change). Related: extends the generator concept
@@ -58,6 +59,9 @@ type Modifier =
   | { type: "outline"; width: number; cap: "butt" | "round" | "square";
       join: "miter" | "round" | "bevel" }
   | { type: "round"; radius: number }
+  | { type: "zigzag"; amplitude: number; wavelength: number; style: DeformStyle }
+  | { type: "roughen"; size: number; detail: number; seed: number;
+      style: DeformStyle }
   | { type: "smooth" }
   | { type: "reverse" };
 // each modifier optionally: { enabled?: boolean } to toggle without removing
@@ -156,10 +160,14 @@ top" model, and mirrors how `effects` already leaves `subpaths` untouched.
   toggle, per-modifier param fields. Editing a param is a transient preview
   (drag) → one transact on release, reusing the `clearTransient` pattern the
   drag-based edits already use, so tolerance is confirmed live.
-- **Add a modifier** via the registry commands already added
-  (`path.simplify`, …) — but as an "add modifier" variant (group "Path"),
-  surfaced in the selection context menu + command palette. The existing
-  one-shot `pathOpSelected` commands remain as **Apply once (bake)**.
+- **Add a modifier** from the panel's picker or the selection context menu's
+  Path ▸ Modifiers submenu. Both read `PATH_MODIFIER_TYPES` and
+  `PATH_MODIFIER_LABELS`, and the commands behind the menu
+  (`path.addModifier.<type>`) are **generated from that same list** in
+  `commands/registry.ts` — a new stage type needs no registry or menu entry.
+  They are `hidden`, so the command palette does not carry a near-identical row
+  per stage; the panel and the submenu are the surfaces that offer them. The
+  existing one-shot `pathOpSelected` commands remain as **Apply once (bake)**.
 - **Apply** (mirroring the generator's "Detach") bakes
   the resolved geometry into `subpaths` and clears `modifiers`
   (`convertToPath`-style); *Remove* drops a single modifier. A rect/ellipse/
@@ -205,9 +213,21 @@ top" model, and mirrors how `effects` already leaves `subpaths` untouched.
   four; the primitive keeps its own editable fields.
 - `resolvedSubpaths()` with identity-based memoization routes rendering,
   hit-testing, bounds, snapping, geometry operations, clipping, and export.
-- Simplify, Flatten, Smooth, Reverse, Offset, Outline and Round corners are
-  stackable and toggleable. Outline turns closed contours into centered bands
+- Simplify, Flatten, Smooth, Reverse, Offset, Outline, Round corners,
+  Zig zag / Wave and Roughen are stackable and toggleable. Outline turns closed contours into centered bands
   and open contours into filled strokes with configurable width, cap, and join.
+- **Zig zag / Wave** and **Roughen** (`model/path/deform.ts`, v38) both
+  *resample* the contour at even arc-length steps and displace the samples:
+  zig zag alternates by `amplitude` along the normal every half `wavelength`,
+  roughen pushes each sample up to `size` in a direction drawn from a seeded
+  PRNG. The step is adjusted so a whole number of them spans the contour —
+  otherwise a closed wave would not meet itself at the seam — and zig zag
+  additionally forces an even count so the alternation closes up. A `style` of
+  `smooth` rebuilds the points with Catmull-Rom handles, which turns the zig zag
+  into a wave and roughen into an organic wobble. An open contour keeps its two
+  endpoints. `seed` is persisted, so a document always paints the same wobble
+  and nudging `size` shakes the same points instead of reshuffling them; it is
+  a plain bindable number like the others.
 - **Round corners** (`model/path/roundCorners.ts`, v38) is the path-wide
   generalization of a rect's `cornerRadius`: every cusp gets a circular fillet
   of the given radius, tangent to both legs (a cubic with the standard

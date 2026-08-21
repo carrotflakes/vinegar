@@ -32,12 +32,20 @@ const MODIFIER_NUM_KEYS: Record<PathModifier["type"], readonly string[]> = {
   offset: ["distance"],
   outline: ["width"],
   round: ["radius"],
+  zigzag: ["amplitude", "wavelength"],
+  roughen: ["size", "detail", "seed"],
   smooth: [],
   reverse: [],
 };
 
 /** Field paths whose value may never go negative (the model rejects it). */
-const NON_NEGATIVE = new Set(["strokeWidth", "tolerance", "width", "radius"]);
+const NON_NEGATIVE = new Set([
+  "strokeWidth", "tolerance", "width", "radius", "wavelength", "size", "detail",
+  "seed",
+]);
+
+/** Positive spacing fields use the same floor as their direct-edit controls. */
+const POSITIVE_SPACING = new Set(["wavelength", "detail"]);
 
 export const STROKE_WIDTH_PATH = "strokeWidth";
 export const generatorArgPath = (key: string): string => `generator.args.${key}`;
@@ -120,7 +128,9 @@ export function writeNumField(
   if (!shape || !modifier || !MODIFIER_NUM_KEYS[modifier.type].includes(parsed.key)) {
     return null;
   }
-  const clamped = NON_NEGATIVE.has(parsed.key) ? Math.max(0, value) : value;
+  const clamped = POSITIVE_SPACING.has(parsed.key)
+    ? Math.max(0.1, value)
+    : NON_NEGATIVE.has(parsed.key) ? Math.max(0, value) : value;
   const modifiers = shape.modifiers!.map((entry, i) =>
     i === parsed.index ? ({ ...entry, [parsed.key]: clamped } as PathModifier) : entry
   );

@@ -20,6 +20,8 @@ let flattenSubpath;
 let flattenSubpathAdaptive;
 let subpathSegments;
 let selectionMenu;
+let COMMANDS;
+let PATH_MODIFIER_TYPES;
 let useEditor;
 
 before(async () => {
@@ -41,6 +43,8 @@ before(async () => {
   ({ cubicPoint, flattenSubpath, flattenSubpathAdaptive, subpathSegments } =
     await server.ssrLoadModule("/src/model/path/path.ts"));
   ({ selectionMenu } = await server.ssrLoadModule("/src/ui/menus.ts"));
+  ({ COMMANDS } = await server.ssrLoadModule("/src/commands/registry.ts"));
+  ({ PATH_MODIFIER_TYPES } = await server.ssrLoadModule("/src/model/types.ts"));
   ({ useEditor } = await server.ssrLoadModule("/src/store/editorStore.ts"));
 });
 
@@ -425,6 +429,99 @@ test("a zero radius is a no-op", () => {
   assert.deepEqual(resolvedSubpaths(shape), shape.subpaths);
 });
 
+test("zigzag alternates around the contour and keeps loose ends", () => {
+  const open = {
+    closed: false,
+    anchors: [
+      { p: { x: 0, y: 0 }, hIn: null, hOut: null },
+      { p: { x: 20, y: 0 }, hIn: null, hOut: null },
+    ],
+  };
+  const shape = path([{ type: "zigzag", amplitude: 2, wavelength: 8, style: "corner" }],
+    { subpaths: [open] });
+  const points = resolvedSubpaths(shape)[0].anchors.map((anchor) => anchor.p);
+  // Both endpoints survive; every ridge in between alternates by the amplitude.
+  assert.deepEqual(points[0], { x: 0, y: 0 });
+  assert.deepEqual(points[points.length - 1], { x: 20, y: 0 });
+  const middle = points.slice(1, -1);
+  assert.ok(middle.length >= 2);
+  middle.forEach((point, i) => {
+    assert.ok(Math.abs(Math.abs(point.y) - 2) < 1e-9);
+    if (i > 0) assert.notEqual(Math.sign(point.y), Math.sign(middle[i - 1].y));
+  });
+  // Ridges are evenly spaced along the contour.
+  const spacing = middle[1].x - middle[0].x;
+  middle.forEach((point, i) => {
+    if (i > 0) assert.ok(Math.abs(point.x - middle[i - 1].x - spacing) < 1e-9);
+  });
+});
+
+test("a closed zigzag meets itself and the smooth style rounds the ridges", () => {
+  const corners = resolvedSubpaths(
+    path([{ type: "zigzag", amplitude: 2, wavelength: 10, style: "corner" }])
+  )[0];
+  // The alternation has to close up, so the sample count stays even.
+  assert.equal(corners.closed, true);
+  assert.equal(corners.anchors.length % 2, 0);
+  assert.ok(corners.anchors.every((anchor) => !anchor.hIn && !anchor.hOut));
+
+  const waves = resolvedSubpaths(
+    path([{ type: "zigzag", amplitude: 2, wavelength: 10, style: "smooth" }])
+  )[0];
+  assert.equal(waves.anchors.length, corners.anchors.length);
+  assert.deepEqual(
+    waves.anchors.map((anchor) => anchor.p),
+    corners.anchors.map((anchor) => anchor.p)
+  );
+  assert.ok(waves.anchors.every((anchor) => anchor.hIn && anchor.hOut));
+});
+
+test("roughen is seeded, so the same document always wobbles the same way", () => {
+  const roughen = (seed) => resolvedSubpaths(
+    path([{ type: "roughen", size: 3, detail: 5, seed, style: "corner" }])
+  );
+  assert.deepEqual(roughen(1), roughen(1));
+  assert.notDeepEqual(roughen(1), roughen(2));
+
+  // Every point stays within `size` of the contour it was sampled from.
+  const base = resolvedSubpaths(path([]))[0];
+  for (const anchor of roughen(1)[0].anchors) {
+    const distance = Math.min(...base.anchors.map((corner, i) => {
+      const next = base.anchors[(i + 1) % base.anchors.length];
+      return distanceToSegment(anchor.p, corner.p, next.p);
+    }));
+    assert.ok(distance <= 3 + 1e-9, `${JSON.stringify(anchor.p)} is ${distance} away`);
+  }
+});
+
+test("roughen changes size without reshuffling which points moved", () => {
+  const at = (size) => resolvedSubpaths(
+    path([{ type: "roughen", size, detail: 5, seed: 7, style: "corner" }])
+  )[0].anchors.map((anchor) => anchor.p);
+  const small = at(1);
+  const large = at(4);
+  assert.equal(small.length, large.length);
+  // Same seed, same directions: each point moved four times further along the
+  // same ray, so undoing the scale puts it back on the original contour.
+  const base = resolvedSubpaths(path([]))[0];
+  small.forEach((point, i) => {
+    const origin = {
+      x: (4 * point.x - large[i].x) / 3,
+      y: (4 * point.y - large[i].y) / 3,
+    };
+    const distance = Math.min(...base.anchors.map((corner, j) => {
+      const next = base.anchors[(j + 1) % base.anchors.length];
+      return distanceToSegment(origin, corner.p, next.p);
+    }));
+    assert.ok(distance < 1e-9, `sample ${i} drifted by ${distance}`);
+  });
+  assert.deepEqual(
+    resolvedSubpaths(path([{ type: "roughen", size: 0, detail: 5, seed: 7, style: "corner" }])),
+    path().subpaths,
+    "a zero size is a no-op"
+  );
+});
+
 test("a partial bake freezes the prefix and leaves the later stages live", () => {
   const shape = path([
     { type: "offset", distance: 5, join: "miter" },
@@ -511,6 +608,8 @@ test("selection context menu groups modifier commands in a submenu", () => {
       "Add Offset modifier",
       "Add Outline modifier",
       "Add Round corners modifier",
+      "Add Zig zag / Wave modifier",
+      "Add Roughen modifier",
       "Add Smooth modifier",
       "Add Reverse modifier",
     ]
@@ -519,6 +618,16 @@ test("selection context menu groups modifier commands in a submenu", () => {
     pathMenu.submenu.some(
       (entry) => entry !== "separator" && entry.label === "Add Simplify modifier"
     ),
+    false
+  );
+  // The stages are generated from one list and stay out of the palette.
+  assert.equal(
+    COMMANDS.filter((command) => command.id.startsWith("path.addModifier.")).length,
+    PATH_MODIFIER_TYPES.length
+  );
+  assert.equal(
+    COMMANDS.some((command) =>
+      command.id.startsWith("path.addModifier.") && !command.hidden),
     false
   );
 });
