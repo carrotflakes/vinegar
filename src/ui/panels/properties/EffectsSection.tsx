@@ -1,4 +1,3 @@
-import { LuChevronDown, LuChevronUp, LuX } from "react-icons/lu";
 import { defaultEffect, paintsGeometryEffects } from "../../../model/effects";
 import { shapeBounds } from "@/model/geometry/bounds";
 import { isShape } from "@/model/scene";
@@ -17,6 +16,7 @@ import ColorInput from "@/ui/controls/ColorInput";
 import ScrubbableNumber from "@/ui/controls/ScrubbableNumber";
 import { BlendModeField } from "./StyleFields";
 import Section from "../Section";
+import StackCard from "./StackCard";
 
 function effectLabel(type: Effect["type"]): string {
   if (type === "blur") return "Blur";
@@ -30,7 +30,7 @@ function effectLabel(type: Effect["type"]): string {
 /** Shown on a fill/stroke effect that has no outline to paint. */
 function GeometryNote() {
   return (
-    <p className="effect-note">
+    <p className="stack-note">
       No effect here — Fill and Stroke paint the node's own outline, which
       groups, frames, images and live text do not have.
     </p>
@@ -96,35 +96,14 @@ export default function EffectsSection({ node }: { node: SceneNode }) {
   return (
     <Section id="properties.effects" title="Effects">
       {effects.map((effect, index) => (
-        <div className="effect-card" key={effect.id}>
-          <div className="field-row effect-head">
-            <span className="effect-name">
-              {effectLabel(effect.type)}
-            </span>
-            <button
-              className="ghost-btn icon-btn"
-              title="Move up"
-              disabled={index === 0}
-              onClick={() => move(index, -1)}
-            >
-              <LuChevronUp aria-hidden />
-            </button>
-            <button
-              className="ghost-btn icon-btn"
-              title="Move down"
-              disabled={index === effects.length - 1}
-              onClick={() => move(index, 1)}
-            >
-              <LuChevronDown aria-hidden />
-            </button>
-            <button
-              className="ghost-btn icon-btn danger"
-              title="Remove"
-              onClick={() => remove(index)}
-            >
-              <LuX aria-hidden />
-            </button>
-          </div>
+        <StackCard
+          key={effect.id}
+          name={effectLabel(effect.type)}
+          index={index}
+          count={effects.length}
+          onMove={(direction) => move(index, direction)}
+          onRemove={() => remove(index)}
+        >
           {effect.type === "blur" ? (
             <div className="geometry-grid">
               {numField(
@@ -328,7 +307,7 @@ export default function EffectsSection({ node }: { node: SceneNode }) {
               </div>
             </>
           )}
-        </div>
+        </StackCard>
       ))}
       <div className="field">
         <select

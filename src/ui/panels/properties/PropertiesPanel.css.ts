@@ -150,7 +150,7 @@ globalStyle(".readout", {
   color: vars.muted,
 });
 
-globalStyle(".effect-card", {
+globalStyle(".stack-card", {
   // Filled recessed card instead of an outlined box: reads as a group without
   // the heavy border, and the section gap handles spacing between cards.
   background: vars.bg,
@@ -161,24 +161,24 @@ globalStyle(".effect-card", {
   gap: "6px",
 });
 
-globalStyle(".effect-head", {
+globalStyle(".stack-head", {
   alignItems: "center",
 });
 
-globalStyle(".effect-name", {
+globalStyle(".stack-name", {
   flex: "1 1 auto",
   fontSize: "12px",
   fontWeight: "600",
 });
 
-globalStyle(".effect-note", {
+globalStyle(".stack-note", {
   margin: 0,
   fontSize: "11.5px",
   lineHeight: 1.4,
   color: vars.muted,
 });
 
-globalStyle(".effect-card .geo-field > span", {
+globalStyle(".stack-card .geo-field > span", {
   width: "auto",
   minWidth: "12px",
 });

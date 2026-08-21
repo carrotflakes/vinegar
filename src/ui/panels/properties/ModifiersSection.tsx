@@ -1,4 +1,4 @@
-import { LuArrowDownToLine, LuChevronDown, LuChevronUp, LuX } from "react-icons/lu";
+import { LuArrowDownToLine } from "react-icons/lu";
 import {
   PATH_MODIFIER_TYPES,
   type DeformStyle,
@@ -10,6 +10,7 @@ import { useEditor } from "@/store/editorStore";
 import { modifierParamPath, remapModifierBindings } from "@/model/params";
 import BindableNumber from "@/ui/controls/BindableNumber";
 import Section from "../Section";
+import StackCard from "./StackCard";
 
 export default function ModifiersSection({ shape }: { shape: PrimitiveShape }) {
   const setPathModifiers = useEditor((state) => state.setPathModifiers);
@@ -94,35 +95,21 @@ export default function ModifiersSection({ shape }: { shape: PrimitiveShape }) {
   return (
     <Section id="properties.modifiers" title="Modifiers">
       {modifiers.map((modifier, index) => (
-        <div className="effect-card" key={index}>
-          <div className="field-row effect-head">
-            <input
-              type="checkbox"
-              checked={modifier.enabled !== false}
-              title={modifier.enabled === false ? "Enable" : "Disable"}
-              aria-label={`${PATH_MODIFIER_LABELS[modifier.type]} enabled`}
-              onChange={() => replace(index, {
-                ...modifier,
-                enabled: modifier.enabled === false,
-              })}
-            />
-            <span className="effect-name">{PATH_MODIFIER_LABELS[modifier.type]}</span>
-            <button
-              className="ghost-btn icon-btn"
-              title="Move up"
-              disabled={index === 0}
-              onClick={() => move(index, -1)}
-            >
-              <LuChevronUp aria-hidden />
-            </button>
-            <button
-              className="ghost-btn icon-btn"
-              title="Move down"
-              disabled={index === modifiers.length - 1}
-              onClick={() => move(index, 1)}
-            >
-              <LuChevronDown aria-hidden />
-            </button>
+        <StackCard
+          key={index}
+          name={PATH_MODIFIER_LABELS[modifier.type]}
+          index={index}
+          count={modifiers.length}
+          onMove={(direction) => move(index, direction)}
+          onRemove={() => remove(index)}
+          enabled={{
+            value: modifier.enabled !== false,
+            onChange: () => replace(index, {
+              ...modifier,
+              enabled: modifier.enabled === false,
+            }),
+          }}
+          actions={
             <button
               className="ghost-btn icon-btn"
               title="Apply up to here — bakes this stage and every stage above it"
@@ -131,14 +118,8 @@ export default function ModifiersSection({ shape }: { shape: PrimitiveShape }) {
             >
               <LuArrowDownToLine aria-hidden />
             </button>
-            <button
-              className="ghost-btn icon-btn danger"
-              title="Remove"
-              onClick={() => remove(index)}
-            >
-              <LuX aria-hidden />
-            </button>
-          </div>
+          }
+        >
           {modifier.type === "simplify" || modifier.type === "flatten" ? (
             <div className="geometry-grid">
               {numberField(index, "tolerance", "Tolerance", modifier.tolerance, (value) =>
@@ -244,7 +225,7 @@ export default function ModifiersSection({ shape }: { shape: PrimitiveShape }) {
               </label>
             </>
           ) : null}
-        </div>
+        </StackCard>
       ))}
       <div className="field">
         <select
