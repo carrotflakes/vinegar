@@ -204,6 +204,13 @@ test("the bypass flag round-trips, and a non-boolean one is rejected", () => {
   bad.nodes.rect = rect({ effects: [strokeEffect({ enabled: "no" })] });
   bad.rootIds = ["rect"];
   assert.throws(() => parseDocument(serializeDocument(bad)));
+
+  // Stored explicitly, like blendMode: an absent flag is not "enabled".
+  const absent = createEmptyDocument();
+  const { enabled: _dropped, ...noFlag } = strokeEffect();
+  absent.nodes.rect = rect({ effects: [noFlag] });
+  absent.rootIds = ["rect"];
+  assert.throws(() => parseDocument(serializeDocument(absent)));
 });
 
 test("geometry effects apply only to shapes with an outline", () => {

@@ -11480,6 +11480,7 @@
         "modifiers": [
           {
             "type": "simplify",
+            "enabled": true,
             "tolerance": 6
           }
         ]
@@ -11786,6 +11787,7 @@
         "modifiers": [
           {
             "type": "flatten",
+            "enabled": true,
             "tolerance": 12
           }
         ]
@@ -12091,7 +12093,8 @@
         "fillRule": "nonzero",
         "modifiers": [
           {
-            "type": "smooth"
+            "type": "smooth",
+            "enabled": true
           }
         ]
       },
@@ -12401,6 +12404,7 @@
         "modifiers": [
           {
             "type": "offset",
+            "enabled": true,
             "distance": 14,
             "join": "round"
           }
@@ -12712,6 +12716,7 @@
         "modifiers": [
           {
             "type": "outline",
+            "enabled": true,
             "width": 16,
             "cap": "round",
             "join": "round"
@@ -13019,7 +13024,8 @@
         "fillRule": "nonzero",
         "modifiers": [
           {
-            "type": "reverse"
+            "type": "reverse",
+            "enabled": true
           }
         ]
       },
@@ -13328,19 +13334,21 @@
         "fillRule": "nonzero",
         "modifiers": [
           {
-            "type": "smooth"
+            "type": "smooth",
+            "enabled": true
           },
           {
             "type": "offset",
+            "enabled": true,
             "distance": 8,
             "join": "round"
           },
           {
             "type": "outline",
+            "enabled": false,
             "width": 20,
             "cap": "butt",
-            "join": "miter",
-            "enabled": false
+            "join": "miter"
           }
         ]
       },

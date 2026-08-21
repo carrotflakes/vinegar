@@ -2,7 +2,8 @@
 
 Status: **implemented** (2026-08-02); extended to `rect`/`ellipse`/`line`
 (2026-08-06); partial bake, Round corners, Zig zag / Wave and Roughen
-(2026-08-22, v38 — one bump for the whole batch).
+(2026-08-22, v38 — one bump for the whole batch); `enabled` made a required,
+explicitly stored field (2026-08-22, v39).
 File version: **v33** (additive shape field, but Vinegar's strict
 current-only file policy requires a version bump; absent `modifiers` still
 means no change). Related: extends the generator concept
@@ -64,7 +65,8 @@ type Modifier =
       style: DeformStyle }
   | { type: "smooth" }
   | { type: "reverse" };
-// each modifier optionally: { enabled?: boolean } to toggle without removing
+// every modifier also carries: { enabled: boolean } — false bypasses the stage
+//   without removing it (required and stored explicitly since v39)
 ```
 
 - A shape's own fields stay the **base** geometry — a path's `subpaths` (what

@@ -36,11 +36,11 @@ moves into the stack.
 
 Every effect carries `enabled`; `false` bypasses it without removing it from the
 stack, so its parameters survive an "off, look, on again". The field is
-**required and stored explicitly**, like `blendMode: "normal"` and unlike a path
-modifier's optional `enabled?` — effects were versioned into v39 together, so
-there is no absent case to define a default for, and load rejects a stack
-missing it. The card control is the shared `StackCard`, same as a modifier's
-([path-modifiers.md](path-modifiers.md)).
+**required and stored explicitly**, like `blendMode: "normal"`: there is no
+absent case to define a default for, and load rejects a stack missing it. A path
+modifier's `enabled` was made required in the same v39 bump, so the two stacks
+agree field for field ([path-modifiers.md](path-modifiers.md)) and share the
+`StackCard` control.
 
 `activeEffects(effects)` drops the bypassed entries and is what every reader
 that *applies* the stack goes through — directly (canvas `paintNode`, SVG

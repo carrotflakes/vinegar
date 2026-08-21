@@ -120,10 +120,10 @@ export default function ModifiersSection({ shape }: { shape: PrimitiveShape }) {
           onMove={(direction) => move(index, direction)}
           onRemove={() => remove(index)}
           enabled={{
-            value: modifier.enabled !== false,
+            value: modifier.enabled,
             onChange: () => replace(index, {
               ...modifier,
-              enabled: modifier.enabled === false,
+              enabled: !modifier.enabled,
             }),
           }}
           actions={

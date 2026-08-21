@@ -129,9 +129,9 @@ const svgGeometry = (shape) =>
   exportSvg(docOf(shape)).match(/ d="[^"]*"/g) ?? [];
 
 const STACKS = [
-  [{ type: "offset", distance: 6, join: "round" }],
-  [{ type: "outline", width: 5, cap: "square", join: "miter" }],
-  [{ type: "reverse" }, { type: "flatten", tolerance: 0.5 }],
+  [{ type: "offset", enabled: true, distance: 6, join: "round" }],
+  [{ type: "outline", enabled: true, width: 5, cap: "square", join: "miter" }],
+  [{ type: "reverse", enabled: true }, { type: "flatten", enabled: true, tolerance: 0.5 }],
 ];
 
 const PRIMITIVES = {

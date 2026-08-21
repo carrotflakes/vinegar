@@ -123,7 +123,7 @@ export const PATH_MODIFIER_LABELS = Object.fromEntries(
 
 /** A fresh stage of the given type, with every field at its default. */
 export function defaultPathModifier(type: PathModifier["type"]): PathModifier {
-  const modifier: Record<string, unknown> = { type };
+  const modifier: Record<string, unknown> = { type, enabled: true };
   for (const field of PATH_MODIFIER_SPECS[type].fields) {
     modifier[field.key] = field.default;
   }
@@ -154,7 +154,7 @@ export function isValidPathModifier(value: unknown): boolean {
   if (typeof value !== "object" || value === null) return false;
   const entry = value as Record<string, unknown>;
   if (!PATH_MODIFIER_TYPES.includes(entry.type as never)) return false;
-  if (entry.enabled !== undefined && typeof entry.enabled !== "boolean") return false;
+  if (typeof entry.enabled !== "boolean") return false;
   return PATH_MODIFIER_SPECS[entry.type as PathModifier["type"]].fields.every(
     (field) => {
       const held = entry[field.key];

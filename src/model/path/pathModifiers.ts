@@ -175,7 +175,7 @@ export function isModifiable(
 /** Whether the stack holds at least one stage that is not bypassed. */
 export function hasActiveModifiers(node: SceneNode | null | undefined): boolean {
   return isModifiable(node) &&
-    !!node.modifiers?.some((modifier) => modifier.enabled !== false);
+    !!node.modifiers?.some((modifier) => modifier.enabled);
 }
 
 const resolvedCache = new WeakMap<PrimitiveShape, PathSubpath[]>();
@@ -183,7 +183,7 @@ const resolvedCache = new WeakMap<PrimitiveShape, PathSubpath[]>();
 /** Evaluate a shape's immutable base geometry through its modifier stack. */
 export function resolvedSubpaths(shape: PrimitiveShape): PathSubpath[] {
   const modifiers = shape.modifiers ?? [];
-  if (!modifiers.some((modifier) => modifier.enabled !== false)) {
+  if (!modifiers.some((modifier) => modifier.enabled)) {
     return baseSubpaths(shape);
   }
   const cached = resolvedCache.get(shape);
@@ -191,7 +191,7 @@ export function resolvedSubpaths(shape: PrimitiveShape): PathSubpath[] {
   const fillRule = shape.type === "path" ? shape.fillRule : "nonzero";
   let result = baseSubpaths(shape);
   for (const modifier of modifiers) {
-    if (modifier.enabled === false) continue;
+    if (!modifier.enabled) continue;
     result = applyModifier(result, modifier, fillRule);
   }
   resolvedCache.set(shape, result);
@@ -226,7 +226,7 @@ export function prefixSubpaths(
   const fillRule = shape.type === "path" ? shape.fillRule : "nonzero";
   let result = baseSubpaths(shape);
   for (const modifier of modifiers.slice(0, Math.max(0, count))) {
-    if (modifier.enabled === false) continue;
+    if (!modifier.enabled) continue;
     result = applyModifier(result, modifier, fillRule);
   }
   return result;

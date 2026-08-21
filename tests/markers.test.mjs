@@ -166,7 +166,7 @@ test("every open subpath of a multi-subpath path is marked", () => {
 test("markers follow the modifier stack", () => {
   const shape = pathShape([open([{ x: 0, y: 0 }, { x: 100, y: 0 }])], {
     markerEnd: defaultMarker("triangle"),
-    modifiers: [{ type: "reverse" }],
+    modifiers: [{ type: "reverse", enabled: true }],
   });
   // Reversing swaps which end is last, so the end marker moves to the origin.
   const [tip] = markerContours(shape)[0].subpath.anchors.map((anchor) => anchor.p);

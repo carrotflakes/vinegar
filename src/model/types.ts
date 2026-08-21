@@ -482,7 +482,7 @@ export type DeformStyle = "corner" | "smooth";
 
 interface PathModifierBase {
   /** `false` bypasses this stage without removing it from the stack. */
-  enabled?: boolean;
+  enabled: boolean;
 }
 
 export type PathModifier = PathModifierBase & (

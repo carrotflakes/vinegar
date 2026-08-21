@@ -185,7 +185,7 @@ test("readNumField addresses each bindable sink and nothing else", () => {
   const shape = rect({
     strokeWidth: 3,
     generator: { scriptId: "star", args: { radius: 80 } },
-    modifiers: [{ type: "offset", distance: 12, join: "round" }],
+    modifiers: [{ type: "offset", enabled: true, distance: 12, join: "round" }],
     type: "path",
     subpaths: [],
     fillRule: "nonzero",
@@ -216,8 +216,8 @@ test("parameters and bindings round-trip through the file format", () => {
 test("bound modifier spacing stays inside the persisted model domain", () => {
   const shape = rect({
     modifiers: [
-      { type: "zigzag", amplitude: 2, wavelength: 8, style: "corner" },
-      { type: "roughen", size: 2, detail: 6, seed: 1, style: "corner" },
+      { type: "zigzag", enabled: true, amplitude: 2, wavelength: 8, style: "corner" },
+      { type: "roughen", enabled: true, size: 2, detail: 6, seed: 1, style: "corner" },
     ],
     bindings: {
       "modifiers.0.wavelength": { paramId: "zero", scale: 1 },

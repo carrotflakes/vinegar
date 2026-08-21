@@ -111,6 +111,8 @@ test("the field table is the file schema", () => {
   }
   assert.equal(isValidPathModifier({ type: "nope" }), false);
   assert.equal(isValidPathModifier({ type: "smooth", enabled: "yes" }), false);
+  // `enabled` is stored explicitly, like every other field in the table.
+  assert.equal(isValidPathModifier({ type: "smooth" }), false);
 });
 
 test("bindings reach every number field and respect its floor", () => {

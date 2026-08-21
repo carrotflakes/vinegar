@@ -115,7 +115,7 @@ function distanceToSegment(point, start, end) {
 test("disabled modifiers are bypassed and enabled stages run in order", () => {
   const shape = path([
     { type: "reverse", enabled: false },
-    { type: "reverse" },
+    { type: "reverse", enabled: true },
   ]);
   const resolved = resolvedSubpaths(shape);
   assert.deepEqual(resolved[0].anchors.map((anchor) => anchor.p), [
@@ -128,7 +128,7 @@ test("disabled modifiers are bypassed and enabled stages run in order", () => {
 });
 
 test("resolved geometry is cached by immutable path identity", () => {
-  const shape = path([{ type: "reverse" }]);
+  const shape = path([{ type: "reverse", enabled: true }]);
   assert.strictEqual(resolvedSubpaths(shape), resolvedSubpaths(shape));
   assert.notStrictEqual(
     resolvedSubpaths({ ...shape }),
@@ -137,7 +137,7 @@ test("resolved geometry is cached by immutable path identity", () => {
 });
 
 test("offset changes downstream bounds without overwriting base geometry", () => {
-  const shape = path([{ type: "offset", distance: 5, join: "miter" }]);
+  const shape = path([{ type: "offset", enabled: true, distance: 5, join: "miter" }]);
   const before = structuredClone(shape.subpaths);
   assert.deepEqual(shapeBounds(shape), { x: -5, y: -5, width: 30, height: 20 });
   assert.deepEqual(shape.subpaths, before);
@@ -170,7 +170,7 @@ test("adaptive flattening meets its error target on a large cubic", () => {
 
 test("evenodd offset recognizes a same-direction nested contour as a hole", () => {
   const shape = path(
-    [{ type: "offset", distance: 5, join: "miter" }],
+    [{ type: "offset", enabled: true, distance: 5, join: "miter" }],
     { fillRule: "evenodd", subpaths: [ring(0, 0, 100, 100), ring(30, 30, 40, 40)] }
   );
   const resolved = resolvedSubpaths(shape);
@@ -182,7 +182,7 @@ test("evenodd offset recognizes a same-direction nested contour as a hole", () =
 
 test("nonzero offset removes a redundant same-direction inner contour", () => {
   const shape = path(
-    [{ type: "offset", distance: 5, join: "miter" }],
+    [{ type: "offset", enabled: true, distance: 5, join: "miter" }],
     { fillRule: "nonzero", subpaths: [ring(0, 0, 100, 100), ring(30, 30, 40, 40)] }
   );
   const resolved = resolvedSubpaths(shape);
@@ -192,7 +192,7 @@ test("nonzero offset removes a redundant same-direction inner contour", () => {
 
 test("negative offset shrinks the outer contour and expands an evenodd hole", () => {
   const shape = path(
-    [{ type: "offset", distance: -5, join: "miter" }],
+    [{ type: "offset", enabled: true, distance: -5, join: "miter" }],
     { fillRule: "evenodd", subpaths: [ring(0, 0, 100, 100), ring(30, 30, 40, 40)] }
   );
   const resolved = resolvedSubpaths(shape);
@@ -204,7 +204,7 @@ test("negative offset shrinks the outer contour and expands an evenodd hole", ()
 
 test("offset preserves separate contours in one path", () => {
   const shape = path(
-    [{ type: "offset", distance: 2, join: "miter" }],
+    [{ type: "offset", enabled: true, distance: 2, join: "miter" }],
     {
       fillRule: "evenodd",
       subpaths: [ring(0, 0, 10, 10), ring(30, 0, 10, 10)],
@@ -220,7 +220,7 @@ test("offset preserves separate contours in one path", () => {
 
 test("outline turns a closed contour into a centered band", () => {
   const shape = path(
-    [{ type: "outline", width: 4, cap: "butt", join: "miter" }],
+    [{ type: "outline", enabled: true, width: 4, cap: "butt", join: "miter" }],
     { fillRule: "evenodd" }
   );
   const resolved = resolvedSubpaths(shape);
@@ -232,7 +232,7 @@ test("outline turns a closed contour into a centered band", () => {
 
 test("outline applies caps to an open contour", () => {
   const shape = path(
-    [{ type: "outline", width: 10, cap: "square", join: "round" }],
+    [{ type: "outline", enabled: true, width: 10, cap: "square", join: "round" }],
     {
       fillRule: "evenodd",
       subpaths: [{
@@ -248,7 +248,7 @@ test("outline applies caps to an open contour", () => {
 });
 
 test("apply bakes resolved geometry, clears the stack, and detaches generator", () => {
-  const shape = path([{ type: "reverse" }]);
+  const shape = path([{ type: "reverse", enabled: true }]);
   shape.generator = { scriptId: "star", args: { points: 5 } };
   const resolved = resolvedSubpaths(shape);
   const baked = applyPathModifiers(shape);
@@ -261,8 +261,8 @@ test("apply bakes resolved geometry, clears the stack, and detaches generator", 
 test("modifier stacks round-trip in v39 documents", () => {
   const shape = path([
     { type: "simplify", tolerance: 1.25, enabled: false },
-    { type: "offset", distance: -3, join: "bevel" },
-    { type: "outline", width: 6, cap: "square", join: "miter" },
+    { type: "offset", enabled: true, distance: -3, join: "bevel" },
+    { type: "outline", enabled: true, width: 6, cap: "square", join: "miter" },
   ]);
   const empty = createEmptyDocument();
   const doc = {
@@ -294,7 +294,7 @@ const line = (modifiers = [], patch = {}) =>
   primitive("line", { x1: 0, y1: 0, x2: 20, y2: 0, ...patch }, modifiers);
 
 test("a rect resolves through its stack without losing its own fields", () => {
-  const shape = rect([{ type: "offset", distance: 5, join: "miter" }]);
+  const shape = rect([{ type: "offset", enabled: true, distance: 5, join: "miter" }]);
   assert.deepEqual(shapeBounds(shape), { x: -5, y: -5, width: 30, height: 20 });
   // The rect stays a rect: width, height and corner radius remain editable.
   assert.equal(shape.type, "rect");
@@ -308,7 +308,7 @@ test("a bare primitive keeps its own geometry and skips the subpath route", () =
 });
 
 test("an outlined line becomes closed, areal and stroke-alignable", () => {
-  const shape = line([{ type: "outline", width: 10, cap: "butt", join: "round" }]);
+  const shape = line([{ type: "outline", enabled: true, width: 10, cap: "butt", join: "round" }]);
   const resolved = resolvedSubpaths(shape);
   assert.ok(resolved.length > 0);
   assert.ok(resolved.every((subpath) => subpath.closed));
@@ -320,7 +320,7 @@ test("an outlined line becomes closed, areal and stroke-alignable", () => {
 
 test("an ellipse's modified silhouette drives hit testing and SVG export", () => {
   const filled = { fill: { type: "solid", color: "#000000", alpha: 1 } };
-  const shape = ellipse([{ type: "offset", distance: 10, join: "round" }], filled);
+  const shape = ellipse([{ type: "offset", enabled: true, distance: 10, join: "round" }], filled);
   const empty = createEmptyDocument();
   const doc = { ...empty, rootIds: [shape.id], nodes: { [shape.id]: shape } };
   // A point outside the bare ellipse but inside the offset silhouette.
@@ -332,7 +332,7 @@ test("an ellipse's modified silhouette drives hit testing and SVG export", () =>
 });
 
 test("applying a stack converts a modified primitive into a path", () => {
-  const shape = rect([{ type: "offset", distance: 5, join: "miter" }], {
+  const shape = rect([{ type: "offset", enabled: true, distance: 5, join: "miter" }], {
     bindings: { "modifiers.0.distance": { paramId: "p1", scale: 1 } },
   });
   const empty = createEmptyDocument();
@@ -350,7 +350,7 @@ test("applying a stack converts a modified primitive into a path", () => {
 
 test("round replaces each corner with a tangent fillet", () => {
   const filled = { fill: { type: "solid", color: "#000000", alpha: 1 } };
-  const shape = path([{ type: "round", radius: 3 }], filled);
+  const shape = path([{ type: "round", enabled: true, radius: 3 }], filled);
   const resolved = resolvedSubpaths(shape);
   assert.equal(resolved.length, 1);
   assert.equal(resolved[0].closed, true);
@@ -380,7 +380,7 @@ test("round replaces each corner with a tangent fillet", () => {
 });
 
 test("round clamps a radius the corner's legs cannot afford", () => {
-  const shape = path([{ type: "round", radius: 50 }]);
+  const shape = path([{ type: "round", enabled: true, radius: 50 }]);
   const resolved = resolvedSubpaths(shape);
   assert.equal(resolved[0].anchors.length, 8);
   // Nothing escapes the base box and no coordinate degenerates.
@@ -401,7 +401,7 @@ test("round leaves loose ends and straight anchors alone", () => {
       { p: { x: 20, y: 0 }, hIn: null, hOut: null },
     ],
   };
-  const shape = path([{ type: "round", radius: 3 }], { subpaths: [open] });
+  const shape = path([{ type: "round", enabled: true, radius: 3 }], { subpaths: [open] });
   const resolved = resolvedSubpaths(shape);
   // A collinear anchor is not a corner, so the contour is untouched.
   assert.deepEqual(resolved, [open]);
@@ -414,7 +414,7 @@ test("round leaves loose ends and straight anchors alone", () => {
       { p: { x: 10, y: 10 }, hIn: null, hOut: null },
     ],
   };
-  const corner = resolvedSubpaths(path([{ type: "round", radius: 3 }], {
+  const corner = resolvedSubpaths(path([{ type: "round", enabled: true, radius: 3 }], {
     subpaths: [bent],
   }))[0];
   assert.equal(corner.closed, false);
@@ -425,7 +425,7 @@ test("round leaves loose ends and straight anchors alone", () => {
 });
 
 test("a zero radius is a no-op", () => {
-  const shape = path([{ type: "round", radius: 0 }]);
+  const shape = path([{ type: "round", enabled: true, radius: 0 }]);
   assert.deepEqual(resolvedSubpaths(shape), shape.subpaths);
 });
 
@@ -437,7 +437,7 @@ test("zigzag alternates around the contour and keeps loose ends", () => {
       { p: { x: 20, y: 0 }, hIn: null, hOut: null },
     ],
   };
-  const shape = path([{ type: "zigzag", amplitude: 2, wavelength: 8, style: "corner" }],
+  const shape = path([{ type: "zigzag", enabled: true, amplitude: 2, wavelength: 8, style: "corner" }],
     { subpaths: [open] });
   const points = resolvedSubpaths(shape)[0].anchors.map((anchor) => anchor.p);
   // Both endpoints survive; every ridge in between alternates by the amplitude.
@@ -458,7 +458,7 @@ test("zigzag alternates around the contour and keeps loose ends", () => {
 
 test("a closed zigzag meets itself and the smooth style rounds the ridges", () => {
   const corners = resolvedSubpaths(
-    path([{ type: "zigzag", amplitude: 2, wavelength: 10, style: "corner" }])
+    path([{ type: "zigzag", enabled: true, amplitude: 2, wavelength: 10, style: "corner" }])
   )[0];
   // The alternation has to close up, so the sample count stays even.
   assert.equal(corners.closed, true);
@@ -466,7 +466,7 @@ test("a closed zigzag meets itself and the smooth style rounds the ridges", () =
   assert.ok(corners.anchors.every((anchor) => !anchor.hIn && !anchor.hOut));
 
   const waves = resolvedSubpaths(
-    path([{ type: "zigzag", amplitude: 2, wavelength: 10, style: "smooth" }])
+    path([{ type: "zigzag", enabled: true, amplitude: 2, wavelength: 10, style: "smooth" }])
   )[0];
   assert.equal(waves.anchors.length, corners.anchors.length);
   assert.deepEqual(
@@ -478,7 +478,7 @@ test("a closed zigzag meets itself and the smooth style rounds the ridges", () =
 
 test("roughen is seeded, so the same document always wobbles the same way", () => {
   const roughen = (seed) => resolvedSubpaths(
-    path([{ type: "roughen", size: 3, detail: 5, seed, style: "corner" }])
+    path([{ type: "roughen", enabled: true, size: 3, detail: 5, seed, style: "corner" }])
   );
   assert.deepEqual(roughen(1), roughen(1));
   assert.notDeepEqual(roughen(1), roughen(2));
@@ -498,7 +498,7 @@ test("a smooth deform clamps its handles so they cannot overshoot", () => {
   // Roughen leaves the samples unevenly spaced, which is exactly the case the
   // shared Catmull-Rom fit clamps for (see pointsToAnchors).
   const resolved = resolvedSubpaths(
-    path([{ type: "roughen", size: 4, detail: 4, seed: 3, style: "smooth" }])
+    path([{ type: "roughen", enabled: true, size: 4, detail: 4, seed: 3, style: "smooth" }])
   )[0];
   const anchors = resolved.anchors;
   anchors.forEach((anchor, i) => {
@@ -515,7 +515,7 @@ test("a smooth deform clamps its handles so they cannot overshoot", () => {
 
 test("roughen changes size without reshuffling which points moved", () => {
   const at = (size) => resolvedSubpaths(
-    path([{ type: "roughen", size, detail: 5, seed: 7, style: "corner" }])
+    path([{ type: "roughen", enabled: true, size, detail: 5, seed: 7, style: "corner" }])
   )[0].anchors.map((anchor) => anchor.p);
   const small = at(1);
   const large = at(4);
@@ -535,7 +535,7 @@ test("roughen changes size without reshuffling which points moved", () => {
     assert.ok(distance < 1e-9, `sample ${i} drifted by ${distance}`);
   });
   assert.deepEqual(
-    resolvedSubpaths(path([{ type: "roughen", size: 0, detail: 5, seed: 7, style: "corner" }])),
+    resolvedSubpaths(path([{ type: "roughen", enabled: true, size: 0, detail: 5, seed: 7, style: "corner" }])),
     path().subpaths,
     "a zero size is a no-op"
   );
@@ -543,8 +543,8 @@ test("roughen changes size without reshuffling which points moved", () => {
 
 test("a partial bake freezes the prefix and leaves the later stages live", () => {
   const shape = path([
-    { type: "offset", distance: 5, join: "miter" },
-    { type: "outline", width: 4, cap: "butt", join: "miter" },
+    { type: "offset", enabled: true, distance: 5, join: "miter" },
+    { type: "outline", enabled: true, width: 4, cap: "butt", join: "miter" },
   ], { bindings: { "modifiers.1.width": { paramId: "p1", scale: 1 } } });
   const empty = createEmptyDocument();
   const doc = { ...empty, rootIds: [shape.id], nodes: { [shape.id]: shape } };
@@ -556,7 +556,7 @@ test("a partial bake freezes the prefix and leaves the later stages live", () =>
   assert.equal(baked.type, "path");
   // The offset is frozen into the anchors; the outline still runs on top.
   assert.deepEqual(baked.modifiers, [
-    { type: "outline", width: 4, cap: "butt", join: "miter" },
+    { type: "outline", enabled: true, width: 4, cap: "butt", join: "miter" },
   ]);
   assert.deepEqual(shapeBounds({ ...baked, modifiers: [] }), {
     x: -5, y: -5, width: 30, height: 20,
@@ -570,8 +570,8 @@ test("a partial bake freezes the prefix and leaves the later stages live", () =>
 
 test("a partial bake on a primitive converts it and keeps the rest of the stack", () => {
   const shape = rect([
-    { type: "offset", distance: 5, join: "miter" },
-    { type: "reverse" },
+    { type: "offset", enabled: true, distance: 5, join: "miter" },
+    { type: "reverse", enabled: true },
   ], { bindings: { "modifiers.0.distance": { paramId: "p1", scale: 1 } } });
   const empty = createEmptyDocument();
   const doc = { ...empty, rootIds: [shape.id], nodes: { [shape.id]: shape } };
@@ -580,14 +580,14 @@ test("a partial bake on a primitive converts it and keeps the rest of the stack"
 
   const baked = useEditor.getState().doc.nodes[shape.id];
   assert.equal(baked.type, "path");
-  assert.deepEqual(baked.modifiers, [{ type: "reverse" }]);
+  assert.deepEqual(baked.modifiers, [{ type: "reverse", enabled: true }]);
   // The baked stage's binding goes away with the stage it addressed.
   assert.deepEqual(baked.bindings, {});
   assert.deepEqual(shapeBounds(baked), { x: -5, y: -5, width: 30, height: 20 });
 });
 
 test("primitive modifier stacks round-trip through the file format", () => {
-  const shape = rect([{ type: "outline", width: 6, cap: "square", join: "miter" }]);
+  const shape = rect([{ type: "outline", enabled: true, width: 6, cap: "square", join: "miter" }]);
   const empty = createEmptyDocument();
   const text = serializeDocument({
     ...empty,
