@@ -1,5 +1,6 @@
 import { brushSegments, type BrushSegment } from "./brushSegments";
 import { cubicPoint } from "@/model/path/path";
+import { lerp } from "@/model/geometry/vec";
 import { distToSegment } from "@/model/geometry/hitTest";
 import { applyMatrix } from "@/model/geometry/matrix";
 import {
@@ -30,24 +31,17 @@ function distToPolyline(p: Vec2, points: Vec2[]): number {
   return best;
 }
 
-function lerpPoint(a: Vec2, b: Vec2, t: number): Vec2 {
-  return {
-    x: a.x + (b.x - a.x) * t,
-    y: a.y + (b.y - a.y) * t,
-  };
-}
-
 /** Exact de Casteljau split, including the linearly interpolated width. */
 function splitSegment(
   segment: BrushSegment,
   t: number
 ): [BrushSegment, BrushSegment] {
-  const p01 = lerpPoint(segment.p0, segment.c1, t);
-  const p12 = lerpPoint(segment.c1, segment.c2, t);
-  const p23 = lerpPoint(segment.c2, segment.p1, t);
-  const p012 = lerpPoint(p01, p12, t);
-  const p123 = lerpPoint(p12, p23, t);
-  const point = lerpPoint(p012, p123, t);
+  const p01 = lerp(segment.p0, segment.c1, t);
+  const p12 = lerp(segment.c1, segment.c2, t);
+  const p23 = lerp(segment.c2, segment.p1, t);
+  const p012 = lerp(p01, p12, t);
+  const p123 = lerp(p12, p23, t);
+  const point = lerp(p012, p123, t);
   const width = segment.w0 + (segment.w1 - segment.w0) * t;
   return [
     {

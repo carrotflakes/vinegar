@@ -1,15 +1,12 @@
 import { brushSegments } from "./brushSegments";
 import { cubicPoint } from "@/model/path/path";
 import { setAnchorType } from "@/model/path/anchorType";
+import { lerp } from "@/model/geometry/vec";
 import type { BrushShape, Vec2 } from "../types";
 
 // Node-tool structural edits on a brush centerline (one open run of anchors).
 // These mirror the path equivalents in `path.ts` but carry each anchor's
 // width multiplier `w` through splits and smoothing.
-
-function lerp(a: Vec2, b: Vec2, t: number): Vec2 {
-  return { x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t };
-}
 
 export interface BrushLocation {
   /** Segment index; segment i runs anchor i → i+1. */

@@ -1,3 +1,4 @@
+import { length, normalize, sub } from "@/model/geometry/vec";
 import type {
   AnchorType,
   BrushAnchor,
@@ -8,19 +9,6 @@ import type {
 type AnchorLike = PathAnchor | BrushAnchor;
 
 const RELATIVE_EPSILON = 1e-6;
-
-function vector(from: Vec2, to: Vec2): Vec2 {
-  return { x: to.x - from.x, y: to.y - from.y };
-}
-
-function length(v: Vec2): number {
-  return Math.hypot(v.x, v.y);
-}
-
-function unit(v: Vec2): Vec2 | null {
-  const len = length(v);
-  return len > 0 ? { x: v.x / len, y: v.y / len } : null;
-}
 
 function isAnchorType(value: unknown): value is AnchorType {
   return value === "cusp" || value === "smooth" || value === "symmetric";
@@ -34,8 +22,8 @@ export function deriveAnchorType(anchor: AnchorLike): AnchorType {
   if (!anchor.hIn && !anchor.hOut) return "cusp";
   if (!anchor.hIn || !anchor.hOut) return "cusp";
 
-  const incoming = vector(anchor.p, anchor.hIn);
-  const outgoing = vector(anchor.p, anchor.hOut);
+  const incoming = sub(anchor.hIn, anchor.p);
+  const outgoing = sub(anchor.hOut, anchor.p);
   const inLength = length(incoming);
   const outLength = length(outgoing);
   if (inLength === 0 || outLength === 0) return "cusp";
@@ -63,9 +51,9 @@ function neighbourTangent(
   previous: AnchorLike | null,
   next: AnchorLike | null
 ): Vec2 | null {
-  if (previous && next) return unit(vector(previous.p, next.p));
-  if (next) return unit(vector(anchor.p, next.p));
-  if (previous) return unit(vector(previous.p, anchor.p));
+  if (previous && next) return normalize(sub(next.p, previous.p));
+  if (next) return normalize(sub(next.p, anchor.p));
+  if (previous) return normalize(sub(anchor.p, previous.p));
   return null;
 }
 
@@ -114,25 +102,25 @@ function retype<T extends AnchorLike>(
   if (type === "cusp") return { ...anchor, t: type };
 
   const incomingLength = anchor.hIn
-    ? length(vector(anchor.p, anchor.hIn))
+    ? length(sub(anchor.hIn, anchor.p))
     : previous
-      ? length(vector(anchor.p, previous.p)) / 3
+      ? length(sub(previous.p, anchor.p)) / 3
       : null;
   const outgoingLength = anchor.hOut
-    ? length(vector(anchor.p, anchor.hOut))
+    ? length(sub(anchor.hOut, anchor.p))
     : next
-      ? length(vector(anchor.p, next.p)) / 3
+      ? length(sub(next.p, anchor.p)) / 3
       : null;
 
   const incomingDirection = anchor.hIn
-    ? unit(vector(anchor.hIn, anchor.p))
+    ? normalize(sub(anchor.p, anchor.hIn))
     : null;
   const outgoingDirection = anchor.hOut
-    ? unit(vector(anchor.p, anchor.hOut))
+    ? normalize(sub(anchor.hOut, anchor.p))
     : null;
   let direction: Vec2 | null = null;
   if (incomingDirection && outgoingDirection) {
-    direction = unit({
+    direction = normalize({
       x: incomingDirection.x + outgoingDirection.x,
       y: incomingDirection.y + outgoingDirection.y,
     });

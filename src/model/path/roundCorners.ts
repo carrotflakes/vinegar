@@ -1,3 +1,12 @@
+import {
+  add,
+  distance,
+  lerp,
+  normalize,
+  samePoint,
+  scale,
+  sub,
+} from "@/model/geometry/vec";
 import type { PathAnchor, PathSubpath, Vec2 } from "../types";
 import { subpathSegments, type CubicSegment } from "./path";
 
@@ -8,34 +17,19 @@ const MIN_TURN = 1e-3;
 /** A corner may eat at most this share of each neighbouring segment. */
 const BUDGET = 0.999;
 
-const sub = (a: Vec2, b: Vec2): Vec2 => ({ x: a.x - b.x, y: a.y - b.y });
-const add = (a: Vec2, b: Vec2): Vec2 => ({ x: a.x + b.x, y: a.y + b.y });
-const mul = (v: Vec2, k: number): Vec2 => ({ x: v.x * k, y: v.y * k });
-const lerp = (a: Vec2, b: Vec2, t: number): Vec2 => ({
-  x: a.x + (b.x - a.x) * t,
-  y: a.y + (b.y - a.y) * t,
-});
-const same = (a: Vec2, b: Vec2): boolean =>
-  Math.abs(a.x - b.x) < 1e-9 && Math.abs(a.y - b.y) < 1e-9;
-
-function unit(v: Vec2): Vec2 | null {
-  const length = Math.hypot(v.x, v.y);
-  return length > 1e-12 ? { x: v.x / length, y: v.y / length } : null;
-}
-
 const isLine = (seg: CubicSegment): boolean =>
-  same(seg.c1, seg.p0) && same(seg.c2, seg.p1);
+  samePoint(seg.c1, seg.p0) && samePoint(seg.c2, seg.p1);
 
 /** Direction of travel leaving `p0`, falling back through the control points. */
 function startTangent(seg: CubicSegment): Vec2 | null {
-  return unit(sub(seg.c1, seg.p0)) ?? unit(sub(seg.c2, seg.p0)) ??
-    unit(sub(seg.p1, seg.p0));
+  return normalize(sub(seg.c1, seg.p0)) ?? normalize(sub(seg.c2, seg.p0)) ??
+    normalize(sub(seg.p1, seg.p0));
 }
 
 /** Direction of travel arriving at `p1`. */
 function endTangent(seg: CubicSegment): Vec2 | null {
-  return unit(sub(seg.p1, seg.c2)) ?? unit(sub(seg.p1, seg.c1)) ??
-    unit(sub(seg.p1, seg.p0));
+  return normalize(sub(seg.p1, seg.c2)) ?? normalize(sub(seg.p1, seg.c1)) ??
+    normalize(sub(seg.p1, seg.p0));
 }
 
 /** Cumulative arc length at each of `LENGTH_SAMPLES` + 1 sample points. */
@@ -51,14 +45,14 @@ function lengthTable(seg: CubicSegment): number[] {
       y: u * u * u * seg.p0.y + 3 * u * u * t * seg.c1.y +
         3 * u * t * t * seg.c2.y + t * t * t * seg.p1.y,
     };
-    table.push(table[i - 1] + Math.hypot(point.x - previous.x, point.y - previous.y));
+    table.push(table[i - 1] + distance(previous, point));
     previous = point;
   }
   return table;
 }
 
 function segmentLength(seg: CubicSegment): number {
-  if (isLine(seg)) return Math.hypot(seg.p1.x - seg.p0.x, seg.p1.y - seg.p0.y);
+  if (isLine(seg)) return distance(seg.p0, seg.p1);
   const table = lengthTable(seg);
   return table[table.length - 1];
 }
@@ -97,10 +91,10 @@ function trim(seg: CubicSegment, fromStart: number, fromEnd: number): CubicSegme
     // endpoints, and that cubic is *not* linear in `t` — walking it with
     // de Casteljau would trim the wrong distance and leave handles behind on a
     // straight edge. Move the endpoints along the direction instead.
-    const direction = unit(sub(seg.p1, seg.p0));
+    const direction = normalize(sub(seg.p1, seg.p0));
     if (!direction) return seg;
-    const p0 = add(seg.p0, mul(direction, fromStart));
-    const p1 = sub(seg.p1, mul(direction, fromEnd));
+    const p0 = add(seg.p0, scale(direction, fromStart));
+    const p1 = sub(seg.p1, scale(direction, fromEnd));
     return { p0, c1: p0, c2: p1, p1 };
   }
   let result = seg;
@@ -118,14 +112,14 @@ function trim(seg: CubicSegment, fromStart: number, fromEnd: number): CubicSegme
  * tangent to both, which is what keeps the join smooth (G1).
  */
 function arcSegment(from: Vec2, to: Vec2, u: Vec2, v: Vec2): CubicSegment {
-  const chord = Math.hypot(to.x - from.x, to.y - from.y);
+  const chord = distance(from, to);
   const turn = Math.abs(Math.atan2(u.x * v.y - u.y * v.x, u.x * v.x + u.y * v.y));
   const radius = turn > MIN_TURN ? chord / (2 * Math.sin(turn / 2)) : 0;
   const handle = (4 / 3) * Math.tan(turn / 4) * radius;
   return {
     p0: from,
-    c1: add(from, mul(u, handle)),
-    c2: sub(to, mul(v, handle)),
+    c1: add(from, scale(u, handle)),
+    c2: sub(to, scale(v, handle)),
     p1: to,
   };
 }
@@ -136,15 +130,15 @@ function segmentsToSubpath(segs: CubicSegment[], closed: boolean): PathSubpath {
     const previous = index > 0 ? segs[index - 1] : closed ? segs[segs.length - 1] : null;
     return {
       p: seg.p0,
-      hIn: previous && !same(previous.c2, seg.p0) ? previous.c2 : null,
-      hOut: same(seg.c1, seg.p0) ? null : seg.c1,
+      hIn: previous && !samePoint(previous.c2, seg.p0) ? previous.c2 : null,
+      hOut: samePoint(seg.c1, seg.p0) ? null : seg.c1,
     };
   });
   if (!closed) {
     const last = segs[segs.length - 1];
     anchors.push({
       p: last.p1,
-      hIn: same(last.c2, last.p1) ? null : last.c2,
+      hIn: samePoint(last.c2, last.p1) ? null : last.c2,
       hOut: null,
     });
   }
