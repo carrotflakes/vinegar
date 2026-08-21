@@ -10,6 +10,7 @@ let effectsMargin;
 let isGeometryEffect;
 let paintsGeometryEffects;
 let pixelEffects;
+let activeEffects;
 let strokeEffectOutset;
 let parseDocument;
 let serializeDocument;
@@ -22,6 +23,7 @@ before(async () => {
   server = await createServer({ server: { middlewareMode: true } });
   ({ createEmptyDocument } = await server.ssrLoadModule("/src/model/types.ts"));
   ({
+    activeEffects,
     defaultEffect,
     effectsMargin,
     isGeometryEffect,
@@ -81,6 +83,7 @@ const text = (extra = {}) => ({
 
 const strokeEffect = (extra = {}) => ({
   id: "fx_stroke",
+  enabled: true,
   type: "stroke",
   paint: { type: "solid", color: "#0000ff", alpha: 1 },
   width: 4,
@@ -161,7 +164,7 @@ test("a stroke effect widens the effect margin by its own outset", () => {
   assert.equal(strokeEffectOutset(strokeEffect({ join: "miter" })), 8);
   // Reaches accumulate with the rest of the stack.
   assert.equal(
-    effectsMargin([{ id: "fx_blur", type: "blur", radius: 1 }, strokeEffect()]),
+    effectsMargin([{ id: "fx_blur", enabled: true, type: "blur", radius: 1 }, strokeEffect()]),
     5
   );
 });
@@ -173,6 +176,34 @@ test("pixelEffects drops geometry entries only when there are any", () => {
   assert.equal(pixelEffects(stack), stack);
   assert.deepEqual(pixelEffects([blur, defaultEffect("fill")]), [blur]);
   assert.deepEqual(pixelEffects([defaultEffect("stroke")]), []);
+});
+
+test("a bypassed effect drops out of every reader that applies the stack", () => {
+  const blur = defaultEffect("blur");
+  const stack = [blur];
+  // The same array back when nothing is bypassed: readers stay allocation-free.
+  assert.equal(activeEffects(stack), stack);
+
+  const off = { ...blur, radius: 10, enabled: false };
+  assert.deepEqual(activeEffects([off, blur]), [blur]);
+  // pixelEffects and effectsMargin fold the filter in, so a bypassed entry
+  // neither renders nor pads the bounds.
+  assert.deepEqual(pixelEffects([off, defaultEffect("fill")]), []);
+  assert.equal(effectsMargin([off, strokeEffect({ enabled: false })]), 0);
+  assert.equal(effectsMargin([off, strokeEffect()]), 2);
+});
+
+test("the bypass flag round-trips, and a non-boolean one is rejected", () => {
+  const doc = createEmptyDocument();
+  const effects = [strokeEffect({ enabled: false })];
+  doc.nodes.rect = rect({ effects });
+  doc.rootIds = ["rect"];
+  assert.deepEqual(parseDocument(serializeDocument(doc)).nodes.rect.effects, effects);
+
+  const bad = createEmptyDocument();
+  bad.nodes.rect = rect({ effects: [strokeEffect({ enabled: "no" })] });
+  bad.rootIds = ["rect"];
+  assert.throws(() => parseDocument(serializeDocument(bad)));
 });
 
 test("geometry effects apply only to shapes with an outline", () => {
@@ -189,12 +220,13 @@ test("fill and stroke effects round-trip through the file format", () => {
   const effects = [
     {
       id: "fx_fill",
+      enabled: true,
       type: "fill",
       paint: { type: "solid", color: "#00ff00", alpha: 0.5 },
       blendMode: "multiply",
     },
     strokeEffect({ alignment: "outside", cap: "butt", join: "miter" }),
-    { id: "fx_empty", type: "fill", paint: null, blendMode: "normal" },
+    { id: "fx_empty", enabled: true, type: "fill", paint: null, blendMode: "normal" },
   ];
   doc.nodes.rect = rect({ effects });
   doc.rootIds = ["rect"];
@@ -266,7 +298,7 @@ test("an asset used only by an effect survives a save", () => {
   };
   doc.nodes.rect = rect({
     effects: [
-      { id: "fx_pattern", type: "fill", paint: patternPaint, blendMode: "normal" },
+      { id: "fx_pattern", enabled: true, type: "fill", paint: patternPaint, blendMode: "normal" },
     ],
   });
   doc.rootIds = ["rect"];
@@ -279,7 +311,7 @@ test("an asset used only by an effect survives a save", () => {
 
 test("a global color used only by an effect is counted and baked", () => {
   const doc = swatchDoc([
-    { id: "fx_swatch", type: "fill", paint: swatchRef, blendMode: "normal" },
+    { id: "fx_swatch", enabled: true, type: "fill", paint: swatchRef, blendMode: "normal" },
   ]);
   assert.equal(swatchUsageCounts(doc).get("brand"), 1);
   assert.deepEqual([...referencedSwatchIds([doc.nodes.rect])], ["brand"]);
@@ -316,7 +348,7 @@ test("an inert geometry effect on a group still holds its references", () => {
   doc.nodes.group = group({
     childIds: ["rect"],
     effects: [
-      { id: "fx_swatch", type: "fill", paint: swatchRef, blendMode: "normal" },
+      { id: "fx_swatch", enabled: true, type: "fill", paint: swatchRef, blendMode: "normal" },
     ],
   });
   doc.rootIds = ["group"];

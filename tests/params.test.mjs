@@ -204,7 +204,7 @@ test("parameters and bindings round-trip through the file format", () => {
     [param("w", 2, { min: 0, max: 20, step: 0.5 })]
   );
   const text = serializeDocument(doc);
-  assert.equal(JSON.parse(text).version, 38);
+  assert.equal(JSON.parse(text).version, 39);
   const parsed = parseDocument(text);
   assert.deepEqual(parsed.params, doc.params);
   assert.deepEqual(parsed.paramOrder, ["w"]);
@@ -236,7 +236,7 @@ test("bound modifier spacing stays inside the persisted model domain", () => {
 test("a file without parameters still opens", () => {
   const legacy = {
     app: "vinegar",
-    version: 38,
+    version: 39,
     document: (() => {
       const { params, paramOrder, ...rest } = docWith(rect());
       const { bindings, ...node } = rest.nodes["rect-1"];

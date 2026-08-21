@@ -7,6 +7,7 @@ import { isIdentity, transformBounds } from "@/model/geometry/matrix";
 import { cachedBrushEnvelope } from "@/model/brush/brushOutline";
 import { shapeFillRule } from "@/model/path/shapeGeometry";
 import {
+  activeEffects,
   effectsMargin,
   hasEffects,
   isGeometryEffect,
@@ -141,7 +142,7 @@ function paintNodeInternal(
     // An image or live text has no outline for a fill/stroke effect to paint,
     // so those entries drop out here rather than costing an isolation layer.
     const effects = paintsGeometryEffects(shape, doc)
-      ? shape.effects
+      ? activeEffects(shape.effects)
       : pixelEffects(shape.effects);
     if (!hasEffects(effects)) {
       paintShape(ctx, shape, doc.assets, doc, preview);

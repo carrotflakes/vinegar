@@ -88,6 +88,8 @@ export type BlendMode = (typeof BLEND_MODES)[number];
  */
 export interface EffectBase {
   id: string;
+  /** `false` bypasses this entry without removing it from the stack. */
+  enabled: boolean;
 }
 
 /**

@@ -332,7 +332,7 @@ test("SVG color-adjust exports a chained feColorMatrix filter in sRGB", () => {
     stroke: null,
     strokeWidth: 0,
     effects: [
-      { id: "fx_adjust", type: "color-adjust", brightness: 1.2, contrast: 1.1, saturation: 0.5, hue: 30 },
+      { id: "fx_adjust", enabled: true, type: "color-adjust", brightness: 1.2, contrast: 1.1, saturation: 0.5, hue: 30 },
     ],
   };
   doc.rootIds = ["rect"];
@@ -368,7 +368,7 @@ test("SVG tint exports a mix feColorMatrix preserving alpha", () => {
     stroke: null,
     strokeWidth: 0,
     effects: [
-      { id: "fx_tint", type: "tint", color: "#0000ff", alpha: 0.5 },
+      { id: "fx_tint", enabled: true, type: "tint", color: "#0000ff", alpha: 0.5 },
     ],
   };
   doc.rootIds = ["rect"];
@@ -405,6 +405,7 @@ function effectRect(effects) {
 
 const GREEN_FILL = {
   id: "fx_fill",
+  enabled: true,
   type: "fill",
   paint: { type: "solid", color: "#00ff00", alpha: 1 },
   blendMode: "normal",
@@ -416,6 +417,7 @@ test("SVG fill and stroke effects paint extra elements from the same geometry", 
       GREEN_FILL,
       {
         id: "fx_stroke",
+        enabled: true,
         type: "stroke",
         paint: { type: "solid", color: "#0000ff", alpha: 1 },
         width: 4,
@@ -441,6 +443,7 @@ test("a stroke effect honours center alignment without a mask", () => {
     effectRect([
       {
         id: "fx_stroke",
+        enabled: true,
         type: "stroke",
         paint: { type: "solid", color: "#0000ff", alpha: 1 },
         width: 4,
@@ -462,7 +465,7 @@ test("a stroke effect honours center alignment without a mask", () => {
 test("a geometry effect splits the filter chain at its own position", () => {
   // blur, then fill: the fill is a sibling of the filtered artwork.
   const after = exportSvg(
-    effectRect([{ id: "fx_blur", type: "blur", radius: 2 }, GREEN_FILL]),
+    effectRect([{ id: "fx_blur", enabled: true, type: "blur", radius: 2 }, GREEN_FILL]),
     { margin: 0 }
   );
   assert.match(
@@ -472,7 +475,7 @@ test("a geometry effect splits the filter chain at its own position", () => {
 
   // fill, then blur: the filter wraps both, so the added fill is blurred too.
   const before = exportSvg(
-    effectRect([GREEN_FILL, { id: "fx_blur", type: "blur", radius: 2 }]),
+    effectRect([GREEN_FILL, { id: "fx_blur", enabled: true, type: "blur", radius: 2 }]),
     { margin: 0 }
   );
   assert.match(
@@ -510,6 +513,7 @@ test("a blending geometry effect exports mix-blend-mode inside an isolated group
       { ...GREEN_FILL, blendMode: "multiply" },
       {
         id: "fx_stroke",
+        enabled: true,
         type: "stroke",
         paint: { type: "solid", color: "#0000ff", alpha: 1 },
         width: 4,

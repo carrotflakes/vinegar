@@ -38,7 +38,7 @@ export const SHADOW_BLUR_TO_STDDEV = 0.5;
 /** A Gaussian's visible reach is ~3 standard deviations. */
 const BLUR_REACH = 3;
 
-type EffectDefaults<T extends Effect> = Omit<T, "id">;
+type EffectDefaults<T extends Effect> = Omit<T, "id" | "enabled">;
 
 const DEFAULT_DROP_SHADOW: EffectDefaults<DropShadowEffect> = {
   type: "drop-shadow",
@@ -68,20 +68,21 @@ const DEFAULT_TINT: EffectDefaults<TintEffect> = {
 /** A new effect of `type`, with a fresh id. */
 export function defaultEffect(type: Effect["type"]): Effect {
   const id = makeId("effect");
+  const base = { id, enabled: true };
   switch (type) {
     case "blur":
-      return { id, ...DEFAULT_BLUR };
+      return { ...base, ...DEFAULT_BLUR };
     case "color-adjust":
-      return { id, ...DEFAULT_COLOR_ADJUST };
+      return { ...base, ...DEFAULT_COLOR_ADJUST };
     case "tint":
-      return { id, ...DEFAULT_TINT };
+      return { ...base, ...DEFAULT_TINT };
     case "fill":
       // A fresh paint per effect: paints are replaced wholesale, never mutated,
       // but sharing one object across effects would still alias undo patches.
-      return { id, type: "fill", paint: solid("#ff3366", 1), blendMode: "normal" };
+      return { ...base, type: "fill", paint: solid("#ff3366", 1), blendMode: "normal" };
     case "stroke":
       return {
-        id,
+        ...base,
         type: "stroke",
         paint: solid("#000000", 1),
         width: 2,
@@ -91,7 +92,7 @@ export function defaultEffect(type: Effect["type"]): Effect {
         blendMode: "normal",
       };
     default:
-      return { id, ...DEFAULT_DROP_SHADOW };
+      return { ...base, ...DEFAULT_DROP_SHADOW };
   }
 }
 
@@ -120,15 +121,31 @@ export function needsEffectIsolation(effects: Effect[]): boolean {
 }
 
 /**
+ * The entries a reader must apply: a bypassed one (`enabled: false`) drops out.
+ * Rendering, bounds and SVG export have to agree on what the stack produces, so
+ * every reader of a node's raw `effects` goes through this — directly, or via
+ * {@link pixelEffects} / {@link effectsMargin}, which fold it in. Paint walkers
+ * (`nodePaints`) deliberately do not: a bypassed fill still references its
+ * asset, and pruning it on save would lose it.
+ */
+export function activeEffects(effects: Effect[]): Effect[] {
+  return effects.some((effect) => !effect.enabled)
+    ? effects.filter((effect) => effect.enabled)
+    : effects;
+}
+
+/**
  * The entries that actually filter pixels. Readers that can only apply those —
  * a node with no outline, or an SVG `<filter>` — take this rather than the whole
  * stack, so a geometry-only stack stays a no-op instead of becoming an empty
- * filter (which SVG renders as transparent black).
+ * filter (which SVG renders as transparent black). Bypassed entries are already
+ * gone from the result.
  */
 export function pixelEffects(effects: Effect[]): Effect[] {
-  return effects.some(isGeometryEffect)
-    ? effects.filter((effect) => !isGeometryEffect(effect))
-    : effects;
+  const active = activeEffects(effects);
+  return active.some(isGeometryEffect)
+    ? active.filter((effect) => !isGeometryEffect(effect))
+    : active;
 }
 
 /**
@@ -168,7 +185,7 @@ export function hasEffects(effects: Effect[]): boolean {
  */
 export function effectsMargin(effects: Effect[]): number {
   let margin = 0;
-  for (const effect of effects) {
+  for (const effect of activeEffects(effects)) {
     if (effect.type === "blur") {
       margin += effect.radius * BLUR_REACH;
     } else if (effect.type === "drop-shadow") {

@@ -14,7 +14,7 @@ import {
   type ShapeType,
 } from "../model/types";
 
-export const CURRENT_FILE_VERSION = 38 as const;
+export const CURRENT_FILE_VERSION = 39 as const;
 /** Older schemas accepted directly by the current document validator.
  *  v33 and below stored gradients as `linear`/`radial` paints with no geometry
  *  beyond an angle, which the placed-gradient model cannot express. */
@@ -140,6 +140,7 @@ export const isPaintOrNull = (value: unknown): boolean => value === null || isPa
 const isEffect = (value: unknown): boolean => {
   if (!isObject(value) || !EFFECT_TYPES.includes(value.type as never)) return false;
   if (typeof value.id !== "string" || !value.id) return false;
+  if (typeof value.enabled !== "boolean") return false;
   if (value.type === "blur") return isNumber(value.radius) && value.radius >= 0;
   if (value.type === "drop-shadow") {
     return typeof value.color === "string" &&

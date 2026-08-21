@@ -39,6 +39,7 @@ function shapeBase(index: number) {
               // Deterministic ids keep the stress document byte-identical
               // across runs (`makeId` is random).
               id: `fx_shape_${index}`,
+              enabled: true,
               type: "drop-shadow" as const,
               color: "#172033",
               alpha: 0.32,
@@ -165,6 +166,7 @@ export function createRenderStressDocument(
           ? [
               {
                 id: `fx_group_${groupIndex}`,
+                enabled: true,
                 type: "drop-shadow",
                 color: "#0f172a",
                 alpha: 0.2,

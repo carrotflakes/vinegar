@@ -1,6 +1,7 @@
 # Effects
 
-Status: **implemented**. Fill / Stroke effects added at file version **v37**.
+Status: **implemented**. Fill / Stroke effects added at file version **v37**;
+per-entry bypass at **v39**.
 Related: [document-model.md](../document-model.md),
 [render-performance.md](../reference/render-performance.md) (layer pool, effect margins),
 [path-modifiers.md](path-modifiers.md) (the geometry counterpart of this stack).
@@ -30,6 +31,28 @@ Two consumers use it today — the properties panel's React keys and the paint
 field's remembered paint kind — and one is coming: appearance-stack field paths
 for `node.bindings` (`parameters.md`) once the shape's own `strokeWidth`
 moves into the stack.
+
+## Entries can be bypassed
+
+Every effect carries `enabled`; `false` bypasses it without removing it from the
+stack, so its parameters survive an "off, look, on again". The field is
+**required and stored explicitly**, like `blendMode: "normal"` and unlike a path
+modifier's optional `enabled?` — effects were versioned into v39 together, so
+there is no absent case to define a default for, and load rejects a stack
+missing it. The card control is the shared `StackCard`, same as a modifier's
+([path-modifiers.md](path-modifiers.md)).
+
+`activeEffects(effects)` drops the bypassed entries and is what every reader
+that *applies* the stack goes through — directly (canvas `paintNode`, SVG
+`shapeToSvg`) or via `pixelEffects` / `effectsMargin`, which fold it in. It
+returns the very same array when nothing is bypassed, so the common case
+allocates nothing. Rendering, bounds and export have to agree on what the stack
+produces, so a reader that filters `enabled` itself instead is a bug waiting to
+happen: it would put a bypassed drop shadow back into the export's crop.
+
+The paint walkers deliberately do **not** filter: `nodePaints` / `mapNodePaints`
+see bypassed entries too. A bypassed fill still references its pattern asset or
+global colour, and pruning that on save would lose it for good.
 
 ## Two kinds share the stack
 

@@ -5,6 +5,7 @@ import { getAssetImage } from "../imageCache";
 import type { ClippingMaskShape } from "../model/clippingMask";
 import { shapeFillRule, shapeSubpaths } from "@/model/path/shapeGeometry";
 import {
+  activeEffects,
   hasEffects,
   isGeometryEffect,
   paintsGeometryEffects,
@@ -548,8 +549,9 @@ function expandedBounds(bounds: Bounds, amount: number): Bounds {
  * "blur, then add a stroke" distinct from "add a stroke, then blur it".
  */
 function shapeToSvg(doc: Document, shape: Shape, defs: Defs): string {
+  const effects = activeEffects(shape.effects);
   const geometryEffects =
-    shape.effects.some(isGeometryEffect) && paintsGeometryEffects(shape, doc);
+    effects.some(isGeometryEffect) && paintsGeometryEffects(shape, doc);
   if (!geometryEffects) {
     return shapeContentSvg(
       doc,
@@ -566,7 +568,7 @@ function shapeToSvg(doc: Document, shape: Shape, defs: Defs): string {
     markup = `<g filter="url(#${defs.filter(pending)})">${markup}</g>`;
     pending = [];
   };
-  for (const effect of shape.effects) {
+  for (const effect of effects) {
     if (isGeometryEffect(effect)) {
       flushFilter();
       markup += geometryEffectSvg(doc, shape, effect, defs);

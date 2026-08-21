@@ -103,6 +103,10 @@ export default function EffectsSection({ node }: { node: SceneNode }) {
           count={effects.length}
           onMove={(direction) => move(index, direction)}
           onRemove={() => remove(index)}
+          enabled={{
+            value: effect.enabled,
+            onChange: () => replace(index, { ...effect, enabled: !effect.enabled }),
+          }}
         >
           {effect.type === "blur" ? (
             <div className="geometry-grid">
