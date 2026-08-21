@@ -9,8 +9,6 @@ clipboard) → document save workflow → faithful/configurable export → quali
 and performance work. Treat these as release gates ahead of animation, MCP,
 additional effects, or other feature expansion.
 
-- [ ] **Document settings UI** — edit unit and DPI as well as grid size; show the
-  selected unit consistently in coordinates, dimensions and export settings
 - [ ] Snapping follow-ups — the transform origin (pivot) drag snaps to nothing,
   so a pivot cannot be placed on a guide, the grid or an object centre; rotate
   has angle magnetism only, by decision, and no alignment guides; distribution
@@ -32,7 +30,6 @@ additional effects, or other feature expansion.
     6400% で ＋を押すと 6401%。`ScrubScale` をパッドまで渡す
   - [ ] フォーカス管理がない。`role="dialog"` なのに Tab で外へ抜ける。
     `FloatingFocusManager` で囲うか、`role` を落として単なるポップオーバー扱いにするか
-  - [ ] 単位（`%` / `°`）がヘッダーに出ない。`aria-label` しか手掛かりがない
   - [ ] min/max のクランプが無言。超過入力を赤くするか、丸めたことを伝える
   - [ ] `defaultValue` に届かない。ダブルクリックのリセットはパッド利用時ほぼ死ぬので、
     `defaultValue` を持つフィールドには Default キーを出す
@@ -42,7 +39,7 @@ additional effects, or other feature expansion.
 ## Backlog / ideas
 
 ### Feature follow-ups on shipped work
-- [ ] PWA follow-ups (docs/design/pwa.md) — file handlers so `.vinegar.json` can be
+- [ ] PWA follow-ups (docs/design/pwa.md) — file handlers so `.vinegar` / `.vinegar.json` can be
   opened from the OS (`launchQueue`, Chromium desktop only); shortcuts and
   screenshots in the manifest
 - [ ] Clipping masks — alpha / luminance masks (soft, gradient & image masks),
@@ -274,8 +271,8 @@ additional effects, or other feature expansion.
     ブラシプリセット、筆圧カーブのプレビュー図
   - [ ] brush: マウス/タッチは pressure=1 固定なので強弱が taper しかない。
     速度→幅シミュレーション
-- [ ] PWA
-- [ ] modifier部分焼き込み
+- [ ] PWA アップデートチェック
+- [x] modifier部分焼き込み（各 modifier の「Apply up to here」）
 - [ ] 自由変形
 - [ ] Repeat コンテナ array, radial
 - [x] path modifier適用対象拡張 (rect/ellipse/line, v33)
@@ -288,3 +285,9 @@ additional effects, or other feature expansion.
   Global colors / Generators）。タッチの右スワイプは useTouchDrag 側にあるので流用できる
 - [ ] 色弱シミュレーション
 - [x] ScrubbableNumberの単位対応
+- [ ] ショートカットキー見直し
+- [ ] 単位（unit / dpi）の一貫化。`doc.settings.unit` / `dpi` は今 `canvas/rulers.ts`
+  のラベルしか変えず、座標・寸法・エクスポートは px 直書き。まず各フィールドを
+  単位換算に通し、そのあとで編集 UI（PreferencesDialog に Document セクション）を
+  足す。物理サイズ（mm 指定・印刷）を実際に扱いたくなるまでは px 固定で困らない。
+  gridSize は SnapMenu で編集済み

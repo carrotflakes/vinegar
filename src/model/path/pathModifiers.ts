@@ -212,16 +212,43 @@ export function modifiedSubpaths(
 }
 
 /**
+ * Evaluate only the first `count` stages of the stack — the geometry a partial
+ * bake has to freeze so the stages after it keep seeing the same input they saw
+ * before. Disabled stages inside the prefix contribute nothing, exactly as in a
+ * full resolve.
+ */
+export function prefixSubpaths(
+  shape: PrimitiveShape,
+  count: number
+): PathSubpath[] {
+  const modifiers = shape.modifiers ?? [];
+  if (count >= modifiers.length) return resolvedSubpaths(shape);
+  const fillRule = shape.type === "path" ? shape.fillRule : "nonzero";
+  let result = baseSubpaths(shape);
+  for (const modifier of modifiers.slice(0, Math.max(0, count))) {
+    if (modifier.enabled === false) continue;
+    result = applyModifier(result, modifier, fillRule);
+  }
+  return result;
+}
+
+/**
  * Bake the evaluated stack into editable base geometry. Only paths can absorb
  * the result in place; `applyShapeModifiers` (model/path/convertToPath.ts)
- * converts a modified primitive to a path first.
+ * converts a modified primitive to a path first. `count` bakes just the first
+ * stages and leaves the rest of the stack live (partial bake).
  */
-export function applyPathModifiers(shape: PathShape): PathShape {
-  if (!(shape.modifiers?.length)) return shape;
+export function applyPathModifiers(
+  shape: PathShape,
+  count = Number.POSITIVE_INFINITY
+): PathShape {
+  const modifiers = shape.modifiers ?? [];
+  const baked = Math.min(count, modifiers.length);
+  if (baked <= 0) return shape;
   return {
     ...shape,
-    subpaths: resolvedSubpaths(shape),
-    modifiers: [],
+    subpaths: prefixSubpaths(shape, baked),
+    modifiers: modifiers.slice(baked),
     generator: null,
   };
 }

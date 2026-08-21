@@ -1,4 +1,4 @@
-import { LuChevronDown, LuChevronUp, LuX } from "react-icons/lu";
+import { LuArrowDownToLine, LuChevronDown, LuChevronUp, LuX } from "react-icons/lu";
 import type { PathModifier, PrimitiveShape } from "@/model/types";
 import { useEditor } from "@/store/editorStore";
 import { modifierParamPath, remapModifierBindings } from "@/model/params";
@@ -20,6 +20,7 @@ export default function ModifiersSection({ shape }: { shape: PrimitiveShape }) {
   const setPathModifiers = useEditor((state) => state.setPathModifiers);
   const addPathModifierSelected = useEditor((state) => state.addPathModifierSelected);
   const applyPathModifiersSelected = useEditor((state) => state.applyPathModifiersSelected);
+  const applyPathModifiersUpTo = useEditor((state) => state.applyPathModifiersUpTo);
   const modifiers = shape.modifiers ?? [];
 
   const replace = (index: number, next: PathModifier) =>
@@ -107,6 +108,14 @@ export default function ModifiersSection({ shape }: { shape: PrimitiveShape }) {
               onClick={() => move(index, 1)}
             >
               <LuChevronDown aria-hidden />
+            </button>
+            <button
+              className="ghost-btn icon-btn"
+              title="Apply up to here — bakes this stage and every stage above it"
+              aria-label={`Apply ${modifierLabel(modifier.type)} up to here`}
+              onClick={() => applyPathModifiersUpTo(shape.id, index)}
+            >
+              <LuArrowDownToLine aria-hidden />
             </button>
             <button
               className="ghost-btn icon-btn danger"

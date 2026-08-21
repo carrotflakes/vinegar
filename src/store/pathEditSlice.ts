@@ -305,6 +305,18 @@ export function createPathEditActions({ set, get, transact }: StoreCtx): PathEdi
         { label: "Add path modifier" }
       );
     },
+    applyPathModifiersUpTo: (id: string, index: number) => {
+      const doc = get().doc;
+      const shape = doc.nodes[id];
+      if (!isModifiable(shape)) return;
+      const count = Math.min(index + 1, shape.modifiers?.length ?? 0);
+      if (count <= 0) return;
+      const next = {
+        ...doc,
+        nodes: { ...doc.nodes, [id]: applyShapeModifiers(shape, doc, count) },
+      };
+      if (acceptsScene(next)) transact(next, { label: "Apply path modifiers" });
+    },
     applyPathModifiersSelected: () => {
       const doc = get().doc;
       const nodes = { ...doc.nodes };

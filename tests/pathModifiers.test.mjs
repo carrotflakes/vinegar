@@ -344,6 +344,51 @@ test("applying a stack converts a modified primitive into a path", () => {
   assert.deepEqual(shapeBounds(baked), { x: -5, y: -5, width: 30, height: 20 });
 });
 
+test("a partial bake freezes the prefix and leaves the later stages live", () => {
+  const shape = path([
+    { type: "offset", distance: 5, join: "miter" },
+    { type: "outline", width: 4, cap: "butt", join: "miter" },
+  ], { bindings: { "modifiers.1.width": { paramId: "p1", scale: 1 } } });
+  const empty = createEmptyDocument();
+  const doc = { ...empty, rootIds: [shape.id], nodes: { [shape.id]: shape } };
+  const before = shapeBounds(shape);
+  useEditor.getState().loadDocument(doc);
+  useEditor.getState().applyPathModifiersUpTo(shape.id, 0);
+
+  const baked = useEditor.getState().doc.nodes[shape.id];
+  assert.equal(baked.type, "path");
+  // The offset is frozen into the anchors; the outline still runs on top.
+  assert.deepEqual(baked.modifiers, [
+    { type: "outline", width: 4, cap: "butt", join: "miter" },
+  ]);
+  assert.deepEqual(shapeBounds({ ...baked, modifiers: [] }), {
+    x: -5, y: -5, width: 30, height: 20,
+  });
+  assert.deepEqual(shapeBounds(baked), before);
+  // The surviving stage keeps its binding at its new index.
+  assert.deepEqual(baked.bindings, {
+    "modifiers.0.width": { paramId: "p1", scale: 1 },
+  });
+});
+
+test("a partial bake on a primitive converts it and keeps the rest of the stack", () => {
+  const shape = rect([
+    { type: "offset", distance: 5, join: "miter" },
+    { type: "reverse" },
+  ], { bindings: { "modifiers.0.distance": { paramId: "p1", scale: 1 } } });
+  const empty = createEmptyDocument();
+  const doc = { ...empty, rootIds: [shape.id], nodes: { [shape.id]: shape } };
+  useEditor.getState().loadDocument(doc);
+  useEditor.getState().applyPathModifiersUpTo(shape.id, 0);
+
+  const baked = useEditor.getState().doc.nodes[shape.id];
+  assert.equal(baked.type, "path");
+  assert.deepEqual(baked.modifiers, [{ type: "reverse" }]);
+  // The baked stage's binding goes away with the stage it addressed.
+  assert.deepEqual(baked.bindings, {});
+  assert.deepEqual(shapeBounds(baked), { x: -5, y: -5, width: 30, height: 20 });
+});
+
 test("primitive modifier stacks round-trip through the file format", () => {
   const shape = rect([{ type: "outline", width: 6, cap: "square", join: "miter" }]);
   const empty = createEmptyDocument();

@@ -1,5 +1,5 @@
 import { convertBrushToCenterlinePath } from "@/model/brush/convertBrush";
-import { applyPathModifiers } from "./pathModifiers";
+import { applyPathModifiers, prefixSubpaths } from "./pathModifiers";
 import { shapeFillRule, shapeSubpaths } from "./shapeGeometry";
 import { remapModifierBindings } from "../params";
 import { markerFields } from "../marker";
@@ -70,15 +70,31 @@ export function convertShapeToPath(
  * Bake a modifier stack into base geometry. A path absorbs the result into its
  * own anchors; a rect/ellipse/line cannot express an offset or outlined
  * silhouette, so baking converts it to a path. Bindings onto the baked stages
- * go away with the stages they addressed.
+ * go away with the stages they addressed; bindings onto the stages that survive
+ * follow them to their new indices.
+ *
+ * `count` bakes only the first stages — applying one modifier necessarily
+ * applies everything before it, and the rest of the stack stays live on top of
+ * the frozen geometry, so the painted result is unchanged.
  */
 export function applyShapeModifiers(
   shape: PrimitiveShape,
-  doc: Document
+  doc: Document,
+  count = Number.POSITIVE_INFINITY
 ): PrimitiveShape {
-  if (!shape.modifiers?.length) return shape;
-  const baked = shape.type === "path"
-    ? applyPathModifiers(shape)
-    : convertShapeToPath(shape, doc);
-  return { ...baked, bindings: remapModifierBindings(baked.bindings, new Map()) };
+  const modifiers = shape.modifiers ?? [];
+  const baked = Math.min(count, modifiers.length);
+  if (baked <= 0) return shape;
+  const moved = new Map<number, number>();
+  modifiers.forEach((_, index) => {
+    if (index >= baked) moved.set(index, index - baked);
+  });
+  const shaped = shape.type === "path"
+    ? applyPathModifiers(shape, baked)
+    : {
+      ...convertShapeToPath(shape, doc),
+      subpaths: prefixSubpaths(shape, baked),
+      modifiers: modifiers.slice(baked),
+    };
+  return { ...shaped, bindings: remapModifierBindings(shape.bindings, moved) };
 }

@@ -164,6 +164,14 @@ top" model, and mirrors how `effects` already leaves `subpaths` untouched.
   line cannot express an offset or outlined silhouette, so applying a stack on
   one converts the node to a `path` (`applyShapeModifiers`). Bindings onto the
   baked stages are dropped with them.
+- **Partial bake** ("Apply up to here", the per-stage button in the section
+  head): applying one stage necessarily applies everything before it, so
+  `applyShapeModifiers(shape, doc, count)` freezes the first `count` stages into
+  the base geometry (`prefixSubpaths`) and leaves the later ones live on top —
+  the painted result is unchanged, only the split between frozen and re-editable
+  moves. A disabled stage inside the prefix contributes nothing and goes away
+  with the prefix, as in a full apply. Bindings onto the surviving stages shift
+  down to their new indices; bindings onto the baked ones are dropped.
 
 ## Export & serialization
 
@@ -199,7 +207,8 @@ top" model, and mirrors how `effects` already leaves `subpaths` untouched.
   toggleable. Outline turns closed contours into centered bands and open
   contours into filled strokes with configurable width, cap, and join.
 - The Properties panel supports live parameter preview, reorder, remove,
-  enable/disable, and Apply; scrubbing commits as one undo step.
+  enable/disable, Apply and per-stage partial Apply; scrubbing commits as one
+  undo step.
 - Registry commands expose modifier addition and Apply in the command palette
   and selection context menu. Existing cleanup commands remain bake-once.
 

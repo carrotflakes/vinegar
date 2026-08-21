@@ -347,6 +347,12 @@ export interface PathEditActions {
   addPathModifierSelected: (type: PathModifier["type"]) => void;
   /** Bake the selected paths' stacks into their editable base geometry. */
   applyPathModifiersSelected: () => void;
+  /**
+   * Partial bake: freeze the stages up to and including `index` into the base
+   * geometry and leave the later stages live. The rendered result does not
+   * change — applying a stage just also applies everything before it.
+   */
+  applyPathModifiersUpTo: (id: string, index: number) => void;
 }
 
 /** Parametric generators and the document's generator scripts. */
