@@ -11,6 +11,7 @@ let commandsToSubpaths;
 let provideFontBinary;
 let getOutlineFont;
 let fontFileFor;
+let paintShape;
 
 before(async () => {
   server = await createServer({ server: { middlewareMode: true } });
@@ -19,6 +20,7 @@ before(async () => {
   ({ provideFontBinary, getOutlineFont } =
     await server.ssrLoadModule("/src/fontCache.ts"));
   ({ fontFileFor } = await server.ssrLoadModule("/src/fonts.ts"));
+  ({ paintShape } = await server.ssrLoadModule("/src/canvas/render/scene.ts"));
   // Node has no origin to fetch `/fonts/…` from, so hand the cache the bytes.
   for (const file of ["inter-400.woff", "inter-400i.woff", "inter-700.woff", "noto-sans-jp-400.woff"]) {
     const bytes = await readFile(new URL(`../public/fonts/${file}`, import.meta.url));
@@ -156,4 +158,35 @@ test("quadratics are raised to cubics and contours are not left open", () => {
       `${JSON.stringify(point)} != (${x}, ${y})`);
   near(anchors[0].hOut, 20 / 3, 0);
   near(anchors[1].hIn, 10, 10 / 3);
+});
+
+test("outlined text paints as geometry, not as fillText", () => {
+  const calls = [];
+  const ctx = {
+    save() {}, restore() {}, transform() {}, beginPath() {}, closePath() {},
+    globalAlpha: 1,
+    globalCompositeOperation: "source-over",
+    font: "",
+    textBaseline: "alphabetic",
+    fillStyle: "",
+    strokeStyle: "",
+    lineWidth: 1,
+    lineJoin: "round",
+    measureText: (text) => ({ width: Array.from(text).length * 10 }),
+    moveTo: () => calls.push("moveTo"),
+    lineTo: () => calls.push("lineTo"),
+    bezierCurveTo: () => calls.push("bezierCurveTo"),
+    fill: () => calls.push("fill"),
+    fillText: () => calls.push("fillText"),
+    strokeText: () => calls.push("strokeText"),
+  };
+  const fill = { type: "solid", color: "#123456", alpha: 1 };
+  paintShape(ctx, textShape({ text: "o", fill }));
+  assert.ok(calls.includes("bezierCurveTo"), calls.join(","));
+  assert.equal(calls.includes("fillText"), false);
+
+  // A system font has no outlines, so the browser still draws the glyphs.
+  calls.length = 0;
+  paintShape(ctx, textShape({ text: "o", fill, fontFamily: "System Sans" }));
+  assert.deepEqual(calls, ["fillText"]);
 });

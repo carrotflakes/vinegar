@@ -19,6 +19,7 @@ import { cachedBrushEnvelope } from "@/model/brush/brushOutline";
 import { compoundChildren } from "./compoundPath";
 import { flattenSubpath, ringsToSubpaths, transformSubpath } from "./path";
 import { isModifiable, resolvedSubpaths } from "./pathModifiers";
+import { textSubpaths } from "../text/glyphOutlines";
 import type { Document, PathSubpath, Shape, Vec2 } from "../types";
 
 export type FillRule = "nonzero" | "evenodd";
@@ -49,8 +50,9 @@ function brushSubpaths(ring: Vec2[]): PathSubpath[] {
  * A compound path returns its components' geometry with each component's own
  * transform baked in, since those live in the compound's space.
  *
- * `null` means the shape has no vector outline at all (image, text): those are
- * bounds-shaped content and each reader decides what a box means for it.
+ * `null` means the shape has no vector outline at all: an image, or text whose
+ * font cannot be outlined. Those are bounds-shaped content and each reader
+ * decides what a box means for them.
  */
 export function shapeSubpaths(
   shape: Shape,
@@ -66,8 +68,11 @@ export function shapeSubpaths(
           transformSubpath(component.transform, subpath)
         )
       );
-    case "image":
     case "text":
+      // Null whenever the painted glyphs cannot be reproduced as outlines
+      // (system font, font still loading) — see `textSubpaths`.
+      return textSubpaths(shape);
+    case "image":
       return null;
   }
 }

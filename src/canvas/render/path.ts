@@ -7,6 +7,7 @@ import { effectiveRectCornerRadius } from "@/model/roundedRect";
 import { isShape } from "@/model/scene";
 import type { Document, PathSubpath, Shape } from "@/model/types";
 import { renderCachesDisabled } from "@/debug/renderFlags";
+import { subscribeFontCache } from "@/fontCache";
 
 type PathTarget = Pick<
   CanvasRenderingContext2D,
@@ -89,7 +90,10 @@ export function traceSubpaths(
   appendSubpaths(ctx, subpaths);
 }
 
-const pathCache = new WeakMap<Shape, Path2D>();
+let pathCache = new WeakMap<Shape, Path2D>();
+// Text geometry appears only once its font is parsed, so a path built while the
+// font was still loading must not outlive the load.
+subscribeFontCache(() => { pathCache = new WeakMap(); });
 const compoundPathCache = new WeakMap<
   Shape,
   { path: Path2D; components: Shape[] }

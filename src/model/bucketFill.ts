@@ -17,7 +17,7 @@
 import ClipperLib, { type IntPoint, type PolyNode, type PolyTree } from "clipper-lib";
 import { brushCenterlineSamples } from "@/model/brush/brushOutline";
 import { shapeBounds } from "@/model/geometry/bounds";
-import { shapeFillRule, shapeRings } from "@/model/path/shapeGeometry";
+import { shapeFillRule, shapeRings, shapeSubpaths } from "@/model/path/shapeGeometry";
 import { contours, intPath, SCALE, treeToPolys } from "@/model/path/clipperPaths";
 import { applyMatrix, IDENTITY, multiply } from "@/model/geometry/matrix";
 import { strokeOutline } from "@/model/path/outlineStroke";
@@ -56,10 +56,14 @@ function fillGeometry(
   shape: Shape,
   doc?: Document
 ): { rings: Vec2[][]; fillType: number } | null {
-  // Images and text have no outline of their own; their box stands in for the
-  // silhouette (for text that is deliberately coarse — the measured line box
-  // rather than the glyph outlines).
-  if (shape.type === "image" || shape.type === "text") {
+  // An image has no outline of its own, and neither has text whose font cannot
+  // be outlined; the box stands in for the silhouette then. Outlined text goes
+  // through the shared geometry below, so a region can be bounded by the glyphs
+  // themselves rather than by the line box around them.
+  if (
+    shape.type === "image" ||
+    (shape.type === "text" && shapeSubpaths(shape) === null)
+  ) {
     const b = shapeBounds(shape);
     return {
       rings: [

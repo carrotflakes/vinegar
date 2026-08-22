@@ -38,6 +38,7 @@ import type {
 } from "@/model/types";
 import { getAssetImage } from "@/imageCache";
 import { layoutTextWithCanvas } from "@/model/text/layout";
+import { textSubpaths } from "@/model/text/glyphOutlines";
 import {
   renderCullingDisabled,
   renderProfilingEnabled,
@@ -403,6 +404,14 @@ export function paintNode(
   );
 }
 
+/**
+ * Whether a text node has glyph geometry to paint. Asked of the geometry
+ * source, not of the swatch-resolved clone, so the outline cache keeps hitting.
+ */
+function hasTextOutlines(source: Shape): boolean {
+  return source.type === "text" && textSubpaths(source) !== null;
+}
+
 /** Paint one shape (fill then stroke) in world coordinates. */
 export function paintShape(
   ctx: CanvasRenderingContext2D,
@@ -435,9 +444,15 @@ export function paintShape(
     return;
   }
   if (shape.type === "text") {
-    paintText(ctx, shape, assets);
-    ctx.restore();
-    return;
+    // With outlines, text is ordinary filled geometry and falls through to the
+    // shared fill/stroke pass below, which is what gives it real stroke
+    // alignment and geometry effects. Without them (a system font, or a font
+    // still loading) the browser draws the glyphs.
+    if (!hasTextOutlines(geometrySource)) {
+      paintText(ctx, shape, assets);
+      ctx.restore();
+      return;
+    }
   }
   if (shape.type === "brush") {
     paintBrush(
