@@ -1,8 +1,7 @@
 import { convertBrushToCenterlinePath } from "@/model/brush/convertBrush";
 import { applyPathModifiers, prefixSubpaths } from "./pathModifiers";
-import { shapeFillRule, shapeSubpaths } from "./shapeGeometry";
+import { hasVectorGeometry, shapeFillRule, shapeSubpaths } from "./shapeGeometry";
 import { remapModifierBindings } from "../params";
-import { textSubpaths } from "../text/glyphOutlines";
 import { markerFields } from "../marker";
 import { shapePaintFields } from "../stroke";
 import {
@@ -32,7 +31,7 @@ export function canConvertShapeToPath(
 ): node is PathConvertibleShape {
   // Outlining text is only offered once the glyphs are actually available:
   // a system font, or a font still loading, has nothing to convert yet.
-  if (node?.type === "text") return textSubpaths(node) !== null;
+  if (node?.type === "text") return hasVectorGeometry(node);
   return node?.type === "rect" ||
     node?.type === "ellipse" ||
     node?.type === "line" ||

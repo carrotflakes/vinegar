@@ -12,7 +12,7 @@
 // Stack order is paint order either way: a later entry sees the earlier ones.
 
 import { solid } from "./paint";
-import { shapeSubpaths } from "./path/shapeGeometry";
+import { hasVectorGeometry } from "./path/shapeGeometry";
 import { STROKE_MITER_LIMIT } from "./stroke";
 import { makeId } from "./types";
 import type {
@@ -149,13 +149,13 @@ export function pixelEffects(effects: Effect[]): Effect[] {
 }
 
 /**
- * Whether geometry effects (fill / stroke) do anything on this shape. They
- * paint the shape's own outline, and `shapeSubpaths` is null for the shapes
- * that have none (images, live text). Non-shape nodes never have one either, so
- * their fill/stroke entries stay inert.
+ * Whether geometry effects (fill / stroke) do anything on this shape: they
+ * paint the shape's own outline, so they are inert exactly where there is none
+ * (an image, text whose font cannot be outlined). Non-shape nodes never have an
+ * outline either, so their fill/stroke entries stay inert too.
  */
 export function paintsGeometryEffects(shape: Shape, doc?: Document): boolean {
-  return shapeSubpaths(shape, doc) !== null;
+  return hasVectorGeometry(shape, doc);
 }
 
 /**

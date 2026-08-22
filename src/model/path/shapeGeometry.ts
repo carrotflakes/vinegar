@@ -77,6 +77,19 @@ export function shapeSubpaths(
   }
 }
 
+/**
+ * Whether a shape resolves to a vector outline at all — the one question every
+ * reader that has a *bounds-shaped* fallback asks. It is false for an image and
+ * for text whose font cannot be outlined, and for nothing else.
+ *
+ * Hit testing deliberately does not use this: it keeps text on its measured box
+ * even when the glyphs exist, so a click in the counter of an "O" still selects
+ * it (docs/design/text-outlines.md).
+ */
+export function hasVectorGeometry(shape: Shape, doc?: Document): boolean {
+  return shapeSubpaths(shape, doc) !== null;
+}
+
 export interface Polyline {
   points: Vec2[];
   closed: boolean;

@@ -31,9 +31,9 @@ See [document-model.md](document-model.md).
 
 ## Shape geometry: one derivation
 
-Rendering, hit-testing, bucket fill, boolean ops, stroke outlining, bounds and SVG export all have to describe the *same* outline, so a shape's geometry is derived in exactly one place: **`src/model/path/shapeGeometry.ts`** (`shapeSubpaths` → `shapePolylines` → `shapeRings`, plus `shapeFillRule` and `isClosedGeometry`).
+Rendering, hit-testing, bucket fill, boolean ops, stroke outlining, bounds and SVG export all have to describe the *same* outline, so a shape's geometry is derived in exactly one place: **`src/model/path/shapeGeometry.ts`** (`shapeSubpaths` → `shapePolylines` → `shapeRings`, plus `shapeFillRule`, `isClosedGeometry` and `hasVectorGeometry`).
 It resolves modifier stacks, brush envelopes and compound components — everything a reader would otherwise re-derive with its own `switch (shape.type)`.
-Text resolves there too, through the glyph outlines of its bundled font; `null` means the font cannot be outlined and the reader falls back to the measured line box (see [design/text-outlines.md](design/text-outlines.md)).
+Text resolves there too, through the glyph outlines of its bundled font; `null` means the font cannot be outlined and the reader falls back to the measured line box (see [design/text-outlines.md](design/text-outlines.md)). Readers that carry such a fallback ask `hasVectorGeometry`, never their own `shape.type` test — hit testing is the one deliberate exception, since it keeps text on its box even when the glyphs exist.
 
 A reader may keep a *fast path* only when its reason is **not** geometry, and it must be guarded on the shape still being an unmodified primitive (`!hasActiveModifiers(shape)`). The complete list:
 
