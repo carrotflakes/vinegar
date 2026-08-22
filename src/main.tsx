@@ -2,6 +2,7 @@ import React from "react";
 import ReactDOM from "react-dom/client";
 import App from "./App";
 import { loadRenderStressDocument } from "./debug/loadRenderStressDocument";
+import { registerBundledFonts } from "./fontFaces";
 import {
   clearDocumentRecovery,
   restoreRecoveryAtStartup,
@@ -15,6 +16,8 @@ async function main() {
   // Apply appearance before waiting on IndexedDB recovery, so the first render
   // already uses the persisted theme and language.
   const stopPreferenceEffects = startPreferenceEffects();
+  // Bundled faces must be declared before anything measures or paints text.
+  registerBundledFonts();
   if (import.meta.hot) import.meta.hot.dispose(stopPreferenceEffects);
 
   // Recovery is resolved before the first paint so the user never sees an

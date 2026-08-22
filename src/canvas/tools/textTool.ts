@@ -1,3 +1,4 @@
+import { DEFAULT_FONT_FAMILY } from "@/fonts";
 import { measureTextShape } from "../textLayout";
 import { makeId, type TextShape, type Vec2 } from "../../model/types";
 import { styleFromDefaults, type EditorState } from "../../store/editorStore";
@@ -41,7 +42,7 @@ export function finishTextCreate(
     y: dragged ? Math.min(start.y, current.y) : start.y,
     width: dragged ? Math.max(1, Math.abs(current.x - start.x)) : 12,
     height: 28.8,
-    fontFamily: "System Sans",
+    fontFamily: DEFAULT_FONT_FAMILY,
     fontSize: 24,
     fontWeight: 400,
     italic: false,

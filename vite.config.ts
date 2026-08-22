@@ -56,7 +56,10 @@ export default defineConfig({
       workbox: {
         // The app bundle is well over Workbox's 2 MiB default.
         maximumFileSizeToCacheInBytes: 6 * 1024 * 1024,
-        globPatterns: ["**/*.{js,css,html,svg,png,ico,woff2}"],
+        globPatterns: ["**/*.{js,css,html,svg,png,ico,woff,woff2}"],
+        // Large families are fetched on first use instead of on install;
+        // this has to agree with `FontOption.precached` in src/fonts.ts.
+        globIgnores: ["**/fonts/noto-sans-jp-*.woff"],
         // Everything is client-side, so any navigation resolves to the shell.
         navigateFallback: "index.html",
       },
