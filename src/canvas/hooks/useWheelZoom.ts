@@ -13,7 +13,7 @@ export function useWheelZoom(canvasRef: RefObject<HTMLCanvasElement | null>) {
       const rect = canvas.getBoundingClientRect();
       const anchor = { x: e.clientX - rect.left, y: e.clientY - rect.top };
       if (e.ctrlKey || e.metaKey) {
-        state.setViewport(zoomAt(state.viewport, anchor, Math.exp(-e.deltaY * 0.01)));
+        state.setViewport(zoomAt(state.viewport, anchor, Math.exp(-e.deltaY * 0.004)));
       } else {
         state.setViewport({
           ...state.viewport,
