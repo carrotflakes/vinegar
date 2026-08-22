@@ -37,7 +37,7 @@ import type {
   StrokeAlignment,
 } from "@/model/types";
 import { getAssetImage } from "@/imageCache";
-import { layoutTextWithCanvas } from "@/model/text/layout";
+import { layoutTextInBrowser, textFontCss, type TextLineLayout } from "@/model/text/layout";
 import {
   renderCullingDisabled,
   renderProfilingEnabled,
@@ -556,8 +556,11 @@ function paintText(
   shape: Extract<Shape, { type: "text" }>,
   assets: Record<string, DocumentAsset>
 ): void {
-  const layout = layoutTextWithCanvas(ctx, shape);
+  const layout = layoutTextInBrowser(shape);
   const bounds = shapeBounds(shape);
+  // The same font the layout was measured with, for `fillText`/`strokeText`
+  // below and for the stroke's offscreen layer.
+  ctx.font = textFontCss(shape);
   ctx.textBaseline = "alphabetic";
   if (shape.fill) {
     const style = resolveStyle(ctx, shape.fill, bounds, assets);
@@ -769,7 +772,7 @@ export function paintGeometryEffect(
 function paintTextStroke(
   ctx: CanvasRenderingContext2D,
   shape: Extract<Shape, { type: "text" }>,
-  lines: ReturnType<typeof layoutTextWithCanvas>["lines"],
+  lines: TextLineLayout[],
   bounds: Bounds,
   assets: Record<string, DocumentAsset>
 ): void {

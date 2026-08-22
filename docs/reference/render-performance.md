@@ -116,9 +116,10 @@ beziers. Shapes are immutable (Zustand), so `WeakMap<Shape, Path2D>` keyed by
 reference gives natural invalidation: rebuild only when the shape object
 changes. `ctx.fill(path, rule)` / `ctx.stroke(path)` accept Path2D directly.
 The same pattern now applies to persisted-shape culling bounds,
-`layoutTextWithCanvas` results, checkerboard/pattern paints, and compound paths
-with explicit component reference validation. Font-load events clear the
-text-layout cache. Mutable pen/pencil previews bypass reference caches.
+`layoutTextInBrowser` results, glyph outlines, checkerboard/pattern paints, and
+compound paths with explicit component reference validation. Font-load events
+and new font metrics clear the text-layout, outline and path caches together —
+outlines are placed by the layout, so the three cannot be invalidated apart. Mutable pen/pencil previews bypass reference caches.
 
 The cache contract is the existing immutable persisted-document model: any
 future document edit must replace a changed shape/component object. Transient

@@ -5,7 +5,7 @@ import { NODE_BASE, SHAPE_BASE } from "./nodeBase.mjs";
 
 let server;
 let layoutText;
-let layoutTextWithCanvas;
+let layoutTextInBrowser;
 let clearTextLayoutMetricsCache;
 let remeasureDocumentText;
 let createEmptyDocument;
@@ -21,7 +21,7 @@ before(async () => {
   server = await createServer({ server: { middlewareMode: true } });
   ({
     layoutText,
-    layoutTextWithCanvas,
+    layoutTextInBrowser,
     clearTextLayoutMetricsCache,
     remeasureDocumentText,
   } = await server.ssrLoadModule("/src/model/text/layout.ts"));
@@ -111,26 +111,15 @@ test("area text greedily wraps words, CJK, and overlong Latin tokens", () => {
   assert.deepEqual(long.lines.map((line) => line.x), [0, 0]);
 });
 
-test("Canvas text layout is cached by immutable shape reference", () => {
+test("text layout is cached by immutable shape reference", () => {
   const shape = textShape({ text: "cached" });
-  let measurements = 0;
-  const ctx = {
-    font: "",
-    measureText(text) {
-      measurements += 1;
-      return { width: measure(text) };
-    },
-  };
-  const first = layoutTextWithCanvas(ctx, shape);
-  const second = layoutTextWithCanvas(ctx, shape);
-  assert.equal(second, first);
-  assert.equal(measurements, 1);
-
-  layoutTextWithCanvas(ctx, { ...shape, text: "changed" });
-  assert.equal(measurements, 2);
+  const first = layoutTextInBrowser(shape);
+  assert.equal(layoutTextInBrowser(shape), first);
+  // An edit replaces the shape, so the entry cannot be stale…
+  assert.notEqual(layoutTextInBrowser({ ...shape, text: "changed" }), first);
+  // …and new font metrics drop the entries measured against the old ones.
   clearTextLayoutMetricsCache();
-  layoutTextWithCanvas(ctx, shape);
-  assert.equal(measurements, 3);
+  assert.notEqual(layoutTextInBrowser(shape), first);
 });
 
 test("text documents round-trip and malformed typography is rejected", () => {

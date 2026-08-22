@@ -141,7 +141,7 @@ export function textFontCss(shape: Pick<TextShape, "italic" | "fontWeight" | "fo
 
 let measuringContext: CanvasRenderingContext2D | null = null;
 const baselineCache = new Map<string, number>();
-let canvasLayoutCache = new WeakMap<TextShape, TextLayout>();
+let layoutCache = new WeakMap<TextShape, TextLayout>();
 
 /**
  * Measure the baseline from the same CSS inline-formatting context used by the
@@ -199,7 +199,7 @@ function browserBaseline(shape: TextShape): TextBaselineMetrics | undefined {
  */
 export function clearTextLayoutMetricsCache(): void {
   baselineCache.clear();
-  canvasLayoutCache = new WeakMap();
+  layoutCache = new WeakMap();
   notifyFontsChanged();
 }
 
@@ -216,24 +216,6 @@ function browserMeasurer(shape: TextShape): { measure: MeasureTextWidth; metrics
   }
   // SSR/test fallback. Browser documents are remeasured once fonts are ready.
   return { measure: (text) => Array.from(text).length * shape.fontSize * 0.6 };
-}
-
-export function layoutTextWithCanvas(
-  ctx: CanvasRenderingContext2D,
-  shape: TextShape
-): TextLayout {
-  ctx.font = textFontCss(shape);
-  const cached = renderCachesDisabled
-    ? undefined
-    : canvasLayoutCache.get(shape);
-  if (cached) return cached;
-  const layout = layoutText(
-    shape,
-    (text) => ctx.measureText(text).width,
-    browserBaseline(shape)
-  );
-  if (!renderCachesDisabled) canvasLayoutCache.set(shape, layout);
-  return layout;
 }
 
 /** Recompute only the persisted measured bounds. */
@@ -272,7 +254,18 @@ export function remeasureDocumentText(
   return nodes === doc.nodes ? doc : { ...doc, nodes };
 }
 
+/**
+ * The layout of a text shape as the browser measures it — the one measurement
+ * everything shares, so painted glyphs, their outlines, the editor overlay and
+ * SVG export cannot disagree about where a line sits. Text shapes are immutable,
+ * so the cache is self-invalidating apart from a metrics change
+ * (`clearTextLayoutMetricsCache`).
+ */
 export function layoutTextInBrowser(shape: TextShape): TextLayout {
+  const cached = renderCachesDisabled ? undefined : layoutCache.get(shape);
+  if (cached) return cached;
   const { measure, metrics } = browserMeasurer(shape);
-  return layoutText(shape, measure, metrics);
+  const layout = layoutText(shape, measure, metrics);
+  if (!renderCachesDisabled) layoutCache.set(shape, layout);
+  return layout;
 }
