@@ -11,7 +11,9 @@
 // Clicking *on* a fill-painted shape (or image) instead treats that shape as
 // a "cover": its area no longer blocks the fill, but its outline becomes the
 // region's outer boundary — the raster-bucket behavior of filling up to the
-// edges of the color you clicked. Strokes, brushes and text stay hard ink.
+// edges of the color you clicked. Strokes, brushes and text stay hard ink
+// (text through its glyph outlines, or its box when the font cannot be
+// outlined).
 // ===========================================================================
 
 import ClipperLib, { type IntPoint, type PolyNode, type PolyTree } from "clipper-lib";
@@ -219,7 +221,9 @@ function addShapeObstacles(
     }
   }
   // Area painted by a fill (or image pixels) can act as a cover; brush
-  // envelopes and text boxes are stroke-like and always block.
+  // envelopes and text are stroke-like and always block. Text stays a blocker
+  // now that its glyphs are real filled geometry: letters read as ink drawn
+  // over a region, not as an area a fill may spread into and recolour.
   const coverable =
     shape.type === "image" ||
     (shape.fill !== null &&

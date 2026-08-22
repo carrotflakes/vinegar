@@ -1,4 +1,5 @@
 import { ensureDocImagesLoaded } from "../imageCache";
+import { ensureDocFontsLoaded } from "../fontCache";
 import { paintNode } from "../canvas/render/scene";
 import type { Bounds, Document } from "../model/types";
 import { contentBounds } from "./exportBounds";
@@ -37,6 +38,10 @@ export async function exportPng(
   if (typeof document !== "undefined" && "fonts" in document) {
     await document.fonts.ready;
   }
+  // …and that text resolves to the same geometry the canvas has. Without the
+  // parsed binaries a glyph would rasterise through `fillText`, which drops
+  // stroke alignment and geometry effects the editor is showing.
+  await ensureDocFontsLoaded(doc);
 
   const canvas = document.createElement("canvas");
   canvas.width = Math.max(1, Math.ceil(bounds.width * scale));

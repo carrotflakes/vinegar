@@ -1,6 +1,7 @@
 import type { Document, TextShape } from "../types";
 import { isShape } from "../scene";
 import { fontStack } from "@/fonts";
+import { notifyFontsChanged } from "@/fontCache";
 import { renderCachesDisabled } from "@/debug/renderFlags";
 
 export interface TextLineLayout {
@@ -189,10 +190,17 @@ function browserBaseline(shape: TextShape): TextBaselineMetrics | undefined {
   return { baseline };
 }
 
-/** Clear measurements after the browser reports that available fonts changed. */
+/**
+ * Clear measurements after the browser reports that available fonts changed.
+ * Glyph outlines are *placed* by these measurements — a line's x offset and an
+ * area text's wrapping both come from them — so anything derived from text has
+ * to go with them, or outlines laid out against fallback metrics would stay on
+ * screen for every shape whose measured box happened not to change.
+ */
 export function clearTextLayoutMetricsCache(): void {
   baselineCache.clear();
   canvasLayoutCache = new WeakMap();
+  notifyFontsChanged();
 }
 
 function browserMeasurer(shape: TextShape): { measure: MeasureTextWidth; metrics?: TextBaselineMetrics | undefined } {

@@ -11,6 +11,7 @@ let commandsToSubpaths;
 let provideFontBinary;
 let getOutlineFont;
 let fontFileFor;
+let clearTextLayoutMetricsCache;
 let paintShape;
 let useEditor;
 let commands;
@@ -22,6 +23,8 @@ before(async () => {
   ({ provideFontBinary, getOutlineFont } =
     await server.ssrLoadModule("/src/fontCache.ts"));
   ({ fontFileFor } = await server.ssrLoadModule("/src/fonts.ts"));
+  ({ clearTextLayoutMetricsCache } =
+    await server.ssrLoadModule("/src/model/text/layout.ts"));
   ({ paintShape } = await server.ssrLoadModule("/src/canvas/render/scene.ts"));
   ({ useEditor } = await server.ssrLoadModule("/src/store/editorStore.ts"));
   ({ COMMANDS: commands } = await server.ssrLoadModule("/src/commands/registry.ts"));
@@ -221,6 +224,16 @@ test("Convert to path outlines the selected text, keeping its appearance", () =>
   // One undo step, and the text comes back with it.
   useEditor.getState().undo();
   assert.equal(useEditor.getState().doc.nodes[shape.id].type, "text");
+});
+
+test("new font metrics drop the outlines measured against the old ones", () => {
+  const shape = textShape({ text: "oo", textMode: "area", align: "center", width: 200 });
+  const first = textSubpaths(shape);
+  assert.equal(textSubpaths(shape), first, "the same shape reuses its outlines");
+  // Outlines are *placed* by the measured layout, so a metrics change has to
+  // invalidate them even though the shape object never changed.
+  clearTextLayoutMetricsCache();
+  assert.notEqual(textSubpaths(shape), first);
 });
 
 test("text with no outlines cannot be converted", () => {

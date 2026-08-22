@@ -50,8 +50,21 @@ behaviour it had before text had geometry:
   outlining half its characters and boxing the rest).
 
 Everything that caches derived geometry — the outline cache itself, the
-renderer's `Path2D` cache — is cleared when a font settles, or a shape drawn
-during the load would keep its empty path forever.
+renderer's `Path2D` cache — subscribes to `subscribeFontCache` and is cleared
+when a font settles, or a shape drawn during the load would keep its empty path
+forever.
+
+Two separate loads have to finish before text is *right*: the `@font-face` the
+browser paints and measures with, and the binary opentype parses. Outlines come
+from the second but are **placed** by the first (a line's x offset, and an area
+text's wrapping, are measured), so `clearTextLayoutMetricsCache` — the browser's
+`loadingdone` path — announces itself through the same subscription. Otherwise
+outlines laid out against fallback metrics would survive for every shape whose
+measured box happened not to change, which is exactly centred and area text.
+
+Raster export waits for both (`ensureDocFontsLoaded` beside `document.fonts.ready`
+in `exportPng.ts`); without it a PNG could rasterise text through `fillText`
+while the editor is showing outlined geometry.
 
 ## What glyph geometry changed
 

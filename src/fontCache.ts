@@ -20,10 +20,20 @@ const parsed = new Map<string, Font | null>();
 const pending = new Map<string, Promise<Font | null>>();
 const listeners = new Set<() => void>();
 
-/** Notify when any pending font settles (canvas subscribes to repaint). */
+/**
+ * Notify when the geometry a text shape resolves to may have changed: a
+ * pending font settles, or the browser reports new metrics (the outlines are
+ * *placed* by the measured layout, so a metrics change moves them). Subscribers
+ * drop whatever they derived from text and repaint.
+ */
 export function subscribeFontCache(listener: () => void): () => void {
   listeners.add(listener);
   return () => listeners.delete(listener);
+}
+
+/** Announce such a change from outside the cache (see `layout.ts`). */
+export function notifyFontsChanged(): void {
+  for (const listener of listeners) listener();
 }
 
 /**
@@ -32,6 +42,8 @@ export function subscribeFontCache(listener: () => void): () => void {
  */
 export function provideFontBinary(file: string, data: ArrayBuffer): void {
   parsed.set(file, opentype.parse(data));
+  pending.delete(file);
+  notifyFontsChanged();
 }
 
 function load(file: string): Promise<Font | null> {
@@ -44,7 +56,7 @@ function load(file: string): Promise<Font | null> {
     .then((font) => {
       parsed.set(file, font);
       pending.delete(file);
-      for (const listener of listeners) listener();
+      notifyFontsChanged();
       return font;
     });
   pending.set(file, promise);
