@@ -44,6 +44,7 @@ Three kinds of page, one per folder:
 | [brush-strokes.md](design/brush-strokes.md) | phases 1–2 shipped — variable-width centerlines (v19) |
 | [bucket-fill.md](design/bucket-fill.md) | v1 shipped — vector region detection |
 | [markers.md](design/markers.md) | shipped — arrowheads and end markers (v35) |
+| [text-outlines.md](design/text-outlines.md) | shipped — bundled fonts, glyph geometry, convert to path |
 
 **Structure**
 

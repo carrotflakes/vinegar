@@ -14,7 +14,7 @@ Grouped by what they change. "N→1" etc. counts *nodes*, not contours.
 
 | Command | Shape | Geometry | Result transform |
 | --- | --- | --- | --- |
-| `structure.convertToPath` | 1→1 | unchanged (parametric → anchors) | kept, with the id |
+| `structure.convertToPath` | 1→1 | unchanged (parametric → anchors; text → glyph contours) | kept, with the id |
 | `path.simplify` / `smooth` / `flatten` / `reverse` | 1→1 | rewritten per subpath | kept |
 | `path.cut` | 1→1 | contours severed at the selected anchors | kept |
 | `path.join` | N→1 | **welds** open ends within `JOIN_TOLERANCE` | baked to identity |
@@ -39,6 +39,15 @@ is "unchanged geometry". A group is all-or-nothing — one non-combinable leaf
 (including an instance or a compound path) disables the command for the whole
 selection. A consumed group's opacity is folded into the result, which composites
 its flattened contents the same way; its blend mode and effects are dropped.
+
+### Converting text
+
+`structure.convertToPath` also outlines a **text** node, into one path holding
+every glyph contour under the nonzero rule. It is offered only while the glyphs
+are available — a system font, a font still loading, or a synthesised italic has
+no geometry to convert (docs/design/text-outlines.md) — and unlike the
+parametric conversions it is lossy: the string, the font and the wrapping do not
+survive, so undo is the only way back.
 
 **Hidden and locked members are refused** (with a toast, like the mask case).
 The result is one node with one `hidden`/`locked` flag, so a hidden member would

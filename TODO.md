@@ -46,8 +46,8 @@ additional effects, or other feature expansion.
   multi-object masks, mask a raw shape without a wrapping group, anti-aliased
   clip via offscreen `destination-in`
 - [ ] Effects (docs/design/effects.md) — inner/outer glow, feather (needs offscreen
-  `destination-in`), Fill/Stroke effects on text and images (they have no
-  outline today, so those entries are inert), per-fill/stroke effects, effects
+  `destination-in`), Fill/Stroke effects on images (they have no outline, so
+  those entries stay inert; text has outlines now), per-fill/stroke effects, effects
   on frames/layers, rotating drop-shadow offset with the object,
   group-effect export bounds beyond the per-leaf approximation
 - [ ] End markers (docs/design/markers.md) — arbitrary nodes/symbols as markers
@@ -57,11 +57,13 @@ additional effects, or other feature expansion.
   reads darker under its marker, and a hollow marker shows the line stub inside;
   the same change would let a dashed stroke drop its caps at a marked end)
 - [ ] Text — rich text (style runs), text on path, vertical text, letter-spacing,
-  outline-on-export, fixed-height clipping boxes, Google Fonts loading
+  outline-on-export (SVG still writes `<text>`), fixed-height clipping boxes,
+  Google Fonts loading, path modifiers on text, text as a clipping mask
+  (docs/design/text-outlines.md)
 - [ ] Bucket fill (docs/design/bucket-fill.md) — hover preview of the region (needs an
   obstacle-union cache keyed on the document revision), curve re-fitting of the
   polygon boundary, frame edges as region bounds, recolor of strokes/brushes
-  on click, glyph outlines instead of text line boxes as ink
+  on click
 - [ ] Freeform gradients (docs/design/freeform-gradients.md) — SVG **import** has no
   counterpart to read back (an exported field returns as a raster pattern);
   no interpolating RBF (thin-plate) method, which would let a point's colour

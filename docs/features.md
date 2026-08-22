@@ -93,7 +93,9 @@ Fill, Text, Frame.
 - **Raster images** placed from the File menu, the canvas context menu or a drop,
   embedded as document assets; the **Assets panel** lists, re-places and prunes them.
 - **Text** — auto-width point text or fixed-width area text, edited in place,
-  with CJK wrapping and stored measured bounds.
+  with CJK wrapping and stored measured bounds. Bundled fonts carry real glyph
+  outlines, so text takes fills, strokes and effects as geometry and can be
+  converted to a path (docs/design/text-outlines.md).
 
 ## Scripting
 

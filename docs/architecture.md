@@ -33,12 +33,14 @@ See [document-model.md](document-model.md).
 
 Rendering, hit-testing, bucket fill, boolean ops, stroke outlining, bounds and SVG export all have to describe the *same* outline, so a shape's geometry is derived in exactly one place: **`src/model/path/shapeGeometry.ts`** (`shapeSubpaths` → `shapePolylines` → `shapeRings`, plus `shapeFillRule` and `isClosedGeometry`).
 It resolves modifier stacks, brush envelopes and compound components — everything a reader would otherwise re-derive with its own `switch (shape.type)`.
+Text resolves there too, through the glyph outlines of its bundled font; `null` means the font cannot be outlined and the reader falls back to the measured line box (see [design/text-outlines.md](design/text-outlines.md)).
 
 A reader may keep a *fast path* only when its reason is **not** geometry, and it must be guarded on the shape still being an unmodified primitive (`!hasActiveModifiers(shape)`). The complete list:
 
 | reader | fast path | why |
 | --- | --- | --- |
 | `canvas/render/path.ts` | `ctx.rect()`, `ctx.ellipse()` | hands the exact conic to the rasteriser |
+| `canvas/render/scene.ts` | `ctx.fillText()` | the only way to paint text whose font cannot be outlined |
 | `io/exportSvg.ts` | `<rect>` / `<ellipse>` / `<line>` / `<text>` | output form; readable, editable SVG |
 | `model/geometry/hitTest.ts` | `pointInRoundedRect`, the analytic ellipse | exact where flattening approximates |
 | `model/geometry/bounds.ts` | a primitive's stored `x/y/width/height` | those fields *are* the bounds |

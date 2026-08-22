@@ -2,6 +2,7 @@ import { convertBrushToCenterlinePath } from "@/model/brush/convertBrush";
 import { applyPathModifiers, prefixSubpaths } from "./pathModifiers";
 import { shapeFillRule, shapeSubpaths } from "./shapeGeometry";
 import { remapModifierBindings } from "../params";
+import { textSubpaths } from "../text/glyphOutlines";
 import { markerFields } from "../marker";
 import { shapePaintFields } from "../stroke";
 import {
@@ -15,6 +16,7 @@ import {
   type PrimitiveShape,
   type RectShape,
   type SceneNode,
+  type TextShape,
 } from "../types";
 
 export type PathConvertibleShape =
@@ -22,11 +24,15 @@ export type PathConvertibleShape =
   | EllipseShape
   | LineShape
   | BrushShape
-  | CompoundPathNode;
+  | CompoundPathNode
+  | TextShape;
 
 export function canConvertShapeToPath(
   node: SceneNode | undefined
 ): node is PathConvertibleShape {
+  // Outlining text is only offered once the glyphs are actually available:
+  // a system font, or a font still loading, has nothing to convert yet.
+  if (node?.type === "text") return textSubpaths(node) !== null;
   return node?.type === "rect" ||
     node?.type === "ellipse" ||
     node?.type === "line" ||
@@ -38,7 +44,9 @@ export function canConvertShapeToPath(
  * Convert supported shape geometry to an editable path without changing its
  * meaning. A brush becomes its centerline as a uniform-width stroked path (the
  * faithful geometry conversion); `convertBrushToOutlinePath` is the separate,
- * appearance-preserving envelope direction.
+ * appearance-preserving envelope direction. Text becomes its glyph outlines
+ * ("create outlines"), which is a one-way trip: the string, the font and the
+ * wrapping are gone once the letters are contours.
  */
 export function convertShapeToPath(
   shape: PathConvertibleShape,

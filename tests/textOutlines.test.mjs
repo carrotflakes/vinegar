@@ -12,6 +12,8 @@ let provideFontBinary;
 let getOutlineFont;
 let fontFileFor;
 let paintShape;
+let useEditor;
+let commands;
 
 before(async () => {
   server = await createServer({ server: { middlewareMode: true } });
@@ -21,6 +23,8 @@ before(async () => {
     await server.ssrLoadModule("/src/fontCache.ts"));
   ({ fontFileFor } = await server.ssrLoadModule("/src/fonts.ts"));
   ({ paintShape } = await server.ssrLoadModule("/src/canvas/render/scene.ts"));
+  ({ useEditor } = await server.ssrLoadModule("/src/store/editorStore.ts"));
+  ({ COMMANDS: commands } = await server.ssrLoadModule("/src/commands/registry.ts"));
   // Node has no origin to fetch `/fonts/…` from, so hand the cache the bytes.
   for (const file of ["inter-400.woff", "inter-400i.woff", "inter-700.woff", "noto-sans-jp-400.woff"]) {
     const bytes = await readFile(new URL(`../public/fonts/${file}`, import.meta.url));
@@ -189,4 +193,41 @@ test("outlined text paints as geometry, not as fillText", () => {
   calls.length = 0;
   paintShape(ctx, textShape({ text: "o", fill, fontFamily: "System Sans" }));
   assert.deepEqual(calls, ["fillText"]);
+});
+
+test("Convert to path outlines the selected text, keeping its appearance", () => {
+  const fill = { type: "solid", color: "#123456", alpha: 1 };
+  const shape = textShape({ text: "oo", fill, opacity: 0.5 });
+  useEditor.getState().newDocument();
+  useEditor.getState().addShape(shape);
+  useEditor.getState().setSelection([shape.id]);
+
+  const command = commands.find((entry) => entry.id === "structure.convertToPath");
+  assert.equal(command.enabled(useEditor.getState()), true);
+  command.run(useEditor.getState());
+
+  const converted = useEditor.getState().doc.nodes[shape.id];
+  assert.equal(converted.type, "path");
+  assert.equal(converted.fillRule, "nonzero");
+  // Two bowls and two counters, at the same place the glyphs were painted.
+  assert.equal(converted.subpaths.length, 4);
+  assert.deepEqual(
+    converted.subpaths.map((subpath) => subpath.anchors[0].p),
+    textSubpaths(shape).map((subpath) => subpath.anchors[0].p)
+  );
+  assert.deepEqual(converted.fill, fill);
+  assert.equal(converted.opacity, 0.5);
+  assert.equal(converted.name, shape.name);
+  // One undo step, and the text comes back with it.
+  useEditor.getState().undo();
+  assert.equal(useEditor.getState().doc.nodes[shape.id].type, "text");
+});
+
+test("text with no outlines cannot be converted", () => {
+  const shape = textShape({ id: "sys", text: "oo", fontFamily: "System Sans" });
+  useEditor.getState().newDocument();
+  useEditor.getState().addShape(shape);
+  useEditor.getState().setSelection([shape.id]);
+  const command = commands.find((entry) => entry.id === "structure.convertToPath");
+  assert.equal(command.enabled(useEditor.getState()), false);
 });
