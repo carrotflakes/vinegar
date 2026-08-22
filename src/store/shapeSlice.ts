@@ -12,7 +12,7 @@ import { childIdsOf, descendantShapeIds, isContainer, isGroup, isInstance, isNod
 import { clampRectCornerRadius } from "../model/roundedRect";
 import { resizeShapeToBounds, translateShape } from "@/model/geometry/transforms";
 import { makeId, type Bounds, type SceneNode, type Shape, type Vec2 } from "../model/types";
-import { measureTextShape, remeasureDocumentText } from "../canvas/textLayout";
+import { measureTextShape, remeasureDocumentText } from "../model/text/layout";
 import { appendToScope, groupNode } from "./docOps";
 import {
   clearTransient,

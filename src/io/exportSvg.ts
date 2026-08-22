@@ -61,7 +61,7 @@ import {
   validImageSize,
   type ImageSize,
 } from "./imageDimensions";
-import { layoutTextInBrowser } from "../canvas/textLayout";
+import { layoutTextInBrowser } from "../model/text/layout";
 import { fontStack } from "../fonts";
 
 export interface SvgOptions {

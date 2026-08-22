@@ -1,6 +1,6 @@
-import type { Document, TextShape } from "../model/types";
-import { isShape } from "../model/scene";
-import { fontStack } from "../fonts";
+import type { Document, TextShape } from "../types";
+import { isShape } from "../scene";
+import { fontStack } from "@/fonts";
 import { renderCachesDisabled } from "@/debug/renderFlags";
 
 export interface TextLineLayout {

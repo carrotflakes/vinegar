@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState, type RefObject } from "react";
 import type { TextShape } from "../../model/types";
 import { useEditor } from "../../store/editorStore";
-import { clearTextLayoutMetricsCache, measureTextShape } from "../textLayout";
+import { clearTextLayoutMetricsCache, measureTextShape } from "@/model/text/layout";
 
 export interface TextEditSession {
   shape: TextShape;

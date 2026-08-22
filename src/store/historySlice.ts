@@ -4,7 +4,7 @@
 
 import { createEmptyDocument, type Document } from "../model/types";
 import { syncParamBindings } from "../model/params";
-import { canMeasureText, remeasureDocumentText } from "../canvas/textLayout";
+import { canMeasureText, remeasureDocumentText } from "../model/text/layout";
 import { acceptsScene } from "./sceneGuard";
 import {
   isGroup,

@@ -24,7 +24,7 @@ before(async () => {
     layoutTextWithCanvas,
     clearTextLayoutMetricsCache,
     remeasureDocumentText,
-  } = await server.ssrLoadModule("/src/canvas/textLayout.ts"));
+  } = await server.ssrLoadModule("/src/model/text/layout.ts"));
   ({ createEmptyDocument } = await server.ssrLoadModule("/src/model/types.ts"));
   ({ serializeDocument, parseDocument } = await server.ssrLoadModule("/src/io/serialize.ts"));
   ({ hitTestShape } = await server.ssrLoadModule("/src/model/geometry/hitTest.ts"));

@@ -37,7 +37,7 @@ import type {
   StrokeAlignment,
 } from "@/model/types";
 import { getAssetImage } from "@/imageCache";
-import { layoutTextWithCanvas } from "../textLayout";
+import { layoutTextWithCanvas } from "@/model/text/layout";
 import {
   renderCullingDisabled,
   renderProfilingEnabled,

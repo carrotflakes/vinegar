@@ -1,5 +1,5 @@
 import { DEFAULT_FONT_FAMILY } from "@/fonts";
-import { measureTextShape } from "../textLayout";
+import { measureTextShape } from "@/model/text/layout";
 import { makeId, type TextShape, type Vec2 } from "../../model/types";
 import { styleFromDefaults, type EditorState } from "../../store/editorStore";
 import { CLICK_SLOP, type Interaction, type ToolContext } from "../interaction";
